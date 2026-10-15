@@ -23,6 +23,11 @@ namespace BookMyFun.Controllers
         private readonly ISiteSettingsService _siteSettingsService;
         private readonly IFinancialRepository _financialRepo;
         private readonly IWebHostEnvironment _env;
+        private readonly IRefundEngineService _refundEngine;
+        private readonly IPartnerLeadService _partnerLeadService;
+        private readonly IDamageClaimService _damageClaimService;
+        private readonly IIdVerificationService _idVerificationService;
+        private readonly IMediaStorageService _mediaStorage;
 
         public AdminController(
             IPropertyRepository propRepo,
@@ -34,7 +39,12 @@ namespace BookMyFun.Controllers
             IContactRepository contactRepo,
             ISiteSettingsService siteSettingsService,
             IFinancialRepository financialRepo,
-            IWebHostEnvironment env)
+            IWebHostEnvironment env,
+            IRefundEngineService refundEngine,
+            IPartnerLeadService partnerLeadService,
+            IDamageClaimService damageClaimService,
+            IIdVerificationService idVerificationService,
+            IMediaStorageService mediaStorage)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -46,6 +56,11 @@ namespace BookMyFun.Controllers
             _siteSettingsService = siteSettingsService;
             _financialRepo = financialRepo;
             _env = env;
+            _refundEngine = refundEngine;
+            _partnerLeadService = partnerLeadService;
+            _damageClaimService = damageClaimService;
+            _idVerificationService = idVerificationService;
+            _mediaStorage = mediaStorage;
         }
 
         public async Task<IActionResult> Index()

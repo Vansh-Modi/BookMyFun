@@ -286,5 +286,119 @@ namespace BookMyFun.Controllers
             TempData["Success"] = $"Query ticket #{contactId} marked as {status}.";
             return RedirectToAction(nameof(SupportQueries));
         }
+
+        // --- Dedicated Refund Operations Queue ---
+        public async Task<IActionResult> RefundsQueue(string? status)
+        {
+            var refunds = await _refundEngine.GetRefundsQueueAsync(status);
+            ViewBag.SelectedStatus = status;
+            return View(refunds);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> OverrideRefund(int refundId, string status, string? notes)
+        {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            bool updated = await _refundEngine.OverrideRefundStatusAsync(refundId, status, currentUserId, notes);
+            if (updated)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "EmployeeOverrideRefund", "BookingRefund", refundId, $"Refund #{refundId} status set to {status}. Notes: {notes}");
+                TempData["Success"] = $"Refund #{refundId} successfully updated to '{status}'.";
+            }
+            return RedirectToAction(nameof(RefundsQueue));
+        }
+
+        // --- Partner Leads Pipeline ---
+        public async Task<IActionResult> PartnerLeads(string? status)
+        {
+            var leads = await _partnerLeadService.GetAllLeadsAsync(status);
+            ViewBag.SelectedStatus = status;
+            return View(leads);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApprovePartnerLead(int leadId)
+        {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var (success, token) = await _partnerLeadService.ApproveLeadAsync(leadId, currentUserId);
+            if (success)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "EmployeeApproveLead", "PartnerLead", leadId, $"Approved partner lead #{leadId} and generated activation invite.");
+                TempData["Success"] = $"Partner Lead #{leadId} approved and activation email dispatched!";
+            }
+            return RedirectToAction(nameof(PartnerLeads));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectPartnerLead(int leadId)
+        {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            bool rejected = await _partnerLeadService.RejectLeadAsync(leadId, currentUserId);
+            if (rejected)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "EmployeeRejectLead", "PartnerLead", leadId, $"Rejected partner lead #{leadId}");
+                TempData["Success"] = $"Partner Lead #{leadId} marked as Rejected.";
+            }
+            return RedirectToAction(nameof(PartnerLeads));
+        }
+
+        // --- Damage Claims Adjudication ---
+        public async Task<IActionResult> DamageClaims(string? status)
+        {
+            var claims = await _damageClaimService.GetAllClaimsAsync(status);
+            ViewBag.SelectedStatus = status;
+            return View(claims);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AdjudicateDamageClaim(DamageClaimAdjudicateViewModel model)
+        {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            bool adjudicated = await _damageClaimService.AdjudicateClaimAsync(model, currentUserId);
+            if (adjudicated)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "EmployeeAdjudicateClaim", "DamageClaim", model.ClaimID, $"Adjudicated claim #{model.ClaimID} as {model.Action}. Approved amount: {model.ApprovedAmount}");
+                TempData["Success"] = $"Claim #{model.ClaimID} has been successfully adjudicated ({model.Action}).";
+            }
+            return RedirectToAction(nameof(DamageClaims));
+        }
+
+        // --- Client ID Verification & KYC Governance ---
+        public async Task<IActionResult> IdVerifications(string? status)
+        {
+            var verifications = await _idVerificationService.GetAllVerificationsAsync(status);
+            ViewBag.SelectedStatus = status;
+            return View(verifications);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ReviewIdVerification(int verificationId, string action, string? reason)
+        {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            bool reviewed = await _idVerificationService.ReviewVerificationAsync(verificationId, action, currentUserId, reason);
+            if (reviewed)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "EmployeeReviewIdVerification", "ClientIdVerification", verificationId, $"Reviewed verification #{verificationId}: {action}");
+                TempData["Success"] = $"Verification #{verificationId} has been marked as {action}.";
+            }
+            return RedirectToAction(nameof(IdVerifications));
+        }
+
+        [HttpGet]
+        public IActionResult GetDocumentSignedUrl(string storageKey)
+        {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            string role = User.FindFirstValue(ClaimTypes.Role) ?? "Employee";
+
+            string token = _mediaStorage.GenerateExpiringDocumentToken(storageKey, currentUserId, role, 15);
+            string url = $"/api/media/view-id-document?key={Uri.EscapeDataString(storageKey)}&token={Uri.EscapeDataString(token)}";
+
+            return Json(new { success = true, url });
+        }
     }
 }
