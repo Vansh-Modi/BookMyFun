@@ -21,18 +21,18 @@ namespace BookMyFun.Services
     {
         private readonly IPartnerLeadRepository _leadRepo;
         private readonly IUserRepository _userRepo;
-        private readonly ICommunicationService _commService;
+        private readonly IEmailService _emailService;
         private readonly ILogger<PartnerLeadService> _logger;
 
         public PartnerLeadService(
             IPartnerLeadRepository leadRepo,
             IUserRepository userRepo,
-            ICommunicationService commService,
+            IEmailService emailService,
             ILogger<PartnerLeadService> logger)
         {
             _leadRepo = leadRepo;
             _userRepo = userRepo;
-            _commService = commService;
+            _emailService = emailService;
             _logger = logger;
         }
 
@@ -104,10 +104,18 @@ namespace BookMyFun.Services
             try
             {
                 string activationLink = $"/Account/ActivateHost?token={token}&email={Uri.EscapeDataString(lead.Email)}";
-                await _commService.SendNotificationAsync(
+                string emailBody = $@"
+                    <h2>Partner Host Application Approved!</h2>
+                    <p>Dear {lead.FullName},</p>
+                    <p>Congratulations! Your application to partner with BookMyFun has been approved by our operations team.</p>
+                    <p>Please activate your host dashboard using the link below (valid for 48 hours):</p>
+                    <p><a href='{activationLink}'>Activate Your Host Account Now</a></p>
+                    <p>Welcome aboard!<br/>The BookMyFun Team</p>";
+
+                _ = _emailService.SendEmailAsync(
                     lead.Email,
                     "Partner Host Application Approved - Activate Your BookMyFun Host Account",
-                    $"Hello {lead.FullName},\n\nCongratulations! Your application to partner with BookMyFun has been approved by our operations team.\n\nPlease activate your host dashboard using the link below (valid for 48 hours):\n{activationLink}\n\nWelcome aboard!\nBookMyFun Team");
+                    emailBody);
             }
             catch (Exception ex)
             {

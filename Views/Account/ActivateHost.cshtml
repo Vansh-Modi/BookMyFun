@@ -1,0 +1,49 @@
+@model BookMyFun.Models.ViewModels.ActivateOwnerViewModel
+@{
+    ViewData["Title"] = "Activate Your Host Account";
+}
+
+<div class="row justify-content-center my-5">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow-lg border-0 rounded-4 p-4 p-md-5">
+            <div class="text-center mb-4">
+                <div class="rounded-circle d-inline-flex p-3 mb-3 bg-success bg-opacity-10 text-success">
+                    <i class="bi bi-shield-check display-6"></i>
+                </div>
+                <h3 class="fw-bold mb-1 text-dark">Activate Host Account</h3>
+                <p class="text-muted small mb-0">Set your permanent password to access your Host Dashboard</p>
+            </div>
+
+            <form asp-action="ActivateHost" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="Token" />
+
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger rounded-3" role="alert"></div>
+
+                <div class="mb-3">
+                    <label asp-for="Email" class="form-label fw-semibold">Email Address</label>
+                    <input asp-for="Email" class="form-control bg-light" readonly />
+                    <span asp-validation-for="Email" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Password" class="form-label fw-semibold">Choose New Password</label>
+                    <input asp-for="Password" type="password" class="form-control" placeholder="Minimum 6 characters" required autofocus />
+                    <span asp-validation-for="Password" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-4">
+                    <label asp-for="ConfirmPassword" class="form-label fw-semibold">Confirm Password</label>
+                    <input asp-for="ConfirmPassword" type="password" class="form-control" placeholder="Re-enter password" required />
+                    <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
+                </div>
+
+                <div class="d-grid mb-3">
+                    <button type="submit" class="btn btn-success btn-lg fw-bold rounded-3 shadow-sm" style="background-color: #059669; border-color: #059669;">
+                        <i class="bi bi-key-fill me-2"></i>Activate & Go To Login
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

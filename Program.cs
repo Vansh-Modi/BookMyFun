@@ -6,7 +6,10 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews(options =>
+{
+    options.Filters.Add<BookMyFun.Services.Filters.GlobalExceptionFilter>();
+});
 
 // Register Data Access Layer (Raw ADO.NET)
 builder.Services.AddSingleton<DBHelper>();
@@ -23,6 +26,10 @@ builder.Services.AddScoped<ISiteSettingsService, SiteSettingsService>();
 builder.Services.AddScoped<IBookingRepository, BookingRepository>();
 builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<IConfigRepository, ConfigRepository>();
+builder.Services.AddScoped<IRefundRepository, RefundRepository>();
+builder.Services.AddScoped<IPartnerLeadRepository, PartnerLeadRepository>();
+builder.Services.AddScoped<IDamageClaimRepository, DamageClaimRepository>();
+builder.Services.AddScoped<IIdVerificationRepository, IdVerificationRepository>();
 
 // Services
 builder.Services.AddScoped<IBookingPricingService, BookingPricingService>();
@@ -31,6 +38,11 @@ builder.Services.AddScoped<IPaymentGatewayService, RazorpayPaymentService>();
 builder.Services.AddScoped<CommunicationService>();
 builder.Services.AddScoped<IEmailService>(sp => sp.GetRequiredService<CommunicationService>());
 builder.Services.AddScoped<IWhatsAppService>(sp => sp.GetRequiredService<CommunicationService>());
+builder.Services.AddScoped<IMediaStorageService, MediaStorageService>();
+builder.Services.AddScoped<IRefundEngineService, RefundEngineService>();
+builder.Services.AddScoped<IPartnerLeadService, PartnerLeadService>();
+builder.Services.AddScoped<IDamageClaimService, DamageClaimService>();
+builder.Services.AddScoped<IIdVerificationService, IdVerificationService>();
 
 // Cookie Authentication
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -41,6 +53,9 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.AccessDeniedPath = "/Account/AccessDenied";
         options.ExpireTimeSpan = TimeSpan.FromDays(7);
         options.SlidingExpiration = true;
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Strict;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
     });
 
 var app = builder.Build();
@@ -58,6 +73,10 @@ using (var scope = app.Services.CreateScope())
     }
     catch { }
 }
+
+// Security & Rate Limiting Middlewares
+app.UseMiddleware<BookMyFun.Services.Security.SecurityHeadersMiddleware>();
+app.UseMiddleware<BookMyFun.Services.Security.RateLimitingMiddleware>();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

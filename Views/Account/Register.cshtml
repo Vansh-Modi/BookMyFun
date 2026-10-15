@@ -26,20 +26,15 @@
                         </div>
                     }
 
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Account Type</label>
-                        <div class="d-flex gap-4">
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" asp-for="Role" value="Client" id="roleClient" checked>
-                                <label class="form-check-label" for="roleClient">
-                                    <i class="bi bi-person"></i> Guest / Client
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" asp-for="Role" value="Owner" id="roleOwner">
-                                <label class="form-check-label" for="roleOwner">
-                                    <i class="bi bi-house-door"></i> Property Owner
-                                </label>
+                    <input type="hidden" asp-for="Role" value="Client" />
+
+                    <div class="alert alert-light border border-success-subtle rounded-3 p-3 mb-4">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-house-door-fill text-success fs-4 me-3"></i>
+                            <div class="small">
+                                <strong class="text-dark d-block">Are you a Farmhouse or Villa Owner?</strong>
+                                <span class="text-muted">Host registration is by partnership invitation. </span>
+                                <a asp-controller="Home" asp-action="Partner" class="text-success fw-bold text-decoration-none">Apply on our Partner Portal &rarr;</a>
                             </div>
                         </div>
                     </div>

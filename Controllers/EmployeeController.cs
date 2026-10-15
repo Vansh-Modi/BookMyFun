@@ -2,6 +2,7 @@ using System.Security.Claims;
 using BookMyFun.Models.Entities;
 using BookMyFun.Models.ViewModels;
 using BookMyFun.Repositories;
+using BookMyFun.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

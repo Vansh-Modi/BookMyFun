@@ -1,0 +1,162 @@
+@model BookMyFun.Models.ViewModels.PartnerLeadCreateViewModel
+@{
+    ViewData["Title"] = "Partner With Us — List Your Farmstay & Luxury Villa";
+}
+
+<div class="py-5" style="background: linear-gradient(135deg, rgba(5, 150, 105, 0.05) 0%, rgba(217, 119, 6, 0.05) 100%);">
+    <div class="container py-4">
+        <div class="row align-items-center mb-5">
+            <div class="col-lg-7">
+                <span class="badge px-3 py-2 rounded-pill bg-emerald text-white fw-bold mb-3 shadow-sm" style="background-color: #059669;">
+                    <i class="bi bi-shield-check me-1"></i> Verified Host Network
+                </span>
+                <h1 class="display-4 fw-black text-dark mb-3">Turn Your Farm into a High-Yield Luxury Destination</h1>
+                <p class="lead text-muted mb-4">
+                    BookMyFun connects verified hosts with high-intent families, corporate retreat organizers, and celebration planners. Enjoy dynamic commissions, protected security deposits, and zero upfront listing charges.
+                </p>
+                <div class="d-flex flex-wrap gap-4 text-dark font-monospace small">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-check-circle-fill text-success fs-5 me-2"></i>
+                        <span>Zero Listing Fees</span>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-shield-lock-fill text-warning fs-5 me-2"></i>
+                        <span>Automated Security Deposit Hold</span>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-graph-up-arrow text-primary fs-5 me-2"></i>
+                        <span>Tiered Visibility Upgrades</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-5 d-none d-lg-block text-center">
+                <div class="card border-0 shadow-lg rounded-4 overflow-hidden position-relative p-4" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white;">
+                    <div class="card-body py-4">
+                        <i class="bi bi-house-heart display-1 mb-3 text-warning"></i>
+                        <h3 class="fw-bold">Exclusive Host Partnership</h3>
+                        <p class="small opacity-75 mb-0">
+                            Our field operations team personally curates every listing to maintain 5-star quality and guest satisfaction.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                @if (TempData["Success"] != null)
+                {
+                    <div class="alert alert-success alert-dismissible fade show shadow-sm border-0 rounded-3 mb-4 p-4" role="alert">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-check-circle-fill fs-2 me-3 text-success"></i>
+                            <div>
+                                <h5 class="alert-heading fw-bold mb-1">Application Submitted!</h5>
+                                <p class="mb-0">@TempData["Success"]</p>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                }
+
+                @if (TempData["InfoMessage"] != null)
+                {
+                    <div class="alert alert-info alert-dismissible fade show shadow-sm border-0 rounded-3 mb-4 p-3" role="alert">
+                        <i class="bi bi-info-circle-fill me-2"></i> @TempData["InfoMessage"]
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                }
+
+                <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+                    <div class="card-header bg-white border-0 pt-4 px-4 px-md-5">
+                        <h4 class="fw-bold mb-1 text-dark">
+                            <i class="bi bi-clipboard2-check text-success me-2"></i>Host Partner Lead Intake
+                        </h4>
+                        <p class="text-muted small mb-0">Fill out your farm details. Our team inspects submissions within 24-48 business hours.</p>
+                    </div>
+                    <div class="card-body p-4 p-md-5">
+                        <form asp-action="Partner" method="post" class="needs-validation">
+                            @Html.AntiForgeryToken()
+
+                            <div asp-validation-summary="ModelOnly" class="alert alert-danger rounded-3" role="alert"></div>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label asp-for="FullName" class="form-label fw-semibold">Your Full Name <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-person"></i></span>
+                                        <input asp-for="FullName" class="form-control border-start-0 ps-0" placeholder="e.g. Ramesh Patel" required />
+                                    </div>
+                                    <span asp-validation-for="FullName" class="text-danger small"></span>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label asp-for="Phone" class="form-label fw-semibold">Contact Phone / WhatsApp <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-whatsapp"></i></span>
+                                        <input asp-for="Phone" class="form-control border-start-0 ps-0" placeholder="e.g. +91 98765 43210" required />
+                                    </div>
+                                    <span asp-validation-for="Phone" class="text-danger small"></span>
+                                </div>
+
+                                <div class="col-12">
+                                    <label asp-for="Email" class="form-label fw-semibold">Email Address (for activation invite) <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope"></i></span>
+                                        <input asp-for="Email" type="email" class="form-control border-start-0 ps-0" placeholder="name@domain.com" required />
+                                    </div>
+                                    <span asp-validation-for="Email" class="text-danger small"></span>
+                                    <small class="text-muted">An encrypted, time-limited activation link will be dispatched to this email upon approval.</small>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label asp-for="PropertyName" class="form-label fw-semibold">Farm / Property Name <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-house"></i></span>
+                                        <input asp-for="PropertyName" class="form-control border-start-0 ps-0" placeholder="e.g. Whispering Palms Luxury Villa" required />
+                                    </div>
+                                    <span asp-validation-for="PropertyName" class="text-danger small"></span>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label asp-for="Location" class="form-label fw-semibold">City / Region / Landmark <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-geo-alt"></i></span>
+                                        <input asp-for="Location" class="form-control border-start-0 ps-0" placeholder="e.g. Lonavala, Maharashtra" required />
+                                    </div>
+                                    <span asp-validation-for="Location" class="text-danger small"></span>
+                                </div>
+
+                                <div class="col-12">
+                                    <label asp-for="AcreageOrType" class="form-label fw-semibold">Acreage & Farm Type <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-aspect-ratio"></i></span>
+                                        <input asp-for="AcreageOrType" class="form-control border-start-0 ps-0" placeholder="e.g. 4 Acres with Swimming Pool & Gazebo, 5 BHK" required />
+                                    </div>
+                                    <span asp-validation-for="AcreageOrType" class="text-danger small"></span>
+                                </div>
+
+                                <div class="col-12">
+                                    <label asp-for="Message" class="form-label fw-semibold">Additional Details or Amenities Offered</label>
+                                    <textarea asp-for="Message" class="form-control" rows="4" placeholder="Mention key amenities (pool, bonfire, sound system), caretaker availability, pricing expectations, or special features..."></textarea>
+                                    <span asp-validation-for="Message" class="text-danger small"></span>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 pt-2">
+                                <button type="submit" class="btn btn-success btn-lg w-100 py-3 fw-bold rounded-3 shadow-sm" style="background-color: #059669; border-color: #059669;">
+                                    <i class="bi bi-send-check me-2"></i>Submit Partner Application
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="text-center mt-4">
+                    <p class="text-muted small">
+                        Looking to book a farmstay instead? <a asp-controller="Home" asp-action="Index" class="fw-semibold text-decoration-none text-success">Explore Farm Rentals</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

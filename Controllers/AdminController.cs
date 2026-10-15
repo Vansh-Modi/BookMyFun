@@ -919,5 +919,248 @@ namespace BookMyFun.Controllers
             TempData["Success"] = $"Ticket #{contactId} status updated to {status}.";
             return RedirectToAction(nameof(SupportQueries));
         }
+
+        // --- Dedicated Refund Operations Queue ---
+        public async Task<IActionResult> RefundsQueue(string? status)
+        {
+            var refunds = await _refundEngine.GetRefundsQueueAsync(status);
+            ViewBag.SelectedStatus = status;
+            return View(refunds);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> OverrideRefund(int refundId, string status, string? notes)
+        {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            bool updated = await _refundEngine.OverrideRefundStatusAsync(refundId, status, currentUserId, notes);
+            if (updated)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "AdminOverrideRefund", "BookingRefund", refundId, $"Refund #{refundId} manually updated to {status}. Notes: {notes}");
+                TempData["Success"] = $"Refund #{refundId} overridden to '{status}'.";
+            }
+            return RedirectToAction(nameof(RefundsQueue));
+        }
+
+        // --- Partner Leads Pipeline ---
+        public async Task<IActionResult> PartnerLeads(string? status)
+        {
+            var leads = await _partnerLeadService.GetAllLeadsAsync(status);
+            ViewBag.SelectedStatus = status;
+            return View(leads);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApprovePartnerLead(int leadId)
+        {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var (success, token) = await _partnerLeadService.ApproveLeadAsync(leadId, currentUserId);
+            if (success)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "AdminApproveLead", "PartnerLead", leadId, $"Approved partner lead #{leadId} and generated activation invite.");
+                TempData["Success"] = $"Partner Lead #{leadId} approved and activation email dispatched!";
+            }
+            return RedirectToAction(nameof(PartnerLeads));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectPartnerLead(int leadId)
+        {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            bool rejected = await _partnerLeadService.RejectLeadAsync(leadId, currentUserId);
+            if (rejected)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "AdminRejectLead", "PartnerLead", leadId, $"Rejected partner lead #{leadId}");
+                TempData["Success"] = $"Partner Lead #{leadId} marked as Rejected.";
+            }
+            return RedirectToAction(nameof(PartnerLeads));
+        }
+
+        // --- Damage Claims Adjudication ---
+        public async Task<IActionResult> DamageClaims(string? status)
+        {
+            var claims = await _damageClaimService.GetAllClaimsAsync(status);
+            ViewBag.SelectedStatus = status;
+            return View(claims);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AdjudicateDamageClaim(DamageClaimAdjudicateViewModel model)
+        {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            bool adjudicated = await _damageClaimService.AdjudicateClaimAsync(model, currentUserId);
+            if (adjudicated)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "AdminAdjudicateClaim", "DamageClaim", model.ClaimID, $"Adjudicated claim #{model.ClaimID} as {model.Action}. Approved amount: {model.ApprovedAmount}");
+                TempData["Success"] = $"Claim #{model.ClaimID} has been successfully adjudicated ({model.Action}).";
+            }
+            return RedirectToAction(nameof(DamageClaims));
+        }
+
+        // --- Client ID Verification & KYC Governance ---
+        public async Task<IActionResult> IdVerifications(string? status)
+        {
+            var verifications = await _idVerificationService.GetAllVerificationsAsync(status);
+            ViewBag.SelectedStatus = status;
+            return View(verifications);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ReviewIdVerification(int verificationId, string action, string? reason)
+        {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            bool reviewed = await _idVerificationService.ReviewVerificationAsync(verificationId, action, currentUserId, reason);
+            if (reviewed)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "AdminReviewIdVerification", "ClientIdVerification", verificationId, $"Reviewed verification #{verificationId}: {action}");
+                TempData["Success"] = $"Verification #{verificationId} has been marked as {action}.";
+            }
+            return RedirectToAction(nameof(IdVerifications));
+        }
+
+        [HttpGet]
+        public IActionResult GetDocumentSignedUrl(string storageKey)
+        {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            string role = User.FindFirstValue(ClaimTypes.Role) ?? "Admin";
+
+            string token = _mediaStorage.GenerateExpiringDocumentToken(storageKey, currentUserId, role, 15);
+            string url = $"/api/media/view-id-document?key={Uri.EscapeDataString(storageKey)}&token={Uri.EscapeDataString(token)}";
+
+            return Json(new { success = true, url });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateUserSubscriptionTier(int userId, string tier, decimal? customCommissionRate)
+        {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            bool updated = await _userRepo.UpdateUserTierAndCommissionAsync(userId, tier, customCommissionRate);
+            if (updated)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "UpdateOwnerTier", "User", userId, $"Updated owner #{userId} tier to {tier}, custom commission: {customCommissionRate}%");
+                TempData["Success"] = $"Owner subscription tier and custom commission rate updated successfully.";
+            }
+            return RedirectToAction(nameof(ManageOwners));
+        }
+
+        // --- Dynamic Analytics Dashboard & Multidimensional Filtering ---
+        public async Task<IActionResult> DynamicAnalytics(string? datePreset = "7D", DateTime? startDate = null, DateTime? endDate = null, int? propertyId = null, int? ownerId = null, string? status = null)
+        {
+            var now = DateTime.UtcNow;
+            DateTime filterStart = datePreset switch
+            {
+                "Today" => DateTime.Today,
+                "7D" => now.AddDays(-7),
+                "MTD" => new DateTime(now.Year, now.Month, 1),
+                "YTD" => new DateTime(now.Year, 1, 1),
+                "Custom" => startDate ?? now.AddDays(-30),
+                _ => now.AddDays(-7)
+            };
+
+            DateTime filterEnd = datePreset == "Custom" && endDate.HasValue ? endDate.Value : now;
+
+            var allBookings = await _bookingRepo.GetAllBookingsAsync();
+            var allProperties = await _propRepo.GetAllPropertiesAsync();
+
+            var filteredBookings = allBookings.Where(b => b.CreatedAt >= filterStart && b.CreatedAt <= filterEnd).ToList();
+
+            if (propertyId.HasValue && propertyId.Value > 0)
+                filteredBookings = filteredBookings.Where(b => b.PropertyID == propertyId.Value).ToList();
+
+            if (status != null && !string.Equals(status, "All", StringComparison.OrdinalIgnoreCase))
+                filteredBookings = filteredBookings.Where(b => string.Equals(b.Status, status, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            decimal gmv = filteredBookings.Where(b => b.Status == "Confirmed").Sum(b => b.TotalAmount);
+            decimal netPlatformCommission = filteredBookings.Where(b => b.Status == "Confirmed").Sum(b => b.PlatformCommissionAmount > 0 ? b.PlatformCommissionAmount : b.TotalAmount * 0.10m);
+            decimal pendingPayouts = filteredBookings.Where(b => b.Status == "Confirmed").Sum(b => b.OwnerPayoutAmount > 0 ? b.OwnerPayoutAmount : b.TotalAmount * 0.90m);
+            int activeProps = allProperties.Count(p => p.ListingStatus == "Active");
+            double occupancyRate = activeProps > 0 ? Math.Min(100.0, Math.Round((double)filteredBookings.Count(b => b.Status == "Confirmed") / (activeProps * 30.0) * 100.0, 1)) : 0;
+
+            var vm = new AdminAnalyticsViewModel
+            {
+                GMV = gmv,
+                NetPlatformCommission = netPlatformCommission,
+                PendingPayouts = pendingPayouts,
+                ActiveProperties = activeProps,
+                OccupancyRate = occupancyRate,
+                DateRangePreset = datePreset ?? "7D",
+                CustomStartDate = startDate,
+                CustomEndDate = endDate,
+                FilterPropertyID = propertyId,
+                FilterOwnerID = ownerId,
+                FilterStatus = status
+            };
+
+            ViewBag.Properties = allProperties;
+            return View(vm);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ExportAnalyticsCsv(string? datePreset = "7D", DateTime? startDate = null, DateTime? endDate = null)
+        {
+            var bookings = await _bookingRepo.GetAllBookingsAsync();
+            var sb = new StringBuilder();
+            sb.AppendLine("BookingID,PropertyTitle,ClientName,CheckInDate,CheckOutDate,TotalAmount,Status,PlatformCommission,OwnerPayout,CreatedAt");
+
+            foreach (var b in bookings)
+            {
+                sb.AppendLine($"{b.BookingID},\"{b.PropertyTitle?.Replace("\"", "\"\"")}\",\"{b.ClientName?.Replace("\"", "\"\"")}\",{b.CheckInDate:yyyy-MM-dd},{b.CheckOutDate:yyyy-MM-dd},{b.TotalAmount},{b.Status},{b.PlatformCommissionAmount},{b.OwnerPayoutAmount},{b.CreatedAt:yyyy-MM-dd HH:mm}");
+            }
+
+            return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", $"Analytics_Export_{DateTime.UtcNow:yyyyMMdd_HHmm}.csv");
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ExportAnalyticsExcel(string? datePreset = "7D", DateTime? startDate = null, DateTime? endDate = null)
+        {
+            var bookings = await _bookingRepo.GetAllBookingsAsync();
+            using var workbook = new XLWorkbook();
+            var ws = workbook.Worksheets.Add("Bookings Analytics");
+
+            ws.Cell(1, 1).Value = "Booking ID";
+            ws.Cell(1, 2).Value = "Property Title";
+            ws.Cell(1, 3).Value = "Client Name";
+            ws.Cell(1, 4).Value = "Check-in Date";
+            ws.Cell(1, 5).Value = "Check-out Date";
+            ws.Cell(1, 6).Value = "Total Amount (INR)";
+            ws.Cell(1, 7).Value = "Status";
+            ws.Cell(1, 8).Value = "Platform Commission";
+            ws.Cell(1, 9).Value = "Owner Payout";
+            ws.Cell(1, 10).Value = "Security Deposit";
+            ws.Cell(1, 11).Value = "Created At";
+
+            var headerRow = ws.Range(1, 1, 1, 11);
+            headerRow.Style.Font.Bold = true;
+            headerRow.Style.Fill.BackgroundColor = XLColor.FromHtml("#059669");
+            headerRow.Style.Font.FontColor = XLColor.White;
+
+            int row = 2;
+            foreach (var b in bookings)
+            {
+                ws.Cell(row, 1).Value = b.BookingID;
+                ws.Cell(row, 2).Value = b.PropertyTitle ?? "";
+                ws.Cell(row, 3).Value = b.ClientName ?? "";
+                ws.Cell(row, 4).Value = b.CheckInDate.ToString("yyyy-MM-dd");
+                ws.Cell(row, 5).Value = b.CheckOutDate.ToString("yyyy-MM-dd");
+                ws.Cell(row, 6).Value = b.TotalAmount;
+                ws.Cell(row, 7).Value = b.Status;
+                ws.Cell(row, 8).Value = b.PlatformCommissionAmount;
+                ws.Cell(row, 9).Value = b.OwnerPayoutAmount;
+                ws.Cell(row, 10).Value = b.SecurityDepositAmount;
+                ws.Cell(row, 11).Value = b.CreatedAt.ToString("yyyy-MM-dd HH:mm");
+                row++;
+            }
+
+            ws.Columns().AdjustToContents();
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Analytics_Report_{DateTime.UtcNow:yyyyMMdd_HHmm}.xlsx");
+        }
     }
 }

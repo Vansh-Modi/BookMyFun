@@ -12,11 +12,16 @@ namespace BookMyFun.Controllers
     {
         private readonly IUserRepository _userRepo;
         private readonly IBookingRepository _bookingRepo;
+        private readonly IIdVerificationService _idVerificationService;
 
-        public ClientController(IUserRepository userRepo, IBookingRepository bookingRepo)
+        public ClientController(
+            IUserRepository userRepo,
+            IBookingRepository bookingRepo,
+            IIdVerificationService idVerificationService)
         {
             _userRepo = userRepo;
             _bookingRepo = bookingRepo;
+            _idVerificationService = idVerificationService;
         }
 
         public async Task<IActionResult> Index()
@@ -24,6 +29,9 @@ namespace BookMyFun.Controllers
             var clientId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var client = await _userRepo.GetByIdAsync(clientId);
             var bookings = await _bookingRepo.GetByClientIdAsync(clientId);
+            var verification = await _idVerificationService.GetClientVerificationAsync(clientId, clientId, "Client");
+
+            ViewBag.Verification = verification;
 
             var vm = new ClientDashboardViewModel
             {
