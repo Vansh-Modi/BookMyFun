@@ -103,6 +103,7 @@ namespace BookMyFun.Models.ViewModels
         public List<int> SelectedOccasionIDs { get; set; } = new();
         public List<int> SelectedAmenityIDs { get; set; } = new();
         public string? ImageUrlInput { get; set; }
+        public string? AdditionalMediaJson { get; set; }
 
         // Lookups
         public List<PropertyType> AvailableTypes { get; set; } = new();

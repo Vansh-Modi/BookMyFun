@@ -1,12 +1,21 @@
 @model BookMyFun.Models.ViewModels.ClientDashboardViewModel
 @{
     ViewData["Title"] = "Guest Dashboard";
+    var verification = ViewBag.Verification as BookMyFun.Models.Entities.ClientIdVerification;
 }
 
 <!-- Page Header -->
 <div class="dash-page-header">
     <div>
-        <p class="dash-eyebrow">Guest Portal · My Reservations</p>
+        <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="dash-eyebrow mb-0">Guest Portal · My Reservations</span>
+            @if (verification != null && verification.VerificationStatus == "Verified")
+            {
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill small">
+                    <i class="bi bi-patch-check-fill me-1"></i>Verified Guest
+                </span>
+            }
+        </div>
         <h1 class="dash-title">Guest Dashboard</h1>
         <p class="dash-subtitle">Welcome back, <strong>@Model.Client.FullName</strong> (@Model.Client.Email) · Review past stays, active bookings, and submit reviews.</p>
     </div>
@@ -14,6 +23,68 @@
         <a asp-controller="Properties" asp-action="Index" class="dash-btn dash-btn-primary">
             <i class="bi bi-compass"></i> Book a New Stay
         </a>
+    </div>
+</div>
+
+<!-- Identity Verification & KYC Banner -->
+<div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden">
+    <div class="card-body p-4">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <div class="d-flex align-items-start gap-3">
+                    <div class="rounded-circle p-3 @(verification?.VerificationStatus == "Verified" ? "bg-success bg-opacity-10 text-success" : verification?.VerificationStatus == "PendingReview" ? "bg-warning bg-opacity-10 text-warning" : "bg-primary bg-opacity-10 text-primary")">
+                        <i class="bi @(verification?.VerificationStatus == "Verified" ? "bi-shield-fill-check fs-2" : "bi-person-badge fs-2")"></i>
+                    </div>
+                    <div>
+                        <h5 class="fw-bold mb-1">
+                            Identity Verification (KYC Governance)
+                            @if (verification?.VerificationStatus == "Verified")
+                            {
+                                <span class="badge bg-success ms-2"><i class="bi bi-check2"></i> Verified</span>
+                            }
+                            else if (verification?.VerificationStatus == "PendingReview")
+                            {
+                                <span class="badge bg-warning text-dark ms-2"><i class="bi bi-clock"></i> Under Review</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary ms-2">Action Recommended</span>
+                            }
+                        </h5>
+                        <p class="text-muted small mb-0">
+                            Verified guests enjoy priority check-in, lower deposit friction, and instant host confirmations. Documents are stored in an encrypted private vault and shielded from property hosts.
+                        </p>
+                        @if (verification != null)
+                        {
+                            <div class="small text-muted mt-2">
+                                <span><strong>Document:</strong> @verification.DocumentType</span>
+                                @if (!string.IsNullOrEmpty(verification.MaskedIdentifier))
+                                {
+                                    <span class="ms-3"><strong>Masked ID:</strong> <code>@verification.MaskedIdentifier</code></span>
+                                }
+                                <span class="ms-3"><strong>Submitted:</strong> @verification.CreatedAt.ToString("MMM dd, yyyy")</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                @if (verification == null || verification.VerificationStatus == "Rejected")
+                {
+                    <button type="button" class="btn btn-outline-primary fw-semibold px-4 rounded-3" data-bs-toggle="modal" data-bs-target="#kycUploadModal">
+                        <i class="bi bi-upload me-1"></i> Upload Government ID
+                    </button>
+                }
+                else if (verification.VerificationStatus == "PendingReview")
+                {
+                    <span class="text-warning fw-semibold small"><i class="bi bi-hourglass-split"></i> Review in progress by operations team</span>
+                }
+                else
+                {
+                    <span class="text-success fw-bold small"><i class="bi bi-check-circle-fill"></i> ID Verified & Privacy Protected</span>
+                }
+            </div>
+        </div>
     </div>
 </div>
 
@@ -31,6 +102,7 @@
                     <th>Booking Type / Slot</th>
                     <th>Dates</th>
                     <th>Amount</th>
+                    <th>Security Deposit</th>
                     <th>Status</th>
                     <th>Actions</th>
                 </tr>
@@ -39,7 +111,7 @@
                 @if (!Model.Bookings.Any())
                 {
                     <tr>
-                        <td colspan="7" class="text-center py-5 text-muted">
+                        <td colspan="8" class="text-center py-5 text-muted">
                             <i class="bi bi-calendar-x fs-1 d-block mb-2 text-muted opacity-50"></i>
                             You have no past or upcoming bookings.<br />
                             <a asp-controller="Properties" asp-action="Index" class="dash-btn dash-btn-primary mt-3">Explore Available Stays</a>
@@ -61,6 +133,17 @@
                         <td><small class="text-muted">@b.CheckInDate.ToString("MMM dd") - @b.CheckOutDate.ToString("MMM dd, yyyy")</small></td>
                         <td><strong class="text-success">₹@b.TotalAmount.ToString("N2")</strong></td>
                         <td>
+                            @if (b.SecurityDepositAmount > 0)
+                            {
+                                <span>₹@b.SecurityDepositAmount.ToString("N2")</span>
+                                <span class="badge bg-light text-dark border small ms-1">@b.SecurityDepositStatus</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted small">None</span>
+                            }
+                        </td>
+                        <td>
                             @if (b.Status == "Confirmed")
                             {
                                 <span class="dash-badge dash-badge-success"><i class="bi bi-check-circle-fill"></i> Confirmed</span>
@@ -81,13 +164,9 @@
                                     <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#reviewModal_@b.BookingID">
                                         <i class="bi bi-star"></i> Review
                                     </button>
-                                    <form asp-controller="Booking" asp-action="CancelBooking" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to cancel booking #@b.BookingID?');">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="bookingId" value="@b.BookingID" />
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">
-                                            <i class="bi bi-x-circle"></i> Cancel
-                                        </button>
-                                    </form>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="openCancelModal(@b.BookingID)">
+                                        <i class="bi bi-x-circle"></i> Cancel
+                                    </button>
                                 }
                                 else if (b.Status == "Pending")
                                 {
@@ -97,7 +176,7 @@
                                 }
                                 else
                                 {
-                                    <span class="text-muted small">No actions</span>
+                                    <span class="text-muted small">Completed</span>
                                 }
                             </div>
 
@@ -144,3 +223,205 @@
         </table>
     </div>
 </div>
+
+<!-- Transparent Cancellation & Refund Modal -->
+<div class="modal fade" id="cancellationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-light border-0 py-3">
+                <h5 class="modal-title fw-bold text-dark">
+                    <i class="bi bi-shield-slash text-danger me-2"></i>Cancel Reservation &amp; Refund Quote
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="cancelModalLoading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="small text-muted mt-2">Computing real-time refund quote per host policy...</p>
+                </div>
+
+                <div id="cancelModalContent" style="display: none;">
+                    <div class="alert alert-info border-0 rounded-3 mb-3 p-3">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-info-circle-fill fs-4 me-3 text-primary"></i>
+                            <div>
+                                <strong id="quotePolicyTier" class="d-block mb-1"></strong>
+                                <span id="quotePolicyExplanation" class="small"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card border rounded-3 p-3 mb-3 bg-light">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Total Booking Paid</span>
+                            <strong id="quoteGrossAmount">₹0.00</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2 text-danger">
+                            <span>Cancellation Policy Fee</span>
+                            <span id="quoteCancellationFee">- ₹0.00</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2 text-danger">
+                            <span>Payment Gateway Processing (2%)</span>
+                            <span id="quoteGatewayFee">- ₹0.00</span>
+                        </div>
+                        <hr class="my-2" />
+                        <div class="d-flex justify-content-between fs-5 fw-bold">
+                            <span>Net Estimated Refund:</span>
+                            <span id="quoteNetRefund" class="text-success">₹0.00</span>
+                        </div>
+                    </div>
+
+                    <form id="cancelBookingForm" asp-controller="Booking" asp-action="CancelBooking" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" id="cancelBookingIdInput" name="bookingId" value="" />
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Reason for Cancellation (Optional)</label>
+                            <textarea name="reason" class="form-control" rows="2" placeholder="Tell us why you are cancelling..."></textarea>
+                        </div>
+
+                        <div class="d-flex gap-2 justify-content-end">
+                            <button type="button" class="btn btn-light px-3" data-bs-dismiss="modal">Keep Booking</button>
+                            <button type="submit" class="btn btn-danger fw-bold px-4">
+                                <i class="bi bi-x-circle me-1"></i>Confirm Cancellation
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Government ID Upload Modal -->
+<div class="modal fade" id="kycUploadModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-light border-0 py-3">
+                <h5 class="modal-title fw-bold text-dark">
+                    <i class="bi bi-shield-lock text-success me-2"></i>Upload Government Identification
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="text-muted small mb-3">
+                    Supported documents: Aadhaar Card, Passport, Driver's License. Max file size: 5MB (PDF, JPG, PNG). Files are stored privately and verified by staff.
+                </p>
+
+                <form id="kycUploadForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Document Type <span class="text-danger">*</span></label>
+                        <select name="documentType" class="form-select" required>
+                            <option value="Aadhaar">Aadhaar Card</option>
+                            <option value="Passport">Passport</option>
+                            <option value="DrivingLicense">Driver's License</option>
+                            <option value="VoterID">Voter ID</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Document Identification Number (Optional)</label>
+                        <input type="text" name="maskedIdentifier" class="form-control" placeholder="e.g. Last 4 digits only (e.g. 5432)" maxlength="20" />
+                        <small class="text-muted">Only the last 4 characters are retained for verification badges.</small>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold small">Choose Document File <span class="text-danger">*</span></label>
+                        <input type="file" name="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png" required />
+                    </div>
+
+                    <div id="kycUploadStatus" class="mb-3" style="display: none;"></div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" id="btnSubmitKyc" class="btn btn-success fw-bold px-4">
+                            <i class="bi bi-upload me-1"></i>Secure Upload
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    async function openCancelModal(bookingId) {
+        document.getElementById('cancelBookingIdInput').value = bookingId;
+        document.getElementById('cancelModalLoading').style.display = 'block';
+        document.getElementById('cancelModalContent').style.display = 'none';
+
+        const modal = new bootstrap.Modal(document.getElementById('cancellationModal'));
+        modal.show();
+
+        try {
+            const resp = await fetch(`/Booking/GetCancellationQuote?bookingId=${bookingId}`);
+            const data = await resp.json();
+
+            if (data.success && data.quote) {
+                const q = data.quote;
+                document.getElementById('quotePolicyTier').innerText = q.policyTier === 'FullRefund' ? 'Eligible for Full Refund' :
+                                                                       q.policyTier === 'PartialRefund' ? 'Eligible for Partial Refund' : 'Non-Refundable Window';
+                document.getElementById('quotePolicyExplanation').innerText = q.policyExplanation;
+                document.getElementById('quoteGrossAmount').innerText = '₹' + q.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+                document.getElementById('quoteCancellationFee').innerText = '- ₹' + q.cancellationFeeDeducted.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+                document.getElementById('quoteGatewayFee').innerText = '- ₹' + q.gatewayFeeDeducted.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+                document.getElementById('quoteNetRefund').innerText = '₹' + q.netRefundAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+
+                if (q.netRefundAmount <= 0) {
+                    document.getElementById('quoteNetRefund').className = 'text-danger fw-bold';
+                } else {
+                    document.getElementById('quoteNetRefund').className = 'text-success fw-bold';
+                }
+
+                document.getElementById('cancelModalLoading').style.display = 'none';
+                document.getElementById('cancelModalContent').style.display = 'block';
+            } else {
+                alert('Could not retrieve refund quote: ' + (data.message || 'Error'));
+                modal.hide();
+            }
+        } catch (err) {
+            alert('Failed to connect to refund engine.');
+            modal.hide();
+        }
+    }
+
+    document.getElementById('kycUploadForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnSubmitKyc');
+        const statusBox = document.getElementById('kycUploadStatus');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Uploading...';
+        statusBox.style.display = 'none';
+
+        const formData = new FormData(this);
+
+        try {
+            const resp = await fetch('/api/media/upload-id-document', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await resp.json();
+            if (resp.ok && data.success) {
+                statusBox.className = 'alert alert-success py-2 small';
+                statusBox.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> ID uploaded securely! Operations will review it shortly.';
+                statusBox.style.display = 'block';
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                statusBox.className = 'alert alert-danger py-2 small';
+                statusBox.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> ' + (data.error?.message || 'Upload failed.');
+                statusBox.style.display = 'block';
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-upload me-1"></i>Secure Upload';
+            }
+        } catch (err) {
+            statusBox.className = 'alert alert-danger py-2 small';
+            statusBox.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> Network error during upload.';
+            statusBox.style.display = 'block';
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-upload me-1"></i>Secure Upload';
+        }
+    });
+</script>
+}

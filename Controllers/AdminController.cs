@@ -163,6 +163,7 @@ namespace BookMyFun.Controllers
             {
                 AvailableTypes = await _propRepo.GetPropertyTypesAsync(),
                 AvailableOccasions = await _propRepo.GetOccasionsAsync(),
+                AvailableAmenities = await _propRepo.GetAllAmenitiesAsync(),
                 AvailableOwners = await _userRepo.GetUsersByRoleAsync("Owner")
             };
             return View(vm);
@@ -179,17 +180,59 @@ namespace BookMyFun.Controllers
                 Title = vm.Title,
                 Description = vm.Description,
                 Location = vm.Location,
+                FormattedAddress = vm.FormattedAddress,
+                Latitude = vm.Latitude,
+                Longitude = vm.Longitude,
                 PricePerNight = vm.PricePerNight,
+                SecurityDepositAmount = vm.SecurityDepositAmount,
+                CommissionRate = vm.CommissionRate,
+                FreeCancellationWindowHours = vm.FreeCancellationWindowHours,
+                CancellationCutoffHours = vm.CancellationCutoffHours,
+                CancellationFeeType = vm.CancellationFeeType,
+                CancellationFeeValue = vm.CancellationFeeValue,
                 MaxGuests = vm.MaxGuests,
                 ListingStatus = "Active",
                 IsApproved = true,
-                OccasionIDs = vm.SelectedOccasionIDs
+                OccasionIDs = vm.SelectedOccasionIDs,
+                AmenityIDs = vm.SelectedAmenityIDs
             };
 
             var propId = await _propRepo.CreatePropertyAsync(prop);
             if (!string.IsNullOrEmpty(vm.ImageUrlInput))
             {
                 await _propRepo.AddPropertyImageAsync(propId, vm.ImageUrlInput, true);
+                await _propRepo.AddPropertyMediaAsync(new PropertyMedia
+                {
+                    PropertyID = propId,
+                    MediaType = "photo",
+                    SourceType = "url",
+                    StorageUrl = vm.ImageUrlInput,
+                    IsPrimary = true
+                });
+            }
+
+            if (!string.IsNullOrEmpty(vm.AdditionalMediaJson))
+            {
+                try
+                {
+                    var mediaItems = System.Text.Json.JsonSerializer.Deserialize<List<PropertyMedia>>(vm.AdditionalMediaJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (mediaItems != null)
+                    {
+                        foreach (var item in mediaItems)
+                        {
+                            if (!string.IsNullOrWhiteSpace(item.StorageUrl))
+                            {
+                                item.PropertyID = propId;
+                                await _propRepo.AddPropertyMediaAsync(item);
+                                if (item.IsPrimary || string.IsNullOrEmpty(vm.ImageUrlInput))
+                                {
+                                    await _propRepo.AddPropertyImageAsync(propId, item.StorageUrl, item.IsPrimary);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
             }
 
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -212,14 +255,26 @@ namespace BookMyFun.Controllers
                 Title = prop.Title,
                 Description = prop.Description,
                 Location = prop.Location,
+                FormattedAddress = prop.FormattedAddress,
+                Latitude = prop.Latitude,
+                Longitude = prop.Longitude,
                 PricePerNight = prop.PricePerNight,
+                SecurityDepositAmount = prop.SecurityDepositAmount,
+                CommissionRate = prop.CommissionRate,
+                FreeCancellationWindowHours = prop.FreeCancellationWindowHours,
+                CancellationCutoffHours = prop.CancellationCutoffHours,
+                CancellationFeeType = prop.CancellationFeeType,
+                CancellationFeeValue = prop.CancellationFeeValue,
                 MaxGuests = prop.MaxGuests,
                 ListingStatus = prop.ListingStatus,
                 IsApproved = prop.IsApproved,
                 SelectedOccasionIDs = prop.OccasionIDs,
+                SelectedAmenityIDs = prop.AmenityIDs,
+                ExistingMedia = prop.MediaList,
                 ImageUrlInput = prop.PrimaryImageUrl,
                 AvailableTypes = await _propRepo.GetPropertyTypesAsync(),
                 AvailableOccasions = await _propRepo.GetOccasionsAsync(),
+                AvailableAmenities = await _propRepo.GetAllAmenitiesAsync(),
                 AvailableOwners = await _userRepo.GetUsersByRoleAsync("Owner")
             };
             return View(vm);
@@ -237,10 +292,20 @@ namespace BookMyFun.Controllers
                 Title = vm.Title,
                 Description = vm.Description,
                 Location = vm.Location,
+                FormattedAddress = vm.FormattedAddress,
+                Latitude = vm.Latitude,
+                Longitude = vm.Longitude,
                 PricePerNight = vm.PricePerNight,
+                SecurityDepositAmount = vm.SecurityDepositAmount,
+                CommissionRate = vm.CommissionRate,
+                FreeCancellationWindowHours = vm.FreeCancellationWindowHours,
+                CancellationCutoffHours = vm.CancellationCutoffHours,
+                CancellationFeeType = vm.CancellationFeeType,
+                CancellationFeeValue = vm.CancellationFeeValue,
                 MaxGuests = vm.MaxGuests,
                 ListingStatus = vm.ListingStatus,
-                OccasionIDs = vm.SelectedOccasionIDs
+                OccasionIDs = vm.SelectedOccasionIDs,
+                AmenityIDs = vm.SelectedAmenityIDs
             };
 
             await _propRepo.UpdatePropertyAsync(prop);
@@ -248,6 +313,26 @@ namespace BookMyFun.Controllers
             if (!string.IsNullOrEmpty(vm.ImageUrlInput))
             {
                 await _propRepo.AddPropertyImageAsync(prop.PropertyID, vm.ImageUrlInput, true);
+            }
+
+            if (!string.IsNullOrEmpty(vm.AdditionalMediaJson))
+            {
+                try
+                {
+                    var mediaItems = System.Text.Json.JsonSerializer.Deserialize<List<PropertyMedia>>(vm.AdditionalMediaJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (mediaItems != null)
+                    {
+                        foreach (var item in mediaItems)
+                        {
+                            if (!string.IsNullOrWhiteSpace(item.StorageUrl) && item.MediaID == 0)
+                            {
+                                item.PropertyID = prop.PropertyID;
+                                await _propRepo.AddPropertyMediaAsync(item);
+                            }
+                        }
+                    }
+                }
+                catch { }
             }
 
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);

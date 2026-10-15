@@ -130,6 +130,38 @@ namespace BookMyFun.Controllers
             if (!string.IsNullOrEmpty(vm.ImageUrlInput))
             {
                 await _propRepo.AddPropertyImageAsync(propId, vm.ImageUrlInput, true);
+                await _propRepo.AddPropertyMediaAsync(new PropertyMedia
+                {
+                    PropertyID = propId,
+                    MediaType = "photo",
+                    SourceType = "url",
+                    StorageUrl = vm.ImageUrlInput,
+                    IsPrimary = true
+                });
+            }
+
+            if (!string.IsNullOrEmpty(vm.AdditionalMediaJson))
+            {
+                try
+                {
+                    var mediaItems = System.Text.Json.JsonSerializer.Deserialize<List<PropertyMedia>>(vm.AdditionalMediaJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (mediaItems != null)
+                    {
+                        foreach (var item in mediaItems)
+                        {
+                            if (!string.IsNullOrWhiteSpace(item.StorageUrl))
+                            {
+                                item.PropertyID = propId;
+                                await _propRepo.AddPropertyMediaAsync(item);
+                                if (item.IsPrimary || string.IsNullOrEmpty(vm.ImageUrlInput))
+                                {
+                                    await _propRepo.AddPropertyImageAsync(propId, item.StorageUrl, item.IsPrimary);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
             }
 
             TempData["Success"] = "Property submitted successfully for admin review and approval!";
@@ -213,6 +245,31 @@ namespace BookMyFun.Controllers
             prop.AmenityIDs = vm.SelectedAmenityIDs;
 
             await _propRepo.UpdatePropertyAsync(prop);
+
+            if (!string.IsNullOrEmpty(vm.ImageUrlInput))
+            {
+                await _propRepo.AddPropertyImageAsync(prop.PropertyID, vm.ImageUrlInput, true);
+            }
+
+            if (!string.IsNullOrEmpty(vm.AdditionalMediaJson))
+            {
+                try
+                {
+                    var mediaItems = System.Text.Json.JsonSerializer.Deserialize<List<PropertyMedia>>(vm.AdditionalMediaJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (mediaItems != null)
+                    {
+                        foreach (var item in mediaItems)
+                        {
+                            if (!string.IsNullOrWhiteSpace(item.StorageUrl) && item.MediaID == 0)
+                            {
+                                item.PropertyID = prop.PropertyID;
+                                await _propRepo.AddPropertyMediaAsync(item);
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
 
             TempData["Success"] = "Property details updated successfully.";
             return RedirectToAction(nameof(Index));
