@@ -96,34 +96,94 @@
                         @if (User.Identity != null && User.Identity.IsAuthenticated)
                         {
                             var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
-                            var dashboardAction = role switch
+                            if (role == "Admin")
                             {
-                                "Admin" => ("Admin", "Index"),
-                                "Employee" => ("Employee", "Index"),
-                                "Owner" => ("Owner", "Index"),
-                                _ => ("Client", "Index")
-                            };
-                            <li class="nav-item me-2">
-                                <a class="btn btn-outline-warning text-warning px-3" asp-controller="@dashboardAction.Item1" asp-action="@dashboardAction.Item2">
-                                    <i class="bi bi-speedometer2 me-1"></i> @role Dashboard
-                                </a>
-                            </li>
+                                <li class="nav-item dropdown me-2">
+                                    <a class="btn btn-warning text-dark fw-bold px-3 dropdown-toggle shadow-sm" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-shield-lock-fill me-1"></i> Admin Console
+                                    </a>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
+                                        <li><a class="dropdown-item fw-semibold" asp-controller="Admin" asp-action="Index"><i class="bi bi-speedometer2 text-primary me-2"></i>Dashboard</a></li>
+                                        <li><a class="dropdown-item fw-semibold text-success" asp-controller="Admin" asp-action="DynamicAnalytics"><i class="bi bi-graph-up-arrow text-success me-2"></i>Dynamic Analytics & Reports</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><h6 class="dropdown-header text-uppercase small text-muted">Operations Queues</h6></li>
+                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="RefundsQueue"><i class="bi bi-arrow-counterclockwise text-info me-2"></i>Refunds Operations</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="PartnerLeads"><i class="bi bi-people text-success me-2"></i>Partner Onboarding Leads</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="DamageClaims"><i class="bi bi-shield-shaded text-danger me-2"></i>Damage Claims Adjudication</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="IdVerifications"><i class="bi bi-person-vcard text-primary me-2"></i>Guest KYC Verifications</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><h6 class="dropdown-header text-uppercase small text-muted">Platform Management</h6></li>
+                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageProperties"><i class="bi bi-houses me-2"></i>Manage Properties</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageBookings"><i class="bi bi-calendar-check me-2"></i>Manage Bookings</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageOwners"><i class="bi bi-person-badge me-2"></i>Manage Hosts & Tiers</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="Settings"><i class="bi bi-gear me-2"></i>System Settings</a></li>
+                                    </ul>
+                                </li>
+                            }
+                            else if (role == "Employee")
+                            {
+                                <li class="nav-item dropdown me-2">
+                                    <a class="btn btn-info text-dark fw-bold px-3 dropdown-toggle shadow-sm" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-headset me-1"></i> Operations Staff
+                                    </a>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
+                                        <li><a class="dropdown-item fw-semibold" asp-controller="Employee" asp-action="Index"><i class="bi bi-speedometer2 text-primary me-2"></i>Dashboard</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><h6 class="dropdown-header text-uppercase small text-muted">Operational Queues</h6></li>
+                                        <li><a class="dropdown-item" asp-controller="Employee" asp-action="RefundsQueue"><i class="bi bi-arrow-counterclockwise text-info me-2"></i>Refunds Operations</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Employee" asp-action="PartnerLeads"><i class="bi bi-people text-success me-2"></i>Partner Onboarding Leads</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Employee" asp-action="DamageClaims"><i class="bi bi-shield-shaded text-danger me-2"></i>Damage Claims</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Employee" asp-action="IdVerifications"><i class="bi bi-person-vcard text-primary me-2"></i>Guest KYC Verifications</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" asp-controller="Employee" asp-action="ManageProperties"><i class="bi bi-houses me-2"></i>Manage Properties</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Employee" asp-action="ManageBookings"><i class="bi bi-calendar-check me-2"></i>Manage Bookings</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Employee" asp-action="ManageOwners"><i class="bi bi-person-badge me-2"></i>Manage Hosts</a></li>
+                                    </ul>
+                                </li>
+                            }
+                            else if (role == "Owner")
+                            {
+                                <li class="nav-item dropdown me-2">
+                                    <a class="btn btn-outline-warning text-warning px-3 dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-speedometer2 me-1"></i> Host Dashboard
+                                    </a>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
+                                        <li><a class="dropdown-item fw-semibold" asp-controller="Owner" asp-action="Index"><i class="bi bi-grid-fill text-warning me-2"></i>Host Dashboard</a></li>
+                                        <li><a class="dropdown-item text-success fw-semibold" asp-controller="Owner" asp-action="CreateProperty"><i class="bi bi-plus-circle-fill text-success me-2"></i>List New Farm</a></li>
+                                        <li><a class="dropdown-item text-danger" asp-controller="Owner" asp-action="DamageClaims"><i class="bi bi-shield-exclamation text-danger me-2"></i>Security Deposit Claims</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Owner" asp-action="Subscriptions"><i class="bi bi-award text-primary me-2"></i>Subscription Plans</a></li>
+                                    </ul>
+                                </li>
+                            }
+                            else
+                            {
+                                <li class="nav-item me-2">
+                                    <a class="btn btn-outline-warning text-warning px-3" asp-controller="Client" asp-action="Index">
+                                        <i class="bi bi-calendar-check me-1"></i> My Bookings & KYC
+                                    </a>
+                                </li>
+                            }
                             <li class="nav-item">
                                 <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
-                                    <button type="submit" class="btn btn-sm btn-outline-light">Logout</button>
+                                    <button type="submit" class="btn btn-sm btn-outline-light rounded-pill px-3">Logout</button>
                                 </form>
                             </li>
                         }
                         else
                         {
                             <li class="nav-item me-2">
+                                <a class="nav-link text-warning fw-medium" asp-controller="Home" asp-action="Partner">
+                                    <i class="bi bi-tree-fill me-1"></i> List Your Farm
+                                </a>
+                            </li>
+                            <li class="nav-item me-2">
                                 <a class="nav-link text-light fw-medium" asp-controller="Account" asp-action="Login">
                                     <i class="bi bi-person"></i> Sign In
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="btn btn-warning fw-bold px-3 shadow-sm" asp-controller="Account" asp-action="Register">
-                                    List Your Property / Join
+                                <a class="btn btn-warning fw-bold px-3 shadow-sm rounded-pill" asp-controller="Account" asp-action="Register">
+                                    Sign Up
                                 </a>
                             </li>
                         }

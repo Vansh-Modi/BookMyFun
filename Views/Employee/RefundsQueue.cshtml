@@ -1,0 +1,5 @@
+@model IEnumerable<BookMyFun.Models.Entities.BookingRefund>
+@{
+    Layout = "_Layout";
+}
+@await Html.PartialAsync("~/Views/Admin/RefundsQueue.cshtml", Model)

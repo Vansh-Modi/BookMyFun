@@ -1,0 +1,5 @@
+@model IEnumerable<BookMyFun.Models.Entities.ClientIdVerification>
+@{
+    Layout = "_Layout";
+}
+@await Html.PartialAsync("~/Views/Admin/IdVerifications.cshtml", Model)

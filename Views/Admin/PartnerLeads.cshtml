@@ -1,0 +1,135 @@
+@model IEnumerable<BookMyFun.Models.Entities.PartnerLead>
+@{
+    var isEmployee = User.IsInRole("Employee");
+    var controllerName = isEmployee ? "Employee" : "Admin";
+    ViewData["Title"] = "Partner Onboarding Pipeline";
+    var selectedStatus = ViewBag.SelectedStatus as string;
+}
+
+<div class="container-fluid py-4 px-lg-4">
+    <!-- Header Banner -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4 bg-gradient text-white p-4" style="background: linear-gradient(135deg, #059669 0%, #064e3b 100%);">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <span class="badge bg-white text-success px-3 py-2 rounded-pill fw-bold mb-2">Host Recruitment</span>
+                <h2 class="fw-bold mb-1"><i class="bi bi-people-fill me-2"></i>Partner Onboarding Pipeline</h2>
+                <p class="mb-0 text-white-50">Review inbound 'List Your Farm' candidate submissions, vet property potential, and issue encrypted activation invitations.</p>
+            </div>
+            <a asp-controller="@controllerName" asp-action="Index" class="btn btn-outline-light rounded-pill px-4">
+                <i class="bi bi-speedometer2 me-1"></i> Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Pills -->
+    <div class="d-flex flex-wrap gap-2 mb-4">
+        <a asp-controller="@controllerName" asp-action="PartnerLeads" class="btn rounded-pill px-3 @(string.IsNullOrEmpty(selectedStatus) ? "btn-success" : "btn-light border")">
+            All Inbound Leads
+        </a>
+        <a asp-controller="@controllerName" asp-action="PartnerLeads" asp-route-status="New" class="btn rounded-pill px-3 @(selectedStatus == "New" ? "btn-warning text-dark fw-bold" : "btn-light border")">
+            <i class="bi bi-bell-fill me-1"></i> New Leads
+        </a>
+        <a asp-controller="@controllerName" asp-action="PartnerLeads" asp-route-status="Approved" class="btn rounded-pill px-3 @(selectedStatus == "Approved" ? "btn-success fw-bold" : "btn-light border")">
+            <i class="bi bi-check-circle me-1"></i> Approved & Invited
+        </a>
+        <a asp-controller="@controllerName" asp-action="PartnerLeads" asp-route-status="Rejected" class="btn rounded-pill px-3 @(selectedStatus == "Rejected" ? "btn-danger fw-bold" : "btn-light border")">
+            <i class="bi bi-x-circle me-1"></i> Rejected
+        </a>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-body p-0">
+            @if (Model != null && Model.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Lead #</th>
+                                <th>Candidate Info</th>
+                                <th>Farm / Property Name</th>
+                                <th>Location</th>
+                                <th>Acreage / Type</th>
+                                <th>Message</th>
+                                <th>Status</th>
+                                <th>Submitted Date</th>
+                                <th class="pe-4 text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var l in Model)
+                            {
+                                var badgeClass = l.Status switch
+                                {
+                                    "New" => "bg-warning text-dark",
+                                    "Approved" => "bg-success",
+                                    "Rejected" => "bg-danger",
+                                    "Contacted" => "bg-info text-dark",
+                                    _ => "bg-secondary"
+                                };
+                                <tr>
+                                    <td class="ps-4 fw-bold">#@l.LeadID</td>
+                                    <td>
+                                        <div class="fw-semibold">@l.FullName</div>
+                                        <div class="small text-muted"><i class="bi bi-envelope me-1"></i>@l.Email</div>
+                                        <div class="small text-muted"><i class="bi bi-telephone me-1"></i>@l.Phone</div>
+                                    </td>
+                                    <td class="fw-medium text-dark">@l.PropertyName</td>
+                                    <td>@l.Location</td>
+                                    <td>
+                                        <span class="badge bg-light text-secondary border">@(string.IsNullOrEmpty(l.AcreageOrType) ? "Standard Farm" : l.AcreageOrType)</span>
+                                    </td>
+                                    <td class="small text-muted" style="max-width: 250px;">
+                                        @(string.IsNullOrEmpty(l.Message) ? "--" : l.Message)
+                                    </td>
+                                    <td>
+                                        <span class="badge @badgeClass px-3 py-2 rounded-pill">@l.Status</span>
+                                    </td>
+                                    <td class="text-muted small">@l.CreatedAt.ToString("MMM dd, yyyy")</td>
+                                    <td class="pe-4 text-end">
+                                        @if (l.Status == "New" || l.Status == "Contacted")
+                                        {
+                                            <div class="btn-group">
+                                                <form asp-controller="@controllerName" asp-action="ApprovePartnerLead" method="post" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="leadId" value="@l.LeadID" />
+                                                    <button type="submit" class="btn btn-sm btn-success rounded-pill px-3 me-1" onclick="return confirm('Approve partner lead and dispatch encrypted host activation link?');">
+                                                        <i class="bi bi-send-check me-1"></i> Approve & Invite
+                                                    </button>
+                                                </form>
+                                                <form asp-controller="@controllerName" asp-action="RejectPartnerLead" method="post" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="leadId" value="@l.LeadID" />
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2" onclick="return confirm('Reject this partner lead?');">
+                                                        <i class="bi bi-x-circle"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        }
+                                        else if (l.Status == "Approved")
+                                        {
+                                            <span class="text-success small fw-semibold"><i class="bi bi-check2-all me-1"></i>Invite Dispatched</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small">Rejected</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-person-x fs-1 text-muted d-block mb-3"></i>
+                    <h5 class="fw-bold text-secondary">No Partner Leads Found</h5>
+                    <p class="text-muted small mb-0">No lead submissions match the selected criteria.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>

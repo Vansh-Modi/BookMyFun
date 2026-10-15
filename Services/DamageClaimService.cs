@@ -72,8 +72,22 @@ namespace BookMyFun.Services
                 throw new ValidationException("ClaimAmount", $"Claim amount cannot exceed the collected security deposit of {booking.SecurityDepositAmount:C}.");
             }
 
-            string evidenceJson = model.EvidenceUrls != null && model.EvidenceUrls.Any()
-                ? JsonSerializer.Serialize(model.EvidenceUrls)
+            var allEvidence = new List<string>(model.EvidenceUrls ?? new List<string>());
+            if (!string.IsNullOrWhiteSpace(model.EvidenceUrlsInput))
+            {
+                var inputUrls = model.EvidenceUrlsInput.Split(new[] { '\r', '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var u in inputUrls)
+                {
+                    var trimmed = u.Trim();
+                    if (!string.IsNullOrEmpty(trimmed) && !allEvidence.Contains(trimmed))
+                    {
+                        allEvidence.Add(trimmed);
+                    }
+                }
+            }
+
+            string evidenceJson = allEvidence.Any()
+                ? JsonSerializer.Serialize(allEvidence)
                 : "[]";
 
             var claim = new DamageClaim

@@ -1,0 +1,189 @@
+@model IEnumerable<BookMyFun.Models.Entities.BookingRefund>
+@{
+    var isEmployee = User.IsInRole("Employee");
+    var controllerName = isEmployee ? "Employee" : "Admin";
+    ViewData["Title"] = "Refund Operations Queue";
+    var selectedStatus = ViewBag.SelectedStatus as string;
+}
+
+<div class="container-fluid py-4 px-lg-4">
+    <!-- Header Banner -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4 bg-gradient text-white p-4" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <span class="badge bg-white text-primary px-3 py-2 rounded-pill fw-bold mb-2">Finance & Triage</span>
+                <h2 class="fw-bold mb-1"><i class="bi bi-arrow-counterclockwise me-2"></i>Refund Operations Queue</h2>
+                <p class="mb-0 text-white-50">Review automated policy window quotes, audit gateway fees, and execute manual overrides or gateway refund dispatches.</p>
+            </div>
+            <a asp-controller="@controllerName" asp-action="Index" class="btn btn-outline-light rounded-pill px-4">
+                <i class="bi bi-speedometer2 me-1"></i> Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Pills -->
+    <div class="d-flex flex-wrap gap-2 mb-4">
+        <a asp-controller="@controllerName" asp-action="RefundsQueue" class="btn rounded-pill px-3 @(string.IsNullOrEmpty(selectedStatus) ? "btn-primary" : "btn-light border")">
+            All Refunds
+        </a>
+        <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="Pending" class="btn rounded-pill px-3 @(selectedStatus == "Pending" ? "btn-warning text-dark fw-bold" : "btn-light border")">
+            <i class="bi bi-clock-history me-1"></i> Pending Review
+        </a>
+        <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="Approved" class="btn rounded-pill px-3 @(selectedStatus == "Approved" ? "btn-success fw-bold" : "btn-light border")">
+            <i class="bi bi-check-circle me-1"></i> Approved
+        </a>
+        <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="Processed" class="btn rounded-pill px-3 @(selectedStatus == "Processed" ? "btn-info text-dark fw-bold" : "btn-light border")">
+            <i class="bi bi-check-all me-1"></i> Processed via Gateway
+        </a>
+        <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="Rejected" class="btn rounded-pill px-3 @(selectedStatus == "Rejected" ? "btn-danger fw-bold" : "btn-light border")">
+            <i class="bi bi-x-circle me-1"></i> Rejected
+        </a>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-body p-0">
+            @if (Model != null && Model.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Refund #</th>
+                                <th>Booking Ref</th>
+                                <th>Guest Details</th>
+                                <th>Total Paid</th>
+                                <th>Gateway Fee</th>
+                                <th>Cancellation Fee</th>
+                                <th>Calculated Refund</th>
+                                <th>Policy Rule Applied</th>
+                                <th>Status</th>
+                                <th>Date Requested</th>
+                                <th class="pe-4 text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in Model)
+                            {
+                                var badgeClass = r.Status switch
+                                {
+                                    "Pending" => "bg-warning text-dark",
+                                    "Approved" => "bg-success",
+                                    "Processed" => "bg-info text-dark",
+                                    "Rejected" => "bg-danger",
+                                    _ => "bg-secondary"
+                                };
+                                <tr>
+                                    <td class="ps-4 fw-bold">#@r.RefundID</td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border">#@r.BookingID</span>
+                                    </td>
+                                    <td>
+                                        <div class="fw-semibold">@r.ClientName</div>
+                                        <span class="text-muted small">@r.PropertyTitle</span>
+                                    </td>
+                                    <td class="fw-medium">₹@r.GrossBookingAmount.ToString("N2")</td>
+                                    <td class="text-muted small">₹@r.GatewayFeeDeducted.ToString("N2")</td>
+                                    <td class="text-danger small">₹@r.CancellationFeeDeducted.ToString("N2")</td>
+                                    <td class="fw-bold text-success fs-6">₹@r.NetRefundAmount.ToString("N2")</td>
+                                    <td>
+                                        <span class="badge bg-light text-primary border small">
+                                            @(string.IsNullOrEmpty(r.RefundReason) ? "Policy Engine" : r.RefundReason)
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge @badgeClass px-3 py-2 rounded-pill">@r.Status</span>
+                                    </td>
+                                    <td class="text-muted small">@r.CreatedAt.ToString("MMM dd, yyyy HH:mm")</td>
+                                    <td class="pe-4 text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3 btn-override"
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#overrideModal"
+                                                data-refund-id="@r.RefundID"
+                                                data-booking-id="@r.BookingID"
+                                                data-amount="@r.NetRefundAmount.ToString("N2")"
+                                                data-status="@r.Status">
+                                            <i class="bi bi-gear-fill me-1"></i> Override / Triage
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
+                    <h5 class="fw-bold text-secondary">No Refunds in this Queue</h5>
+                    <p class="text-muted small mb-0">No booking cancellations matching the selected filter.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Override Modal -->
+<div class="modal fade" id="overrideModal" tabindex="-1" aria-labelledby="overrideModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header bg-primary text-white rounded-top-4">
+                <h5 class="modal-title fw-bold" id="overrideModalLabel"><i class="bi bi-sliders me-2"></i>Refund Operations Override</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-controller="@controllerName" asp-action="OverrideRefund" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="modalRefundId" name="refundId" />
+
+                <div class="modal-body p-4">
+                    <div class="p-3 bg-light rounded-3 mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted small">Refund Request:</span>
+                            <span class="fw-bold" id="modalRefundTitle">#</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted small">Refund Amount:</span>
+                            <span class="fw-bold text-success fs-6" id="modalRefundAmount">₹0.00</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Action / Status Update <span class="text-danger">*</span></label>
+                        <select name="status" class="form-select rounded-3" required>
+                            <option value="Approved">Approve Refund (Queue for Gateway Payout)</option>
+                            <option value="Processed">Mark Processed (Confirmed by Gateway)</option>
+                            <option value="Rejected">Reject Refund (Policy Ineligible)</option>
+                            <option value="Pending">Revert to Pending</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Operational Audit Notes</label>
+                        <textarea name="notes" class="form-control rounded-3" rows="3" placeholder="Document reason for override or transaction reference..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-3 bg-light rounded-bottom-4">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">Confirm Override</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.querySelectorAll(".btn-override").forEach(btn => {
+        btn.addEventListener("click", function () {
+            const id = this.getAttribute("data-refund-id");
+            const bId = this.getAttribute("data-booking-id");
+            const amt = this.getAttribute("data-amount");
+
+            document.getElementById("modalRefundId").value = id;
+            document.getElementById("modalRefundTitle").textContent = `Refund #${id} (Booking #${bId})`;
+            document.getElementById("modalRefundAmount").textContent = `₹${amt}`;
+        });
+    });
+</script>
+}

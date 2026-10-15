@@ -1,0 +1,141 @@
+@model BookMyFun.Models.ViewModels.DamageClaimCreateViewModel
+@{
+    ViewData["Title"] = "Raise Damage Claim";
+    var booking = ViewBag.Booking as BookMyFun.Models.Entities.Booking;
+    var property = ViewBag.Property as BookMyFun.Models.Entities.Property;
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-xl-8 col-lg-10">
+            <!-- Header Banner -->
+            <div class="card border-0 shadow-sm rounded-4 mb-4 bg-gradient text-white p-4" style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                    <div>
+                        <span class="badge bg-white text-danger px-3 py-2 rounded-pill fw-bold mb-2">Claim Against Security Deposit</span>
+                        <h2 class="fw-bold mb-1"><i class="bi bi-file-earmark-break-fill me-2"></i>File Damage Claim</h2>
+                        <p class="mb-0 text-white-50">Booking #@Model.BookingID &bull; @(property?.Title ?? "Property")</p>
+                    </div>
+                    <a asp-action="Index" class="btn btn-outline-light rounded-pill px-4">
+                        <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+
+            <!-- Booking & Deposit Snapshot -->
+            <div class="card border-0 shadow-sm rounded-4 mb-4 bg-light">
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <span class="text-secondary small d-block">Guest Name</span>
+                            <span class="fw-bold fs-6">@(booking?.ClientName ?? "Guest")</span>
+                        </div>
+                        <div class="col-md-4">
+                            <span class="text-secondary small d-block">Checkout Date</span>
+                            <span class="fw-bold fs-6">@booking?.CheckOutDate.ToString("MMM dd, yyyy")</span>
+                        </div>
+                        <div class="col-md-4">
+                            <span class="text-secondary small d-block">Authorized Security Deposit</span>
+                            <span class="fw-bold fs-5 text-success">₹@(booking?.SecurityDepositAmount.ToString("N2") ?? "0.00")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <form asp-action="CreateClaim" method="post" id="claimForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="BookingID" />
+                <input type="hidden" asp-for="PropertyID" />
+
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
+                    <div class="card-header bg-white py-3 border-bottom border-light-subtle">
+                        <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-card-checklist text-danger me-2"></i>Damage Details & Proof</h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Claim Amount (₹) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light fw-bold">₹</span>
+                                <input asp-for="ClaimAmount" type="number" step="0.01" min="1" max="@(booking?.SecurityDepositAmount ?? 100000)" class="form-control form-control-lg" required />
+                            </div>
+                            <span class="form-text text-muted">Cannot exceed the authorized security deposit hold (₹@(booking?.SecurityDepositAmount.ToString("N2") ?? "0.00")).</span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Itemized Description & Details of Damages <span class="text-danger">*</span></label>
+                            <textarea asp-for="ItemizedDescription" class="form-control rounded-3" rows="5" placeholder="Itemize each damaged article, incident details, and repair/replacement estimate (e.g. Broken Coffee Table Glass: ₹1500, Deep Cleaning / Fabric Wash: ₹1000)..." required></textarea>
+                            <span class="form-text text-muted">Provide a full itemized breakdown of costs and circumstances.</span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Photographic & Video Evidence Links (URLs)</label>
+                            <textarea asp-for="EvidenceUrlsInput" id="evidenceUrlsInput" class="form-control rounded-3" rows="2" placeholder="Paste image/video URLs or upload files below (comma or newline separated)"></textarea>
+                        </div>
+
+                        <!-- Direct File Upload for Proof -->
+                        <div class="p-3 bg-light rounded-3 border">
+                            <label class="form-label fw-semibold small mb-2"><i class="bi bi-cloud-arrow-up-fill text-danger me-1"></i>Direct Upload Damage Photos/Videos</label>
+                            <input type="file" id="claimEvidenceFiles" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.webp,.mp4,.mov" multiple />
+                            <button type="button" class="btn btn-sm btn-outline-danger mt-2 rounded-pill" id="btnUploadClaimEvidence">
+                                <i class="bi bi-upload me-1"></i> Upload Evidence & Attach
+                            </button>
+                            <div id="uploadStatus" class="small mt-1 text-muted"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-5">
+                    <a asp-action="DamageClaims" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+                    <button type="submit" class="btn btn-danger btn-lg rounded-pill px-5 shadow-sm fw-bold">
+                        <i class="bi bi-send-fill me-2"></i> Submit Damage Claim for Adjudication
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.getElementById("btnUploadClaimEvidence").addEventListener("click", async function () {
+        const fileInput = document.getElementById("claimEvidenceFiles");
+        const statusEl = document.getElementById("uploadStatus");
+        const urlsInput = document.getElementById("evidenceUrlsInput");
+
+        if (!fileInput.files.length) {
+            alert("Please choose files to upload.");
+            return;
+        }
+
+        const btn = this;
+        btn.disabled = true;
+        statusEl.innerHTML = `<span class="spinner-border spinner-border-sm me-1 text-danger"></span> Uploading...`;
+
+        const uploaded = [];
+        for (let i = 0; i < fileInput.files.length; i++) {
+            const file = fileInput.files[i];
+            const fd = new FormData();
+            fd.append("file", file);
+            fd.append("mediaType", file.type.startsWith("video") ? "video" : "photo");
+
+            try {
+                const res = await (await fetch("/api/media/upload-file", { method: "POST", body: fd })).json();
+                if (res.success) {
+                    uploaded.push(res.url);
+                }
+            } catch { }
+        }
+
+        if (uploaded.length > 0) {
+            const existing = urlsInput.value.trim();
+            urlsInput.value = existing ? existing + "\n" + uploaded.join("\n") : uploaded.join("\n");
+            statusEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i> ${uploaded.length} evidence file(s) uploaded and attached!</span>`;
+            fileInput.value = "";
+        } else {
+            statusEl.innerHTML = `<span class="text-danger">Upload failed. Please ensure file size and formats are valid.</span>`;
+        }
+
+        btn.disabled = false;
+    });
+</script>
+}

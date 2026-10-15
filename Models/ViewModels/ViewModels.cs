@@ -336,9 +336,10 @@ namespace BookMyFun.Models.ViewModels
         [Required, Range(1, 1000000, ErrorMessage = "Claim amount must be greater than zero")]
         public decimal ClaimAmount { get; set; }
 
-        [Required, MinLength(20, ErrorMessage = "Please provide an itemized description of damages")]
+        [Required, MinLength(10, ErrorMessage = "Please provide an itemized description of damages")]
         public string ItemizedDescription { get; set; } = string.Empty;
 
+        public string? EvidenceUrlsInput { get; set; }
         public List<string> EvidenceUrls { get; set; } = new();
     }
 

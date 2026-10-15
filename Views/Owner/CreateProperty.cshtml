@@ -1,0 +1,575 @@
+@model BookMyFun.Models.ViewModels.PropertyEditViewModel
+@{
+    ViewData["Title"] = "List Your Farm / Villa";
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-xl-10 col-lg-11">
+            <!-- Header Banner -->
+            <div class="card border-0 shadow-sm rounded-4 mb-4 bg-gradient text-white p-4" style="background: linear-gradient(135deg, #059669 0%, #064e3b 100%);">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                    <div>
+                        <span class="badge bg-white text-success px-3 py-2 rounded-pill fw-bold mb-2">Host Portal</span>
+                        <h2 class="fw-bold mb-1"><i class="bi bi-house-door-fill me-2"></i>Create New Farm Listing</h2>
+                        <p class="mb-0 text-white-50">Provide authentic details, set transparent policies, and upload high-resolution media (minimum 5 photos).</p>
+                    </div>
+                    <a asp-action="Index" class="btn btn-outline-light rounded-pill px-4">
+                        <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+
+            <form asp-action="CreateProperty" method="post" id="propertyForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="OwnerID" />
+                <input type="hidden" id="additionalMediaJson" name="AdditionalMediaJson" value="[]" />
+
+                <!-- SECTION 1: ESSENTIAL DETAILS -->
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
+                    <div class="card-header bg-white py-3 border-bottom border-light-subtle">
+                        <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-info-circle-fill text-success me-2"></i>1. Essential Details</h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label fw-semibold">Listing Title <span class="text-danger">*</span></label>
+                                <input asp-for="Title" class="form-control form-control-lg rounded-3" placeholder="e.g. Whispering Pines Eco Farm & Pool" required />
+                                <span class="form-text text-muted">Use a catchy, descriptive title showcasing the standout features.</span>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Property Type <span class="text-danger">*</span></label>
+                                <select asp-for="PropertyTypeID" class="form-select form-select-lg rounded-3" required>
+                                    <option value="">-- Select Type --</option>
+                                    @foreach (var t in Model.AvailableTypes)
+                                    {
+                                        <option value="@t.PropertyTypeID">@t.TypeName</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">About the Property <span class="text-danger">*</span></label>
+                                <textarea asp-for="Description" class="form-control rounded-3" rows="4" placeholder="Describe the ambiance, surrounding natural landscape, guest accommodations, and nearby attractions..." required></textarea>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Max Guest Capacity <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-people-fill text-muted"></i></span>
+                                    <input asp-for="MaxGuests" type="number" min="1" max="1000" class="form-control" placeholder="e.g. 15" required />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Base Price Per Night (₹) <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light fw-bold text-muted">₹</span>
+                                    <input asp-for="PricePerNight" type="number" step="0.01" min="100" class="form-control" placeholder="e.g. 7500" required />
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Refundable Security Deposit (₹)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light fw-bold text-muted">₹</span>
+                                    <input asp-for="SecurityDepositAmount" type="number" step="0.01" min="0" class="form-control" placeholder="e.g. 2000" />
+                                </div>
+                                <span class="form-text text-muted">Authorized at checkout; released post-checkout or used for damage claims.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 2: LOCATION & GEOLOCATION -->
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
+                    <div class="card-header bg-white py-3 border-bottom border-light-subtle d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-geo-alt-fill text-danger me-2"></i>2. Location & Geolocation Coordinates</h5>
+                        <button type="button" class="btn btn-sm btn-outline-success rounded-pill" id="btnDetectLocation">
+                            <i class="bi bi-crosshair me-1"></i> Detect Current Location
+                        </button>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">City / Region <span class="text-danger">*</span></label>
+                                <input asp-for="Location" class="form-control rounded-3" placeholder="e.g. Karjat, Maharashtra" required />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Formatted Full Address</label>
+                                <input asp-for="FormattedAddress" id="formattedAddress" class="form-control rounded-3" placeholder="e.g. Survey No. 42, Green Valley Road, Karjat 410201" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Latitude</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-compass text-muted"></i></span>
+                                    <input asp-for="Latitude" id="latitude" type="number" step="0.0000001" class="form-control" placeholder="e.g. 18.9102" />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Longitude</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-compass text-muted"></i></span>
+                                    <input asp-for="Longitude" id="longitude" type="number" step="0.0000001" class="form-control" placeholder="e.g. 73.3283" />
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="p-3 bg-light rounded-3 d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <i class="bi bi-map-fill text-success me-2 fs-5"></i>
+                                        <span class="text-secondary small">Coordinates power accurate Google Maps preview and driving directions for confirmed guests.</span>
+                                    </div>
+                                    <a href="https://www.google.com/maps" target="_blank" class="btn btn-sm btn-outline-secondary rounded-pill">
+                                        <i class="bi bi-box-arrow-up-right me-1"></i> Open Google Maps
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 3: CANCELLATION & REFUND POLICIES -->
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
+                    <div class="card-header bg-white py-3 border-bottom border-light-subtle">
+                        <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-shield-check text-primary me-2"></i>3. Cancellation & Refund Policy</h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Free Cancellation Window (Hours prior to check-in)</label>
+                                <div class="input-group">
+                                    <input asp-for="FreeCancellationWindowHours" type="number" min="0" max="720" class="form-control" />
+                                    <span class="input-group-text bg-light">hours (default 48h)</span>
+                                </div>
+                                <span class="form-text text-muted">Guests receive a full refund minus gateway fees if cancelled before this threshold.</span>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Cancellation Cutoff Deadline (Strict non-refundable)</label>
+                                <div class="input-group">
+                                    <input asp-for="CancellationCutoffHours" type="number" min="0" max="720" class="form-control" />
+                                    <span class="input-group-text bg-light">hours (default 24h)</span>
+                                </div>
+                                <span class="form-text text-muted">Zero refund permitted if cancelled closer than this window.</span>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Cancellation Fee Type (Between Window & Cutoff)</label>
+                                <select asp-for="CancellationFeeType" class="form-select">
+                                    <option value="percentage">Percentage (%) of Total Amount</option>
+                                    <option value="fixed">Fixed Deduction (₹)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Cancellation Fee Value</label>
+                                <input asp-for="CancellationFeeValue" type="number" step="0.01" min="0" class="form-control" />
+                                <span class="form-text text-muted">e.g. 10.00 for 10% or 500 for ₹500 fixed deduction.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 4: AMENITIES & OCCASIONS TAXONOMY -->
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
+                    <div class="card-header bg-white py-3 border-bottom border-light-subtle">
+                        <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-grid-fill text-warning me-2"></i>4. Amenities & Suitable Occasions</h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <h6 class="fw-bold mb-3 text-secondary">Farm & Villa Amenities</h6>
+                        <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3 mb-4">
+                            @foreach (var am in Model.AvailableAmenities)
+                            {
+                                <div class="col">
+                                    <div class="card h-100 border rounded-3 p-2 amenity-card">
+                                        <div class="form-check d-flex align-items-center gap-2 mb-0">
+                                            <input class="form-check-input" type="checkbox" name="SelectedAmenityIDs" value="@am.AmenityID" id="am_@am.AmenityID" @(Model.SelectedAmenityIDs.Contains(am.AmenityID) ? "checked" : "")>
+                                            <label class="form-check-label w-100 cursor-pointer text-dark" for="am_@am.AmenityID">
+                                                <i class="bi @am.IconClass text-success me-1"></i> @am.AmenityName
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <h6 class="fw-bold mb-3 text-secondary">Ideal For Occasions</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var occ in Model.AvailableOccasions)
+                            {
+                                <div class="form-check form-check-inline p-2 border rounded-pill px-3 bg-light">
+                                    <input class="form-check-input ms-0 me-2" type="checkbox" name="SelectedOccasionIDs" value="@occ.OccasionID" id="occ_@occ.OccasionID" @(Model.SelectedOccasionIDs.Contains(occ.OccasionID) ? "checked" : "")>
+                                    <label class="form-check-label fw-medium" for="occ_@occ.OccasionID">@occ.OccasionName</label>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 5: DUAL-MODE MEDIA MANAGER (PHOTOS & VIDEOS) -->
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
+                    <div class="card-header bg-white py-3 border-bottom border-light-subtle d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div>
+                            <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-images text-info me-2"></i>5. Photos & Video Gallery</h5>
+                            <span class="text-muted small">Dual support: Direct file upload (magic-byte validated) or external verified link (SSRF protected).</span>
+                        </div>
+                        <div id="photoCounterBadge" class="badge bg-danger fs-6 px-3 py-2 rounded-pill">
+                            <i class="bi bi-camera me-1"></i> Photos: <span id="photoCount">0</span> / 5 Minimum
+                        </div>
+                    </div>
+                    <div class="card-body p-4">
+                        <!-- Primary Image Quick Input -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Cover / Hero Image URL (Primary Photo)</label>
+                            <input asp-for="ImageUrlInput" id="primaryImageUrlInput" class="form-control rounded-3" placeholder="https://images.unsplash.com/photo-... or upload from below" />
+                        </div>
+
+                        <!-- Media Mode Tabs -->
+                        <ul class="nav nav-pills nav-fill mb-3 p-1 bg-light rounded-pill" id="mediaTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active rounded-pill fw-semibold" id="upload-tab" data-bs-toggle="pill" data-bs-target="#tab-upload" type="button" role="tab">
+                                    <i class="bi bi-cloud-arrow-up-fill me-1"></i> Direct File Upload
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link rounded-pill fw-semibold" id="url-tab" data-bs-toggle="pill" data-bs-target="#tab-url" type="button" role="tab">
+                                    <i class="bi bi-link-45deg me-1"></i> Paste External URL / Embed
+                                </button>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content" id="mediaTabContent">
+                            <!-- TAB 1: FILE UPLOAD -->
+                            <div class="tab-pane fade show active p-3 border rounded-4 bg-light" id="tab-upload" role="tabpanel">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="card border-dashed p-4 text-center h-100 bg-white rounded-3 shadow-none">
+                                            <i class="bi bi-file-earmark-image fs-1 text-success mb-2"></i>
+                                            <h6 class="fw-bold">Upload Photos</h6>
+                                            <p class="text-muted small mb-3">JPG, PNG, WEBP only. Max 10MB per photo.</p>
+                                            <input type="file" id="photoFileInput" class="form-control" accept=".jpg,.jpeg,.png,.webp" multiple />
+                                            <button type="button" class="btn btn-sm btn-success mt-3 rounded-pill" id="btnUploadPhotos">
+                                                <i class="bi bi-upload me-1"></i> Upload Selected Photos
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="card border-dashed p-4 text-center h-100 bg-white rounded-3 shadow-none">
+                                            <i class="bi bi-camera-video fs-1 text-primary mb-2"></i>
+                                            <h6 class="fw-bold">Upload Video Tour</h6>
+                                            <p class="text-muted small mb-3">MP4, MOV, WEBM only. Max 100MB.</p>
+                                            <input type="file" id="videoFileInput" class="form-control" accept=".mp4,.mov,.webm" />
+                                            <button type="button" class="btn btn-sm btn-primary mt-3 rounded-pill" id="btnUploadVideo">
+                                                <i class="bi bi-upload me-1"></i> Upload Selected Video
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- TAB 2: EXTERNAL URL -->
+                            <div class="tab-pane fade p-3 border rounded-4 bg-light" id="tab-url" role="tabpanel">
+                                <div class="row g-3">
+                                    <div class="col-md-8">
+                                        <label class="form-label fw-semibold">External Media URL</label>
+                                        <input type="url" id="externalUrlInput" class="form-control" placeholder="https://images.unsplash.com/... or https://youtube.com/watch?v=..." />
+                                        <span class="form-text text-muted">Supports direct image URLs, YouTube, and Vimeo streaming links.</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-semibold">Media Type</label>
+                                        <select id="externalMediaTypeSelect" class="form-select">
+                                            <option value="photo">Photo (Image link)</option>
+                                            <option value="video">Video (YouTube / Vimeo / Cloud link)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12">
+                                        <button type="button" class="btn btn-outline-primary rounded-pill px-4" id="btnVerifyAndAddUrl">
+                                            <i class="bi bi-shield-check me-1"></i> Verify & Add to Gallery
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Gallery Preview Grid -->
+                        <div class="mt-4">
+                            <h6 class="fw-bold text-dark mb-3"><i class="bi bi-collection-play me-2"></i>Current Media Gallery</h6>
+                            <div id="mediaGallery" class="row row-cols-2 row-cols-md-4 g-3">
+                                <!-- Dynamically filled with media cards -->
+                            </div>
+                            <div id="galleryEmptyMessage" class="text-center py-4 text-muted">
+                                <i class="bi bi-images fs-2 d-block mb-1"></i>
+                                No photos or videos added yet. Upload files or paste links to preview.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SUBMIT BUTTONS -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-4 mb-5">
+                    <a asp-action="Index" class="btn btn-outline-secondary rounded-pill px-4">Cancel</a>
+                    <button type="submit" class="btn btn-success btn-lg rounded-pill px-5 shadow-sm fw-bold" id="btnSubmitListing">
+                        <i class="bi bi-check-circle-fill me-2"></i> Submit Property for Approval
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const mediaList = [];
+        const photoCountEl = document.getElementById("photoCount");
+        const photoBadgeEl = document.getElementById("photoCounterBadge");
+        const mediaGallery = document.getElementById("mediaGallery");
+        const galleryEmptyMessage = document.getElementById("galleryEmptyMessage");
+        const hiddenMediaJson = document.getElementById("additionalMediaJson");
+        const primaryInput = document.getElementById("primaryImageUrlInput");
+
+        function updateMediaGallery() {
+            mediaGallery.innerHTML = "";
+            let photoCount = 0;
+
+            if (mediaList.length === 0) {
+                galleryEmptyMessage.style.display = "block";
+            } else {
+                galleryEmptyMessage.style.display = "none";
+            }
+
+            mediaList.forEach((m, idx) => {
+                if (m.mediaType === "photo") photoCount++;
+
+                const col = document.createElement("div");
+                col.className = "col";
+
+                const isVid = m.mediaType === "video";
+                const mediaPreview = isVid 
+                    ? `<div class="bg-dark text-white rounded-3 d-flex flex-column align-items-center justify-content-center" style="height: 140px;">
+                         <i class="bi bi-play-circle-fill fs-1 text-danger"></i>
+                         <span class="small text-truncate px-2" style="max-width: 100%;">Video Tour</span>
+                       </div>`
+                    : `<img src="${m.url}" class="card-img-top rounded-3 object-fit-cover" style="height: 140px;" alt="Property Image" onerror="this.src='/images/property-placeholder.jpg';" />`;
+
+                col.innerHTML = `
+                    <div class="card h-100 border shadow-sm rounded-3 position-relative overflow-hidden">
+                        ${mediaPreview}
+                        <div class="card-body p-2 d-flex justify-content-between align-items-center">
+                            <span class="badge ${isVid ? 'bg-primary' : (m.isPrimary ? 'bg-warning text-dark' : 'bg-secondary')} small">
+                                ${m.isPrimary ? 'Primary' : (isVid ? 'Video' : 'Photo')}
+                            </span>
+                            <div class="btn-group btn-group-sm">
+                                ${!isVid && !m.isPrimary ? `<button type="button" class="btn btn-outline-warning btn-set-primary py-0 px-1" title="Set as Cover" data-index="${idx}"><i class="bi bi-star"></i></button>` : ''}
+                                <button type="button" class="btn btn-outline-danger btn-remove-media py-0 px-1" title="Remove" data-index="${idx}"><i class="bi bi-trash"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                mediaGallery.appendChild(col);
+            });
+
+            // Update photo count badge
+            photoCountEl.textContent = photoCount;
+            if (photoCount >= 5) {
+                photoBadgeEl.className = "badge bg-success fs-6 px-3 py-2 rounded-pill";
+            } else {
+                photoBadgeEl.className = "badge bg-danger fs-6 px-3 py-2 rounded-pill";
+            }
+
+            // Sync hidden JSON
+            hiddenMediaJson.value = JSON.stringify(mediaList.map(item => ({
+                mediaType: item.mediaType,
+                sourceType: item.sourceType,
+                storageUrl: item.url,
+                isPrimary: item.isPrimary
+            })));
+        }
+
+        // Delegate delete & set-primary
+        mediaGallery.addEventListener("click", function (e) {
+            const btnRemove = e.target.closest(".btn-remove-media");
+            if (btnRemove) {
+                const idx = parseInt(btnRemove.getAttribute("data-index"));
+                mediaList.splice(idx, 1);
+                updateMediaGallery();
+                return;
+            }
+
+            const btnPrimary = e.target.closest(".btn-set-primary");
+            if (btnPrimary) {
+                const idx = parseInt(btnPrimary.getAttribute("data-index"));
+                mediaList.forEach((item, i) => item.isPrimary = (i === idx));
+                primaryInput.value = mediaList[idx].url;
+                updateMediaGallery();
+            }
+        });
+
+        // Photo Upload handler
+        document.getElementById("btnUploadPhotos").addEventListener("click", async function () {
+            const fileInput = document.getElementById("photoFileInput");
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert("Please select at least one photo file.");
+                return;
+            }
+
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Uploading...`;
+
+            for (let i = 0; i < fileInput.files.length; i++) {
+                const file = fileInput.files[i];
+                const formData = new FormData();
+                formData.append("file", file);
+                formData.append("mediaType", "photo");
+                formData.append("isPrimary", mediaList.length === 0);
+
+                try {
+                    const response = await fetch("/api/media/upload-file", {
+                        method: "POST",
+                        body: formData
+                    });
+                    const res = await response.json();
+                    if (res.success) {
+                        const isPrimary = mediaList.length === 0;
+                        mediaList.push({
+                            url: res.url,
+                            mediaType: "photo",
+                            sourceType: "file",
+                            isPrimary: isPrimary
+                        });
+                        if (isPrimary && !primaryInput.value) {
+                            primaryInput.value = res.url;
+                        }
+                    } else {
+                        alert(`Upload failed for ${file.name}: ${res.message || 'Error'}`);
+                    }
+                } catch (err) {
+                    alert(`Network error uploading ${file.name}`);
+                }
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = `<i class="bi bi-upload me-1"></i> Upload Selected Photos`;
+            fileInput.value = "";
+            updateMediaGallery();
+        });
+
+        // Video Upload handler
+        document.getElementById("btnUploadVideo").addEventListener("click", async function () {
+            const fileInput = document.getElementById("videoFileInput");
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert("Please select a video file.");
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Uploading Video...`;
+
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("mediaType", "video");
+
+            try {
+                const response = await fetch("/api/media/upload-file", {
+                    method: "POST",
+                    body: formData
+                });
+                const res = await response.json();
+                if (res.success) {
+                    mediaList.push({
+                        url: res.url,
+                        mediaType: "video",
+                        sourceType: "file",
+                        isPrimary: false
+                    });
+                    alert("Video uploaded successfully!");
+                } else {
+                    alert(`Video upload failed: ${res.message || 'Error'}`);
+                }
+            } catch (err) {
+                alert("Network error uploading video.");
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = `<i class="bi bi-upload me-1"></i> Upload Selected Video`;
+            fileInput.value = "";
+            updateMediaGallery();
+        });
+
+        // External URL Verify & Add
+        document.getElementById("btnVerifyAndAddUrl").addEventListener("click", async function () {
+            const urlInput = document.getElementById("externalUrlInput");
+            const url = (urlInput.value || "").trim();
+            const mediaType = document.getElementById("externalMediaTypeSelect").value;
+
+            if (!url) {
+                alert("Please enter a media URL.");
+                return;
+            }
+
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Verifying...`;
+
+            try {
+                const response = await fetch("/api/media/verify-url", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        url: url,
+                        mediaType: mediaType,
+                        isPrimary: mediaList.length === 0 && mediaType === "photo"
+                    })
+                });
+                const res = await response.json();
+                if (res.success) {
+                    const isPrimary = mediaList.length === 0 && mediaType === "photo";
+                    mediaList.push({
+                        url: res.url,
+                        mediaType: res.mediaType,
+                        sourceType: "url",
+                        isPrimary: isPrimary
+                    });
+                    if (isPrimary && !primaryInput.value) {
+                        primaryInput.value = res.url;
+                    }
+                    urlInput.value = "";
+                    updateMediaGallery();
+                } else {
+                    alert(`URL verification failed: ${res.message || 'SSRF or invalid URL'}`);
+                }
+            } catch (err) {
+                alert("Failed to verify URL. Please ensure it is a public HTTPS link.");
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = `<i class="bi bi-shield-check me-1"></i> Verify & Add to Gallery`;
+        });
+
+        // Geolocation Detection
+        document.getElementById("btnDetectLocation").addEventListener("click", function () {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(function (pos) {
+                    document.getElementById("latitude").value = pos.coords.latitude.toFixed(6);
+                    document.getElementById("longitude").value = pos.coords.longitude.toFixed(6);
+                    alert(`Location detected: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
+                }, function (err) {
+                    alert("Unable to retrieve location. Please grant location permissions in your browser.");
+                });
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
+        });
+
+        // Form Submission check
+        document.getElementById("propertyForm").addEventListener("submit", function (e) {
+            let photos = mediaList.filter(m => m.mediaType === "photo").length;
+            if (primaryInput.value && primaryInput.value.trim().length > 0) {
+                photos++;
+            }
+
+            if (photos < 5) {
+                if (!confirm(`Notice: You have provided only ${photos} photos (minimum recommended is 5 for high listing quality). Proceed anyway?`)) {
+                    e.preventDefault();
+                }
+            }
+        });
+    });
+</script>
+}

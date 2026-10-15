@@ -40,3 +40,13 @@
 - **Context:** Unhandled exceptions can crash requests and leak sensitive database schemas or stack traces to clients.
 - **Decision:** Implement a clean domain exception hierarchy (`AppException`, `ValidationException`, `ForbiddenException`, `NotFoundException`, `PaymentGatewayException`) and catch them via a Global Exception Filter. Return standardized JSON responses for API calls and friendly error views with correlation IDs for web views.
 - **Consequence:** Eliminates information disclosure vulnerabilities (OWASP A05) and delivers resilient user experiences.
+
+### ADR-07: Operational Queues Architecture for Support & Admin
+- **Context:** Both Admins (Superusers) and Employees (Operations Staff) perform triage and review of refunds, onboarding leads, damage claims, and KYC verifications.
+- **Decision:** Share UI Razor views (`Views/Admin/*.cshtml` and `Views/Employee/*.cshtml`) through view delegation and dynamic `@controllerName` resolution based on the user's active role.
+- **Consequence:** Provides complete role separation while eliminating code and template duplication.
+
+### ADR-08: ClosedXML & CSV Asynchronous Analytics Reporting
+- **Context:** Administrators need financial reports (GMV, platform commission, pending host payouts, occupancy rates) across flexible presets (Today, 7D, MTD, YTD, Custom) exportable for executive review.
+- **Decision:** Use ClosedXML for native Excel (`.xlsx`) generation with custom styling and header coloring, plus streaming UTF-8 CSV exports.
+- **Consequence:** Generates fast, professional spreadsheet deliverables without external office suite dependencies.

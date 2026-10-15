@@ -1,0 +1,249 @@
+@model BookMyFun.Models.ViewModels.AdminAnalyticsViewModel
+@{
+    ViewData["Title"] = "Dynamic Platform Analytics & Financial Reports";
+    var properties = ViewBag.Properties as List<BookMyFun.Models.Entities.Property> ?? new();
+}
+
+<div class="container-fluid py-4 px-lg-4">
+    <!-- Header Banner -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4 bg-gradient text-white p-4" style="background: linear-gradient(135deg, #064e3b 0%, #065f46 100%);">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <span class="badge bg-white text-success px-3 py-2 rounded-pill fw-bold mb-2">Executive Analytics</span>
+                <h2 class="fw-bold mb-1"><i class="bi bi-graph-up-arrow me-2"></i>Platform Analytics & Financial Engine</h2>
+                <p class="mb-0 text-white-50">Real-time GMV, Net Platform Commission, Pending Host Payouts, and Occupancy metrics.</p>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <a asp-action="ExportAnalyticsCsv" 
+                   asp-route-datePreset="@Model.DateRangePreset" 
+                   asp-route-startDate="@Model.CustomStartDate?.ToString("yyyy-MM-dd")" 
+                   asp-route-endDate="@Model.CustomEndDate?.ToString("yyyy-MM-dd")" 
+                   class="btn btn-outline-light rounded-pill px-3">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i> Export to CSV
+                </a>
+                <a asp-action="ExportAnalyticsExcel" 
+                   asp-route-datePreset="@Model.DateRangePreset" 
+                   asp-route-startDate="@Model.CustomStartDate?.ToString("yyyy-MM-dd")" 
+                   asp-route-endDate="@Model.CustomEndDate?.ToString("yyyy-MM-dd")" 
+                   class="btn btn-warning text-dark fw-bold rounded-pill px-3 shadow-sm">
+                    <i class="bi bi-file-earmark-excel me-1"></i> Export to Excel (.xlsx)
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Multi-Dimensional Filter Bar -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4 bg-light">
+        <div class="card-body p-4">
+            <form asp-action="DynamicAnalytics" method="get" id="analyticsFilterForm">
+                <div class="row g-3 align-items-end">
+                    <div class="col-lg-3 col-md-6">
+                        <label class="form-label fw-semibold small text-muted">Time Period Preset</label>
+                        <select name="datePreset" id="datePresetSelect" class="form-select rounded-3">
+                            <option value="Today" selected="@(Model.DateRangePreset == "Today")">Today (24 Hours)</option>
+                            <option value="7D" selected="@(Model.DateRangePreset == "7D")">Last 7 Days</option>
+                            <option value="MTD" selected="@(Model.DateRangePreset == "MTD")">Month-to-Date (MTD)</option>
+                            <option value="YTD" selected="@(Model.DateRangePreset == "YTD")">Year-to-Date (YTD)</option>
+                            <option value="Custom" selected="@(Model.DateRangePreset == "Custom")">Custom Date Range</option>
+                        </select>
+                    </div>
+
+                    <div class="col-lg-2 col-md-3 custom-date-col" style="display: @(Model.DateRangePreset == "Custom" ? "block" : "none");">
+                        <label class="form-label fw-semibold small text-muted">Start Date</label>
+                        <input type="date" name="startDate" class="form-control rounded-3" value="@(Model.CustomStartDate?.ToString("yyyy-MM-dd"))" />
+                    </div>
+
+                    <div class="col-lg-2 col-md-3 custom-date-col" style="display: @(Model.DateRangePreset == "Custom" ? "block" : "none");">
+                        <label class="form-label fw-semibold small text-muted">End Date</label>
+                        <input type="date" name="endDate" class="form-control rounded-3" value="@(Model.CustomEndDate?.ToString("yyyy-MM-dd"))" />
+                    </div>
+
+                    <div class="col-lg-3 col-md-6">
+                        <label class="form-label fw-semibold small text-muted">Filter by Property</label>
+                        <select name="propertyId" class="form-select rounded-3">
+                            <option value="">-- All Properties --</option>
+                            @foreach (var p in properties)
+                            {
+                                <option value="@p.PropertyID" selected="@(Model.FilterPropertyID == p.PropertyID)">@p.Title</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="col-lg-2 col-md-6">
+                        <label class="form-label fw-semibold small text-muted">Booking Status</label>
+                        <select name="status" class="form-select rounded-3">
+                            <option value="All">All Statuses</option>
+                            <option value="Confirmed" selected="@(Model.FilterStatus == "Confirmed")">Confirmed</option>
+                            <option value="Pending" selected="@(Model.FilterStatus == "Pending")">Pending</option>
+                            <option value="Cancelled" selected="@(Model.FilterStatus == "Cancelled")">Cancelled</option>
+                        </select>
+                    </div>
+
+                    <div class="col-lg-2 col-md-12">
+                        <button type="submit" class="btn btn-success rounded-pill px-4 w-100 fw-bold">
+                            <i class="bi bi-funnel-fill me-1"></i> Apply Filters
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Real-Time KPI Cards Grid -->
+    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-5 g-3 mb-4">
+        <!-- 1. GMV -->
+        <div class="col">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-white">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="text-secondary small fw-bold text-uppercase">Gross Value (GMV)</span>
+                    <div class="bg-success bg-opacity-10 text-success p-2 rounded-circle">
+                        <i class="bi bi-currency-rupee fs-5"></i>
+                    </div>
+                </div>
+                <h3 class="fw-bold mb-1 text-dark">₹@Model.GMV.ToString("N0")</h3>
+                <span class="text-muted small"><i class="bi bi-check-circle text-success me-1"></i>Total Confirmed Volume</span>
+            </div>
+        </div>
+
+        <!-- 2. Platform Commission -->
+        <div class="col">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-white">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="text-secondary small fw-bold text-uppercase">Platform Revenue</span>
+                    <div class="bg-primary bg-opacity-10 text-primary p-2 rounded-circle">
+                        <i class="bi bi-pie-chart-fill fs-5"></i>
+                    </div>
+                </div>
+                <h3 class="fw-bold mb-1 text-primary">₹@Model.NetPlatformCommission.ToString("N0")</h3>
+                <span class="text-muted small"><i class="bi bi-arrow-up-right text-primary me-1"></i>Net Platform Cut</span>
+            </div>
+        </div>
+
+        <!-- 3. Pending Payouts -->
+        <div class="col">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-white">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="text-secondary small fw-bold text-uppercase">Host Payouts</span>
+                    <div class="bg-warning bg-opacity-10 text-warning p-2 rounded-circle">
+                        <i class="bi bi-wallet2 fs-5"></i>
+                    </div>
+                </div>
+                <h3 class="fw-bold mb-1 text-dark">₹@Model.PendingPayouts.ToString("N0")</h3>
+                <span class="text-muted small">Payable to Host Partners</span>
+            </div>
+        </div>
+
+        <!-- 4. Active Properties -->
+        <div class="col">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-white">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="text-secondary small fw-bold text-uppercase">Active Stays</span>
+                    <div class="bg-info bg-opacity-10 text-info p-2 rounded-circle">
+                        <i class="bi bi-houses-fill fs-5"></i>
+                    </div>
+                </div>
+                <h3 class="fw-bold mb-1 text-dark">@Model.ActiveProperties</h3>
+                <span class="text-muted small">Published Live Listings</span>
+            </div>
+        </div>
+
+        <!-- 5. Occupancy Rate -->
+        <div class="col">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-white">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="text-secondary small fw-bold text-uppercase">Occupancy Rate</span>
+                    <div class="bg-danger bg-opacity-10 text-danger p-2 rounded-circle">
+                        <i class="bi bi-percent fs-5"></i>
+                    </div>
+                </div>
+                <h3 class="fw-bold mb-1 text-dark">@Model.OccupancyRate%</h3>
+                <span class="text-muted small">Estimated 30-Day Index</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analytical Breakdown & Summary Cards -->
+    <div class="row g-4">
+        <!-- Visual KPI Overview -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-header bg-white py-3 border-bottom border-light-subtle d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-bar-chart-line-fill text-success me-2"></i>Financial & Commission Breakdown</h5>
+                    <span class="badge bg-light text-secondary border small">Window: @Model.DateRangePreset</span>
+                </div>
+                <div class="card-body p-4">
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="fw-semibold">Platform Commission Ratio</span>
+                            <span class="fw-bold text-primary">
+                                @(Model.GMV > 0 ? (Model.NetPlatformCommission / Model.GMV * 100).ToString("N1") : "10.0")% of GMV
+                            </span>
+                        </div>
+                        <div class="progress" style="height: 12px;">
+                            <div class="progress-bar bg-primary" role="progressbar" style="width: @(Model.GMV > 0 ? (Model.NetPlatformCommission / Model.GMV * 100).ToString("N1") : "10")%"></div>
+                            <div class="progress-bar bg-success" role="progressbar" style="width: @(Model.GMV > 0 ? (Model.PendingPayouts / Model.GMV * 100).ToString("N1") : "90")%"></div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2 small text-muted">
+                            <span><i class="bi bi-square-fill text-primary me-1"></i> Net Platform Cut: ₹@Model.NetPlatformCommission.ToString("N0")</span>
+                            <span><i class="bi bi-square-fill text-success me-1"></i> Host Share: ₹@Model.PendingPayouts.ToString("N0")</span>
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-light rounded-3">
+                        <h6 class="fw-bold text-dark mb-2"><i class="bi bi-shield-check text-success me-1"></i>Automated Ledger Snapshotting</h6>
+                        <p class="text-muted small mb-0">
+                            Commission snapshots are permanently persisted onto each booking record at creation time adhering to the precedence hierarchy (Property Specific &gt; Owner Tier &gt; Global Default). Historical reports remain immutable across subsequent policy adjustments.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Export & Governance Actions -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-header bg-white py-3 border-bottom border-light-subtle">
+                    <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-download text-primary me-2"></i>Data Export & Audit</h5>
+                </div>
+                <div class="card-body p-4 d-flex flex-column justify-content-between">
+                    <div>
+                        <p class="text-muted small mb-4">
+                            Generate structured, auditable Excel workbooks with custom header palettes and ClosedXML cell formatting, or standardized CSV streams for third-party BI pipelines.
+                        </p>
+                        <div class="d-grid gap-2 mb-3">
+                            <a asp-action="ExportAnalyticsExcel" 
+                               asp-route-datePreset="@Model.DateRangePreset" 
+                               asp-route-startDate="@Model.CustomStartDate?.ToString("yyyy-MM-dd")" 
+                               asp-route-endDate="@Model.CustomEndDate?.ToString("yyyy-MM-dd")" 
+                               class="btn btn-outline-success rounded-pill py-2 fw-semibold">
+                                <i class="bi bi-file-earmark-excel-fill me-2"></i> Download Full Ledger (.xlsx)
+                            </a>
+                            <a asp-action="ExportAnalyticsCsv" 
+                               asp-route-datePreset="@Model.DateRangePreset" 
+                               asp-route-startDate="@Model.CustomStartDate?.ToString("yyyy-MM-dd")" 
+                               asp-route-endDate="@Model.CustomEndDate?.ToString("yyyy-MM-dd")" 
+                               class="btn btn-outline-secondary rounded-pill py-2 fw-semibold">
+                                <i class="bi bi-filetype-csv me-2"></i> Download Raw CSV
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="border-top pt-3 small text-muted">
+                        <i class="bi bi-lock-fill text-secondary me-1"></i> Compliant with platform financial security and tenant access governance.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.getElementById("datePresetSelect").addEventListener("change", function () {
+        const isCustom = this.value === "Custom";
+        document.querySelectorAll(".custom-date-col").forEach(col => {
+            col.style.display = isCustom ? "block" : "none";
+        });
+    });
+</script>
+}

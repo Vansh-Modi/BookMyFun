@@ -1,0 +1,5 @@
+@model IEnumerable<BookMyFun.Models.Entities.PartnerLead>
+@{
+    Layout = "_Layout";
+}
+@await Html.PartialAsync("~/Views/Admin/PartnerLeads.cshtml", Model)

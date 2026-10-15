@@ -1,0 +1,220 @@
+@model IEnumerable<BookMyFun.Models.Entities.DamageClaim>
+@{
+    var isEmployee = User.IsInRole("Employee");
+    var controllerName = isEmployee ? "Employee" : "Admin";
+    ViewData["Title"] = "Damage Claims Adjudication";
+    var selectedStatus = ViewBag.SelectedStatus as string;
+}
+
+<div class="container-fluid py-4 px-lg-4">
+    <!-- Header Banner -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4 bg-gradient text-white p-4" style="background: linear-gradient(135deg, #991b1b 0%, #450a0a 100%);">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <span class="badge bg-white text-danger px-3 py-2 rounded-pill fw-bold mb-2">Dispute Resolution</span>
+                <h2 class="fw-bold mb-1"><i class="bi bi-shield-shaded me-2"></i>Security Deposit Damage Claims</h2>
+                <p class="mb-0 text-white-50">Review host damage claims filed within 24h of checkout. Adjudicate approved deductions and release remaining deposit holds to clients.</p>
+            </div>
+            <a asp-controller="@controllerName" asp-action="Index" class="btn btn-outline-light rounded-pill px-4">
+                <i class="bi bi-speedometer2 me-1"></i> Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Pills -->
+    <div class="d-flex flex-wrap gap-2 mb-4">
+        <a asp-controller="@controllerName" asp-action="DamageClaims" class="btn rounded-pill px-3 @(string.IsNullOrEmpty(selectedStatus) ? "btn-danger" : "btn-light border")">
+            All Claims
+        </a>
+        <a asp-controller="@controllerName" asp-action="DamageClaims" asp-route-status="UnderReview" class="btn rounded-pill px-3 @(selectedStatus == "UnderReview" ? "btn-warning text-dark fw-bold" : "btn-light border")">
+            <i class="bi bi-hourglass-split me-1"></i> Pending Adjudication
+        </a>
+        <a asp-controller="@controllerName" asp-action="DamageClaims" asp-route-status="Approved" class="btn rounded-pill px-3 @(selectedStatus == "Approved" ? "btn-success fw-bold" : "btn-light border")">
+            <i class="bi bi-check-circle me-1"></i> Approved & Deducted
+        </a>
+        <a asp-controller="@controllerName" asp-action="DamageClaims" asp-route-status="Rejected" class="btn rounded-pill px-3 @(selectedStatus == "Rejected" ? "btn-secondary text-white fw-bold" : "btn-light border")">
+            <i class="bi bi-x-circle me-1"></i> Rejected / Released
+        </a>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-body p-0">
+            @if (Model != null && Model.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Claim #</th>
+                                <th>Booking Ref</th>
+                                <th>Property Title</th>
+                                <th>Claimed Amount</th>
+                                <th>Approved Amount</th>
+                                <th>Itemized Breakdown</th>
+                                <th>Evidence Proof</th>
+                                <th>Status</th>
+                                <th>Date Filed</th>
+                                <th class="pe-4 text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var c in Model)
+                            {
+                                var badgeClass = c.Status switch
+                                {
+                                    "UnderReview" => "bg-warning text-dark",
+                                    "Approved" => "bg-success",
+                                    "Rejected" => "bg-danger",
+                                    "Settled" => "bg-info text-dark",
+                                    _ => "bg-secondary"
+                                };
+                                <tr>
+                                    <td class="ps-4 fw-bold">#@c.ClaimID</td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border">#@c.BookingID</span>
+                                    </td>
+                                    <td class="fw-medium">@c.PropertyTitle</td>
+                                    <td class="fw-bold text-danger">₹@c.ClaimAmount.ToString("N2")</td>
+                                    <td class="fw-bold text-success">
+                                        @(c.AdjudicatedAmount.HasValue ? $"₹{c.AdjudicatedAmount.Value:N2}" : "--")
+                                    </td>
+                                    <td class="small text-muted" style="max-width: 250px;">
+                                        <div class="text-truncate" title="@c.ItemizedDescription">@c.ItemizedDescription</div>
+                                    </td>
+                                    <td style="max-width: 150px;">
+                                        @if (!string.IsNullOrEmpty(c.EvidenceMediaUrls))
+                                        {
+                                            var links = c.EvidenceMediaUrls.Replace("[", "").Replace("]", "").Replace("\"", "").Split(new[] { '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+                                            <div class="d-flex flex-wrap gap-1">
+                                                @foreach (var link in links.Take(3))
+                                                {
+                                                    var clean = link.Trim();
+                                                    <a href="@clean" target="_blank" class="badge bg-light text-primary border text-decoration-none">
+                                                        <i class="bi bi-box-arrow-up-right me-1"></i> Proof
+                                                    </a>
+                                                }
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small">No URLs</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <span class="badge @badgeClass px-3 py-2 rounded-pill">@c.Status</span>
+                                    </td>
+                                    <td class="text-muted small">@c.CreatedAt.ToString("MMM dd, yyyy")</td>
+                                    <td class="pe-4 text-end">
+                                        @if (c.Status == "UnderReview")
+                                        {
+                                            <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3 btn-adjudicate"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#adjudicateModal"
+                                                    data-claim-id="@c.ClaimID"
+                                                    data-claim-amount="@c.ClaimAmount"
+                                                    data-booking-id="@c.BookingID">
+                                                <i class="bi bi-gavel me-1"></i> Adjudicate
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small">@c.AdjudicationNotes</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-shield-check fs-1 text-success d-block mb-3"></i>
+                    <h5 class="fw-bold text-secondary">No Damage Claims in Queue</h5>
+                    <p class="text-muted small mb-0">No active damage claims require adjudication.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Adjudicate Modal -->
+<div class="modal fade" id="adjudicateModal" tabindex="-1" aria-labelledby="adjudicateModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header bg-danger text-white rounded-top-4">
+                <h5 class="modal-title fw-bold" id="adjudicateModalLabel"><i class="bi bi-gavel me-2"></i>Adjudicate Damage Claim</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form asp-controller="@controllerName" asp-action="AdjudicateDamageClaim" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="modalClaimId" name="ClaimID" />
+
+                <div class="modal-body p-4">
+                    <div class="p-3 bg-light rounded-3 mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="text-muted small">Claim ID:</span>
+                            <span class="fw-bold" id="modalClaimTitle">#</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted small">Host Claimed Amount:</span>
+                            <span class="fw-bold text-danger fs-6" id="modalClaimAmount">₹0.00</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Adjudication Ruling <span class="text-danger">*</span></label>
+                        <select name="Action" id="adjudicationAction" class="form-select rounded-3" required>
+                            <option value="Approve">Approve Claim (Deduct and transfer to Host)</option>
+                            <option value="Reject">Reject Claim (Release entire deposit hold to Guest)</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3" id="approvedAmountGroup">
+                        <label class="form-label fw-semibold">Approved Deductible Amount (₹)</label>
+                        <input type="number" step="0.01" min="0" name="ApprovedAmount" id="modalApprovedAmountInput" class="form-control rounded-3" />
+                        <span class="form-text text-muted">Remaining balance of security deposit will be automatically released back to the guest.</span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Adjudication Notes / Rationale <span class="text-danger">*</span></label>
+                        <textarea name="ResolutionNotes" class="form-control rounded-3" rows="3" placeholder="Explain basis of approval or rejection based on submitted evidence..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-3 bg-light rounded-bottom-4">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold">Finalize Adjudication</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.querySelectorAll(".btn-adjudicate").forEach(btn => {
+        btn.addEventListener("click", function () {
+            const id = this.getAttribute("data-claim-id");
+            const bId = this.getAttribute("data-booking-id");
+            const amt = this.getAttribute("data-claim-amount");
+
+            document.getElementById("modalClaimId").value = id;
+            document.getElementById("modalClaimTitle").textContent = `Claim #${id} (Booking #${bId})`;
+            document.getElementById("modalClaimAmount").textContent = `₹${amt}`;
+            document.getElementById("modalApprovedAmountInput").value = amt;
+        });
+    });
+
+    document.getElementById("adjudicationAction").addEventListener("change", function () {
+        const group = document.getElementById("approvedAmountGroup");
+        if (this.value === "Reject") {
+            group.style.display = "none";
+            document.getElementById("modalApprovedAmountInput").value = "0";
+        } else {
+            group.style.display = "block";
+        }
+    });
+</script>
+}
