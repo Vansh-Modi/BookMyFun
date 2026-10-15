@@ -1,0 +1,146 @@
+@model BookMyFun.Models.ViewModels.ClientDashboardViewModel
+@{
+    ViewData["Title"] = "Guest Dashboard";
+}
+
+<!-- Page Header -->
+<div class="dash-page-header">
+    <div>
+        <p class="dash-eyebrow">Guest Portal · My Reservations</p>
+        <h1 class="dash-title">Guest Dashboard</h1>
+        <p class="dash-subtitle">Welcome back, <strong>@Model.Client.FullName</strong> (@Model.Client.Email) · Review past stays, active bookings, and submit reviews.</p>
+    </div>
+    <div class="dash-actions">
+        <a asp-controller="Properties" asp-action="Index" class="dash-btn dash-btn-primary">
+            <i class="bi bi-compass"></i> Book a New Stay
+        </a>
+    </div>
+</div>
+
+<div class="dash-card">
+    <div class="dash-card-header">
+        <h3 class="dash-card-title"><i class="bi bi-calendar-check text-primary me-2"></i>My Bookings &amp; Flexible Stays</h3>
+        <span class="dash-badge dash-badge-neutral">@Model.Bookings.Count bookings</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Booking #</th>
+                    <th>Property</th>
+                    <th>Booking Type / Slot</th>
+                    <th>Dates</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Bookings.Any())
+                {
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="bi bi-calendar-x fs-1 d-block mb-2 text-muted opacity-50"></i>
+                            You have no past or upcoming bookings.<br />
+                            <a asp-controller="Properties" asp-action="Index" class="dash-btn dash-btn-primary mt-3">Explore Available Stays</a>
+                        </td>
+                    </tr>
+                }
+                @foreach (var b in Model.Bookings)
+                {
+                    <tr>
+                        <td><strong>#@b.BookingID</strong></td>
+                        <td class="fw-semibold">@b.PropertyTitle</td>
+                        <td>
+                            <span class="badge bg-secondary">@b.BookingType</span>
+                            @if (!string.IsNullOrEmpty(b.SlotType))
+                            {
+                                <small class="d-block text-muted">@b.SlotType</small>
+                            }
+                        </td>
+                        <td><small class="text-muted">@b.CheckInDate.ToString("MMM dd") - @b.CheckOutDate.ToString("MMM dd, yyyy")</small></td>
+                        <td><strong class="text-success">₹@b.TotalAmount.ToString("N2")</strong></td>
+                        <td>
+                            @if (b.Status == "Confirmed")
+                            {
+                                <span class="dash-badge dash-badge-success"><i class="bi bi-check-circle-fill"></i> Confirmed</span>
+                            }
+                            else if (b.Status == "Cancelled")
+                            {
+                                <span class="dash-badge dash-badge-warning" style="background: rgba(239,68,68,.12); color: #dc2626;"><i class="bi bi-x-circle-fill"></i> Cancelled</span>
+                            }
+                            else
+                            {
+                                <span class="dash-badge dash-badge-warning"><i class="bi bi-clock-fill"></i> Pending</span>
+                            }
+                        </td>
+                        <td>
+                            <div class="d-flex gap-1">
+                                @if (b.Status == "Confirmed")
+                                {
+                                    <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#reviewModal_@b.BookingID">
+                                        <i class="bi bi-star"></i> Review
+                                    </button>
+                                    <form asp-controller="Booking" asp-action="CancelBooking" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to cancel booking #@b.BookingID?');">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="bookingId" value="@b.BookingID" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-x-circle"></i> Cancel
+                                        </button>
+                                    </form>
+                                }
+                                else if (b.Status == "Pending")
+                                {
+                                    <a asp-controller="Booking" asp-action="Payment" asp-route-id="@b.BookingID" class="btn btn-sm btn-warning">
+                                        <i class="bi bi-credit-card"></i> Pay Now
+                                    </a>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">No actions</span>
+                                }
+                            </div>
+
+                            <!-- Review Modal -->
+                            <div class="modal fade" id="reviewModal_@b.BookingID" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <form asp-action="AddReview" method="post">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="bookingId" value="@b.BookingID" />
+                                            <input type="hidden" name="propertyId" value="@b.PropertyID" />
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">Review Stay at @b.PropertyTitle</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Rating (1 to 5 Stars)</label>
+                                                    <select name="rating" class="form-select">
+                                                        <option value="5">⭐⭐⭐⭐⭐ 5 - Exceptional</option>
+                                                        <option value="4">⭐⭐⭐⭐ 4 - Very Good</option>
+                                                        <option value="3">⭐⭐⭐ 3 - Average</option>
+                                                        <option value="2">⭐⭐ 2 - Poor</option>
+                                                        <option value="1">⭐ 1 - Terrible</option>
+                                                    </select>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Feedback / Comments</label>
+                                                    <textarea name="comment" class="form-control" rows="3" placeholder="Share your experience..."></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                                <button type="submit" class="btn btn-warning">Submit Review</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

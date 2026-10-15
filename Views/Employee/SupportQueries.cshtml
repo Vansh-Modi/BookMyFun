@@ -1,0 +1,5 @@
+@model IEnumerable<BookMyFun.Models.Entities.ContactUs>
+@{
+    Layout = "_Layout";
+}
+@await Html.PartialAsync("~/Views/Admin/SupportQueries.cshtml", Model)

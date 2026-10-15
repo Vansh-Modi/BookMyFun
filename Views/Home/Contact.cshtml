@@ -1,0 +1,117 @@
+@model BookMyFun.Models.Entities.ContactUs
+@{
+    ViewData["Title"] = "Contact Customer Support - BookMyFun";
+}
+
+<!-- Contact Hero Banner -->
+<div class="bg-dark text-white py-5 rounded-4 mb-5 text-center shadow-sm" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);">
+    <div class="container py-3">
+        <span class="badge bg-warning text-dark px-3 py-2 fw-bold text-uppercase mb-2">24/7 Dedicated Support</span>
+        <h1 class="display-5 fw-bold mb-3">How Can We Help You Today?</h1>
+        <p class="lead text-light opacity-75 col-md-8 mx-auto">
+            Need help selecting the perfect farmhouse or villa? Our customer support executives are here to assist with booking customizations, group packages, and instant reservations.
+        </p>
+    </div>
+</div>
+
+<div class="row g-5">
+    <!-- Contact Form -->
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm p-4">
+            <h3 class="fw-bold mb-3 text-dark">Send Us a Message</h3>
+            <p class="text-muted small mb-4">Fill out the form below and an executive will reach out to you within minutes.</p>
+
+            <form asp-action="Contact" method="post">
+                @Html.AntiForgeryToken()
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Your Full Name <span class="text-danger">*</span></label>
+                        <input asp-for="Name" class="form-control" placeholder="e.g. Rahul Sharma" required />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Email Address <span class="text-danger">*</span></label>
+                        <input asp-for="Email" type="email" class="form-control" placeholder="name@example.com" required />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Mobile / WhatsApp Number</label>
+                        <input asp-for="Phone" class="form-control" placeholder="+91 9876543210" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Occasion / Subject</label>
+                        <input asp-for="Subject" class="form-control" placeholder="e.g. Birthday Party, Corporate Outing" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Tell us about your requirements <span class="text-danger">*</span></label>
+                        <textarea asp-for="Message" class="form-control" rows="5" placeholder="Mention dates, guest count, location preference or custom timings..." required></textarea>
+                    </div>
+                    <div class="col-12 mt-4">
+                        <button type="submit" class="btn btn-warning btn-lg fw-bold w-100 py-3 shadow-sm">
+                            <i class="bi bi-send-fill me-2"></i> Submit Query to Support Executive
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Quick Support Channels & Social Links -->
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm p-4 bg-light mb-4">
+            <h4 class="fw-bold mb-3 text-dark">Instant Customer Assistance</h4>
+            <p class="text-muted small mb-4">Connect directly with our helpline executives for rapid assistance or real-time availability inquiries.</p>
+
+            <div class="d-flex align-items-center mb-3 p-3 bg-white rounded-3 shadow-xs">
+                <div class="bg-success text-white rounded-circle p-3 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                    <i class="bi bi-whatsapp fs-4"></i>
+                </div>
+                <div>
+                    <span class="text-muted small d-block">Instant WhatsApp Support</span>
+                    <a href="https://wa.me/919999900001?text=Hi%20BookMyFun,%20I%20need%20assistance%20with%20booking%20a%20property" target="_blank" class="fw-bold text-success text-decoration-none">
+                        +91 99999 00001 <i class="bi bi-arrow-up-right-square"></i>
+                    </a>
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center mb-3 p-3 bg-white rounded-3 shadow-xs">
+                <div class="bg-primary text-white rounded-circle p-3 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                    <i class="bi bi-telephone-fill fs-4"></i>
+                </div>
+                <div>
+                    <span class="text-muted small d-block">Toll-Free Helpline</span>
+                    <span class="fw-bold text-primary">+91 (020) 4567-8900</span>
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center p-3 bg-white rounded-3 shadow-xs">
+                <div class="bg-dark text-white rounded-circle p-3 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                    <i class="bi bi-envelope-fill fs-4"></i>
+                </div>
+                <div>
+                    <span class="text-muted small d-block">Official Email Support</span>
+                    <span class="fw-bold text-dark">support@bookmyfun.com</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Social Media Channels Card -->
+        <div class="card border-0 shadow-sm p-4 text-center">
+            <h5 class="fw-bold mb-2">Follow Our Community</h5>
+            <p class="text-muted small mb-3">Explore trending farmhouses, weekend reels & exclusive deals:</p>
+            <div class="d-flex justify-content-center gap-3">
+                <a href="https://instagram.com" target="_blank" class="btn btn-outline-danger btn-lg rounded-circle p-2" style="width: 48px; height: 48px;" title="Instagram">
+                    <i class="bi bi-instagram"></i>
+                </a>
+                <a href="https://facebook.com" target="_blank" class="btn btn-outline-primary btn-lg rounded-circle p-2" style="width: 48px; height: 48px;" title="Facebook">
+                    <i class="bi bi-facebook"></i>
+                </a>
+                <a href="https://wa.me/919999900001" target="_blank" class="btn btn-outline-success btn-lg rounded-circle p-2" style="width: 48px; height: 48px;" title="WhatsApp Channel">
+                    <i class="bi bi-whatsapp"></i>
+                </a>
+                <a href="https://youtube.com" target="_blank" class="btn btn-outline-danger btn-lg rounded-circle p-2" style="width: 48px; height: 48px;" title="YouTube">
+                    <i class="bi bi-youtube"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

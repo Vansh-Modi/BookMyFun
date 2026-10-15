@@ -1,0 +1,697 @@
+@model BookMyFun.Models.ViewModels.ReportsViewModel
+@{
+    ViewData["Title"] = "Financial Reports";
+    string[] periods = ["daily","weekly","monthly","2months","quarterly","4months","6months","yearly","2years"];
+    var periodLabels = new Dictionary<string,string>
+    {
+        ["daily"]     = "Daily",
+        ["weekly"]    = "Weekly",
+        ["monthly"]   = "Monthly",
+        ["2months"]   = "2 Months",
+        ["quarterly"] = "Quarterly",
+        ["4months"]   = "4 Months",
+        ["6months"]   = "6 Months",
+        ["yearly"]    = "Yearly",
+        ["2years"]    = "2 Years"
+    };
+    var totalIncome  = Model.PeriodBreakdown.Sum(x => x.TotalIncome);
+    var totalExpense = Model.PeriodBreakdown.Sum(x => x.TotalExpense);
+    var totalNet     = totalIncome - totalExpense;
+}
+
+@* ─────────────────────────────────────────────────────────
+   PAGE HEADER
+───────────────────────────────────────────────────────── *@
+<div class="rpt-page-header mb-5">
+    <div>
+        <p class="rpt-eyebrow">Admin · Analytics</p>
+        <h1 class="rpt-title">Financial Reports</h1>
+        <p class="rpt-subtitle">Period-wise revenue, expense tracking, statistical insights &amp; multi-format exports.</p>
+    </div>
+    <div class="rpt-header-actions">
+        <button type="button" class="rpt-btn rpt-btn-primary" data-bs-toggle="modal" data-bs-target="#logFinancialModal">
+            <i class="bi bi-plus"></i> Log Transaction
+        </button>
+        <div class="dropdown">
+            <button class="rpt-btn rpt-btn-export dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                <i class="bi bi-download"></i> Export
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end rpt-dropdown shadow-lg">
+                <li class="rpt-dropdown-label">Download as</li>
+                <li>
+                    <a class="dropdown-item rpt-dropdown-item" href="@Url.Action("ExportPdf","Admin",new{period=Model.SelectedPeriod})" target="_blank">
+                        <span class="rpt-export-icon" style="background:#fef2f2;color:#dc2626"><i class="bi bi-file-earmark-pdf-fill"></i></span>
+                        <span><strong>PDF Report</strong><br><small>Print-ready, branded</small></span>
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item rpt-dropdown-item" href="@Url.Action("ExportExcel","Admin",new{period=Model.SelectedPeriod})">
+                        <span class="rpt-export-icon" style="background:#f0fdf4;color:#16a34a"><i class="bi bi-file-earmark-spreadsheet-fill"></i></span>
+                        <span><strong>Excel Workbook</strong><br><small>2-sheet .xlsx file</small></span>
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item rpt-dropdown-item" href="@Url.Action("ExportCsv","Admin",new{period=Model.SelectedPeriod})">
+                        <span class="rpt-export-icon" style="background:#f8fafc;color:#64748b"><i class="bi bi-filetype-csv"></i></span>
+                        <span><strong>CSV Export</strong><br><small>Raw data, comma-separated</small></span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+        <a asp-action="Index" class="rpt-btn rpt-btn-ghost">
+            <i class="bi bi-arrow-left"></i> Dashboard
+        </a>
+    </div>
+</div>
+
+@* ─────────────────────────────────────────────────────────
+   PERIOD SELECTOR
+───────────────────────────────────────────────────────── *@
+<div class="rpt-period-bar mb-5">
+    <span class="rpt-period-label"><i class="bi bi-calendar3 me-1"></i>Period</span>
+    <div class="rpt-period-pills">
+        @foreach (var opt in periods)
+        {
+            <a href="@Url.Action("Reports","Admin",new{period=opt})"
+               class="rpt-pill @(Model.SelectedPeriod == opt ? "rpt-pill-active" : "")">
+                @periodLabels[opt]
+            </a>
+        }
+    </div>
+</div>
+
+@* ─────────────────────────────────────────────────────────
+   KPI ROW — 4 headline metrics
+───────────────────────────────────────────────────────── *@
+<div class="row g-4 mb-5">
+    <div class="col-xl-3 col-sm-6">
+        <div class="rpt-kpi-card">
+            <div class="rpt-kpi-icon" style="background:#eff6ff;color:#2563eb">
+                <i class="bi bi-cash-stack"></i>
+            </div>
+            <div class="rpt-kpi-meta">Gross Booking Value</div>
+            <div class="rpt-kpi-value">₹@Model.GrossBookingRevenue.ToString("N0")</div>
+            <div class="rpt-kpi-sub text-success">
+                <i class="bi bi-check-circle-fill me-1" style="font-size:.7rem"></i>@Model.ConfirmedBookings confirmed bookings
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+        <div class="rpt-kpi-card">
+            <div class="rpt-kpi-icon" style="background:#f0fdf4;color:#16a34a">
+                <i class="bi bi-wallet2"></i>
+            </div>
+            <div class="rpt-kpi-meta">Platform Commission (10%)</div>
+            <div class="rpt-kpi-value text-success">₹@Model.PlatformCommissionEarned.ToString("N0")</div>
+            <div class="rpt-kpi-sub">Earned from checkouts</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+        <div class="rpt-kpi-card">
+            <div class="rpt-kpi-icon" style="background:#fef2f2;color:#dc2626">
+                <i class="bi bi-receipt-cutoff"></i>
+            </div>
+            <div class="rpt-kpi-meta">Recorded Expenses</div>
+            <div class="rpt-kpi-value text-danger">₹@Model.TotalRecordedExpenses.ToString("N0")</div>
+            <div class="rpt-kpi-sub">Ops, marketing, hosting</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+        <div class="rpt-kpi-card rpt-kpi-card-accent @(Model.NetProfit >= 0 ? "rpt-kpi-profit" : "rpt-kpi-loss")">
+            <div class="rpt-kpi-icon" style="background:rgba(255,255,255,0.2);color:inherit">
+                <i class="bi @(Model.NetProfit >= 0 ? "bi-trending-up" : "bi-trending-down")"></i>
+            </div>
+            <div class="rpt-kpi-meta" style="color:rgba(255,255,255,0.8)">Net Platform Balance</div>
+            <div class="rpt-kpi-value" style="color:#fff">@(Model.NetProfit >= 0 ? "+" : "")₹@Model.NetProfit.ToString("N0")</div>
+            <div class="rpt-kpi-sub" style="color:rgba(255,255,255,0.7)">Commission + Income − Expenses</div>
+        </div>
+    </div>
+</div>
+
+@* ─────────────────────────────────────────────────────────
+   STATISTICAL INSIGHTS (only when data exists)
+───────────────────────────────────────────────────────── *@
+@if (Model.PeriodBreakdown.Any())
+{
+    <div class="rpt-section mb-5">
+        <div class="rpt-section-header">
+            <div>
+                <h5 class="rpt-section-title">Statistical Insights</h5>
+                <p class="rpt-section-sub">Highest, lowest &amp; average figures across <strong>@periodLabels[Model.SelectedPeriod]</strong> periods.</p>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            @* Income *@
+            <div class="col-lg-3 col-sm-6">
+                <div class="rpt-stat-card">
+                    <div class="rpt-stat-header" style="color:#16a34a">
+                        <i class="bi bi-arrow-up-right-circle-fill"></i> Income
+                    </div>
+                    <div class="rpt-stat-row rpt-stat-high">
+                        <span>Highest</span>
+                        <span>@(Model.HighestIncomePeriod != null ? $"₹{Model.HighestIncomePeriod.TotalIncome:N0}" : "—")</span>
+                    </div>
+                    @if (Model.HighestIncomePeriod != null)
+                    { <div class="rpt-stat-period">@Model.HighestIncomePeriod.Label</div> }
+                    <div class="rpt-stat-row rpt-stat-low">
+                        <span>Lowest</span>
+                        <span>@(Model.LowestIncomePeriod != null ? $"₹{Model.LowestIncomePeriod.TotalIncome:N0}" : "—")</span>
+                    </div>
+                    @if (Model.LowestIncomePeriod != null)
+                    { <div class="rpt-stat-period">@Model.LowestIncomePeriod.Label</div> }
+                    <div class="rpt-stat-avg">
+                        <span>Avg / Period</span>
+                        <strong>₹@Model.AvgIncome.ToString("N0")</strong>
+                    </div>
+                </div>
+            </div>
+
+            @* Expenses *@
+            <div class="col-lg-3 col-sm-6">
+                <div class="rpt-stat-card">
+                    <div class="rpt-stat-header" style="color:#dc2626">
+                        <i class="bi bi-arrow-down-right-circle-fill"></i> Expenses
+                    </div>
+                    <div class="rpt-stat-row rpt-stat-high">
+                        <span>Highest</span>
+                        <span>@(Model.HighestExpensePeriod != null ? $"₹{Model.HighestExpensePeriod.TotalExpense:N0}" : "—")</span>
+                    </div>
+                    @if (Model.HighestExpensePeriod != null)
+                    { <div class="rpt-stat-period">@Model.HighestExpensePeriod.Label</div> }
+                    <div class="rpt-stat-row rpt-stat-low">
+                        <span>Lowest</span>
+                        <span>@(Model.LowestExpensePeriod != null ? $"₹{Model.LowestExpensePeriod.TotalExpense:N0}" : "—")</span>
+                    </div>
+                    @if (Model.LowestExpensePeriod != null)
+                    { <div class="rpt-stat-period">@Model.LowestExpensePeriod.Label</div> }
+                    <div class="rpt-stat-avg">
+                        <span>Avg / Period</span>
+                        <strong>₹@Model.AvgExpense.ToString("N0")</strong>
+                    </div>
+                </div>
+            </div>
+
+            @* Net Profit *@
+            <div class="col-lg-3 col-sm-6">
+                <div class="rpt-stat-card">
+                    <div class="rpt-stat-header" style="color:#2563eb">
+                        <i class="bi bi-graph-up-arrow"></i> Net Profit
+                    </div>
+                    <div class="rpt-stat-row rpt-stat-high">
+                        <span>Best Period</span>
+                        <span class="@(Model.HighestProfitPeriod?.NetProfit >= 0 ? "text-success" : "text-danger")">
+                            @(Model.HighestProfitPeriod != null ? $"₹{Model.HighestProfitPeriod.NetProfit:N0}" : "—")
+                        </span>
+                    </div>
+                    @if (Model.HighestProfitPeriod != null)
+                    { <div class="rpt-stat-period">@Model.HighestProfitPeriod.Label</div> }
+                    <div class="rpt-stat-row rpt-stat-low">
+                        <span>Worst Period</span>
+                        <span class="text-danger">@(Model.LowestProfitPeriod != null ? $"₹{Model.LowestProfitPeriod.NetProfit:N0}" : "—")</span>
+                    </div>
+                    @if (Model.LowestProfitPeriod != null)
+                    { <div class="rpt-stat-period">@Model.LowestProfitPeriod.Label</div> }
+                    <div class="rpt-stat-avg">
+                        <span>Avg / Period</span>
+                        <strong class="@(Model.AvgNetProfit >= 0 ? "text-success" : "text-danger")">₹@Model.AvgNetProfit.ToString("N0")</strong>
+                    </div>
+                </div>
+            </div>
+
+            @* Bookings *@
+            <div class="col-lg-3 col-sm-6">
+                <div class="rpt-stat-card">
+                    <div class="rpt-stat-header" style="color:#0891b2">
+                        <i class="bi bi-calendar-check-fill"></i> Bookings
+                    </div>
+                    <div class="rpt-stat-row rpt-stat-high">
+                        <span>Busiest Period</span>
+                        <span>@(Model.HighestBookingPeriod != null ? Model.HighestBookingPeriod.BookingCount.ToString() : "—")</span>
+                    </div>
+                    @if (Model.HighestBookingPeriod != null)
+                    { <div class="rpt-stat-period">@Model.HighestBookingPeriod.Label</div> }
+                    <div class="rpt-stat-row">
+                        <span>Total / Confirmed</span>
+                        <span>@Model.TotalBookings / <span class="text-success">@Model.ConfirmedBookings</span></span>
+                    </div>
+                    <div class="rpt-stat-avg">
+                        <span>Avg / Period</span>
+                        <strong>@Model.AvgBookings.ToString("N1")</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ─────────────────────────────────────────────────────────
+   CHARTS
+───────────────────────────────────────────────────────── *@
+<div class="rpt-section mb-5">
+    <div class="rpt-section-header mb-3">
+        <h5 class="rpt-section-title">Trend Charts</h5>
+    </div>
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="rpt-chart-card">
+                <div class="rpt-chart-card-header">
+                    <span>Income &amp; Expenses</span>
+                    <span class="rpt-chart-badge">@periodLabels[Model.SelectedPeriod]</span>
+                </div>
+                <div class="rpt-chart-wrap" style="height:300px">
+                    <canvas id="revenueExpensesChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="rpt-chart-card h-100">
+                <div class="rpt-chart-card-header">
+                    <span>User Breakdown</span>
+                    <span class="rpt-chart-badge">By Role</span>
+                </div>
+                <div class="rpt-chart-wrap" style="height:220px">
+                    <canvas id="userBreakdownChart"></canvas>
+                </div>
+                <div class="rpt-chart-legend mt-3">
+                    <span class="rpt-legend-dot" style="background:#2563eb"></span> Clients <strong>@Model.TotalClients</strong> &ensp;
+                    <span class="rpt-legend-dot" style="background:#f59e0b"></span> Owners <strong>@Model.TotalOwners</strong> &ensp;
+                    <span class="rpt-legend-dot" style="background:#64748b"></span> Staff <strong>@(Model.TotalUsers - Model.TotalClients - Model.TotalOwners)</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row g-4 mt-1">
+        <div class="col-lg-6">
+            <div class="rpt-chart-card">
+                <div class="rpt-chart-card-header">
+                    <span>Booking Volume</span>
+                    <span class="rpt-chart-badge">By Period</span>
+                </div>
+                <div class="rpt-chart-wrap" style="height:220px">
+                    <canvas id="bookingsTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="rpt-chart-card">
+                <div class="rpt-chart-card-header">
+                    <span>Property Status</span>
+                    <span class="rpt-chart-badge">Live vs Pending</span>
+                </div>
+                <div class="rpt-chart-wrap" style="height:220px">
+                    <canvas id="propertyListingChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ─────────────────────────────────────────────────────────
+   PERIOD BREAKDOWN TABLE
+───────────────────────────────────────────────────────── *@
+@if (Model.PeriodBreakdown.Any())
+{
+    <div class="rpt-section mb-5">
+        <div class="rpt-section-header mb-3">
+            <div>
+                <h5 class="rpt-section-title">Period Breakdown</h5>
+                <p class="rpt-section-sub">Detailed figures for every <strong>@periodLabels[Model.SelectedPeriod]</strong> window.</p>
+            </div>
+        </div>
+        <div class="rpt-table-wrap">
+            <table class="rpt-table">
+                <thead>
+                    <tr>
+                        <th>Period</th>
+                        <th>Window</th>
+                        <th class="text-end">Income</th>
+                        <th class="text-end">Expense</th>
+                        <th class="text-end">Net</th>
+                        <th class="text-center">Bookings</th>
+                        <th class="text-end">Rev.</th>
+                        <th class="text-end">Commission</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var slot in Model.PeriodBreakdown)
+                    {
+                        bool topIncome  = Model.HighestIncomePeriod?.Label  == slot.Label;
+                        bool topExpense = Model.HighestExpensePeriod?.Label == slot.Label;
+                        bool topProfit  = Model.HighestProfitPeriod?.Label  == slot.Label;
+                        <tr class="@(topIncome ? "rpt-row-highlight-green" : topExpense ? "rpt-row-highlight-red" : "")">
+                            <td>
+                                <span class="rpt-period-name">@slot.Label</span>
+                                @if (topIncome)  { <span class="rpt-tag rpt-tag-green">Top Income</span> }
+                                @if (topExpense) { <span class="rpt-tag rpt-tag-red">Top Expense</span> }
+                                @if (topProfit)  { <span class="rpt-tag rpt-tag-blue">Best Profit</span> }
+                            </td>
+                            <td class="rpt-date-range">@slot.PeriodStart.ToString("dd MMM") – @slot.PeriodEnd.ToString("dd MMM yy")</td>
+                            <td class="text-end rpt-num-green">₹@slot.TotalIncome.ToString("N2")</td>
+                            <td class="text-end rpt-num-red">₹@slot.TotalExpense.ToString("N2")</td>
+                            <td class="text-end @(slot.NetProfit >= 0 ? "rpt-num-green" : "rpt-num-red") fw-semibold">
+                                @(slot.NetProfit >= 0 ? "+" : "")₹@slot.NetProfit.ToString("N2")
+                            </td>
+                            <td class="text-center">
+                                <span class="rpt-booking-pill @(slot.BookingCount == 0 ? "rpt-booking-zero" : "")">@slot.BookingCount</span>
+                            </td>
+                            <td class="text-end">₹@slot.BookingRevenue.ToString("N2")</td>
+                            <td class="text-end">₹@slot.CommissionEarned.ToString("N2")</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr class="rpt-foot-total">
+                        <td colspan="2">Total</td>
+                        <td class="text-end rpt-num-green">₹@totalIncome.ToString("N2")</td>
+                        <td class="text-end rpt-num-red">₹@totalExpense.ToString("N2")</td>
+                        <td class="text-end @(totalNet >= 0 ? "rpt-num-green" : "rpt-num-red")">₹@totalNet.ToString("N2")</td>
+                        <td class="text-center">@Model.PeriodBreakdown.Sum(x => x.BookingCount)</td>
+                        <td class="text-end">₹@Model.PeriodBreakdown.Sum(x => x.BookingRevenue).ToString("N2")</td>
+                        <td class="text-end">₹@Model.PeriodBreakdown.Sum(x => x.CommissionEarned).ToString("N2")</td>
+                    </tr>
+                    <tr class="rpt-foot-avg">
+                        <td colspan="2">Average / Period</td>
+                        <td class="text-end">₹@Model.AvgIncome.ToString("N2")</td>
+                        <td class="text-end">₹@Model.AvgExpense.ToString("N2")</td>
+                        <td class="text-end">₹@Model.AvgNetProfit.ToString("N2")</td>
+                        <td class="text-center">@Model.AvgBookings.ToString("N1")</td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+}
+
+@* ─────────────────────────────────────────────────────────
+   PLATFORM OVERVIEW (merged secondary KPIs)
+───────────────────────────────────────────────────────── *@
+<div class="rpt-section mb-5">
+    <div class="rpt-section-header mb-3">
+        <h5 class="rpt-section-title">Platform Overview</h5>
+    </div>
+    <div class="row g-3">
+        <div class="col-md-4">
+            <div class="rpt-overview-card">
+                <div class="rpt-overview-icon" style="color:#2563eb"><i class="bi bi-people-fill"></i></div>
+                <div class="rpt-overview-label">Users</div>
+                <div class="rpt-overview-value">@Model.TotalUsers</div>
+                <div class="rpt-overview-sub">@Model.TotalClients guests · @Model.TotalOwners owners</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="rpt-overview-card">
+                <div class="rpt-overview-icon" style="color:#16a34a"><i class="bi bi-building-check"></i></div>
+                <div class="rpt-overview-label">Properties</div>
+                <div class="rpt-overview-value">@Model.TotalProperties</div>
+                <div class="rpt-overview-sub text-success">@Model.ActiveProperties active listings</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="rpt-overview-card">
+                <div class="rpt-overview-icon" style="color:#0891b2"><i class="bi bi-calendar2-check-fill"></i></div>
+                <div class="rpt-overview-label">Bookings</div>
+                <div class="rpt-overview-value">@Model.TotalBookings</div>
+                <div class="rpt-overview-sub">@Model.ConfirmedBookings confirmed</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ─────────────────────────────────────────────────────────
+   LEDGER
+───────────────────────────────────────────────────────── *@
+<div class="rpt-section mb-5">
+    <div class="rpt-section-header mb-3">
+        <div>
+            <h5 class="rpt-section-title">Recent Ledger Entries</h5>
+            <p class="rpt-section-sub">Last 30 manually logged income &amp; expense transactions.</p>
+        </div>
+        <button type="button" class="rpt-btn rpt-btn-primary" data-bs-toggle="modal" data-bs-target="#logFinancialModal">
+            <i class="bi bi-plus"></i> Log Entry
+        </button>
+    </div>
+    <div class="rpt-table-wrap">
+        <table class="rpt-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Category</th>
+                    <th>Title</th>
+                    <th class="text-end">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.RecentLedgerEntries.Any())
+                {
+                    @foreach (var e in Model.RecentLedgerEntries)
+                    {
+                        <tr>
+                            <td>
+                                <div class="fw-medium">@e.TransactionDate.ToString("dd MMM yyyy")</div>
+                                <div class="rpt-date-range">@e.CreatedAt.ToString("hh:mm tt")</div>
+                            </td>
+                            <td>
+                                @if (e.TransactionType == "Income")
+                                {<span class="rpt-type-badge rpt-type-income"><i class="bi bi-arrow-up-short"></i>Income</span>}
+                                else
+                                {<span class="rpt-type-badge rpt-type-expense"><i class="bi bi-arrow-down-short"></i>Expense</span>}
+                            </td>
+                            <td><span class="rpt-category-pill">@e.Category</span></td>
+                            <td>
+                                <div class="fw-medium">@e.Title</div>
+                                @if (!string.IsNullOrWhiteSpace(e.Details))
+                                {<div class="rpt-date-range">@e.Details</div>}
+                            </td>
+                            <td class="text-end fw-semibold @(e.TransactionType=="Income"?"rpt-num-green":"rpt-num-red")">
+                                @(e.TransactionType=="Income"?"+":"−")₹@e.Amount.ToString("N2")
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="5" class="rpt-empty-state">
+                            <i class="bi bi-inbox"></i>
+                            <p>No transactions logged yet.<br>Click <strong>Log Entry</strong> above to get started.</p>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@* ─────────────────────────────────────────────────────────
+   MODAL — Log Transaction
+───────────────────────────────────────────────────────── *@
+<div class="modal fade" id="logFinancialModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius:16px;overflow:hidden">
+            <form asp-action="LogFinancialEntry" method="post">
+                @Html.AntiForgeryToken()
+                <div class="modal-header border-0 px-4 pt-4 pb-2">
+                    <div>
+                        <h5 class="fw-bold mb-0">Log Transaction</h5>
+                        <p class="text-muted small mb-0 mt-1">Record an income or expense entry to the financial ledger.</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body px-4 py-3">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-uppercase" style="letter-spacing:.04em">Type</label>
+                        <select name="TransactionType" class="form-select" required>
+                            <option value="Expense" selected>🔴  Expense — Outflow</option>
+                            <option value="Income">🟢  Income — Inflow</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-uppercase" style="letter-spacing:.04em">Category</label>
+                        <select name="Category" class="form-select" required>
+                            <option value="Marketing">Marketing &amp; Advertising</option>
+                            <option value="ServerHosting">Cloud Hosting &amp; Infrastructure</option>
+                            <option value="Maintenance">Maintenance &amp; Cleaning</option>
+                            <option value="StaffSalaries">Staff &amp; Salaries</option>
+                            <option value="SubscriptionPlan">Owner Subscription Revenue</option>
+                            <option value="BookingCommission">Commission Payout</option>
+                            <option value="CustomerRefund">Guest Refund</option>
+                            <option value="Other">Other / Miscellaneous</option>
+                        </select>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-7">
+                            <label class="form-label fw-semibold small text-uppercase" style="letter-spacing:.04em">Amount (₹)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">₹</span>
+                                <input type="number" step="0.01" min="1" name="Amount" class="form-control fw-semibold" placeholder="0.00" required/>
+                            </div>
+                        </div>
+                        <div class="col-5">
+                            <label class="form-label fw-semibold small text-uppercase" style="letter-spacing:.04em">Date</label>
+                            <input type="date" name="TransactionDate" class="form-control" value="@DateTime.Today.ToString("yyyy-MM-dd")" required/>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-uppercase" style="letter-spacing:.04em">Title</label>
+                        <input type="text" name="Title" class="form-control" placeholder="e.g. Meta Ads Campaign Q4" required/>
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label fw-semibold small text-uppercase" style="letter-spacing:.04em">Notes <span class="text-muted fw-normal normal-case">(optional)</span></label>
+                        <textarea name="Details" class="form-control" rows="2" placeholder="Invoice ref, vendor name…"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 px-4 pb-4 pt-2">
+                    <button type="button" class="rpt-btn rpt-btn-ghost" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="rpt-btn rpt-btn-primary ms-2">
+                        <i class="bi bi-check-lg me-1"></i> Save Entry
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+(function() {
+    const months   = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Months));
+    const incomes  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.MonthlyIncomes));
+    const expenses = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.MonthlyExpenses));
+    const bookings = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.MonthlyBookings));
+
+    const dark     = document.documentElement.getAttribute('data-theme') === 'dark';
+    const grid     = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+    const tick     = dark ? '#94a3b8' : '#64748b';
+    const cardBg   = dark ? '#1e293b' : '#ffffff';
+
+    Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
+    Chart.defaults.color       = tick;
+
+    const scaleBase = (stepSize) => ({
+        x: { grid: { color: grid }, ticks: { color: tick, maxRotation: 40 } },
+        y: { beginAtZero: true, grid: { color: grid }, ticks: { color: tick, ...(stepSize ? { stepSize } : {}) } }
+    });
+
+    // 1 — Income vs Expenses (bar + net line)
+    new Chart(document.getElementById('revenueExpensesChart'), {
+        type: 'bar',
+        data: {
+            labels: months,
+            datasets: [
+                {
+                    label: 'Income',
+                    data: incomes,
+                    backgroundColor: 'rgba(22,163,74,0.65)',
+                    borderRadius: 5,
+                    borderSkipped: false
+                },
+                {
+                    label: 'Expenses',
+                    data: expenses,
+                    backgroundColor: 'rgba(220,38,38,0.55)',
+                    borderRadius: 5,
+                    borderSkipped: false
+                },
+                {
+                    label: 'Net Profit',
+                    data: incomes.map((v,i) => v - expenses[i]),
+                    type: 'line',
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37,99,235,0.08)',
+                    borderWidth: 2.5,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#2563eb',
+                    pointBorderWidth: 2,
+                    fill: true,
+                    tension: 0.35
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'top', align: 'end', labels: { boxWidth: 12, padding: 16 } },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ' ₹' + Number(ctx.parsed.y).toLocaleString('en-IN')
+                    }
+                }
+            },
+            scales: {
+                ...scaleBase(null),
+                y: { ...scaleBase(null).y, ticks: { ...scaleBase(null).y.ticks, callback: v => '₹' + Number(v).toLocaleString('en-IN') } }
+            }
+        }
+    });
+
+    // 2 — Doughnut
+    new Chart(document.getElementById('userBreakdownChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Clients', 'Owners', 'Staff'],
+            datasets: [{
+                data: [@Model.TotalClients, @Model.TotalOwners, Math.max(1, @(Model.TotalUsers - Model.TotalClients - Model.TotalOwners))],
+                backgroundColor: ['#2563eb','#f59e0b','#64748b'],
+                borderWidth: 3,
+                borderColor: cardBg,
+                hoverOffset: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '65%',
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    // 3 — Bookings line
+    new Chart(document.getElementById('bookingsTrendChart'), {
+        type: 'line',
+        data: {
+            labels: months,
+            datasets: [{
+                label: 'Bookings',
+                data: bookings,
+                borderColor: '#0891b2',
+                backgroundColor: 'rgba(8,145,178,0.1)',
+                fill: true, tension: 0.4,
+                pointRadius: 5,
+                pointBackgroundColor: '#fff',
+                pointBorderColor: '#0891b2',
+                pointBorderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: scaleBase(1)
+        }
+    });
+
+    // 4 — Property pie
+    new Chart(document.getElementById('propertyListingChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Active', 'Inactive / Pending'],
+            datasets: [{
+                data: [@Model.ActiveProperties, Math.max(0, @(Model.TotalProperties - Model.ActiveProperties))],
+                backgroundColor: ['#16a34a','#f59e0b'],
+                borderWidth: 3, borderColor: cardBg, hoverOffset: 6
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '60%',
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 14 } } }
+        }
+    });
+})();
+</script>
+}

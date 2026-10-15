@@ -1,0 +1,473 @@
+@model BookMyFun.Services.SiteSettingsModel
+@{
+    ViewData["Title"] = "Platform Settings & Branding";
+    var configs = ViewBag.Configs as List<BookMyFun.Models.Entities.ApiConfiguration> ?? new();
+    var settings = ViewBag.Settings as List<BookMyFun.Models.Entities.SiteSetting> ?? new();
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h2 class="fw-bold mb-1"><i class="bi bi-sliders2 text-primary me-2"></i>Platform Settings & Branding</h2>
+        <p class="text-muted mb-0">Manage website brand identity, crisp logo, support contact details, social links, and external API gateways.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Reports" class="btn btn-outline-success"><i class="bi bi-graph-up-arrow me-1"></i> Financial Reports</a>
+        <a asp-action="Index" class="btn btn-outline-dark"><i class="bi bi-arrow-left me-1"></i> Dashboard</a>
+    </div>
+</div>
+
+<!-- Section Switcher Dropdown & Quick Navigator -->
+<div class="card shadow-sm border-0 mb-4 bg-light">
+    <div class="card-body p-3">
+        <div class="row align-items-center g-3">
+            <div class="col-lg-5">
+                <label for="settingsCategorySelect" class="form-label fw-bold text-dark mb-1">
+                    <i class="bi bi-folder2-open text-primary me-1"></i> Select Settings Category to Configure:
+                </label>
+                <select id="settingsCategorySelect" class="form-select form-select-lg fw-semibold border-primary shadow-sm">
+                    <option value="all">🌟 All Categories (Complete Overview)</option>
+                    <option value="sec-brand">🏢 1. Brand Identity & Crisp Logo</option>
+                    <option value="sec-contact">📞 2. Official Contact & Helpdesk Information</option>
+                    <option value="sec-social">🌐 3. Social Media & Community Channels</option>
+                    <option value="sec-commission">💰 4. Platform Commission & Financial Rules</option>
+                    <option value="sec-thirdparty">🔑 5. Third-Party Service Credentials (APIs)</option>
+                </select>
+            </div>
+            <div class="col-lg-7 d-none d-md-flex flex-wrap gap-2 justify-content-lg-end">
+                <button type="button" class="btn btn-sm btn-outline-primary category-pill active" data-target="all">All</button>
+                <button type="button" class="btn btn-sm btn-outline-primary category-pill" data-target="sec-brand">Brand & Logo</button>
+                <button type="button" class="btn btn-sm btn-outline-primary category-pill" data-target="sec-contact">Contact Info</button>
+                <button type="button" class="btn btn-sm btn-outline-primary category-pill" data-target="sec-social">Social Media</button>
+                <button type="button" class="btn btn-sm btn-outline-primary category-pill" data-target="sec-commission">Commission</button>
+                <button type="button" class="btn btn-sm btn-outline-primary category-pill" data-target="sec-thirdparty">Third-Party APIs</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left Column: Site Branding, Contact, Social & Commission Form -->
+    <div class="col-lg-7" id="brandingSettingsContainer">
+        <form asp-action="SaveSiteBranding" method="post" enctype="multipart/form-data">
+            @Html.AntiForgeryToken()
+
+            <!-- 1. Brand Identity & Crisp Logo -->
+            <div class="card shadow-sm border-0 mb-4 config-card" id="sec-brand">
+                <div class="card-header bg-dark text-white fw-bold py-3 d-flex align-items-center justify-content-between">
+                    <span><i class="bi bi-brush text-warning me-2"></i>1. Brand Identity & Crisp Logo</span>
+                    <span class="badge bg-primary">Identity</span>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Website Brand Name</label>
+                            <input asp-for="SiteName" class="form-control" placeholder="BookMyFun" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Brand Tagline</label>
+                            <input asp-for="SiteTagline" class="form-control" placeholder="Farmhouse, Villa & Resort Rentals" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Bootstrap Brand Icon</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi @Model.SiteIcon"></i></span>
+                                <input asp-for="SiteIcon" class="form-control" placeholder="bi-house-heart-fill" />
+                            </div>
+                            <small class="text-muted">Used when no image logo is uploaded (e.g. bi-house-heart-fill, bi-tree-fill).</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Platform Currency Symbol</label>
+                            <input asp-for="CurrencySymbol" class="form-control" placeholder="₹" required />
+                        </div>
+                    </div>
+
+                    <!-- Crisp Logo Upload Section -->
+                    <div class="p-3 rounded-3 bg-light border mb-3">
+                        <h6 class="fw-bold text-dark mb-2">
+                            <i class="bi bi-image text-success me-1"></i> Brand Logo Management (Crisp & High-Res)
+                        </h6>
+                        <div class="alert alert-info py-2 px-3 small mb-3">
+                            <i class="bi bi-info-circle-fill me-1"></i>
+                            <strong>Zero-Blur Recommendation:</strong> For crystal-clear sharpness on Retina & 4K screens, upload a 
+                            <strong>Vector SVG (.svg)</strong> file, or a <strong>High-Resolution PNG/WebP (512x512px or larger)</strong> with transparent background.
+                        </div>
+
+                        <!-- Live Logo Preview Box -->
+                        <div class="d-flex align-items-center gap-3 p-3 bg-white border rounded mb-3">
+                            <div class="text-center p-2 rounded border bg-dark" style="min-width: 140px; min-height: 70px; display: flex; align-items: center; justify-content: center;">
+                                @if (!string.IsNullOrEmpty(Model.LogoUrl))
+                                {
+                                    <img id="logoPreviewImg" src="@Model.LogoUrl" alt="Brand Logo Preview" 
+                                         style="max-height: 55px; max-width: 130px; object-fit: contain; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;" />
+                                }
+                                else
+                                {
+                                    <div id="logoPreviewPlaceholder" class="text-warning text-center">
+                                        <i class="bi @Model.SiteIcon fs-2"></i>
+                                        <div class="small text-white-50">No Image Logo</div>
+                                    </div>
+                                    <img id="logoPreviewImg" src="" alt="Brand Logo Preview" 
+                                         style="max-height: 55px; max-width: 130px; object-fit: contain; display: none; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;" />
+                                }
+                            </div>
+                            <div>
+                                <div class="fw-bold text-dark mb-1">Active Logo Preview</div>
+                                <div class="small text-muted mb-2">Current path: <code class="text-primary">@(string.IsNullOrEmpty(Model.LogoUrl) ? "Default Bootstrap Icon" : Model.LogoUrl)</code></div>
+                                <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                    <i class="bi bi-check2-circle me-1"></i>Crisp rendering applied
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">
+                                    Option A: Upload File (.svg, .png, .webp, .jpg)
+                                </label>
+                                <input type="file" name="logoFile" id="logoFileInput" 
+                                       accept=".svg,.png,.webp,.jpg,.jpeg,.ico" class="form-control" />
+                                <small class="text-muted">Files are stored securely in <code>/uploads</code> without quality degradation.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">
+                                    Option B: Or Enter External / CDN URL
+                                </label>
+                                <input asp-for="LogoUrl" id="logoUrlInput" class="form-control" placeholder="https://cdn.example.com/logo.svg" />
+                                <small class="text-muted">Remote image URL or hosted SVG link.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Official Contact & Support Details -->
+            <div class="card shadow-sm border-0 mb-4 config-card" id="sec-contact">
+                <div class="card-header bg-dark text-white fw-bold py-3 d-flex align-items-center justify-content-between">
+                    <span><i class="bi bi-headset text-warning me-2"></i>2. Official Contact & Helpdesk Information</span>
+                    <span class="badge bg-info text-dark">Contact</span>
+                </div>
+                <div class="card-body p-4">
+                    <p class="text-muted small mb-3">These details dynamically update the website top-bar, footer, and Contact Us query page across the whole application.</p>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Customer Helpline Phone Number</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-telephone-fill text-primary"></i></span>
+                                <input asp-for="SupportPhone" class="form-control" placeholder="+91 (020) 4567-8900" required />
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Official WhatsApp Number</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-whatsapp text-success"></i></span>
+                                <input asp-for="WhatsAppNumber" class="form-control" placeholder="+91 99999 00001" required />
+                            </div>
+                            <small class="text-muted">Used for the floating WhatsApp button and automated messaging.</small>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-semibold">Official Support Email Address</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-envelope-fill text-danger"></i></span>
+                                <input asp-for="SupportEmail" type="email" class="form-control" placeholder="support@bookmyfun.com" required />
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Corporate Office / Headquarters Address</label>
+                            <textarea asp-for="Address" class="form-control" rows="2" placeholder="Suite / Tower, Street, City, State, PIN Code"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Social Media Channels -->
+            <div class="card shadow-sm border-0 mb-4 config-card" id="sec-social">
+                <div class="card-header bg-dark text-white fw-bold py-3 d-flex align-items-center justify-content-between">
+                    <span><i class="bi bi-share text-warning me-2"></i>3. Social Media & Community Channels</span>
+                    <span class="badge bg-secondary">Social</span>
+                </div>
+                <div class="card-body p-4">
+                    <p class="text-muted small mb-3">Social handles and official company links displayed in the website header, footer, and emails.</p>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold"><i class="bi bi-facebook text-primary me-1"></i> Facebook URL</label>
+                            <input asp-for="FacebookUrl" class="form-control" placeholder="https://facebook.com/bookmyfun" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold"><i class="bi bi-instagram text-danger me-1"></i> Instagram URL</label>
+                            <input asp-for="InstagramUrl" class="form-control" placeholder="https://instagram.com/bookmyfun" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold"><i class="bi bi-youtube text-danger me-1"></i> YouTube Channel</label>
+                            <input asp-for="YouTubeUrl" class="form-control" placeholder="https://youtube.com/bookmyfun" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. Platform Commission & Financial Policies -->
+            <div class="card shadow-sm border-0 mb-4 config-card" id="sec-commission">
+                <div class="card-header bg-dark text-white fw-bold py-3 d-flex align-items-center justify-content-between">
+                    <span><i class="bi bi-percent text-warning me-2"></i>4. Platform Commission & Financial Rules</span>
+                    <span class="badge bg-success">Commission</span>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row g-3 align-items-center">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Commission Percentage on Completed Bookings</label>
+                            <div class="input-group">
+                                <input asp-for="PlatformCommissionPercent" type="number" step="0.5" class="form-control form-control-lg fw-bold" required />
+                                <span class="input-group-text fw-bold">%</span>
+                            </div>
+                            <small class="text-muted">Default is 10.0%. Automatically calculated on gross guest payments upon check-out.</small>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded border">
+                                <div class="fw-bold text-dark"><i class="bi bi-shield-check text-success me-1"></i> Automated Calculation</div>
+                                <div class="small text-muted mt-1">Platform commission is seamlessly logged into the analytics ledger and credited to net platform earnings.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit Button for Branding Form -->
+            <div class="d-grid mb-4">
+                <button type="submit" class="btn btn-warning btn-lg fw-bold py-3 shadow text-dark">
+                    <i class="bi bi-check-circle-fill me-2"></i> Save All Identity, Contact & Commission Settings
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Right Column: Third-Party Service Credentials (APIs) -->
+    <div class="col-lg-5 config-card" id="sec-thirdparty">
+        <div class="card shadow-sm border-0 sticky-top" style="top: 85px; z-index: 10;">
+            <div class="card-header bg-dark text-white fw-bold py-3 d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-cpu text-warning me-2"></i>5. Third-Party Service Credentials</span>
+                <span class="badge bg-warning text-dark">API Gateways</span>
+            </div>
+            <div class="card-body p-4">
+                <p class="text-muted small mb-3">Configure external payment processors, Meta WhatsApp messaging, and SMTP mail servers.</p>
+
+                <ul class="nav nav-pills mb-3" id="configTabs">
+                    <li class="nav-item">
+                        <button class="nav-link active fw-semibold" data-bs-toggle="pill" data-bs-target="#tabRazorpay">
+                            <i class="bi bi-credit-card me-1"></i> Razorpay
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-semibold" data-bs-toggle="pill" data-bs-target="#tabWhatsApp">
+                            <i class="bi bi-whatsapp me-1"></i> WhatsApp
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-semibold" data-bs-toggle="pill" data-bs-target="#tabSMTP">
+                            <i class="bi bi-envelope me-1"></i> SMTP
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link fw-semibold" data-bs-toggle="pill" data-bs-target="#tabCashfree">
+                            <i class="bi bi-wallet me-1"></i> Cashfree
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content border rounded p-3 bg-light">
+                    <!-- Razorpay Form -->
+                    @{
+                        var rzp = configs.FirstOrDefault(c => c.ServiceProvider == "Razorpay") ?? new BookMyFun.Models.Entities.ApiConfiguration { ServiceProvider = "Razorpay" };
+                    }
+                    <div class="tab-pane fade show active" id="tabRazorpay">
+                        <form asp-action="SaveApiConfig" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="ServiceProvider" value="Razorpay" />
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Razorpay Key ID</label>
+                                <input name="ApiKey" class="form-control" value="@rzp.ApiKey" placeholder="rzp_test_..." required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Razorpay Key Secret</label>
+                                <input name="ApiSecret" type="password" class="form-control" value="@rzp.ApiSecret" placeholder="••••••••••••" required />
+                            </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" name="IsActive" value="true" id="rzpActive" @(rzp.IsActive ? "checked" : "")>
+                                <label class="form-check-label fw-semibold" for="rzpActive">Enable Razorpay Processing</label>
+                            </div>
+                            <button type="submit" class="btn btn-warning fw-bold w-100">
+                                <i class="bi bi-save me-1"></i> Update Razorpay Keys
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- WhatsApp Form -->
+                    @{
+                        var wa = configs.FirstOrDefault(c => c.ServiceProvider == "WhatsApp") ?? new BookMyFun.Models.Entities.ApiConfiguration { ServiceProvider = "WhatsApp" };
+                    }
+                    <div class="tab-pane fade" id="tabWhatsApp">
+                        <form asp-action="SaveApiConfig" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="ServiceProvider" value="WhatsApp" />
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Meta Cloud API Access Token</label>
+                                <input name="ApiKey" class="form-control" value="@wa.ApiKey" placeholder="Bearer EAAG..." required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Phone Number ID</label>
+                                <input name="ApiSecret" class="form-control" value="@wa.ApiSecret" placeholder="e.g. 109823482716" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Webhook Secret / Parameters (JSON)</label>
+                                <input name="ExtraParams" class="form-control" value="@wa.ExtraParams" placeholder='{"WabaId": "..."}' />
+                            </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" name="IsActive" value="true" id="waActive" @(wa.IsActive ? "checked" : "")>
+                                <label class="form-check-label fw-semibold" for="waActive">Enable Automated WhatsApp Alerts</label>
+                            </div>
+                            <button type="submit" class="btn btn-success fw-bold w-100">
+                                <i class="bi bi-save me-1"></i> Update WhatsApp API
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- SMTP Form -->
+                    @{
+                        var smtp = configs.FirstOrDefault(c => c.ServiceProvider == "SMTP") ?? new BookMyFun.Models.Entities.ApiConfiguration { ServiceProvider = "SMTP" };
+                    }
+                    <div class="tab-pane fade" id="tabSMTP">
+                        <form asp-action="SaveApiConfig" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="ServiceProvider" value="SMTP" />
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">SMTP Username / Email</label>
+                                <input name="ApiKey" class="form-control" value="@smtp.ApiKey" placeholder="notifications@bookmyfun.com" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">SMTP Password / App Password</label>
+                                <input name="ApiSecret" type="password" class="form-control" value="@smtp.ApiSecret" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">SMTP Host & Port (JSON)</label>
+                                <input name="ExtraParams" class="form-control" value="@(smtp.ExtraParams ?? "{\"Host\":\"smtp.gmail.com\",\"Port\":587}")" />
+                            </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" name="IsActive" value="true" id="smtpActive" @(smtp.IsActive ? "checked" : "")>
+                                <label class="form-check-label fw-semibold" for="smtpActive">Enable SMTP Email Service</label>
+                            </div>
+                            <button type="submit" class="btn btn-primary fw-bold w-100">
+                                <i class="bi bi-save me-1"></i> Update SMTP Server
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Cashfree Form -->
+                    @{
+                        var cashfree = configs.FirstOrDefault(c => c.ServiceProvider == "Cashfree") ?? new BookMyFun.Models.Entities.ApiConfiguration { ServiceProvider = "Cashfree" };
+                    }
+                    <div class="tab-pane fade" id="tabCashfree">
+                        <form asp-action="SaveApiConfig" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="ServiceProvider" value="Cashfree" />
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Cashfree App ID</label>
+                                <input name="ApiKey" class="form-control" value="@cashfree.ApiKey" placeholder="CF_TEST_..." required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Cashfree Secret Key</label>
+                                <input name="ApiSecret" type="password" class="form-control" value="@cashfree.ApiSecret" required />
+                            </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" name="IsActive" value="true" id="cfActive" @(cashfree.IsActive ? "checked" : "")>
+                                <label class="form-check-label fw-semibold" for="cfActive">Enable Cashfree Processing</label>
+                            </div>
+                            <button type="submit" class="btn btn-dark fw-bold w-100">
+                                <i class="bi bi-save me-1"></i> Update Cashfree Keys
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const categorySelect = document.getElementById("settingsCategorySelect");
+        const categoryPills = document.querySelectorAll(".category-pill");
+        const cards = document.querySelectorAll(".config-card");
+
+        function filterCategory(targetId) {
+            if (targetId === "all") {
+                cards.forEach(card => card.style.display = "");
+            } else {
+                cards.forEach(card => {
+                    if (card.id === targetId) {
+                        card.style.display = "";
+                        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    } else {
+                        card.style.display = "none";
+                    }
+                });
+            }
+
+            // Sync pill active state
+            categoryPills.forEach(pill => {
+                if (pill.getAttribute("data-target") === targetId) {
+                    pill.classList.add("active", "btn-primary");
+                    pill.classList.remove("btn-outline-primary");
+                } else {
+                    pill.classList.remove("active", "btn-primary");
+                    pill.classList.add("btn-outline-primary");
+                }
+            });
+
+            // Sync select value
+            if (categorySelect.value !== targetId) {
+                categorySelect.value = targetId;
+            }
+        }
+
+        categorySelect.addEventListener("change", function () {
+            filterCategory(this.value);
+        });
+
+        categoryPills.forEach(pill => {
+            pill.addEventListener("click", function () {
+                const target = this.getAttribute("data-target");
+                filterCategory(target);
+            });
+        });
+
+        // Real-time Logo Preview handling
+        const fileInput = document.getElementById("logoFileInput");
+        const urlInput = document.getElementById("logoUrlInput");
+        const previewImg = document.getElementById("logoPreviewImg");
+        const placeholder = document.getElementById("logoPreviewPlaceholder");
+
+        if (fileInput) {
+            fileInput.addEventListener("change", function () {
+                if (this.files && this.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        previewImg.src = e.target.result;
+                        previewImg.style.display = "block";
+                        if (placeholder) placeholder.style.display = "none";
+                    };
+                    reader.readAsDataURL(this.files[0]);
+                }
+            });
+        }
+
+        if (urlInput) {
+            urlInput.addEventListener("input", function () {
+                if (this.value.trim().length > 5) {
+                    previewImg.src = this.value.trim();
+                    previewImg.style.display = "block";
+                    if (placeholder) placeholder.style.display = "none";
+                }
+            });
+        }
+    });
+</script>
+}

@@ -1,0 +1,176 @@
+@model BookMyFun.Models.ViewModels.BookingCheckoutViewModel
+@{
+    ViewData["Title"] = "Flexible Booking & Checkout";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-dark text-white p-3">
+                <h4 class="mb-0"><i class="bi bi-calendar-check text-warning"></i> Flexible Booking & Instant Checkout</h4>
+            </div>
+            <div class="card-body p-4">
+                <div class="row align-items-center mb-4 pb-3 border-bottom">
+                    <div class="col-md-3">
+                        <img src="@Model.ImageUrl" class="img-fluid rounded" style="height: 100px; width: 100%; object-fit: cover;" onerror="this.src='/images/placeholder.jpg';" />
+                    </div>
+                    <div class="col-md-9">
+                        <h4 class="fw-bold mb-1">@Model.PropertyTitle</h4>
+                        <p class="text-muted small mb-1"><i class="bi bi-geo-alt"></i> @Model.Location</p>
+                        <span class="badge bg-primary fs-6">Base Rate: ₹@Model.PricePerNight.ToString("N0") / night</span>
+                    </div>
+                </div>
+
+                <form asp-action="ConfirmBooking" method="post" id="bookingForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="PropertyID" />
+                    <input type="hidden" asp-for="PricePerNight" id="basePrice" value="@Model.PricePerNight" />
+
+                    <!-- Booking Option Tabs / Radio -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">1. Select Booking Duration Type</label>
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <input type="radio" class="btn-check" name="BookingType" id="typeFullDay" value="FullDay" checked autocomplete="off" onchange="updatePricing()">
+                                <label class="btn btn-outline-primary w-100 py-3" for="typeFullDay">
+                                    <i class="bi bi-sun-fill d-block fs-4 mb-1"></i>
+                                    <strong>Full Day</strong>
+                                    <div class="small">100% standard rate</div>
+                                </label>
+                            </div>
+                            <div class="col-md-4">
+                                <input type="radio" class="btn-check" name="BookingType" id="typeHalfDay" value="HalfDay" autocomplete="off" onchange="updatePricing()">
+                                <label class="btn btn-outline-primary w-100 py-3" for="typeHalfDay">
+                                    <i class="bi bi-brightness-alt-high d-block fs-4 mb-1"></i>
+                                    <strong>Half Day Slot</strong>
+                                    <div class="small">55% of full day rate</div>
+                                </label>
+                            </div>
+                            <div class="col-md-4">
+                                <input type="radio" class="btn-check" name="BookingType" id="typeHourly" value="Hourly" autocomplete="off" onchange="updatePricing()">
+                                <label class="btn btn-outline-primary w-100 py-3" for="typeHourly">
+                                    <i class="bi bi-clock-history d-block fs-4 mb-1"></i>
+                                    <strong>Hourly Slot</strong>
+                                    <div class="small">Flexible 10% / hour rate</div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Slot Type selector (Conditional for Half Day) -->
+                    <div class="mb-3" id="slotTypeContainer" style="display: none;">
+                        <label class="form-label fw-semibold">Select Time Slot</label>
+                        <select asp-for="SlotType" class="form-select" id="slotTypeSelect">
+                            <option value="MorningSlot">🌅 Morning Slot (08:00 AM - 02:00 PM)</option>
+                            <option value="EveningSlot">🌆 Evening Slot (03:00 PM - 09:00 PM)</option>
+                            <option value="NightStay">🌙 Night Stay Slot (09:00 PM - 07:00 AM)</option>
+                        </select>
+                    </div>
+
+                    <!-- Hourly duration selector -->
+                    <div class="mb-3" id="hourlyContainer" style="display: none;">
+                        <label class="form-label fw-semibold">Number of Hours</label>
+                        <select asp-for="HourlyDuration" class="form-select" id="hourlySelect" onchange="updatePricing()">
+                            <option value="2">2 Hours</option>
+                            <option value="4" selected>4 Hours</option>
+                            <option value="6">6 Hours</option>
+                            <option value="8">8 Hours</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Check-In Date</label>
+                            <input asp-for="CheckInDate" type="date" class="form-control" id="checkIn" onchange="updatePricing()" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Check-Out Date</label>
+                            <input asp-for="CheckOutDate" type="date" class="form-control" id="checkOut" onchange="updatePricing()" required />
+                        </div>
+                    </div>
+
+                    <!-- Custom Timings Pickers -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold"><i class="bi bi-clock-history text-primary"></i> Preferred Check-In Time</label>
+                            <input asp-for="CheckInTime" type="time" class="form-control" value="11:00" required />
+                            <small class="text-muted">Standard: 11:00 AM</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold"><i class="bi bi-clock text-danger"></i> Preferred Check-Out Time</label>
+                            <input asp-for="CheckOutTime" type="time" class="form-control" value="10:00" required />
+                            <small class="text-muted">Standard: 10:00 AM</small>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Occasion (Optional)</label>
+                        <select asp-for="OccasionID" class="form-select">
+                            <option value="">-- General Vacation / Leisure --</option>
+                            @foreach (var occ in Model.AvailableOccasions)
+                            {
+                                <option value="@occ.OccasionID">@occ.OccasionName</option>
+                            }
+                        </select>
+                    </div>
+
+                    <!-- Live Total Calculation Card -->
+                    <div class="card bg-light border-warning p-3 mb-4">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="text-muted d-block">Estimated Total Payable</span>
+                                <h3 class="text-dark fw-bold mb-0" id="totalAmountText">₹@Model.CalculatedAmount.ToString("N2")</h3>
+                            </div>
+                            <span class="badge bg-success p-2"><i class="bi bi-shield-check"></i> 100% Secure Checkout</span>
+                        </div>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-warning btn-lg fw-bold py-3">
+                            <i class="bi bi-credit-card-2-front"></i> Pay & Confirm Reservation
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    function updatePricing() {
+        const type = document.querySelector('input[name="BookingType"]:checked').value;
+        const baseRate = parseFloat(document.getElementById('basePrice').value) || 0;
+        const slotContainer = document.getElementById('slotTypeContainer');
+        const hourlyContainer = document.getElementById('hourlyContainer');
+        const checkOut = document.getElementById('checkOut');
+        const checkIn = document.getElementById('checkIn');
+
+        let total = baseRate;
+
+        if (type === 'FullDay') {
+            slotContainer.style.display = 'none';
+            hourlyContainer.style.display = 'none';
+            const inDate = new Date(checkIn.value);
+            const outDate = new Date(checkOut.value);
+            const diffDays = Math.max(1, Math.round((outDate - inDate) / (1000 * 60 * 60 * 24)));
+            total = baseRate * diffDays;
+        } else if (type === 'HalfDay') {
+            slotContainer.style.display = 'block';
+            hourlyContainer.style.display = 'none';
+            total = Math.round(baseRate * 0.55);
+        } else if (type === 'Hourly') {
+            slotContainer.style.display = 'none';
+            hourlyContainer.style.display = 'block';
+            const hours = parseInt(document.getElementById('hourlySelect').value) || 4;
+            total = Math.round((baseRate / 10) * hours);
+        }
+
+        document.getElementById('totalAmountText').innerText = '₹' + total.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        updatePricing();
+    });
+</script>
+}

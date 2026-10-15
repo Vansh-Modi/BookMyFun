@@ -1,0 +1,174 @@
+@model BookMyFun.Models.ViewModels.AdminDashboardViewModel
+@{
+    ViewData["Title"] = "Admin Dashboard";
+}
+
+<!-- Page Header -->
+<div class="dash-page-header">
+    <div>
+        <p class="dash-eyebrow">Admin Portal · Operations</p>
+        <h1 class="dash-title">Super Admin Dashboard</h1>
+        <p class="dash-subtitle">Real-time overview of property inventory, owner partnerships, guest reservations, and platform revenue.</p>
+    </div>
+    <div class="dash-actions">
+        <a asp-action="Reports" class="dash-btn dash-btn-primary">
+            <i class="bi bi-graph-up-arrow"></i> Financial Reports
+        </a>
+        <a asp-action="OwnerRequests" class="dash-btn dash-btn-accent">
+            <i class="bi bi-person-check"></i> Owner Requests
+        </a>
+        <a asp-action="ManageProperties" class="dash-btn dash-btn-outline">
+            <i class="bi bi-building"></i> Properties
+        </a>
+        <a asp-action="ManageOwners" class="dash-btn dash-btn-outline">
+            <i class="bi bi-people"></i> Owners
+        </a>
+        <a asp-action="SupportQueries" class="dash-btn dash-btn-outline">
+            <i class="bi bi-headset"></i> Queries
+        </a>
+        <a asp-action="Settings" class="dash-btn dash-btn-outline" title="Settings">
+            <i class="bi bi-gear"></i>
+        </a>
+    </div>
+</div>
+
+<!-- Stat Cards Grid -->
+<div class="dash-stat-grid">
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Properties</span>
+            <span class="dash-stat-icon icon-blue"><i class="bi bi-house-door-fill"></i></span>
+        </div>
+        <div class="dash-stat-val">@Model.TotalProperties</div>
+        <div class="dash-stat-sub">
+            @if (Model.PendingApprovals > 0)
+            {
+                <span class="text-warning fw-semibold"><i class="bi bi-exclamation-circle-fill me-1"></i>@Model.PendingApprovals pending review</span>
+            }
+            else
+            {
+                <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>All properties verified</span>
+            }
+        </div>
+    </div>
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Listing Owners</span>
+            <span class="dash-stat-icon icon-emerald"><i class="bi bi-person-badge-fill"></i></span>
+        </div>
+        <div class="dash-stat-val">@Model.TotalOwners</div>
+        <div class="dash-stat-sub"><i class="bi bi-patch-check-fill text-success me-1"></i>Active hosting partners</div>
+    </div>
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Registered Guests</span>
+            <span class="dash-stat-icon icon-violet"><i class="bi bi-people-fill"></i></span>
+        </div>
+        <div class="dash-stat-val">@Model.TotalClients</div>
+        <div class="dash-stat-sub"><i class="bi bi-shield-check text-primary me-1"></i>Verified guest accounts</div>
+    </div>
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Platform Cut (10%)</span>
+            <span class="dash-stat-icon icon-amber"><i class="bi bi-wallet2"></i></span>
+        </div>
+        <div class="dash-stat-val">₹@Model.PlatformEarnings.ToString("N2")</div>
+        <div class="dash-stat-sub">From ₹@Model.TotalRevenue.ToString("N2") total GMV</div>
+    </div>
+</div>
+
+<!-- Details Grid -->
+<div class="row g-4">
+    <!-- Recent Properties Added -->
+    <div class="col-lg-7">
+        <div class="dash-card">
+            <div class="dash-card-header">
+                <h3 class="dash-card-title"><i class="bi bi-building me-2 text-primary"></i>Recent Properties Added</h3>
+                <a asp-action="CreateProperty" class="dash-btn dash-btn-primary" style="padding: .35rem .85rem; font-size: .8rem;">
+                    <i class="bi bi-plus-lg"></i> Add Property
+                </a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Property</th>
+                            <th>Owner</th>
+                            <th>Price / Night</th>
+                            <th>Status</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.RecentProperties.Any())
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">No properties found.</td>
+                            </tr>
+                        }
+                        @foreach (var p in Model.RecentProperties)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold">@p.Title</div>
+                                    <small class="text-muted"><i class="bi bi-geo-alt-fill text-danger me-1"></i>@p.Location</small>
+                                </td>
+                                <td><span class="text-muted">@p.OwnerName</span></td>
+                                <td><strong>₹@p.PricePerNight.ToString("N0")</strong></td>
+                                <td>
+                                    @if (p.IsApproved)
+                                    {
+                                        <span class="dash-badge dash-badge-success"><i class="bi bi-check-circle-fill"></i> Approved</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="dash-badge dash-badge-warning"><i class="bi bi-clock-fill"></i> Pending</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <a asp-action="EditProperty" asp-route-id="@p.PropertyID" class="dash-btn dash-btn-outline" style="padding: .25rem .65rem; font-size: .78rem;">
+                                        Edit
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Bookings -->
+    <div class="col-lg-5">
+        <div class="dash-card">
+            <div class="dash-card-header">
+                <h3 class="dash-card-title"><i class="bi bi-calendar-check me-2 text-success"></i>Recent Bookings</h3>
+                <a asp-controller="Properties" asp-action="Index" class="text-decoration-none small text-muted">View all &rarr;</a>
+            </div>
+            <div class="list-group list-group-flush">
+                @if (!Model.RecentBookings.Any())
+                {
+                    <div class="p-4 text-center text-muted">No bookings recorded yet.</div>
+                }
+                @foreach (var b in Model.RecentBookings)
+                {
+                    <div class="list-group-item d-flex justify-content-between align-items-center p-3">
+                        <div>
+                            <div class="fw-bold">@b.PropertyTitle</div>
+                            <small class="text-muted d-block">
+                                <i class="bi bi-person me-1"></i>@b.ClientName · <span class="badge bg-secondary">@b.BookingType</span>
+                            </small>
+                        </div>
+                        <div class="text-end">
+                            <span class="fw-bold text-success fs-6">₹@b.TotalAmount.ToString("N2")</span>
+                            <div class="mt-1">
+                                <span class="dash-badge dash-badge-success">@b.Status</span>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+

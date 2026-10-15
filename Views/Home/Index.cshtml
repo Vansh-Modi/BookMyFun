@@ -1,0 +1,301 @@
+@{
+    ViewData["Title"] = "Luxury Farmhouses, Private Villas & Resorts for Rent in India";
+    var featured = ViewBag.FeaturedProperties as List<BookMyFun.Models.Entities.Property> ?? new();
+    var types = ViewBag.PropertyTypes as List<BookMyFun.Models.Entities.PropertyType> ?? new();
+    var occasions = ViewBag.Occasions as List<BookMyFun.Models.Entities.Occasion> ?? new();
+}
+
+<!-- ─────────────────────────────────────────────────────────
+     HERO SECTION
+───────────────────────────────────────────────────────── -->
+<div class="hero-section mb-5">
+    <div class="container py-5 text-center text-white">
+        <div class="mb-3">
+            <span class="hero-pill">
+                <i class="bi bi-stars"></i> Verified Luxury Farmhouses &amp; Villas in India
+            </span>
+        </div>
+        <h1 class="hero-title mb-3">
+            Find Your Private <span class="hero-highlight">Getaway &amp; Celebration</span> Stay
+        </h1>
+        <p class="lead col-md-8 mx-auto text-light opacity-90 mb-4" style="font-size: 1.1rem; line-height: 1.6;">
+            Rent handpicked private villas, green farmhouses &amp; party resorts with private pools. Enjoy flexible Full Day, Half Day &amp; Hourly booking slots for weddings, pool parties, or weekend escapes.
+        </p>
+
+        <!-- Floating Search Box -->
+        <div class="hero-search-box mx-auto text-start">
+            <form method="get" asp-controller="Properties" asp-action="Index" class="row g-3 align-items-center">
+                <div class="col-lg-4 col-md-6">
+                    <label class="form-label small fw-bold text-muted mb-1 ps-1">
+                        <i class="bi bi-geo-alt-fill text-danger me-1"></i> Destination
+                    </label>
+                    <input type="text" name="location" class="form-control" placeholder="Lonavala, Alibaug, Goa, etc.">
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <label class="form-label small fw-bold text-muted mb-1 ps-1">
+                        <i class="bi bi-building text-primary me-1"></i> Stay Type
+                    </label>
+                    <select name="typeId" class="form-select">
+                        <option value="">All Categories</option>
+                        @foreach (var t in types)
+                        {
+                            <option value="@t.PropertyTypeID">@t.TypeName</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <label class="form-label small fw-bold text-muted mb-1 ps-1">
+                        <i class="bi bi-balloon-heart-fill text-warning me-1"></i> Occasion
+                    </label>
+                    <select name="occasionId" class="form-select">
+                        <option value="">All Occasions</option>
+                        @foreach (var o in occasions)
+                        {
+                            <option value="@o.OccasionID">@o.OccasionName</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-lg-2 col-md-6 mt-lg-4 pt-lg-2">
+                    <button type="submit" class="btn btn-warning w-100 fw-bold py-2 shadow-sm d-flex align-items-center justify-content-center gap-2">
+                        <i class="bi bi-search"></i> Search
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────
+     TRUST & VALUE PROPOSITION BAR
+───────────────────────────────────────────────────────── -->
+<div class="container mb-5">
+    <div class="trust-bar">
+        <div class="row g-4 align-items-center text-start">
+            <div class="col-md-3 col-6">
+                <div class="trust-item">
+                    <span class="trust-icon icon-emerald"><i class="bi bi-shield-check"></i></span>
+                    <div>
+                        <strong class="d-block text-heading" style="font-size: .88rem;">100% Verified</strong>
+                        <small class="text-muted" style="font-size: .76rem;">Personally checked stays</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="trust-item">
+                    <span class="trust-icon icon-blue"><i class="bi bi-clock-history"></i></span>
+                    <div>
+                        <strong class="d-block text-heading" style="font-size: .88rem;">Flexible Slots</strong>
+                        <small class="text-muted" style="font-size: .76rem;">Hourly, half &amp; full day</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="trust-item">
+                    <span class="trust-icon icon-amber"><i class="bi bi-tag-fill"></i></span>
+                    <div>
+                        <strong class="d-block text-heading" style="font-size: .88rem;">Best Rate Policy</strong>
+                        <small class="text-muted" style="font-size: .76rem;">Direct partner pricing</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <div class="trust-item">
+                    <span class="trust-icon icon-cyan"><i class="bi bi-whatsapp"></i></span>
+                    <div>
+                        <strong class="d-block text-heading" style="font-size: .88rem;">24/7 Concierge</strong>
+                        <small class="text-muted" style="font-size: .76rem;">Dedicated support team</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────
+     BROWSE BY CATEGORIES
+───────────────────────────────────────────────────────── -->
+<div class="my-5 py-2">
+    <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-2">
+        <div>
+            <p class="dash-eyebrow mb-1">Stay Types</p>
+            <h2 class="fw-bold mb-0 text-heading">Browse Stays by Experience</h2>
+        </div>
+        <a asp-controller="Properties" asp-action="Index" class="dash-btn dash-btn-outline">
+            View All Stays &rarr;
+        </a>
+    </div>
+
+    <div class="row row-cols-2 row-cols-md-4 g-3 g-lg-4 text-center">
+        <div class="col">
+            <a asp-controller="Properties" asp-action="Index" asp-route-typeId="1" class="category-card">
+                <span class="category-icon icon-blue">
+                    <i class="bi bi-building"></i>
+                </span>
+                <h3 class="category-title">Luxury Villas</h3>
+                <p class="category-sub">Private pools, modern interiors &amp; sundecks</p>
+            </a>
+        </div>
+        <div class="col">
+            <a asp-controller="Properties" asp-action="Index" asp-route-typeId="2" class="category-card">
+                <span class="category-icon icon-emerald">
+                    <i class="bi bi-tree-fill"></i>
+                </span>
+                <h3 class="category-title">Farmhouses</h3>
+                <p class="category-sub">Expansive lawns, organic orchards &amp; bonfires</p>
+            </a>
+        </div>
+        <div class="col">
+            <a asp-controller="Properties" asp-action="Index" asp-route-typeId="3" class="category-card">
+                <span class="category-icon icon-cyan">
+                    <i class="bi bi-water"></i>
+                </span>
+                <h3 class="category-title">Party Resorts</h3>
+                <p class="category-sub">Large group venues, catering &amp; event spaces</p>
+            </a>
+        </div>
+        <div class="col">
+            <a asp-controller="Properties" asp-action="Index" asp-route-typeId="4" class="category-card">
+                <span class="category-icon icon-amber">
+                    <i class="bi bi-house-heart"></i>
+                </span>
+                <h3 class="category-title">Cottages</h3>
+                <p class="category-sub">Cozy hillside retreats &amp; romantic escapes</p>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────
+     FEATURED HANDPICKED PROPERTIES
+───────────────────────────────────────────────────────── -->
+<div class="my-5 py-2">
+    <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-2">
+        <div>
+            <p class="dash-eyebrow mb-1">Handpicked Collection</p>
+            <h2 class="fw-bold mb-0 text-heading">Featured Villas &amp; Farmhouses</h2>
+        </div>
+        <a asp-controller="Properties" asp-action="Index" class="dash-btn dash-btn-outline">
+            Explore All Listings
+        </a>
+    </div>
+
+    <div class="row row-cols-1 row-cols-md-3 g-4">
+        @if (!featured.Any())
+        {
+            <div class="col-12 text-center py-5 text-muted">
+                <i class="bi bi-house-exclamation fs-1 d-block mb-2 opacity-50"></i>
+                <p class="mb-0">Properties are currently being loaded. Check back shortly!</p>
+            </div>
+        }
+        @foreach (var p in featured)
+        {
+            <div class="col">
+                <div class="card h-100 shadow-sm border-0 property-card overflow-hidden">
+                    <div class="position-relative">
+                        <img src="@p.PrimaryImageUrl" class="card-img-top" style="height: 240px; object-fit: cover;" alt="@p.Title" onerror="this.src='/images/placeholder.jpg';" />
+                        <span class="badge bg-dark bg-opacity-75 text-white position-absolute top-0 start-0 m-3 px-2 py-1" style="backdrop-filter: blur(4px);">
+                            @p.PropertyTypeName
+                        </span>
+                        <span class="badge bg-warning text-dark position-absolute top-0 end-0 m-3 px-2 py-1 fw-bold shadow-sm">
+                            <i class="bi bi-patch-check-fill text-success"></i> 100% Verified
+                        </span>
+                    </div>
+                    <div class="card-body p-4 d-flex flex-direction-column justify-content-between">
+                        <div>
+                            <h3 class="card-title fw-bold mb-1 fs-5">@p.Title</h3>
+                            <p class="text-muted small mb-3">
+                                <i class="bi bi-geo-alt-fill text-danger me-1"></i>@p.Location
+                            </p>
+                            
+                            <div class="d-flex justify-content-between align-items-center mb-3 pt-2 border-top">
+                                <span class="text-muted small">
+                                    <i class="bi bi-people-fill text-primary me-1"></i> Up to @p.MaxGuests Guests
+                                </span>
+                                <span class="fw-bold fs-5 text-primary">
+                                    ₹@p.PricePerNight.ToString("N0") <small class="text-muted fs-6 fw-normal">/ night</small>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 mt-2">
+                            <a asp-controller="Properties" asp-action="Details" asp-route-id="@p.PropertyID" class="dash-btn dash-btn-outline justify-content-center">
+                                View Details &amp; Amenities
+                            </a>
+                            <a asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@p.PropertyID" class="dash-btn dash-btn-accent justify-content-center">
+                                Book Flexible Slot
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────
+     WHY CHOOSE BOOKMYFUN
+───────────────────────────────────────────────────────── -->
+<div class="my-5 py-4">
+    <div class="text-center mb-5">
+        <p class="dash-eyebrow mb-1">The BookMyFun Difference</p>
+        <h2 class="fw-bold text-heading">Why Book Your Stays With Us?</h2>
+        <p class="text-muted col-md-6 mx-auto small">We eliminate the middleman hassle and bring transparency, verified spaces, and instant customer support to your party and vacation planning.</p>
+    </div>
+
+    <div class="row g-4 text-center">
+        <div class="col-md-4">
+            <div class="dash-card p-4">
+                <span class="dash-stat-icon icon-blue mx-auto mb-3" style="width: 54px; height: 54px; font-size: 1.5rem;">
+                    <i class="bi bi-water"></i>
+                </span>
+                <h3 class="fw-bold fs-5 text-heading mb-2">Private Amenities</h3>
+                <p class="text-muted small mb-0">Exclusive access to private swimming pools, party lawns, acoustic sound setups, and barbecue pits without sharing with strangers.</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="dash-card p-4">
+                <span class="dash-stat-icon icon-emerald mx-auto mb-3" style="width: 54px; height: 54px; font-size: 1.5rem;">
+                    <i class="bi bi-clock-history"></i>
+                </span>
+                <h3 class="fw-bold fs-5 text-heading mb-2">Hourly &amp; Day Slots</h3>
+                <p class="text-muted small mb-0">Why pay for 24 hours when you only need an 8-hour afternoon pool party? Enjoy tailored flexible slot booking at lower prices.</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="dash-card p-4">
+                <span class="dash-stat-icon icon-amber mx-auto mb-3" style="width: 54px; height: 54px; font-size: 1.5rem;">
+                    <i class="bi bi-patch-check-fill"></i>
+                </span>
+                <h3 class="fw-bold fs-5 text-heading mb-2">100% Verified Partners</h3>
+                <p class="text-muted small mb-0">Every listing on our platform undergoes physical or video verification. Real images, genuine prices, and no last-minute host surprises.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────
+     CUSTOMIZED PLANNING & CONCIERGE BANNER
+───────────────────────────────────────────────────────── -->
+<div class="concierge-banner my-5">
+    <div class="row align-items-center g-4">
+        <div class="col-lg-8">
+            <span class="badge bg-warning text-dark px-3 py-1 fw-bold text-uppercase mb-3">
+                <i class="bi bi-stars"></i> Dedicated Event Specialist
+            </span>
+            <h2 class="fw-bold mb-2 text-white">Need Customized Planning for Large Groups?</h2>
+            <p class="text-light opacity-75 mb-0" style="max-width: 60ch;">
+                Planning a destination wedding, corporate retreat, or large birthday pool party? Our booking executives arrange custom catering, site visits, and exclusive group pricing.
+            </p>
+        </div>
+        <div class="col-lg-4 text-lg-end">
+            <div class="d-flex flex-column flex-sm-row justify-content-lg-end gap-2">
+                <a href="https://wa.me/919999900001?text=Hi%20BookMyFun,%20I%20need%20help%20with%20custom%20booking" target="_blank" class="btn btn-success fw-bold px-4 py-2 d-inline-flex align-items-center justify-content-center gap-2">
+                    <i class="bi bi-whatsapp"></i> Chat on WhatsApp
+                </a>
+                <a asp-controller="Home" asp-action="Contact" class="btn btn-outline-light fw-bold px-4 py-2">
+                    Contact Desk
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

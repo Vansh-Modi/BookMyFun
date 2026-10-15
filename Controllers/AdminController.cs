@@ -1,0 +1,908 @@
+using System.Security.Claims;
+using System.Text;
+using BookMyFun.Models.Entities;
+using BookMyFun.Models.ViewModels;
+using BookMyFun.Repositories;
+using BookMyFun.Services;
+using ClosedXML.Excel;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace BookMyFun.Controllers
+{
+    [Authorize(Roles = "Admin")]
+    public class AdminController : Controller
+    {
+        private readonly IPropertyRepository _propRepo;
+        private readonly IUserRepository _userRepo;
+        private readonly IBookingRepository _bookingRepo;
+        private readonly ISubscriptionRepository _subRepo;
+        private readonly IConfigRepository _configRepo;
+        private readonly IOwnerRequestRepository _ownerReqRepo;
+        private readonly IContactRepository _contactRepo;
+        private readonly ISiteSettingsService _siteSettingsService;
+        private readonly IFinancialRepository _financialRepo;
+        private readonly IWebHostEnvironment _env;
+
+        public AdminController(
+            IPropertyRepository propRepo,
+            IUserRepository userRepo,
+            IBookingRepository bookingRepo,
+            ISubscriptionRepository subRepo,
+            IConfigRepository configRepo,
+            IOwnerRequestRepository ownerReqRepo,
+            IContactRepository contactRepo,
+            ISiteSettingsService siteSettingsService,
+            IFinancialRepository financialRepo,
+            IWebHostEnvironment env)
+        {
+            _propRepo = propRepo;
+            _userRepo = userRepo;
+            _bookingRepo = bookingRepo;
+            _subRepo = subRepo;
+            _configRepo = configRepo;
+            _ownerReqRepo = ownerReqRepo;
+            _contactRepo = contactRepo;
+            _siteSettingsService = siteSettingsService;
+            _financialRepo = financialRepo;
+            _env = env;
+        }
+
+        public async Task<IActionResult> Index()
+        {
+            var properties = await _propRepo.GetAllPropertiesAsync();
+            var owners = await _userRepo.GetUsersByRoleAsync("Owner");
+            var clients = await _userRepo.GetUsersByRoleAsync("Client");
+            var bookings = await _bookingRepo.GetAllBookingsAsync();
+
+            decimal totalRevenue = bookings.Where(b => b.Status == "Confirmed").Sum(b => b.TotalAmount);
+            decimal platformEarnings = Math.Round(totalRevenue * 0.10m, 2);
+
+            var vm = new AdminDashboardViewModel
+            {
+                TotalProperties = properties.Count,
+                PendingApprovals = properties.Count(p => !p.IsApproved),
+                TotalOwners = owners.Count,
+                TotalClients = clients.Count,
+                TotalBookings = bookings.Count,
+                TotalRevenue = totalRevenue,
+                PlatformEarnings = platformEarnings,
+                RecentProperties = properties.Take(5).ToList(),
+                RecentBookings = bookings.Take(5).ToList()
+            };
+
+            return View(vm);
+        }
+
+        // --- Full CRUD for Owners on their behalf ---
+        public async Task<IActionResult> ManageOwners()
+        {
+            var owners = await _userRepo.GetUsersByRoleAsync("Owner");
+            return View(owners);
+        }
+
+        [HttpGet]
+        public IActionResult CreateOwner()
+        {
+            return View(new User { Role = "Owner" });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateOwner(User user, string password)
+        {
+            user.Role = "Owner";
+            user.PasswordHash = AccountController.HashPassword(string.IsNullOrWhiteSpace(password) ? "Owner@123" : password);
+            var id = await _userRepo.CreateUserAsync(user);
+
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _configRepo.LogAuditAsync(currentUserId, "CreateOwner", "User", id, $"Created owner {user.FullName} ({user.Email})");
+
+            return RedirectToAction(nameof(ManageOwners));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> EditOwner(int id)
+        {
+            var user = await _userRepo.GetByIdAsync(id);
+            if (user == null) return NotFound();
+            return View(user);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditOwner(User user)
+        {
+            user.Role = "Owner";
+            await _userRepo.UpdateUserAsync(user);
+
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _configRepo.LogAuditAsync(currentUserId, "EditOwner", "User", user.UserID, $"Updated owner {user.FullName}");
+
+            return RedirectToAction(nameof(ManageOwners));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteOwner(int id)
+        {
+            await _userRepo.DeleteUserAsync(id);
+
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _configRepo.LogAuditAsync(currentUserId, "DeleteOwner", "User", id, $"Deleted owner #{id}");
+
+            return RedirectToAction(nameof(ManageOwners));
+        }
+
+        // --- Full CRUD for Properties on behalf of Owners ---
+        public async Task<IActionResult> ManageProperties()
+        {
+            var properties = await _propRepo.GetAllPropertiesAsync();
+            return View(properties);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> CreateProperty()
+        {
+            var vm = new PropertyEditViewModel
+            {
+                AvailableTypes = await _propRepo.GetPropertyTypesAsync(),
+                AvailableOccasions = await _propRepo.GetOccasionsAsync(),
+                AvailableOwners = await _userRepo.GetUsersByRoleAsync("Owner")
+            };
+            return View(vm);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateProperty(PropertyEditViewModel vm)
+        {
+            var prop = new Property
+            {
+                OwnerID = vm.OwnerID,
+                PropertyTypeID = vm.PropertyTypeID,
+                Title = vm.Title,
+                Description = vm.Description,
+                Location = vm.Location,
+                PricePerNight = vm.PricePerNight,
+                MaxGuests = vm.MaxGuests,
+                ListingStatus = "Active",
+                IsApproved = true,
+                OccasionIDs = vm.SelectedOccasionIDs
+            };
+
+            var propId = await _propRepo.CreatePropertyAsync(prop);
+            if (!string.IsNullOrEmpty(vm.ImageUrlInput))
+            {
+                await _propRepo.AddPropertyImageAsync(propId, vm.ImageUrlInput, true);
+            }
+
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _configRepo.LogAuditAsync(currentUserId, "CreateProperty", "Property", propId, $"Created property {prop.Title} on behalf of Owner #{prop.OwnerID}");
+
+            return RedirectToAction(nameof(ManageProperties));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> EditProperty(int id)
+        {
+            var prop = await _propRepo.GetByIdAsync(id);
+            if (prop == null) return NotFound();
+
+            var vm = new PropertyEditViewModel
+            {
+                PropertyID = prop.PropertyID,
+                OwnerID = prop.OwnerID,
+                PropertyTypeID = prop.PropertyTypeID,
+                Title = prop.Title,
+                Description = prop.Description,
+                Location = prop.Location,
+                PricePerNight = prop.PricePerNight,
+                MaxGuests = prop.MaxGuests,
+                ListingStatus = prop.ListingStatus,
+                IsApproved = prop.IsApproved,
+                SelectedOccasionIDs = prop.OccasionIDs,
+                ImageUrlInput = prop.PrimaryImageUrl,
+                AvailableTypes = await _propRepo.GetPropertyTypesAsync(),
+                AvailableOccasions = await _propRepo.GetOccasionsAsync(),
+                AvailableOwners = await _userRepo.GetUsersByRoleAsync("Owner")
+            };
+            return View(vm);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditProperty(PropertyEditViewModel vm)
+        {
+            var prop = new Property
+            {
+                PropertyID = vm.PropertyID,
+                OwnerID = vm.OwnerID,
+                PropertyTypeID = vm.PropertyTypeID,
+                Title = vm.Title,
+                Description = vm.Description,
+                Location = vm.Location,
+                PricePerNight = vm.PricePerNight,
+                MaxGuests = vm.MaxGuests,
+                ListingStatus = vm.ListingStatus,
+                OccasionIDs = vm.SelectedOccasionIDs
+            };
+
+            await _propRepo.UpdatePropertyAsync(prop);
+
+            if (!string.IsNullOrEmpty(vm.ImageUrlInput))
+            {
+                await _propRepo.AddPropertyImageAsync(prop.PropertyID, vm.ImageUrlInput, true);
+            }
+
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _configRepo.LogAuditAsync(currentUserId, "EditProperty", "Property", prop.PropertyID, $"Updated property #{prop.PropertyID}");
+
+            return RedirectToAction(nameof(ManageProperties));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteProperty(int id)
+        {
+            await _propRepo.DeletePropertyAsync(id);
+
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _configRepo.LogAuditAsync(currentUserId, "DeleteProperty", "Property", id, $"Deleted property #{id}");
+
+            return RedirectToAction(nameof(ManageProperties));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveProperty(int id, bool approve)
+        {
+            await _propRepo.ApprovePropertyAsync(id, approve);
+
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _configRepo.LogAuditAsync(currentUserId, approve ? "ApproveProperty" : "RejectProperty", "Property", id, $"Property approval set to {approve}");
+
+            return RedirectToAction(nameof(ManageProperties));
+        }
+
+        // --- System Settings & API Configs ---
+        public async Task<IActionResult> Settings()
+        {
+            var configs = await _configRepo.GetAllConfigsAsync();
+            var settings = await _configRepo.GetAllSettingsAsync();
+            var branding = await _siteSettingsService.GetSettingsAsync();
+
+            ViewBag.Configs = configs;
+            ViewBag.Settings = settings;
+            ViewBag.Branding = branding;
+
+            return View(branding);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveApiConfig(ApiConfiguration config)
+        {
+            await _configRepo.SaveOrUpdateConfigAsync(config);
+            TempData["Success"] = $"API configuration for {config.ServiceProvider} updated successfully!";
+            return RedirectToAction(nameof(Settings));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveSiteBranding(SiteSettingsModel model, IFormFile? logoFile)
+        {
+            // If user uploads an image file, store with high-res crisp formatting in wwwroot/uploads
+            if (logoFile != null && logoFile.Length > 0)
+            {
+                var webRoot = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+                var uploadsFolder = Path.Combine(webRoot, "uploads");
+                if (!Directory.Exists(uploadsFolder)) Directory.CreateDirectory(uploadsFolder);
+
+                var extension = Path.GetExtension(logoFile.FileName).ToLowerInvariant();
+                // Prefer modern web standard extensions or vector formats for razor-sharp rendering
+                var fileName = "brand_logo_" + DateTime.UtcNow.Ticks + extension;
+                var filePath = Path.Combine(uploadsFolder, fileName);
+
+                using (var stream = new FileStream(filePath, FileMode.Create))
+                {
+                    await logoFile.CopyToAsync(stream);
+                }
+
+                model.LogoUrl = "/uploads/" + fileName;
+            }
+
+            await _siteSettingsService.SaveSettingsAsync(model);
+            TempData["Success"] = "Site branding, logo, contact information, and platform parameters updated successfully!";
+            return RedirectToAction(nameof(Settings));
+        }
+
+        // --- Analytics & Financial Reports ---
+        public async Task<IActionResult> Reports(string period = "6months")
+        {
+            var users       = await _userRepo.GetAllUsersAsync();
+            var properties  = await _propRepo.GetAllPropertiesAsync();
+            var bookings    = await _bookingRepo.GetAllBookingsAsync();
+            var ledger      = await _financialRepo.GetAllEntriesAsync();
+            var (totalIncome, totalExpense, _) = await _financialRepo.GetFinancialSummaryAsync();
+
+            decimal grossBookingRevenue     = bookings.Where(b => b.Status == "Confirmed").Sum(b => b.TotalAmount);
+            decimal platformCommissionEarned = Math.Round(grossBookingRevenue * 0.10m, 2);
+
+            // ── Determine period slots ────────────────────────────────────────
+            var periodSlots = BuildPeriodSlots(period);
+
+            // ── Build per-slot stats ──────────────────────────────────────────
+            var breakdown = new List<PeriodFinancialStats>();
+            foreach (var (label, start, end) in periodSlots)
+            {
+                var slotLedger   = ledger.Where(l => l.TransactionDate.Date >= start && l.TransactionDate.Date <= end).ToList();
+                var slotBookings = bookings.Where(b => b.CreatedAt.Date >= start && b.CreatedAt.Date <= end).ToList();
+                var slotIncome   = slotLedger.Where(l => l.TransactionType == "Income").Sum(l => l.Amount);
+                var slotExpense  = slotLedger.Where(l => l.TransactionType == "Expense").Sum(l => l.Amount);
+                var slotRevenue  = slotBookings.Where(b => b.Status == "Confirmed").Sum(b => b.TotalAmount);
+                var slotComm     = Math.Round(slotRevenue * 0.10m, 2);
+
+                breakdown.Add(new PeriodFinancialStats
+                {
+                    Label           = label,
+                    PeriodStart     = start,
+                    PeriodEnd       = end,
+                    TotalIncome     = slotIncome + slotComm,
+                    TotalExpense    = slotExpense,
+                    BookingCount    = slotBookings.Count,
+                    BookingRevenue  = slotRevenue,
+                    CommissionEarned = slotComm
+                });
+            }
+
+            // ── Statistical analysis ──────────────────────────────────────────
+            PeriodFinancialStats? highestIncome   = breakdown.MaxBy(x => x.TotalIncome);
+            PeriodFinancialStats? lowestIncome    = breakdown.MinBy(x => x.TotalIncome);
+            PeriodFinancialStats? highestExpense  = breakdown.MaxBy(x => x.TotalExpense);
+            PeriodFinancialStats? lowestExpense   = breakdown.MinBy(x => x.TotalExpense);
+            PeriodFinancialStats? highestProfit   = breakdown.MaxBy(x => x.NetProfit);
+            PeriodFinancialStats? lowestProfit    = breakdown.MinBy(x => x.NetProfit);
+            PeriodFinancialStats? highestBooking  = breakdown.MaxBy(x => x.BookingCount);
+            decimal avgIncome    = breakdown.Count > 0 ? breakdown.Average(x => x.TotalIncome)  : 0;
+            decimal avgExpense   = breakdown.Count > 0 ? breakdown.Average(x => x.TotalExpense) : 0;
+            decimal avgNetProfit = breakdown.Count > 0 ? breakdown.Average(x => x.NetProfit)    : 0;
+            decimal avgBookings  = breakdown.Count > 0 ? (decimal)breakdown.Average(x => x.BookingCount) : 0;
+
+            // ── Chart arrays (all slots) ──────────────────────────────────────
+            var months          = breakdown.Select(x => x.Label).ToList();
+            var monthlyIncomes  = breakdown.Select(x => x.TotalIncome).ToList();
+            var monthlyExpenses = breakdown.Select(x => x.TotalExpense).ToList();
+            var monthlyBookings = breakdown.Select(x => x.BookingCount).ToList();
+
+            var vm = new ReportsViewModel
+            {
+                TotalUsers               = users.Count,
+                TotalOwners              = users.Count(u => u.Role == "Owner"),
+                TotalClients             = users.Count(u => u.Role == "Client"),
+                TotalProperties          = properties.Count,
+                ActiveProperties         = properties.Count(p => p.ListingStatus == "Active"),
+                TotalBookings            = bookings.Count,
+                ConfirmedBookings        = bookings.Count(b => b.Status == "Confirmed"),
+                GrossBookingRevenue      = grossBookingRevenue,
+                PlatformCommissionEarned = platformCommissionEarned,
+                TotalRecordedExpenses    = totalExpense,
+                NetProfit                = (platformCommissionEarned + totalIncome) - totalExpense,
+                SelectedPeriod           = period,
+                PeriodBreakdown          = breakdown,
+                HighestIncomePeriod      = highestIncome,
+                LowestIncomePeriod       = lowestIncome,
+                HighestExpensePeriod     = highestExpense,
+                LowestExpensePeriod      = lowestExpense,
+                HighestProfitPeriod      = highestProfit,
+                LowestProfitPeriod       = lowestProfit,
+                HighestBookingPeriod     = highestBooking,
+                AvgIncome                = Math.Round(avgIncome, 2),
+                AvgExpense               = Math.Round(avgExpense, 2),
+                AvgNetProfit             = Math.Round(avgNetProfit, 2),
+                AvgBookings              = Math.Round(avgBookings, 2),
+                RecentLedgerEntries      = ledger.Take(30).ToList(),
+                Months                   = months,
+                MonthlyIncomes           = monthlyIncomes,
+                MonthlyExpenses          = monthlyExpenses,
+                MonthlyBookings          = monthlyBookings
+            };
+
+            return View(vm);
+        }
+
+        // ── Period slot builder ───────────────────────────────────────────────
+        private static List<(string Label, DateTime Start, DateTime End)> BuildPeriodSlots(string period)
+        {
+            var today = DateTime.Today;
+            var slots = new List<(string, DateTime, DateTime)>();
+
+            switch (period)
+            {
+                case "daily":
+                    // Last 14 days
+                    for (int i = 13; i >= 0; i--)
+                    {
+                        var d = today.AddDays(-i);
+                        slots.Add((d.ToString("dd MMM"), d, d));
+                    }
+                    break;
+
+                case "weekly":
+                    // Last 12 weeks
+                    for (int i = 11; i >= 0; i--)
+                    {
+                        var weekEnd   = today.AddDays(-(i * 7));
+                        var weekStart = weekEnd.AddDays(-6);
+                        slots.Add(($"W{weekStart:dd MMM}", weekStart, weekEnd));
+                    }
+                    break;
+
+                case "monthly":
+                    // Last 12 months
+                    for (int i = 11; i >= 0; i--)
+                    {
+                        var dt  = today.AddMonths(-i);
+                        var ms  = new DateTime(dt.Year, dt.Month, 1);
+                        var me  = ms.AddMonths(1).AddDays(-1);
+                        slots.Add((dt.ToString("MMM yyyy"), ms, me));
+                    }
+                    break;
+
+                case "2months":
+                    // Last 12 bi-monthly periods
+                    for (int i = 11; i >= 0; i--)
+                    {
+                        var endMonth   = today.AddMonths(-(i * 2));
+                        var startMonth = endMonth.AddMonths(-1);
+                        var ms = new DateTime(startMonth.Year, startMonth.Month, 1);
+                        var me = new DateTime(endMonth.Year, endMonth.Month, 1).AddMonths(1).AddDays(-1);
+                        slots.Add(($"{ms:MMM}-{me:MMM yy}", ms, me));
+                    }
+                    break;
+
+                case "quarterly":
+                    // Last 8 quarters
+                    for (int i = 7; i >= 0; i--)
+                    {
+                        var refDate    = today.AddMonths(-(i * 3));
+                        int qMonth     = ((refDate.Month - 1) / 3) * 3 + 1;
+                        var ms = new DateTime(refDate.Year, qMonth, 1);
+                        var me = ms.AddMonths(3).AddDays(-1);
+                        slots.Add(($"Q{(qMonth - 1) / 3 + 1} {refDate.Year}", ms, me));
+                    }
+                    break;
+
+                case "4months":
+                    // Last 6 four-month periods
+                    for (int i = 5; i >= 0; i--)
+                    {
+                        var endMonth   = today.AddMonths(-(i * 4));
+                        var startMonth = endMonth.AddMonths(-3);
+                        var ms = new DateTime(startMonth.Year, startMonth.Month, 1);
+                        var me = new DateTime(endMonth.Year, endMonth.Month, 1).AddMonths(1).AddDays(-1);
+                        slots.Add(($"{ms:MMM}-{me:MMM yy}", ms, me));
+                    }
+                    break;
+
+                case "6months":
+                    // Last 6 semi-annual periods
+                    for (int i = 5; i >= 0; i--)
+                    {
+                        var endMonth   = today.AddMonths(-(i * 6));
+                        var startMonth = endMonth.AddMonths(-5);
+                        var ms = new DateTime(startMonth.Year, startMonth.Month, 1);
+                        var me = new DateTime(endMonth.Year, endMonth.Month, 1).AddMonths(1).AddDays(-1);
+                        slots.Add(($"{ms:MMM yy}-{me:MMM yy}", ms, me));
+                    }
+                    break;
+
+                case "yearly":
+                    // Last 5 years, monthly within each year
+                    for (int i = 4; i >= 0; i--)
+                    {
+                        int yr = today.Year - i;
+                        var ms = new DateTime(yr, 1, 1);
+                        var me = new DateTime(yr, 12, 31);
+                        slots.Add((yr.ToString(), ms, me));
+                    }
+                    break;
+
+                case "2years":
+                    // Last 6 two-year periods
+                    for (int i = 5; i >= 0; i--)
+                    {
+                        int endYr  = today.Year - (i * 2);
+                        int startYr = endYr - 1;
+                        var ms = new DateTime(startYr, 1, 1);
+                        var me = new DateTime(endYr, 12, 31);
+                        slots.Add(($"{startYr}-{endYr}", ms, me));
+                    }
+                    break;
+
+                default:
+                    goto case "6months";
+            }
+
+            return slots;
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> LogFinancialEntry(FinancialEntry entry)
+        {
+            if (entry.Amount <= 0 || string.IsNullOrWhiteSpace(entry.Title))
+            {
+                TempData["Error"] = "Please provide a valid title and amount greater than 0.";
+                return RedirectToAction(nameof(Reports));
+            }
+
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            entry.LoggedByUserID = currentUserId;
+
+            await _financialRepo.AddEntryAsync(entry);
+            TempData["Success"] = $"{entry.TransactionType} record '{entry.Title}' of ₹{entry.Amount:N2} logged successfully!";
+            return RedirectToAction(nameof(Reports));
+        }
+
+        // ── EXPORT: Excel ─────────────────────────────────────────────────────
+        [HttpGet]
+        public async Task<IActionResult> ExportExcel(string period = "6months")
+        {
+            var ledger   = await _financialRepo.GetAllEntriesAsync();
+            var bookings = await _bookingRepo.GetAllBookingsAsync();
+            var slots    = BuildPeriodSlots(period);
+
+            using var wb = new XLWorkbook();
+
+            // Sheet 1: Summary
+            var ws = wb.Worksheets.Add("Financial Summary");
+            ws.Cell(1, 1).Value = "BookMyFun – Financial Report";
+            ws.Cell(1, 1).Style.Font.Bold = true;
+            ws.Cell(1, 1).Style.Font.FontSize = 16;
+            ws.Range(1, 1, 1, 7).Merge();
+
+            ws.Cell(2, 1).Value = $"Period: {period}   |   Generated: {DateTime.Now:dd MMM yyyy HH:mm}";
+            ws.Range(2, 1, 2, 7).Merge();
+            ws.Cell(2, 1).Style.Font.Italic = true;
+
+            // Header row
+            int row = 4;
+            var headers = new[] { "Period", "Start Date", "End Date", "Total Income (₹)", "Total Expense (₹)", "Net Profit (₹)", "Bookings", "Booking Revenue (₹)", "Commission (₹)" };
+            for (int c = 0; c < headers.Length; c++)
+            {
+                ws.Cell(row, c + 1).Value = headers[c];
+                ws.Cell(row, c + 1).Style.Font.Bold = true;
+                ws.Cell(row, c + 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#1e3a5f");
+                ws.Cell(row, c + 1).Style.Font.FontColor = XLColor.White;
+                ws.Cell(row, c + 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            }
+            row++;
+
+            decimal totalInc = 0, totalExp = 0;
+            int totalBook = 0;
+
+            foreach (var (label, start, end) in slots)
+            {
+                var slotLedger   = ledger.Where(l => l.TransactionDate.Date >= start && l.TransactionDate.Date <= end).ToList();
+                var slotBookings = bookings.Where(b => b.CreatedAt.Date >= start && b.CreatedAt.Date <= end).ToList();
+                var income       = slotLedger.Where(l => l.TransactionType == "Income").Sum(l => l.Amount);
+                var expense      = slotLedger.Where(l => l.TransactionType == "Expense").Sum(l => l.Amount);
+                var revenue      = slotBookings.Where(b => b.Status == "Confirmed").Sum(b => b.TotalAmount);
+                var comm         = Math.Round(revenue * 0.10m, 2);
+                income += comm;
+
+                ws.Cell(row, 1).Value = label;
+                ws.Cell(row, 2).Value = start.ToString("dd MMM yyyy");
+                ws.Cell(row, 3).Value = end.ToString("dd MMM yyyy");
+                ws.Cell(row, 4).Value = (double)income;
+                ws.Cell(row, 5).Value = (double)expense;
+                ws.Cell(row, 6).Value = (double)(income - expense);
+                ws.Cell(row, 7).Value = slotBookings.Count;
+                ws.Cell(row, 8).Value = (double)revenue;
+                ws.Cell(row, 9).Value = (double)comm;
+
+                // Colour net profit column
+                var netCell = ws.Cell(row, 6);
+                netCell.Style.Font.FontColor = (income - expense) >= 0 ? XLColor.DarkGreen : XLColor.Red;
+                netCell.Style.Font.Bold = true;
+
+                totalInc  += income;
+                totalExp  += expense;
+                totalBook += slotBookings.Count;
+                row++;
+            }
+
+            // Totals row
+            ws.Cell(row, 1).Value = "TOTAL";
+            ws.Cell(row, 1).Style.Font.Bold = true;
+            ws.Cell(row, 4).Value = (double)totalInc;
+            ws.Cell(row, 5).Value = (double)totalExp;
+            ws.Cell(row, 6).Value = (double)(totalInc - totalExp);
+            ws.Cell(row, 7).Value = totalBook;
+            for (int c = 1; c <= 9; c++)
+            {
+                ws.Cell(row, c).Style.Fill.BackgroundColor = XLColor.FromHtml("#f1f5f9");
+                ws.Cell(row, c).Style.Font.Bold = true;
+            }
+
+            // Averages row
+            row++;
+            ws.Cell(row, 1).Value = "AVERAGE";
+            ws.Cell(row, 4).Value = slots.Count > 0 ? (double)(totalInc / slots.Count) : 0;
+            ws.Cell(row, 5).Value = slots.Count > 0 ? (double)(totalExp / slots.Count) : 0;
+            ws.Cell(row, 6).Value = slots.Count > 0 ? (double)((totalInc - totalExp) / slots.Count) : 0;
+            ws.Cell(row, 7).Value = slots.Count > 0 ? (double)totalBook / slots.Count : 0;
+            ws.Cell(row, 1).Style.Font.Italic = true;
+
+            ws.Columns().AdjustToContents();
+
+            // Sheet 2: Full Ledger
+            var ws2 = wb.Worksheets.Add("Full Ledger");
+            var ledgerHeaders = new[] { "Date", "Type", "Category", "Title", "Details", "Amount (₹)" };
+            for (int c = 0; c < ledgerHeaders.Length; c++)
+            {
+                ws2.Cell(1, c + 1).Value = ledgerHeaders[c];
+                ws2.Cell(1, c + 1).Style.Font.Bold = true;
+                ws2.Cell(1, c + 1).Style.Fill.BackgroundColor = XLColor.FromHtml("#1e3a5f");
+                ws2.Cell(1, c + 1).Style.Font.FontColor = XLColor.White;
+            }
+            int lr = 2;
+            foreach (var e in ledger)
+            {
+                ws2.Cell(lr, 1).Value = e.TransactionDate.ToString("dd MMM yyyy");
+                ws2.Cell(lr, 2).Value = e.TransactionType;
+                ws2.Cell(lr, 3).Value = e.Category;
+                ws2.Cell(lr, 4).Value = e.Title;
+                ws2.Cell(lr, 5).Value = e.Details ?? "";
+                ws2.Cell(lr, 6).Value = (double)e.Amount;
+                ws2.Cell(lr, 2).Style.Font.FontColor = e.TransactionType == "Income" ? XLColor.DarkGreen : XLColor.Red;
+                lr++;
+            }
+            ws2.Columns().AdjustToContents();
+
+            using var ms = new MemoryStream();
+            wb.SaveAs(ms);
+            return File(ms.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"BookMyFun_Report_{period}_{DateTime.Today:yyyyMMdd}.xlsx");
+        }
+
+        // ── EXPORT: CSV ───────────────────────────────────────────────────────
+        [HttpGet]
+        public async Task<IActionResult> ExportCsv(string period = "6months")
+        {
+            var ledger   = await _financialRepo.GetAllEntriesAsync();
+            var bookings = await _bookingRepo.GetAllBookingsAsync();
+            var slots    = BuildPeriodSlots(period);
+
+            var sb = new StringBuilder();
+            sb.AppendLine("Period,Start Date,End Date,Total Income (INR),Total Expense (INR),Net Profit (INR),Bookings,Booking Revenue (INR),Commission (INR)");
+
+            foreach (var (label, start, end) in slots)
+            {
+                var slotLedger   = ledger.Where(l => l.TransactionDate.Date >= start && l.TransactionDate.Date <= end).ToList();
+                var slotBookings = bookings.Where(b => b.CreatedAt.Date >= start && b.CreatedAt.Date <= end).ToList();
+                var income       = slotLedger.Where(l => l.TransactionType == "Income").Sum(l => l.Amount);
+                var expense      = slotLedger.Where(l => l.TransactionType == "Expense").Sum(l => l.Amount);
+                var revenue      = slotBookings.Where(b => b.Status == "Confirmed").Sum(b => b.TotalAmount);
+                var comm         = Math.Round(revenue * 0.10m, 2);
+                income += comm;
+
+                sb.AppendLine($"\"{label}\",{start:dd MMM yyyy},{end:dd MMM yyyy},{income},{expense},{income - expense},{slotBookings.Count},{revenue},{comm}");
+            }
+
+            // Full ledger
+            sb.AppendLine();
+            sb.AppendLine("--- Full Ledger ---");
+            sb.AppendLine("Date,Type,Category,Title,Details,Amount (INR)");
+            foreach (var e in ledger)
+                sb.AppendLine($"{e.TransactionDate:dd MMM yyyy},{e.TransactionType},{e.Category},\"{e.Title}\",\"{e.Details ?? ""}\",{e.Amount}");
+
+            return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv",
+                $"BookMyFun_Report_{period}_{DateTime.Today:yyyyMMdd}.csv");
+        }
+
+        // ── EXPORT: PDF (HTML-based, browser-printable) ───────────────────────
+        [HttpGet]
+        public async Task<IActionResult> ExportPdf(string period = "6months")
+        {
+            var ledger   = await _financialRepo.GetAllEntriesAsync();
+            var bookings = await _bookingRepo.GetAllBookingsAsync();
+            var slots    = BuildPeriodSlots(period);
+            var siteSettings = await _siteSettingsService.GetSettingsAsync();
+
+            decimal grandInc = 0, grandExp = 0;
+            int grandBook = 0;
+
+            var rows = new StringBuilder();
+            foreach (var (label, start, end) in slots)
+            {
+                var slotLedger   = ledger.Where(l => l.TransactionDate.Date >= start && l.TransactionDate.Date <= end).ToList();
+                var slotBookings = bookings.Where(b => b.CreatedAt.Date >= start && b.CreatedAt.Date <= end).ToList();
+                var income       = slotLedger.Where(l => l.TransactionType == "Income").Sum(l => l.Amount);
+                var expense      = slotLedger.Where(l => l.TransactionType == "Expense").Sum(l => l.Amount);
+                var revenue      = slotBookings.Where(b => b.Status == "Confirmed").Sum(b => b.TotalAmount);
+                var comm         = Math.Round(revenue * 0.10m, 2);
+                income += comm;
+                var net  = income - expense;
+                var netColor = net >= 0 ? "#166534" : "#991b1b";
+
+                grandInc  += income;
+                grandExp  += expense;
+                grandBook += slotBookings.Count;
+
+                rows.Append($@"<tr>
+                    <td>{label}</td>
+                    <td>{start:dd MMM yyyy}</td>
+                    <td>{end:dd MMM yyyy}</td>
+                    <td class='num'>₹{income:N2}</td>
+                    <td class='num'>₹{expense:N2}</td>
+                    <td class='num' style='color:{netColor};font-weight:700'>₹{net:N2}</td>
+                    <td class='num'>{slotBookings.Count}</td>
+                    <td class='num'>₹{revenue:N2}</td>
+                    <td class='num'>₹{comm:N2}</td>
+                </tr>");
+            }
+
+            var periodLabel = period switch
+            {
+                "daily"     => "Daily (Last 14 Days)",
+                "weekly"    => "Weekly (Last 12 Weeks)",
+                "monthly"   => "Monthly (Last 12 Months)",
+                "2months"   => "Bi-Monthly",
+                "quarterly" => "Quarterly",
+                "4months"   => "4-Month Periods",
+                "6months"   => "Semi-Annual (6 Months)",
+                "yearly"    => "Annual (Last 5 Years)",
+                "2years"    => "Bi-Annual (2-Year Periods)",
+                _ => period
+            };
+
+            var html = $@"<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='UTF-8'/>
+<title>{siteSettings.SiteName} – Financial Report</title>
+<style>
+  @page {{ size: A4 landscape; margin: 1.5cm; }}
+  * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }}
+  body {{ background: #fff; color: #1e293b; font-size: 11px; }}
+  .header {{ background: #0f172a; color: #f8fafc; padding: 18px 24px; border-radius: 8px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; }}
+  .header h1 {{ font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }}
+  .header .meta {{ font-size: 11px; opacity: 0.7; text-align: right; line-height: 1.6; }}
+  .kpi-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }}
+  .kpi {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; border-left: 4px solid #2563eb; }}
+  .kpi.green {{ border-left-color: #16a34a; }}
+  .kpi.red {{ border-left-color: #dc2626; }}
+  .kpi label {{ font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; font-weight: 600; }}
+  .kpi span {{ display: block; font-size: 16px; font-weight: 700; color: #1e293b; margin-top: 2px; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 10px; }}
+  thead th {{ background: #1e3a5f; color: #fff; padding: 8px 10px; text-align: center; font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; }}
+  tbody td {{ padding: 7px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }}
+  tbody tr:nth-child(even) {{ background: #f8fafc; }}
+  .num {{ text-align: right; font-variant-numeric: tabular-nums; }}
+  tfoot td {{ background: #f1f5f9; font-weight: 700; border-top: 2px solid #cbd5e1; padding: 8px 10px; }}
+  .section-title {{ font-size: 13px; font-weight: 700; margin-bottom: 10px; color: #1e293b; border-left: 4px solid #2563eb; padding-left: 10px; }}
+  .print-note {{ text-align: center; margin-top: 20px; font-size: 10px; color: #64748b; }}
+  @media print {{ .no-print {{ display: none; }} body {{ print-color-adjust: exact; -webkit-print-color-adjust: exact; }} }}
+  .btn-print {{ display: block; margin: 0 auto 18px; padding: 8px 24px; background: #2563eb; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }}
+</style>
+</head>
+<body>
+<button class='btn-print no-print' onclick='window.print()'>🖨️ Print / Save as PDF</button>
+<div class='header'>
+  <div>
+    <h1>📊 {siteSettings.SiteName} – Financial Report</h1>
+    <div style='font-size:12px;opacity:0.8;margin-top:4px'>Period Basis: {periodLabel}</div>
+  </div>
+  <div class='meta'>
+    Generated: {DateTime.Now:dd MMM yyyy, hh:mm tt}<br/>
+    {siteSettings.SupportEmail}
+  </div>
+</div>
+
+<div class='kpi-grid'>
+  <div class='kpi'>
+    <label>Total Income (Ledger + Commission)</label>
+    <span>₹{grandInc:N2}</span>
+  </div>
+  <div class='kpi red'>
+    <label>Total Expenses</label>
+    <span>₹{grandExp:N2}</span>
+  </div>
+  <div class='kpi {(grandInc - grandExp >= 0 ? "green" : "red")}'>
+    <label>Net Profit / Loss</label>
+    <span>₹{grandInc - grandExp:N2}</span>
+  </div>
+  <div class='kpi green'>
+    <label>Total Bookings (Period)</label>
+    <span>{grandBook}</span>
+  </div>
+</div>
+
+<div class='section-title'>Period-wise Breakdown</div>
+<table>
+<thead>
+  <tr>
+    <th>Period</th><th>From</th><th>To</th>
+    <th>Income (₹)</th><th>Expense (₹)</th><th>Net (₹)</th>
+    <th>Bookings</th><th>Booking Rev. (₹)</th><th>Commission (₹)</th>
+  </tr>
+</thead>
+<tbody>{rows}</tbody>
+<tfoot>
+  <tr>
+    <td colspan='3'>TOTAL</td>
+    <td class='num'>₹{grandInc:N2}</td>
+    <td class='num'>₹{grandExp:N2}</td>
+    <td class='num'>₹{grandInc - grandExp:N2}</td>
+    <td class='num'>{grandBook}</td>
+    <td colspan='2'></td>
+  </tr>
+  <tr>
+    <td colspan='3'>AVERAGE / PERIOD</td>
+    <td class='num'>₹{(slots.Count > 0 ? grandInc / slots.Count : 0):N2}</td>
+    <td class='num'>₹{(slots.Count > 0 ? grandExp / slots.Count : 0):N2}</td>
+    <td class='num'>₹{(slots.Count > 0 ? (grandInc - grandExp) / slots.Count : 0):N2}</td>
+    <td class='num'>{(slots.Count > 0 ? (decimal)grandBook / slots.Count : 0):N1}</td>
+    <td colspan='2'></td>
+  </tr>
+</tfoot>
+</table>
+<p class='print-note'>This report was generated by {siteSettings.SiteName} platform. For queries contact {siteSettings.SupportEmail}.</p>
+</body>
+</html>";
+
+            return Content(html, "text/html");
+        }
+
+
+
+        // --- Owner Application & Trial Period Reviews ---
+        public async Task<IActionResult> OwnerRequests()
+        {
+            var requests = await _ownerReqRepo.GetAllRequestsAsync();
+            return View(requests);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveOwnerRequest(int requestId, string? notes)
+        {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _ownerReqRepo.ApproveOwnerRequestAsync(requestId, currentUserId, notes);
+
+            await _configRepo.LogAuditAsync(currentUserId, "ApproveOwnerRequest", "OwnerRequest", requestId, $"Approved owner request #{requestId}");
+            TempData["Success"] = "Owner application approved! Listings are now live on the platform.";
+            return RedirectToAction(nameof(OwnerRequests));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectOwnerRequest(int requestId, string? notes)
+        {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _ownerReqRepo.RejectOwnerRequestAsync(requestId, currentUserId, notes);
+
+            await _configRepo.LogAuditAsync(currentUserId, "RejectOwnerRequest", "OwnerRequest", requestId, $"Rejected owner request #{requestId}. Purged properties and converted back to client.");
+            TempData["Success"] = "Owner application rejected. Trial properties have been purged and user demoted to Client.";
+            return RedirectToAction(nameof(OwnerRequests));
+        }
+
+        // --- Customer Support Queries Management ---
+        public async Task<IActionResult> SupportQueries()
+        {
+            var contacts = await _contactRepo.GetAllContactsAsync();
+            return View(contacts);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateContactStatus(int contactId, string status)
+        {
+            await _contactRepo.UpdateStatusAsync(contactId, status);
+            TempData["Success"] = $"Ticket #{contactId} status updated to {status}.";
+            return RedirectToAction(nameof(SupportQueries));
+        }
+    }
+}

@@ -1,0 +1,102 @@
+@model IEnumerable<BookMyFun.Models.Entities.OwnerRequest>
+@{
+    ViewData["Title"] = "Owner Partner Applications & Trial Reviews";
+    var isEmployee = User.IsInRole("Employee");
+    var controllerName = isEmployee ? "Employee" : "Admin";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2><i class="bi bi-person-check-fill text-warning"></i> Owner Requests & Trial Evaluations</h2>
+        <p class="text-muted mb-0">Review property listings created during the 1-2 day trial period. Approvals activate their properties; rejections remove trial data and shift the user to Client.</p>
+    </div>
+    <a asp-controller="@controllerName" asp-action="Index" class="btn btn-outline-dark">
+        <i class="bi bi-arrow-left"></i> Back to Dashboard
+    </a>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Applicant</th>
+                    <th>Requested On</th>
+                    <th>Trial Deadline (1-2 Days)</th>
+                    <th>Properties Listed</th>
+                    <th>Current Status</th>
+                    <th class="text-end">Evaluation & Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">No owner partner applications found.</td>
+                    </tr>
+                }
+                @foreach (var req in Model)
+                {
+                    var isExpired = DateTime.UtcNow > req.TrialDeadline;
+                    <tr>
+                        <td>
+                            <div class="fw-bold">@req.FullName</div>
+                            <small class="text-muted">@req.Email | @(req.Phone ?? "No phone")</small>
+                        </td>
+                        <td>@req.RequestedAt.ToString("MMM dd, yyyy hh:mm tt")</td>
+                        <td>
+                            <span class="@(isExpired && req.Status == "PendingEvaluation" ? "text-danger fw-bold" : "text-dark")">
+                                @req.TrialDeadline.ToString("MMM dd, yyyy hh:mm tt")
+                            </span>
+                            @if (isExpired && req.Status == "PendingEvaluation")
+                            {
+                                <span class="badge bg-danger ms-1">Trial Overdue</span>
+                            }
+                        </td>
+                        <td>
+                            <span class="badge bg-primary">@req.ListedPropertiesCount Property(ies)</span>
+                        </td>
+                        <td>
+                            @if (req.Status == "Approved")
+                            {
+                                <span class="badge bg-success">Approved & Active Owner</span>
+                            }
+                            else if (req.Status == "Rejected")
+                            {
+                                <span class="badge bg-danger">Rejected & Shifted to Client</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning text-dark">Pending Evaluation</span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            @if (req.Status == "PendingEvaluation")
+                            {
+                                <form asp-controller="@controllerName" asp-action="ApproveOwnerRequest" method="post" class="d-inline me-1">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="requestId" value="@req.RequestID" />
+                                    <button type="submit" class="btn btn-sm btn-success" title="Approve Owner and publish listings">
+                                        <i class="bi bi-check-lg"></i> Approve Owner
+                                    </button>
+                                </form>
+
+                                <form asp-controller="@controllerName" asp-action="RejectOwnerRequest" method="post" class="d-inline" onsubmit="return confirm('Rejecting will REMOVE all properties listed by this user and shift their role back to Client. Proceed?');">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="requestId" value="@req.RequestID" />
+                                    <button type="submit" class="btn btn-sm btn-danger" title="Purge listings and convert to Client">
+                                        <i class="bi bi-x-circle"></i> Reject & Shift to Client
+                                    </button>
+                                </form>
+                            }
+                            else
+                            {
+                                <small class="text-muted">Completed on @req.ReviewedAt?.ToString("MMM dd")</small>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

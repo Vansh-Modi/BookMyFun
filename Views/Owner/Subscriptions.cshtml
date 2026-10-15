@@ -1,0 +1,48 @@
+@model IEnumerable<BookMyFun.Models.Entities.SubscriptionPlan>
+@{
+    ViewData["Title"] = "Owner Subscription Plans";
+    var activeSub = ViewBag.ActiveSub as BookMyFun.Models.Entities.OwnerSubscription;
+}
+
+<div class="text-center mb-5">
+    <h2 class="fw-bold">Monetization & Listing Plans for Property Owners</h2>
+    <p class="text-muted">Choose a subscription to list farmhouses, cottages, and luxury villas on BookMyFun.</p>
+</div>
+
+@if (activeSub != null)
+{
+    <div class="alert alert-info text-center mb-4">
+        <i class="bi bi-shield-check"></i> You currently hold an active <strong>@activeSub.PlanName</strong> valid until <strong>@activeSub.EndDate.ToString("MMMM dd, yyyy")</strong>.
+    </div>
+}
+
+<div class="row row-cols-1 row-cols-md-3 g-4 justify-content-center">
+    @foreach (var plan in Model)
+    {
+        <div class="col">
+            <div class="card h-100 shadow-sm border-2 text-center @(plan.PlanName.Contains("Gold") || plan.PlanName.Contains("Pro") ? "border-warning" : "border-light")">
+                <div class="card-header bg-white border-0 pt-4">
+                    <h4 class="card-title fw-bold">@plan.PlanName</h4>
+                    <h2 class="display-6 fw-bold text-primary mt-2">₹@plan.Price.ToString("N0")</h2>
+                    <span class="text-muted">/ @plan.DurationInDays Days</span>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-4">
+                        <li class="mb-2"><i class="bi bi-check2 text-success me-2"></i> List up to <strong>@plan.MaxListings Properties</strong></li>
+                        <li class="mb-2"><i class="bi bi-check2 text-success me-2"></i> Instant Guest WhatsApp Alerts</li>
+                        <li class="mb-2"><i class="bi bi-check2 text-success me-2"></i> Real-time Slot Availability Calendar</li>
+                        <li class="mb-2"><i class="bi bi-check2 text-success me-2"></i> Dedicated Partner Support</li>
+                    </ul>
+
+                    <form asp-action="Subscribe" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="planId" value="@plan.PlanID" />
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
+                            <i class="bi bi-credit-card"></i> Subscribe via Razorpay
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+</div>

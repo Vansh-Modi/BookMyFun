@@ -1,0 +1,197 @@
+@model BookMyFun.Models.ViewModels.PaymentPageViewModel
+@{
+    ViewData["Title"] = "Secure Checkout Payment - BookMyFun";
+}
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-lg border-0 overflow-hidden">
+            <!-- Header -->
+            <div class="card-header bg-dark text-white p-4 d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 class="mb-1 text-warning fw-bold"><i class="bi bi-shield-lock-fill"></i> Secure Payment Gateway</h4>
+                    <p class="mb-0 text-white-50 small">Order ID: @Model.OrderId | Booking Ref: #@Model.BookingID</p>
+                </div>
+                <div class="text-end">
+                    <span class="badge bg-success p-2 fs-6">256-Bit SSL Encrypted</span>
+                </div>
+            </div>
+
+            <div class="card-body p-4">
+                <div class="row g-4 mb-4">
+                    <!-- Reservation Summary Card -->
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded-3 h-100 border">
+                            <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">Reservation Details</h6>
+                            <h5 class="fw-bold text-primary mb-1">@Model.PropertyTitle</h5>
+                            <p class="text-muted small mb-2"><i class="bi bi-geo-alt-fill text-danger"></i> @Model.Location</p>
+                            
+                            <div class="small mb-2">
+                                <strong>Booking Option:</strong> 
+                                <span class="badge bg-secondary">@Model.BookingType</span> @Model.SlotType
+                            </div>
+                            
+                            <div class="small mb-2">
+                                <strong>Dates:</strong> 
+                                @Model.CheckInDate.ToString("dd MMM yyyy") to @Model.CheckOutDate.ToString("dd MMM yyyy")
+                            </div>
+
+                            @if (Model.CheckInTime.HasValue && Model.CheckOutTime.HasValue)
+                            {
+                                <div class="small text-muted mb-2">
+                                    <i class="bi bi-clock"></i> <strong>Timings:</strong> Check-in: @Model.CheckInTime.Value.ToString(@"hh\:mm") | Check-out: @Model.CheckOutTime.Value.ToString(@"hh\:mm")
+                                </div>
+                            }
+
+                            <div class="small text-muted">
+                                <strong>Guest:</strong> @Model.ClientName (@Model.ClientEmail)
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Payment Breakup Card -->
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded-3 h-100 border d-flex flex-column justify-content-between">
+                            <div>
+                                <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">Payment Summary</h6>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="text-muted">Stay Accommodation Fee</span>
+                                    <span>₹@Model.Amount.ToString("N2")</span>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="text-muted">Convenience & Service Fee</span>
+                                    <span class="text-success fw-bold">FREE</span>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="text-muted">Taxes & GST</span>
+                                    <span class="text-muted">Included</span>
+                                </div>
+                            </div>
+
+                            <div class="border-top pt-3 mt-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h5 class="fw-bold mb-0">Total Payable</h5>
+                                    <h3 class="fw-bold text-success mb-0">₹@Model.Amount.ToString("N2")</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Methods Section -->
+                <h5 class="fw-bold mb-3"><i class="bi bi-credit-card"></i> Choose Payment Method</h5>
+
+                <div class="accordion" id="paymentOptionsAccordion">
+                    <!-- Razorpay UPI & Cards -->
+                    <div class="accordion-item border mb-3 rounded overflow-hidden">
+                        <h2 class="accordion-header" id="headingUPI">
+                            <button class="accordion-button fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseUPI">
+                                <i class="bi bi-qr-code text-primary fs-5 me-2"></i> UPI / QR Code / GooglePay / PhonePe / Paytm
+                            </button>
+                        </h2>
+                        <div id="collapseUPI" class="accordion-collapse collapse show" data-bs-parent="#paymentOptionsAccordion">
+                            <div class="accordion-body">
+                                <p class="text-muted small">Scan and pay instantly using any UPI app on your phone.</p>
+                                <form asp-action="ProcessPayment" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="bookingId" value="@Model.BookingID" />
+                                    <input type="hidden" name="orderId" value="@Model.OrderId" />
+                                    <input type="hidden" name="paymentMethod" value="UPI" />
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-semibold">Enter UPI VPA ID</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" placeholder="yourname@okhdfcbank / yourname@paytm" value="guest@upi" required />
+                                            <button type="submit" class="btn btn-warning fw-bold px-4">
+                                                Pay ₹@Model.Amount.ToString("N0") via UPI
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Credit / Debit Card -->
+                    <div class="accordion-item border mb-3 rounded overflow-hidden">
+                        <h2 class="accordion-header" id="headingCard">
+                            <button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCard">
+                                <i class="bi bi-credit-card-2-front text-success fs-5 me-2"></i> Credit or Debit Card (Visa, MasterCard, RuPay)
+                            </button>
+                        </h2>
+                        <div id="collapseCard" class="accordion-collapse collapse" data-bs-parent="#paymentOptionsAccordion">
+                            <div class="accordion-body">
+                                <form asp-action="ProcessPayment" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="bookingId" value="@Model.BookingID" />
+                                    <input type="hidden" name="orderId" value="@Model.OrderId" />
+                                    <input type="hidden" name="paymentMethod" value="Card" />
+                                    <div class="row g-3">
+                                        <div class="col-12">
+                                            <label class="form-label small fw-semibold">Card Number</label>
+                                            <input type="text" class="form-control" placeholder="4111 2222 3333 4444" value="4111 2222 3333 4444" required />
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label small fw-semibold">Expiry Date</label>
+                                            <input type="text" class="form-control" placeholder="MM/YY" value="12/28" required />
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label small fw-semibold">CVV</label>
+                                            <input type="password" class="form-control" placeholder="•••" maxlength="3" value="123" required />
+                                        </div>
+                                        <div class="col-12 mt-3">
+                                            <button type="submit" class="btn btn-success fw-bold w-100 py-2">
+                                                Pay ₹@Model.Amount.ToString("N0") Securely
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Net Banking -->
+                    <div class="accordion-item border rounded overflow-hidden">
+                        <h2 class="accordion-header" id="headingNetBanking">
+                            <button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseNetBanking">
+                                <i class="bi bi-bank text-info fs-5 me-2"></i> Net Banking (All Indian Banks)
+                            </button>
+                        </h2>
+                        <div id="collapseNetBanking" class="accordion-collapse collapse" data-bs-parent="#paymentOptionsAccordion">
+                            <div class="accordion-body">
+                                <form asp-action="ProcessPayment" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="bookingId" value="@Model.BookingID" />
+                                    <input type="hidden" name="orderId" value="@Model.OrderId" />
+                                    <input type="hidden" name="paymentMethod" value="NetBanking" />
+                                    <div class="mb-3">
+                                        <label class="form-label small fw-semibold">Select Bank</label>
+                                        <select class="form-select">
+                                            <option>HDFC Bank</option>
+                                            <option>State Bank of India (SBI)</option>
+                                            <option>ICICI Bank</option>
+                                            <option>Axis Bank</option>
+                                            <option>Kotak Mahindra Bank</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary fw-bold w-100 py-2">
+                                        Proceed to Bank Portal & Pay ₹@Model.Amount.ToString("N0")
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-center mt-4">
+                    <form asp-action="CancelBooking" method="post" class="d-inline" onsubmit="return confirm('Do you want to cancel this booking reservation?');">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="bookingId" value="@Model.BookingID" />
+                        <button type="submit" class="btn btn-link text-danger text-decoration-none small">
+                            <i class="bi bi-x-circle"></i> Cancel Reservation & Return
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

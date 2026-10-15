@@ -1,0 +1,5 @@
+@model IEnumerable<BookMyFun.Models.Entities.Property>
+@{
+    Layout = "_Layout";
+}
+@await Html.PartialAsync("~/Views/Admin/ManageProperties.cshtml", Model)

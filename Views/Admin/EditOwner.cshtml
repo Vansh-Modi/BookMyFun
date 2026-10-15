@@ -1,0 +1,39 @@
+@model BookMyFun.Models.Entities.User
+@{
+    ViewData["Title"] = "Edit Owner";
+    var isEmployee = User.IsInRole("Employee");
+    var controllerName = isEmployee ? "Employee" : "Admin";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-pencil-square"></i> Edit Owner Details</h5>
+            </div>
+            <div class="card-body">
+                <form asp-controller="@controllerName" asp-action="EditOwner" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="UserID" />
+
+                    <div class="mb-3">
+                        <label class="form-label">Full Name</label>
+                        <input asp-for="FullName" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email Address (Read-only)</label>
+                        <input asp-for="Email" class="form-control" readonly />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Phone Number</label>
+                        <input asp-for="Phone" class="form-control" placeholder="+91 9876543210" />
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <a asp-controller="@controllerName" asp-action="ManageOwners" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

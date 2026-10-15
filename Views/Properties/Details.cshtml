@@ -1,0 +1,123 @@
+@model BookMyFun.Models.Entities.Property
+@{
+    ViewData["Title"] = Model.Title + " - Property Details";
+    var reviews = ViewBag.Reviews as List<BookMyFun.Models.Entities.CustomerReview> ?? new();
+    double avgRating = reviews.Any() ? reviews.Average(r => r.Rating) : 5.0;
+}
+
+<div class="row g-4">
+    <!-- Main Property Info -->
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm overflow-hidden mb-4">
+            <img src="@Model.PrimaryImageUrl" class="img-fluid w-100" style="max-height: 480px; object-fit: cover;" alt="@Model.Title" onerror="this.src='/images/placeholder.jpg';" />
+            
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <span class="badge bg-secondary mb-2">@Model.PropertyTypeName</span>
+                        <h2 class="fw-bold mb-1">@Model.Title</h2>
+                        <p class="text-muted"><i class="bi bi-geo-alt-fill text-danger"></i> @Model.Location</p>
+                    </div>
+                    <div class="text-end">
+                        <div class="badge bg-warning text-dark fs-6 px-3 py-2">
+                            ⭐ @avgRating.ToString("0.0") (@reviews.Count reviews)
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 py-3 border-top border-bottom my-3 text-center">
+                    <div class="col-4">
+                        <i class="bi bi-people fs-4 text-primary d-block mb-1"></i>
+                        <span class="text-muted small">Max Capacity</span>
+                        <div class="fw-bold">@Model.MaxGuests Guests</div>
+                    </div>
+                    <div class="col-4">
+                        <i class="bi bi-house-check fs-4 text-success d-block mb-1"></i>
+                        <span class="text-muted small">Property Type</span>
+                        <div class="fw-bold">@Model.PropertyTypeName</div>
+                    </div>
+                    <div class="col-4">
+                        <i class="bi bi-shield-check fs-4 text-warning d-block mb-1"></i>
+                        <span class="text-muted small">Verification</span>
+                        <div class="fw-bold text-success">Verified Partner</div>
+                    </div>
+                </div>
+
+                <h5 class="fw-bold mt-4 mb-2">About this Property</h5>
+                <p class="text-secondary leading-relaxed">
+                    @(Model.Description ?? "Experience a luxurious and tranquil escape. Perfect for family reunions, weekend getaways, pool parties, or celebrations with unmatched privacy.")
+                </p>
+
+                <!-- Amenities Highlights -->
+                <h5 class="fw-bold mt-4 mb-3">Key Features & Amenities</h5>
+                <div class="row g-2">
+                    <div class="col-md-4 col-6"><i class="bi bi-water text-primary me-2"></i> Private Swimming Pool</div>
+                    <div class="col-md-4 col-6"><i class="bi bi-wifi text-primary me-2"></i> High-Speed WiFi</div>
+                    <div class="col-md-4 col-6"><i class="bi bi-snow text-primary me-2"></i> Air Conditioning</div>
+                    <div class="col-md-4 col-6"><i class="bi bi-cup-hot text-primary me-2"></i> Kitchen / Chef on Request</div>
+                    <div class="col-md-4 col-6"><i class="bi bi-p-square text-primary me-2"></i> Free Onsite Parking</div>
+                    <div class="col-md-4 col-6"><i class="bi bi-music-note-beamed text-primary me-2"></i> Sound System / Lawn</div>
+                </div>
+
+                <!-- Reviews Section -->
+                <hr class="my-5" />
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="fw-bold mb-0">Guest Reviews (@reviews.Count)</h4>
+                    <span class="text-warning fs-5">⭐ @avgRating.ToString("0.0") / 5.0</span>
+                </div>
+
+                @if (!reviews.Any())
+                {
+                    <div class="p-4 bg-light rounded text-center text-muted">
+                        No reviews yet for this property. Be the first guest to review after your stay!
+                    </div>
+                }
+                else
+                {
+                    <div class="list-group list-group-flush">
+                        @foreach (var r in reviews)
+                        {
+                            <div class="list-group-item px-0 py-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <strong class="text-dark">@r.ClientName</strong>
+                                    <span class="text-warning">@string.Concat(Enumerable.Repeat("⭐", r.Rating))</span>
+                                </div>
+                                <small class="text-muted d-block mb-1">Stayed recently</small>
+                                <p class="mb-0 text-secondary">@r.Comment</p>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Booking Floating Card -->
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-lg sticky-top" style="top: 2rem;">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <span class="text-muted small">Starting from</span>
+                        <h3 class="fw-bold text-primary mb-0">₹@Model.PricePerNight.ToString("N0") <small class="text-muted fs-6">/ night</small></h3>
+                    </div>
+                    <span class="badge bg-success p-2">Available</span>
+                </div>
+
+                <div class="alert alert-light border small text-muted mb-3">
+                    <i class="bi bi-info-circle text-primary me-1"></i> Flexible booking options available: <strong>Full Day, Half Day</strong> (Morning / Evening slot), or <strong>Hourly</strong> bookings!
+                </div>
+
+                <div class="d-grid gap-2">
+                    <a asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@Model.PropertyID" class="btn btn-warning btn-lg fw-bold py-3 shadow-sm">
+                        <i class="bi bi-calendar-check"></i> Book Flexible Slot Now
+                    </a>
+                </div>
+
+                <div class="text-center mt-3">
+                    <small class="text-muted"><i class="bi bi-shield-lock text-success"></i> Secure payment processed via Razorpay</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

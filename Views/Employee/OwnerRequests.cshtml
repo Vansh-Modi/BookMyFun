@@ -1,0 +1,5 @@
+@model IEnumerable<BookMyFun.Models.Entities.OwnerRequest>
+@{
+    Layout = "_Layout";
+}
+@await Html.PartialAsync("~/Views/Admin/OwnerRequests.cshtml", Model)

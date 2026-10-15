@@ -1,0 +1,148 @@
+@model BookMyFun.Models.ViewModels.OwnerDashboardViewModel
+@{
+    ViewData["Title"] = "Owner Partner Dashboard";
+}
+
+<!-- Page Header -->
+<div class="dash-page-header">
+    <div>
+        <p class="dash-eyebrow">Partner Portal · Hosting Operations</p>
+        <h1 class="dash-title">Owner Dashboard</h1>
+        <p class="dash-subtitle">Welcome back, <strong>@Model.Owner.FullName</strong> · Track your property performance, subscription allowance, and net earnings.</p>
+    </div>
+    <div class="dash-actions">
+        <a asp-action="CreateProperty" class="dash-btn dash-btn-primary">
+            <i class="bi bi-plus-lg"></i> List New Property
+        </a>
+        <a asp-action="Subscriptions" class="dash-btn dash-btn-outline">
+            <i class="bi bi-gem"></i> Subscription Plans
+        </a>
+    </div>
+</div>
+
+<!-- Stat Cards Grid -->
+<div class="dash-stat-grid">
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Subscription Status</span>
+            <span class="dash-stat-icon @(Model.ActiveSubscription != null ? "icon-emerald" : "icon-rose")">
+                <i class="bi @(Model.ActiveSubscription != null ? "bi-patch-check-fill" : "bi-exclamation-triangle-fill")"></i>
+            </span>
+        </div>
+        @if (Model.ActiveSubscription != null)
+        {
+            <div class="dash-stat-val text-success" style="font-size: 1.5rem;">@Model.ActiveSubscription.PlanName</div>
+            <div class="dash-stat-sub"><i class="bi bi-calendar-check me-1"></i>Valid till @Model.ActiveSubscription.EndDate.ToString("MMM dd, yyyy")</div>
+        }
+        else
+        {
+            <div class="dash-stat-val text-danger" style="font-size: 1.4rem;">No Active Plan</div>
+            <div class="dash-stat-sub"><a asp-action="Subscriptions" class="text-primary text-decoration-none fw-semibold">Choose a plan &rarr;</a></div>
+        }
+    </div>
+
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Listing Quota</span>
+            <span class="dash-stat-icon icon-blue"><i class="bi bi-house-door-fill"></i></span>
+        </div>
+        <div class="dash-stat-val">@Model.ActiveListingsCount <span class="text-muted fs-5 fw-normal">/ @Model.MaxListingsAllowed</span></div>
+        <div class="dash-stat-sub">Active Listings / Maximum Allowed</div>
+    </div>
+
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Net Earnings (90%)</span>
+            <span class="dash-stat-icon icon-amber"><i class="bi bi-wallet2"></i></span>
+        </div>
+        <div class="dash-stat-val text-success">₹@Model.TotalEarnings.ToString("N2")</div>
+        <div class="dash-stat-sub">Net payout after 10% platform commission</div>
+    </div>
+</div>
+
+<!-- Main Details Grid -->
+<div class="row g-4">
+    <!-- Property Listings -->
+    <div class="col-lg-7">
+        <div class="dash-card">
+            <div class="dash-card-header">
+                <h3 class="dash-card-title"><i class="bi bi-building me-2 text-primary"></i>My Property Listings</h3>
+                <a asp-action="CreateProperty" class="dash-btn dash-btn-primary" style="padding: .35rem .85rem; font-size: .8rem;">
+                    <i class="bi bi-plus-lg"></i> Add
+                </a>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Property</th>
+                            <th>Price / Night</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.Properties.Any())
+                        {
+                            <tr>
+                                <td colspan="3" class="text-center py-4 text-muted">No properties listed yet. Add your first farmhouse or villa!</td>
+                            </tr>
+                        }
+                        @foreach (var p in Model.Properties)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold">@p.Title</div>
+                                    <small class="text-muted"><i class="bi bi-geo-alt-fill text-danger me-1"></i>@p.Location</small>
+                                </td>
+                                <td><strong>₹@p.PricePerNight.ToString("N0")</strong></td>
+                                <td>
+                                    @if (p.IsApproved)
+                                    {
+                                        <span class="dash-badge dash-badge-success"><i class="bi bi-check-circle-fill"></i> Live & Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="dash-badge dash-badge-warning"><i class="bi bi-clock-fill"></i> Under Review</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Guest Bookings & Requests -->
+    <div class="col-lg-5">
+        <div class="dash-card">
+            <div class="dash-card-header">
+                <h3 class="dash-card-title"><i class="bi bi-calendar-check me-2 text-success"></i>Guest Bookings</h3>
+                <span class="dash-badge dash-badge-neutral">@Model.Bookings.Count total</span>
+            </div>
+            <div class="list-group list-group-flush">
+                @if (!Model.Bookings.Any())
+                {
+                    <div class="p-4 text-center text-muted">No bookings received yet.</div>
+                }
+                @foreach (var b in Model.Bookings)
+                {
+                    <div class="list-group-item p-3">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <strong class="text-heading">@b.PropertyTitle</strong>
+                            <span class="dash-badge dash-badge-success">@b.Status</span>
+                        </div>
+                        <div class="small text-muted mb-1">
+                            <i class="bi bi-person me-1"></i>@b.ClientName · <i class="bi bi-telephone me-1"></i>@b.ClientPhone
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center small">
+                            <span class="badge bg-secondary">@b.BookingType (@b.SlotType)</span>
+                            <strong class="text-success fs-6">₹@b.TotalAmount.ToString("N2")</strong>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
