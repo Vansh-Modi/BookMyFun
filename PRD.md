@@ -1,94 +1,218 @@
 # BookMyFun — Product Requirements Document (PRD)
 
-## 1. Product Vision & Goals
-BookMyFun is a premier multi-dashboard Farmhouse, Luxury Villa, and Resort rental platform in India. The objective of this release is to provide enterprise-grade reliability, transparent cancellation and refund calculation, streamlined host onboarding via lead pipelines, flexible dual media ingestion (files and external URLs), role-segregated ID verification, dynamic commission hierarchy, damage claim processing, and real-time operational analytics with military-grade application security.
+---
+
+## 1. Executive Summary & Product Vision
+
+### 1.1 Product Vision
+**BookMyFun** is a premier digital marketplace and hospitality management platform tailored specifically for short-term and event-based rentals of farmhouses, private luxury villas, eco-resorts, and estate stays across India. The platform bridges the trust gap between discerning guests seeking exclusive, private escapes and property owners seeking optimized occupancy, predictable monetization, and asset protection.
+
+### 1.2 Core Business Objectives
+- **Frictionless Guest Journey:** Deliver sub-second property discovery with flexible booking models (Full-Day, Morning/Evening Half-Day, Hourly Micro-stays).
+- **Vetted Host Network:** Replace uncontrolled public host registrations with a curated partner lead pipeline and encrypted onboarding invitations.
+- **Financial Transparency & Fairness:** Provide automated, policy-enforced cancellation quotes with transparent refund breakdowns, eliminating guest-host disputes.
+- **Enterprise-Grade Asset Protection:** Safeguard host properties with refundable security deposits and an evidence-backed 24-hour damage claims adjudication engine.
+- **Data Privacy & Compliance:** Fully comply with Indian hospitality KYC regulations while shielding raw guest government identification documents from property hosts.
+- **Executive Operations & Analytics:** Empower administrators and support staff with real-time operational queues and multi-dimensional financial reporting (GMV, platform commission, pending payouts, occupancy) with native Excel (`.xlsx`) and CSV exports.
 
 ---
 
-## 2. Core Functional Additions
+## 2. Target Market & User Personas
 
-### Feature 1: Booking, Cancellation & Automated Refund Engine
-- **Business Rationale:** Eliminate disputes between hosts and guests regarding cancellations through explicit policy parameters and automated financial breakdown.
-- **Requirements:**
-  1. Property listing schema configurable with:
-     - `FreeCancellationWindowHours` (e.g., 48 hours before check-in).
-     - `CancellationCutoffHours` (e.g., 24 hours before check-in; strictly non-refundable past this deadline).
-     - `CancellationFeeType`: `'percentage'` or `'fixed'`.
-     - `CancellationFeeValue`: Decimal amount or percentage.
-  2. Snapshot of these parameters must be written onto the `Bookings` record at booking creation to preserve policy terms against future property modifications.
-  3. **Refund Logic:**
-     - `CheckIn - CurrentTime > FreeCancellationWindow`: 100% refund minus payment gateway fee (default 2%).
-     - `FreeCancellationWindow >= CheckIn - CurrentTime > CancellationCutoff`: Refund = `TotalAmount - CancellationFee - GatewayFee`.
-     - `CheckIn - CurrentTime <= CancellationCutoff` or post-check-in: Non-refundable (Refund = 0).
-  4. Transparent client-side confirmation modal displaying gross amount, deductions, and estimated net refund.
-  5. Staff operational queue in Admin/Employee dashboards enabling manual review and overrides.
+```
+                     ┌────────────────────────────────────────────────────────┐
+                     │                    User Personas                       │
+                     └───────────────────┬────────────────────────────────────┘
+                                         │
+        ┌──────────────────┬─────────────┴────────────┬──────────────────┐
+        │                  │                          │                  │
+        ▼                  ▼                          ▼                  ▼
+┌───────────────┐  ┌───────────────┐          ┌───────────────┐  ┌───────────────┐
+│ Client (Guest)│  │  Owner (Host) │          │Employee (Ops) │  │Admin (Super)  │
+│               │  │               │          │               │  │               │
+│ • Families    │  │ • Farm Owners │          │ • Onboarding  │  │ • Platform    │
+│ • Party Hosts │  │ • Villa Hosts │          │ • KYC Triage  │  │   Executives  │
+│ • Corporate   │  │ • Estate Mgrs │          │ • Claims Adj. │  │ • Finance Dir.│
+└───────────────┘  └───────────────┘          └───────────────┘  └───────────────┘
+```
 
-### Feature 2: Owner Onboarding Flow Revision (Lead Intake Pipeline)
-- **Business Rationale:** Prevent unverified hosts from creating substandard listings by replacing open self-registration with an application and verification pipeline.
-- **Requirements:**
-  1. Remove the public "Owner" radio button from `/Account/Register`. Public registration is strictly for Clients/Guests.
-  2. Add public **"Partner With Us / List Your Farm"** page and modal (`/Home/Partner`):
-     - Intake fields: Full Name, Phone, Email, Property Name, Location, Acreage/Type, Message.
-  3. Staff Onboarding Leads Grid:
-     - Display incoming leads in Employee and Admin dashboards with status filtering (`New`, `Contacted`, `Approved`, `Rejected`).
-     - "Approve & Invite Host" action generates an inactive `User` account with a cryptographically secure 24-hour activation token delivered via email.
+### 2.1 Persona 1: The Guest / Client ("Urban Escape Seeker")
+- **Profile:** Working professionals, families, party organizers, or corporate managers planning staycations, birthdays, pool parties, or offsites within 2–4 hours of metro hubs.
+- **Key Needs:** Transparent pricing, flexible daytime/evening slots without paying full overnight rates, instant availability confirmation, crystal-clear cancellation policies, and high-resolution photo/video tours.
+- **Pain Points:** Hidden cleaning/security fees, unvetted rustic properties lacking basic amenities, non-transparent cancellation penalties, and fears of identity misuse when handing over physical ID copies to roadside caretakers.
 
-### Feature 3: Media, Amenities, Location & Dual Upload System
-- **Business Rationale:** Accommodate host media stored across diverse channels (direct mobile uploads, YouTube tour videos, external CDN links) without server bottlenecks.
-- **Requirements:**
-  1. **Dual Photo & Video Input:** Every media entry accepts either direct binary file upload or external HTTPS URL.
-  2. **Photo Constraints:** Minimum 5 photos per listing before approval can be granted. File formats: JPG, PNG, WEBP (≤10MB each).
-  3. **Video Handling:** Toggle between direct video file upload (MP4, MOV, WEBM ≤100MB) or streaming link embed (YouTube, Vimeo, Google Drive view).
-  4. **Amenities Selector:** Multi-select taxonomy categorized by category (e.g., Water & Pool, Outdoor & Lawn, Power & Tech, Kitchen & Dining, Caretaker & Housekeeping).
-  5. **Google Maps Integration:** Places Autocomplete and interactive pin drag-and-drop to capture `Latitude`, `Longitude`, and `FormattedAddress`.
+### 2.2 Persona 2: The Property Host / Owner ("Farm Partner")
+- **Profile:** Private landowners, farmhouse owners, or luxury villa hosts looking to monetize real estate during vacancies without operational overhead.
+- **Key Needs:** Verified guest profiles, upfront security deposits, prompt 90% payout disbursement, asset protection against unruly parties, flexible dual-mode media upload (direct mobile files or YouTube tour videos), and tiered platform visibility.
+- **Pain Points:** Property damage caused by guests without recourse, fraudulent booking cancellations, complex software interfaces, and platform commissions eroding margins.
 
-### Feature 4: ID Verification & Privacy Governance
-- **Business Rationale:** Comply with Indian hospitality regulations (KYC guest verification) while safeguarding guest personally identifiable information (PII) against unauthorized access.
-- **Requirements:**
-  1. Guests upload Government ID (Aadhaar, Passport, Driving License) during onboarding or checkout. Supports direct upload (PDF/JPG/PNG ≤5MB) or secure scanned link.
-  2. **Storage Isolation:** ID files stored in a private, non-public storage directory using 15-minute signed expiring URLs.
-  3. **Strict RBAC:** IDs visible only to the Client (owner), Employee, and Admin.
-  4. **Host Privacy Shield:** Property Owners **cannot** view raw ID documents under any circumstance.
-  5. **Verification Request Workflow:** If an owner flags an unverified booking, Employee/Admin reviews the document and marks the booking with a cryptographically signed "Verified Guest" badge or masked details (e.g. `XXXX-XXXX-4921`).
+### 2.3 Persona 3: Operations & Support Staff ("Platform Guardian")
+- **Profile:** Platform operations executives, customer happiness agents, and trust & safety specialists.
+- **Key Needs:** Dedicated operational triage queues to review inbound partner leads, securely verify client KYC documents without leaking PII, adjudicate damage claims fairly based on photo/video proof, and execute manual refund overrides.
+- **Pain Points:** Scattered email inquiries, manual document inspection, lack of audit trails for staff overrides, and unresolved guest-host disputes.
 
-### Feature 5: Dynamic Commission Engine
-- **Business Rationale:** Support differential monetization across property types and high-volume partner hosts.
-- **Requirements:**
-  1. Three-tier precedence hierarchy:
-     $$\text{Effective Commission} = \text{Property.CommissionRate} \gg \text{Owner.CustomCommission} \gg \text{GlobalSettings.DefaultCommission}$$
-  2. Commission snapshot (`CommissionRateSnapshot`, `PlatformCommissionAmount`, `OwnerPayoutAmount`) must be calculated and immutably written onto the `Bookings` record at creation time.
-
-### Feature 6: Monetization & Subscription Tiers for Owners
-- **Business Rationale:** Provide flexible host monetization through recurring listing capacity plans and managed listing services.
-- **Requirements:**
-  1. **Tier 1: Free / Starter:** Basic listing, standard search rank, default commission.
-  2. **Tier 2: Featured / Spotlight:** Top search carousel, "Featured Farm" badge, lower commission.
-  3. **Tier 3: Managed Concierge Pack (One-time):** Full professional drone photography and dedicated listing manager.
-  4. Owner portal tier display with upgrade checkout; Admin manual override capability.
-
-### Feature 7: Security Deposit & Damage Claim Architecture
-- **Business Rationale:** Protect property hosts against property damage without exposing guests to arbitrary deductions.
-- **Requirements:**
-  1. Configurable `SecurityDepositAmount` collected via payment authorization/hold at booking checkout.
-  2. **Damage Claim Module:**
-     - Host may file a claim strictly within 24 hours post-checkout.
-     - Mandatory itemized cost breakdown with photographic/video evidence.
-     - Admin/Employee review and adjudication.
-     - Upon approval, deducted funds transfer to host payout ledger; balance is automatically released to guest.
-
-### Feature 8: Admin Management & Flexible Analytics Engine
-- **Business Rationale:** Deliver actionable intelligence on revenue, occupancy, and host performance with multi-format export capabilities.
-- **Requirements:**
-  1. **Unified User Grid:** Role tabs (Clients, Owners, Employees, Admins), account suspension/reactivation, role assignment, and audit logs.
-  2. **Dynamic Analytics:** Real-time GMV, Net Platform Commission, Pending Host Payouts, Active Properties, and Occupancy rates.
-  3. **Multi-dimensional Filters:** Date presets (Today, 7D, MTD, YTD, Custom), Property, Owner, Status.
-  4. **Export Engine:** Asynchronous CSV and Excel (.xlsx) generation with multi-sheet summaries.
+### 2.4 Persona 4: Platform Administrator ("Executive Superuser")
+- **Profile:** Founders, business heads, and finance directors.
+- **Key Needs:** Real-time visibility into Gross Merchandise Value (GMV), net platform revenues, pending host liabilities, property occupancy indices, granular user role management, system white-label branding, and native ClosedXML Excel/CSV exports for accounting.
+- **Pain Points:** Data silos, slow reporting queries, manual financial reconciliation, and vulnerabilities to application-layer attacks (SSRF, malicious file uploads, injection).
 
 ---
 
-## 3. Security & Compliance Protocols
-- **File Upload Security:** Server-side magic-byte inspection (do not trust extensions or `Content-Type`), UUID renaming, path traversal sanitization, and virus-scan readiness.
-- **SSRF Prevention:** External URLs strictly restricted to `https://` with DNS check to prohibit loopback, private IP ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), and cloud metadata APIs (`169.254.169.254`).
-- **PCI-DSS Level 1 Principles:** Zero cardholder data stored on BookMyFun servers; client-side tokenization via Razorpay / Stripe SDKs.
-- **Cryptographic Webhook Verification:** HMAC-SHA256 signature validation before processing gateway events.
-- **Tenant Isolation:** Enforce object-level permissions preventing hosts from viewing another host's data via parameter tampering (IDOR prevention).
+## 3. Comprehensive Feature Modules
+
+### Module 1: Stays & Experiences Catalog, Discovery & Search
+- **Multi-Criteria Filter Engine:**
+  - Free-text location matching (e.g., "Lonavala", "Karjat", "Alibaug", "SoNA").
+  - Property Type filter (Farmhouse, Luxury Villa, Eco-Resort, Pool Villa).
+  - Suitable Occasion taxonomy (Pool Party, Wedding, Family Gathering, Corporate Offsite, Birthday, Weekend Getaway).
+  - Price range sliders (Min/Max night rate).
+  - Guest capacity threshold ($1$ to $1000+$ guests).
+- **Public Property Showcase:**
+  - High-res primary hero banner, interactive photo carousel, and dedicated video tour button.
+  - Verified host badge and star rating summary aggregated from confirmed stays.
+  - Interactive driving directions and Google Maps link based on precise GPS latitude/longitude.
+  - Key amenities display with visual icons (Swimming Pool, Bonfire, BBQ, Gazebo, Caretaker, AC, WiFi, Power Backup).
+  - Transparent cancellation policy breakdown card.
+
+### Module 2: Flexible Multi-Duration Booking Engine
+BookMyFun recognizes that farmhouses and villas are frequently rented for day picnics, evening celebrations, or hourly photo shoots rather than conventional 24-hour hotel stays:
+1. **Full-Day Overnight Stay (`FullDay`):** Traditional check-in (11:00 AM) to check-out (10:00 AM next morning).
+2. **Half-Day Morning Slot (`MorningSlot`):** 09:00 AM to 05:00 PM (ideal for daytime pool parties, family barbecues, and school reunions).
+3. **Half-Day Evening Slot (`EveningSlot`):** 06:00 PM to 08:00 AM (ideal for evening cocktail parties, bonfires, and night stargazing).
+4. **Hourly Micro-Stays (`Hourly`):** 4h, 6h, or 8h reservations with dynamically calculated pro-rata pricing.
+- **Automated Conflict Prevention:** Prevents double bookings across overlapping full-day and half-day slots using atomic SQL check constraints.
+
+### Module 3: Checkout, Dynamic Pricing & PCI-DSS Payment Gateway
+- **Checkout Summary:**
+  - Base rental amount calculated according to slot duration and seasonal rates.
+  - Refundable Security Deposit hold clearly demarcated from base rental.
+  - GST / Platform taxes (if applicable).
+- **PCI-DSS Compliant Payment Flow:**
+  - Direct integration with Razorpay Payment Gateway.
+  - No raw credit card or CVV details are ever handled, logged, or stored on application servers.
+  - Client initiates payment order (`/Booking/CreateOrder`); browser displays Razorpay Checkout modal; payment completion is verified server-side with HMAC-SHA256 signature verification (`/Booking/VerifyPayment`).
+  - Automated SMS and WhatsApp confirmation dispatch upon successful payment receipt.
+
+### Module 4: Cancellation Policy Engine & Transparent 3-Tier Refunds
+- **Property-Level Parameters:**
+  - `FreeCancellationWindowHours`: Deadline prior to check-in (e.g., 48 hours) where client receives full refund minus 2% gateway processing fee.
+  - `CancellationCutoffHours`: Strict cutoff deadline (e.g., 24 hours) after which cancellations are completely non-refundable ($0$ refund).
+  - `CancellationFeeType`: `'percentage'` (e.g., 10%) or `'fixed'` (e.g., ₹1,000) applied between the free window and the cutoff deadline.
+  - `CancellationFeeValue`: Decimal value of the fee.
+- **Immutable Policy Snapshotting:** To prevent retrospective policy changes from affecting active bookings, every reservation snapshots policy parameters into `Bookings` at creation:
+  - `FreeCancellationWindowHoursSnapshot`
+  - `CancellationCutoffHoursSnapshot`
+  - `CancellationFeeTypeSnapshot`
+  - `CancellationFeeValueSnapshot`
+- **Transparent Refund Engine:**
+  - *Tier A (Free Window):* $\text{Refund} = \text{TotalPaid} - \text{GatewayFee (2\%)}$
+  - *Tier B (Cutoff Window):* $\text{Refund} = \text{TotalPaid} - \text{CancellationFee} - \text{GatewayFee}$
+  - *Tier C (Non-Refundable):* Inside cutoff deadline or post-checkin: $\text{Refund} = ₹0$
+- **Client Quote Modal:** Real-time modal on `/Client/Index` displays the exact calculation before client confirms cancellation.
+- **Staff Refund Operations Queue:** Admin and Employee dashboard queue (`/Admin/RefundsQueue`, `/Employee/RefundsQueue`) with capabilities to inspect automated quotes, verify gateway refund IDs, and execute staff overrides.
+
+### Module 5: Host Monetization & Subscription Tiers
+- **Subscription Plans:**
+  - **Starter / Free:** Basic listing, organic search placement, standard 10% platform commission, up to 1 active listing.
+  - **Featured / Spotlight:** Top search carousel, "Featured Farm" badge, optimized 8% platform commission, up to 3 active listings.
+  - **Managed Concierge Pack:** Priority ranking, professional photography/drone visit by field staff, 7% commission, up to 10 active listings.
+- **Owner Dashboard Experience:**
+  - Active plan name, expiration date, active listings count vs. quota limit.
+  - Direct upgrade portal integrated with payment gateway.
+- **Admin Tier Management:** Ability to manually override host subscription tiers and assign custom negotiated commission rates.
+
+### Module 6: Partner Lead Acquisition & Encrypted Host Onboarding
+- **Public Self-Registration Elimination:** Prevent unauthorized or unvetted hosts from creating dummy listings. The public register page is strictly for Clients.
+- **Public Partner Intake Portal (`/Home/Partner`):**
+  - Fields: Full Name, Phone, Email, Property Name, Location, Acreage/Property Type, Message.
+- **Staff Onboarding Pipeline (`/Admin/PartnerLeads`, `/Employee/PartnerLeads`):**
+  - Leads categorized by `New`, `Contacted`, `Approved`, `Rejected`.
+  - **"Approve & Invite Owner" Action:** Automatically creates an inactive `User` account with role `Owner` and issues an encrypted, time-limited (48-hour) activation token.
+  - Automated email dispatch containing activation link (`/Account/ActivateHost?token=...`).
+  - Host activates account, sets password, and gains immediate access to the Host Dashboard.
+
+### Module 7: Dual-Mode Media Manager (Photos & Videos)
+- **Dual Ingestion Channels:**
+  1. **Direct Binary File Upload:** Drag-and-drop or file picker uploading to `/api/media/upload-file`. Validated via server-side magic bytes.
+  2. **External URL / Embed:** Direct CDN links or streaming embeds (YouTube, Vimeo) validated against SSRF via `/api/media/verify-url`.
+- **Photo Constraints:**
+  - Minimum 5 photos required per listing before the listing can be published.
+  - Real-time client-side photo counter badge changing from red to green when $\ge 5$ photos are provided.
+  - Accepted formats: JPG, PNG, WEBP ($\le 10\text{MB}$ each).
+- **Video Tour Toggle:**
+  - Switch between "Upload Video File" (MP4, MOV, WEBM $\le 100\text{MB}$) and "Paste Video Link (YouTube/Vimeo)".
+- **Media Gallery Grid:** Real-time thumbnail preview cards with primary cover photo selection and deletion controls.
+
+### Module 8: Amenities Taxonomy & Geolocation
+- **Amenities Master Catalog (`AmenitiesMaster`):** Pre-seeded with 12 foundational amenities categorized by Water & Pool, Tech, Outdoor, and Service:
+  - Private Swimming Pool, Gazebo, Bonfire Pit, Barbecue Grill, Power Backup, Lawn Area, Caretaker, Pet-friendly, Sound System, High-Speed Wi-Fi, Air Conditioning, Free Parking.
+- **Interactive Geolocation:**
+  - Automatic browser GPS coordinate detection (`navigator.geolocation`).
+  - Google Places formatted address input.
+  - Exact `Latitude` and `Longitude` stored for every property.
+  - Client listing displays interactive "Open in Google Maps" link with driving directions.
+
+### Module 9: Guest ID Verification & KYC Privacy Vault
+- **Compliance Rationale:** Mandatory compliance with local hospitality regulations requiring guest identification before occupancy.
+- **Confidential Vault Storage:**
+  - Government ID files (Aadhaar, Passport, Driving License) are stored in `App_Data/PrivateDocuments` outside the web root.
+  - Access is governed by 15-minute cryptographically signed tokens (`HMACSHA256`).
+- **Owner-Shielded Access:** Property Owners **cannot** view raw ID documents under any circumstance to prevent PII exposure and identity theft.
+- **Staff KYC Triage Queue (`/Admin/IdVerifications`, `/Employee/IdVerifications`):**
+  - Operations staff inspect documents via secure expiring link.
+  - Staff approve (issuing a "Verified Guest" badge) or reject (with feedback reason: "Document blurry", "Expired ID", etc.).
+
+### Module 10: Host Protection & 24h Damage Claims
+- **Security Deposit Collection:** Pre-authorized hold or deposit captured at checkout.
+- **24-Hour Post-Checkout Window:** Hosts must file damage claims strictly within 24 hours of guest checkout.
+- **Itemized Claim Submission (`/Owner/CreateClaim`):**
+  - Claim amount capped at the collected security deposit.
+  - Detailed incident description and itemized loss breakdown.
+  - Direct upload or external link attachment of damage photos/videos.
+- **Adjudication Console (`/Admin/DamageClaims`, `/Employee/DamageClaims`):**
+  - Operations staff review evidence.
+  - Rulings: Approve (deduct approved sum and transfer to host, release remaining balance to guest) or Reject (release full deposit hold to guest).
+
+### Module 11: Dynamic Analytics & Reporting Engine
+- **Real-Time KPI Metrics:**
+  - **Gross Merchandise Value (GMV):** Total confirmed booking volume.
+  - **Net Platform Commission:** Actual revenue earned by the platform.
+  - **Pending Host Payouts:** Gross amounts minus platform cut payable to hosts.
+  - **Active Properties:** Live published inventory.
+  - **Occupancy Rate:** Percentage utilization index over 30 days.
+- **Multi-Dimensional Filters:** Time Period (Today, 7D, MTD, YTD, Custom Date Range) + Property, Owner, and Booking Status filters.
+- **Export Deliverables:**
+  - **ClosedXML Native Excel (`.xlsx`):** Professional spreadsheet with emerald headers, cell borders, currency formatting, and column auto-fit.
+  - **Raw CSV Stream:** Clean comma-delimited data for external ingestion.
+
+### Module 12: Customer Support Desk & Contact Us Ticketing
+- Public inquiry intake form (`/Home/Contact`) capturing Name, Email, Phone, Subject, and Message.
+- Operations review queue (`/Admin/SupportQueries`, `/Employee/SupportQueries`) with ticket status tracking (`New`, `Responded`).
+
+### Module 13: Verified Guest Reviews & Reputation System
+- Only guests with confirmed, completed stays can submit ratings ($1$ to $5$ stars) and qualitative feedback.
+- Average rating computed and showcased across property discovery cards and detail headers.
+
+### Module 14: Dark / Light Mode Theming & Dynamic Branding
+- Instant dark/light mode toggle with anti-FOUC script preventing theme flash.
+- CSS variables for background, text, borders, and cards dynamically adjusted.
+- White-label configuration (`SiteSettingsService`) for Site Name, Tagline, Phone Helpline, WhatsApp number, and Logo URL.
+
+---
+
+## 4. Non-Functional Requirements (NFRs)
+
+### 4.1 Performance & Latency
+- **Time to First Byte (TTFB):** $< 150\text{ms}$ on standard broadband.
+- **Database Query Latency:** All parameterized ADO.NET queries must execute in $< 50\text{ms}$ through targeted indexes on `BookingID`, `PropertyID`, `OwnerID`, and `CreatedAt`.
+- **Media Upload Throughput:** Direct file uploads stream asynchronously to disk without loading entire payloads into server RAM.
+
+### 4.2 Security & Data Privacy
+- **OWASP Top 10 Compliance:** Mitigate injection via parameterized queries, cross-site scripting via Razor auto-encoding, and broken access control via tenant validation.
+- **Magic-Byte Binary Inspection:** Verify file headers on server before saving.
+- **SSRF Defense:** Reject loopback, link-local, private RFC 1918, and AWS/GCP metadata (`169.254.169.254`) on external media links.
+- **PCI-DSS Compliance:** Never handle or store raw payment card data.
+
+### 4.3 High Availability & Data Integrity
+- **Idempotency:** Payment webhooks and cancellation refund calls enforce idempotency keys to eliminate double-charging or duplicate payouts.
+- **Atomic Ledgers:** Database mutations across bookings, payments, and refunds execute within atomic database transactions.
