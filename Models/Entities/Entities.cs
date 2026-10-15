@@ -7,7 +7,7 @@ namespace BookMyFun.Models.Entities
         public string Email { get; set; } = string.Empty;
         public string PasswordHash { get; set; } = string.Empty;
         public string? Phone { get; set; }
-        public string Role { get; set; } = "Client"; // 'Admin', 'Employee', 'Owner', 'Client'
+        public string Role { get; set; } = "Client"; // 'Admin', 'Employee', 'Owner', 'Client', 'EventManager'
         public bool IsActive { get; set; } = true;
         public decimal? CustomCommissionRate { get; set; }
         public string SubscriptionTier { get; set; } = "Free"; // 'Free', 'Featured', 'Managed'
@@ -164,12 +164,24 @@ namespace BookMyFun.Models.Entities
         public TimeSpan? SlotStartTime { get; set; }
         public TimeSpan? SlotEndTime { get; set; }
 
+        // Event Decorator / 5th Dashboard Integration
+        public bool IsEventBooking { get; set; }
+        public int? EventPackageID { get; set; }
+        public string? CustomEventNotes { get; set; }
+        public DateTime? EventDate { get; set; }
+        public int? DecoratorAssignedID { get; set; }
+        public string? SetupStatus { get; set; } = "Pending"; // 'Pending', 'Assigned', 'InProgress', 'Completed', 'Inspected'
+        public string? SetupProofMediaUrls { get; set; } // JSON array or comma separated media links
+        public decimal EventPackagePriceSnapshot { get; set; } = 0.00m;
+
         // Navigation helpers
         public string? PropertyTitle { get; set; }
         public string? ClientName { get; set; }
         public string? ClientEmail { get; set; }
         public string? ClientPhone { get; set; }
         public string? OccasionName { get; set; }
+        public string? EventPackageName { get; set; }
+        public string? DecoratorName { get; set; }
     }
 
     public class Payment
@@ -332,5 +344,22 @@ namespace BookMyFun.Models.Entities
         public string? ClientName { get; set; }
         public string? ClientEmail { get; set; }
         public string? VerifiedByUserName { get; set; }
+    }
+
+    public class EventPackage
+    {
+        public int PackageID { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Category { get; set; } = "Birthday"; // 'Birthday', 'Anniversary', 'Wedding', 'Corporate', 'Custom'
+        public decimal BasePrice { get; set; }
+        public string? Description { get; set; }
+        public string? MediaUrl { get; set; }
+        public string? IncludedItems { get; set; } // JSON array or comma separated items
+        public bool IsActive { get; set; } = true;
+        public int? CreatedByUserID { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        // Joined properties
+        public string? CreatedByUserName { get; set; }
     }
 }

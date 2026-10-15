@@ -50,16 +50,17 @@ To prevent visual flashing when a user reloads the application in dark mode, the
 
 ---
 
-## 3. Global Layout Architecture & Navigation
+## 3. Global Layout Architecture & Navigation (5 Roles)
 
 ### 3.1 Responsive Navigation Bar
 - **Brand Identity:** High-contrast logo with an organic leaf/farm icon and bold modern typography.
 - **Role-Aware Navigation:**
   - **Anonymous:** Explore Catalog, List Your Farm, Contact Us, Login / Sign Up.
-  - **Client:** Explore, My Bookings, Saved Villas, Account Profile.
+  - **Client:** Explore Stays, My Bookings, Saved Villas, Account Profile.
   - **Owner:** Listings Portfolio, Booking Calendar, Financial Payouts, Add Farm.
   - **Employee:** Onboarding Leads Pipeline, ID Verifications, Refunds Queue, Damage Claims.
   - **Admin:** Master Analytics, Financial Ledger, Onboarding Leads, Refunds, Users, Site Config.
+  - **Event Manager / Decorator:** Decorator Dashboard, Décor Packages, Assigned Setups.
 - **Theme Switcher Pill:** One-click toggle between Sun (Light) and Moon (Dark) modes with animated icon rotation.
 
 ### 3.2 Responsive Card Grid & Breakpoints
@@ -108,80 +109,73 @@ Allows hosts to provide listing media either via direct file upload (drag-and-dr
 
 ---
 
-### 4.2 Client Cancellation & Refund Transparency Modal
-Eliminates customer anxiety by providing a real-time monetary calculation before the user confirms a cancellation.
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│ Cancel Booking #1084                                        [✕]  │
-├──────────────────────────────────────────────────────────────────┤
-│ Property: Whispering Palms Farmhouse, Alibaug                    │
-│ Reserved Dates: Nov 14, 2026 - Nov 16, 2026 (In 76 hours)       │
-│ Total Paid:                                          ₹32,000.00  │
-│                                                                  │
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ ℹ Active Policy: Free cancellation until 48 hours before stay│ │
-│ │ Status: Eligible for Full Refund (less gateway charge)       │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-│                                                                  │
-│ Estimated Refund Calculation:                                    │
-│   Gross Reservation Amount:                         ₹32,000.00   │
-│   Cancellation Penalty Deducted:                   -     ₹0.00   │
-│   Payment Gateway & Processing Fee (2%):           -   ₹640.00   │
-│   ────────────────────────────────────────────────────────────   │
-│   Net Refund Amount (Direct to Original Method):    ₹31,360.00   │
-│                                                                  │
-│ Reason for Cancellation (Optional):                              │
-│ [ Change of personal schedule / Flight rescheduled          ▼ ]  │
-│                                                                  │
-│ [Keep Reservation]                  [Confirm & Issue Refund]     │
-└──────────────────────────────────────────────────────────────────┘
-```
-
----
-
-### 4.3 Google Maps Interactive Geolocation Picker
-Ensures accurate latitude/longitude coordinates and prevents address confusion.
+### 4.2 Transparent Cancellation & Automated Refund Modal
+Displayed to clients before they commit to cancelling a confirmed reservation.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ Property Location & Geolocation Pin                                        │
+│  Confirm Booking Cancellation — Reservation #BMF-8841                      │
+├────────────────────────────────────────────────────────────────────────────┤
+│  Property: Whispering Pines Farm Villa (Lonavala)                          │
+│  Check-In: 24 Oct 2026, 11:00 AM (Check-in is in 54 hours)                 │
 │                                                                            │
-│ Search Address: [ Tungarli Lake Road, Lonavala, Maharashtra          🔍 ]  │
+│  Policy Snapshot Applied:                                                  │
+│  - Free Cancellation Window: 48 Hours prior to check-in                    │
+│  - Status: Currently within Free Cancellation Window                       │
 │                                                                            │
-│ ┌────────────────────────────────────────────────────────────────────────┐ │
-│ │                                                  [+] [-]  [Satellite]  │ │
-│ │                        📍 (Drag pin to adjust)                         │ │
-│ │                                                                        │ │
-│ │                               Map Canvas                               │ │
-│ └────────────────────────────────────────────────────────────────────────┘ │
-│ Formatted Address: Tungarli Lake Rd, Gold Valley, Lonavala, MH 410401      │
-│ Latitude: 18.761234  |  Longitude: 73.415678 (Auto-populated)             │
+│  Refund Financial Breakdown:                                               │
+│  ┌───────────────────────────────────────────────────┬──────────────────┐  │
+│  │ Gross Amount Paid:                                │     ₹ 24,000.00  │  │
+│  │ Less: Payment Gateway Processing Fee (2% non-ref):│    - ₹   480.00  │  │
+│  │ Less: Cancellation Penalty:                       │    - ₹     0.00  │  │
+│  ├───────────────────────────────────────────────────┼──────────────────┤  │
+│  │ Net Refund to Original Payment Method:            │     ₹ 23,520.00  │  │
+│  └───────────────────────────────────────────────────┴──────────────────┘  │
+│                                                                            │
+│  Reason for Cancellation: [ Change of travel plans ▼ ]                     │
+│  Additional Remarks:      [ Sudden family emergency... ]                   │
+│                                                                            │
+│  [ Keep Reservation ]                      [ ⚠ Confirm & Process Refund ]  │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### 4.4 Dynamic Multi-Dimensional Admin Analytics Dashboard
-Delivers real-time business intelligence with flexible time horizons and ClosedXML Excel / CSV streaming exports.
+### 4.3 Host Onboarding Lead Qualification Pipeline
+Dedicated triage pipeline for Operations (`/Employee/OnboardingLeads`) and Administrators (`/Admin/OnboardingLeads`).
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ Financial Analytics & Executive Reporting                                  │
-│                                                                            │
-│ Time Presets: [ Today ] [ 7 Days ] [ Month to Date ] [ Year to Date ]      │
-│ Custom Range: [ 2026-10-01 ] to [ 2026-10-15 ]             [ Apply Filter ]│
-│                                                                            │
-│ Export Actions:  [📗 Download Excel (.xlsx)]   [📄 Export CSV Data]        │
+│ Inbound Host Leads Pipeline (4 Pending Triage)                             │
+├────────────────────────────────────────────────────────────────────────────┤
+│ Search: [ Filter by name, phone, city... ]          Status: [ All Leads ▼ ]│
+├─────────┬──────────────────────┬──────────┬──────────────┬────────┬────────┤
+│ Lead ID │ Host Name & Phone    │ Property │ Location     │ Status │ Action │
+├─────────┼──────────────────────┼──────────┼──────────────┼────────┼────────┤
+│ #L-204  │ Vikram Singhania     │ Skyview  │ Karjat, MH   │ [New]  │[Review]│
+│         │ +91 98201 12345      │ 5 Acres  │              │        │[Approve│
+├─────────┼──────────────────────┼──────────┼──────────────┼────────┼────────┤
+│ #L-203  │ Ananya Deshmukh      │ Riverside│ Alibaug, MH  │ [Cont] │[Approve│
+│         │ +91 97654 98765      │ 3.5 Acre │              │        │[Reject]│
+└─────────┴──────────────────────┴──────────┴──────────────┴────────┴────────┘
+```
+
+---
+
+### 4.4 Dynamic Admin Analytics Dashboard with Excel & CSV Export
+Executive dashboard displaying real-time financial metrics with multi-dimensional filtering.
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│ Master Platform Performance & Financial Analytics                          │
+│ Timeframe: [ Last 30 Days ▼ ]   Property: [ All Properties ▼ ] [ Apply ]    │
+│ [ 📊 Export to Excel (.xlsx) ]   [ 📄 Export CSV ]                          │
 ├────────────────────────────────────────────────────────────────────────────┤
 │ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐ ┌──────────────────┐ │
-│ │ Gross Revenue │ │ Net Commission│ │ Host Payouts  │ │ Occupancy Rate   │ │
-│ │  ₹14,85,000   │ │   ₹1,78,200   │ │  ₹13,06,800   │ │      78.4%       │ │
-│ │ (+14% vs prev)│ │ (12% avg fee) │ │ (Disbursed)   │ │ (32 active farms)│ │
+│ │ Property GMV  │ │ Event GMV     │ │ Net Comm. (Cut│ │ Pending Payouts  │ │
+│ │ ₹ 18,40,000   │ │ ₹ 3,85,000    │ │ ₹ 2,67,000    │ │ ₹ 19,58,000      │ │
+│ │ (+14% stays)  │ │ (24 setups)   │ │ (12% avg fee) │ │ (Disbursed)      │ │
 │ └───────────────┘ └───────────────┘ └───────────────┘ └──────────────────┘ │
-│                                                                            │
-│ Revenue & Occupancy Trends (Monthly / Quarterly Performance):              │
-│ [ Bar / Line Chart Visualization Rendered via Chart.js / Canvas ]          │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -217,6 +211,58 @@ Provides hosts with an evidence submission portal and gives staff an interactive
 
 ---
 
+### 4.6 Event Décor Package Card & Proof-of-Setup Submission Modal
+Allows Event Managers and Decorators to inspect assigned setups and upload photo/video proofs before marking a setup completed.
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│ Assigned Event Setup — Booking #BMF-2091                                   │
+│ Package: Regal Wedding & Anniversary Theme (₹45,000)                       │
+├────────────────────────────────────────────────────────────────────────────┤
+│ Property: Whispering Pines Villa (Lonavala)                                │
+│ Client: Priya Sharma (+91 98210 44321)                                     │
+│ Event Date: 28 Oct 2026 (Check-In: 11:00 AM)                               │
+│ Current Status: [ InProgress ▼ ]                                           │
+│                                                                            │
+│ Client Theme Notes:                                                        │
+│ "Warm fairy lighting across poolside gazebo, pastel pink rose arch at     │
+│ entrance, and gold sequin stage backdrop."                                 │
+│                                                                            │
+│ Photographic & Video Completion Proofs:                                    │
+│ Enter URLs or Upload Files:                                                │
+│ [ https://images.unsplash.com/gazebo-decor-proof.jpg                     ] │
+│ [ https://youtu.be/gazebo-walkthrough-proof                              ] │
+│                                                                            │
+│ Setup Lifecycle Milestone:                                                 │
+│ ( ) Assigned   ( ) In Progress   (●) Completed & Ready for Inspection      │
+│                                                                            │
+│ [ Cancel ]                               [ 💾 Submit Proof & Update Status ]│
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 4.7 Checkout Décor Add-on Switch & Live Total Recalculation
+Enables clients to add event decoration packages directly at the booking checkout stage.
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│ [✓] Add Event Décor & Celebration Package                                  │
+│ Hosting a birthday, anniversary, or wedding? Add a managed package.        │
+├────────────────────────────────────────────────────────────────────────────┤
+│ Select Celebration Package:                                                │
+│ [ Regal Wedding & Floral Gazebo Theme (Wedding) — ₹45,000                ▼ ]│
+│                                                                            │
+│ Special Instructions for Decorator:                                        │
+│ [ Gold balloons, neon 'Happy 25th Anniversary' sign on stage...          ] │
+│                                                                            │
+│ Estimated Total Payable:                                                   │
+│ Base Stay (₹24,000) + Décor (₹45,000) = ₹69,000.00                        │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## 5. UI Accessibility & WCAG 2.1 AA Standards
 
 1. **Color Contrast:** All body text meets or exceeds a `4.5:1` contrast ratio against both light (`#f8fafc`) and dark (`#0f172a`) surfaces.
@@ -230,3 +276,12 @@ Provides hosts with an evidence submission portal and gives staff an interactive
 3. **Screen Reader Semantic Landmarks:** Use of `<header>`, `<nav>`, `<main>`, `<section>`, and `<footer>` elements with explicit `aria-label` tags for icon-only buttons.
 4. **Form Labels:** All `<input>`, `<select>`, and `<textarea>` elements are programmatically paired with `<label for="...">` tags.
 5. **No Motion Sickness:** Media queries support `prefers-reduced-motion: reduce`, disabling smooth transitions and pulsing animations for sensitive users.
+
+---
+
+## 6. Comprehensive Error & Empty Fallback States
+
+1. **404 Resource Not Found:** Clean graphic state with link back to explore catalog or dashboard.
+2. **403 Forbidden Access:** Displays role requirement pill ("Requires EventManager or Admin permissions") with zero stack disclosure.
+3. **500 Server Error:** Friendly assistance page with a unique Correlation ID for customer support lookup.
+4. **Empty Dashboard Queues:** Engaging illustrated empty states ("No pending damage claims to adjudicate", "All decorator setups currently fulfilled").

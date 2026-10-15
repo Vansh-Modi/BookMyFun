@@ -6,6 +6,12 @@
 - **Runtime & Language:** .NET 10 (`net10.0`), C# 13, ASP.NET Core MVC with Razor View Engine.
 - **Database Engine:** Microsoft SQL Server 2022 (`Microsoft.Data.SqlClient 7.1.1`).
 - **Data Access Layer:** Raw Parameterized ADO.NET with centralized [`DBHelper.cs`](file:///d:/Projects/BookMyFun/Data/DBHelper.cs). Zero ORM overhead, zero memory tracking bloat.
+- **User Roles & Dashboards (5 Roles):**
+  1. `Client` (Guest) -> `/Client/Index`
+  2. `Owner` (Farm Host) -> `/Owner/Index`
+  3. `Employee` (Operations & Support) -> `/Employee/Index`
+  4. `Admin` (Superuser) -> `/Admin/Index`
+  5. `EventManager` (Decorator & Event Planner) -> `/EventManager/Dashboard`
 - **UI Framework & Typography:** Bootstrap 5.3, Bootstrap Icons, custom `Plus Jakarta Sans` typography, and CSS custom property theming tokens with instant dark/light mode toggle.
 - **Reporting Engine:** ClosedXML 0.104.2 (Native Excel `.xlsx` generation) and UTF-8 streaming CSV export.
 - **Payment Gateway:** Razorpay SDK with HMAC-SHA256 signature verification and tokenized checkout.
@@ -96,3 +102,17 @@
 - **Context:** Attackers can rename `.exe`, `.php`, or `.sh` files to `.jpg` or `.png` to bypass basic extension checks.
 - **Decision:** Inspect the first 16 bytes of every uploaded file stream for magic signatures (JPEG, PNG, WEBP, MP4, MOV, PDF). Discard client filenames, strip path traversal sequences (`../`), and generate random UUID filenames.
 - **Consequence:** Completely prevents remote code execution (RCE) and directory traversal via file uploads.
+
+---
+
+### ADR-13: Event Manager / Decorator 5th Dashboard Integration
+- **Context:** Farm and villa bookings are frequently paired with celebrations (birthdays, weddings, anniversaries, corporate retreats) requiring decor setups. Previous iterations lacked dedicated tools for decorators and celebration stylists.
+- **Decision:** Introduce a dedicated 5th role `EventManager` (`[Authorize(Roles = "EventManager,Admin")]`), an `EventPackages` table, booking event columns (`IsEventBooking`, `EventPackageID`, `SetupStatus`, `SetupProofMediaUrls`), an on-ground milestone lifecycle (`Pending` -> `Assigned` -> `InProgress` -> `Completed` -> `Inspected`), checkout add-on toggling, and Property vs Event GMV tracking.
+- **Consequence:** Expands the marketplace into event coordination while isolating decorator privileges and ensuring verifiable setup execution through photo/video proofs.
+
+---
+
+### ADR-14: Clean Code & Dead Code Elimination Mandate
+- **Context:** Rapid feature iterations can leave behind commented-out code blocks, unused variables, redundant parameters, or unnecessary boilerplate that compromise codebase health.
+- **Decision:** Enforce zero commented-out code snippets, zero unreferenced fields, clean using directives, and zero compiler warnings across all models, repositories, and controllers.
+- **Consequence:** Maintains a pristine, maintainable, enterprise-standard codebase that builds cleanly in every CI/CD cycle.

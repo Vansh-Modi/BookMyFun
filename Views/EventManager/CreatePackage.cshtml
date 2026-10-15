@@ -1,0 +1,88 @@
+@model BookMyFun.Models.ViewModels.EventPackageCreateViewModel
+@{
+    ViewData["Title"] = "Create Décor Package";
+}
+
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <a asp-action="Packages" class="text-decoration-none small text-muted">
+                    <i class="bi bi-arrow-left me-1"></i> Back to Packages
+                </a>
+            </div>
+
+            <div class="card border-0 shadow-sm rounded-4 bg-card p-4">
+                <div class="border-bottom pb-3 mb-4">
+                    <h3 class="fw-bold mb-1"><i class="bi bi-magic text-warning me-2"></i>Create New Décor Package</h3>
+                    <p class="text-muted small mb-0">Define themed setup elements, pricing, and visual references for farm hosts and guests.</p>
+                </div>
+
+                <form asp-action="CreatePackage" method="post">
+                    @Html.AntiForgeryToken()
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3 small"></div>
+
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label asp-for="Name" class="form-label fw-semibold small">Package Title *</label>
+                            <input asp-for="Name" class="form-control" placeholder="e.g. Royal Bohemian Lawn Setup" required />
+                            <span asp-validation-for="Name" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label asp-for="Category" class="form-label fw-semibold small">Category *</label>
+                            <select asp-for="Category" class="form-select">
+                                <option value="Birthday">Birthday Party</option>
+                                <option value="Anniversary">Anniversary</option>
+                                <option value="Wedding">Wedding / Reception</option>
+                                <option value="Corporate">Corporate / Offsite</option>
+                                <option value="Custom">Custom Gathering</option>
+                            </select>
+                            <span asp-validation-for="Category" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label asp-for="BasePrice" class="form-label fw-semibold small">Base Setup Price (₹) *</label>
+                            <div class="input-group">
+                                <span class="input-group-text">₹</span>
+                                <input asp-for="BasePrice" class="form-control" type="number" step="100" min="500" placeholder="25000" required />
+                            </div>
+                            <span asp-validation-for="BasePrice" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label asp-for="MediaUrl" class="form-label fw-semibold small">Cover Image / Media URL</label>
+                            <input asp-for="MediaUrl" class="form-control" placeholder="https://images.unsplash.com/..." />
+                            <span class="text-muted small" style="font-size: 0.75rem;">Direct image URL or Unsplash/Cloudinary link</span>
+                        </div>
+
+                        <div class="col-12">
+                            <label asp-for="Description" class="form-label fw-semibold small">Detailed Package Description</label>
+                            <textarea asp-for="Description" class="form-control" rows="3" placeholder="Provide full details about the theme, materials used, setup time requirements, etc."></textarea>
+                        </div>
+
+                        <div class="col-12">
+                            <label asp-for="IncludedItems" class="form-label fw-semibold small">Included Setup Items (Comma-separated)</label>
+                            <input asp-for="IncludedItems" class="form-control" placeholder="e.g. Floral Arch, Teepee Tent, Fairy Lights, Low Floor Tables, Cushion Set" />
+                            <div class="form-text small">These items will display as structured feature tags on the guest checkout screen.</div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-check form-switch mt-2">
+                                <input asp-for="IsActive" class="form-check-input" type="checkbox" id="isActiveSwitch" checked />
+                                <label class="form-check-label fw-semibold small" for="isActiveSwitch">
+                                    Publish this package immediately for guest selection
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="col-12 pt-3 border-top d-flex justify-content-end gap-2">
+                            <a asp-action="Packages" class="btn btn-light px-4">Cancel</a>
+                            <button type="submit" class="btn btn-warning fw-bold px-4">Save & Publish Package</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

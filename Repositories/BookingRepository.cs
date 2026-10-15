@@ -35,11 +35,14 @@ namespace BookMyFun.Repositories
         public async Task<Booking?> GetByIdAsync(int bookingId)
         {
             const string sql = @"
-                SELECT b.*, p.Title AS PropertyTitle, u.FullName AS ClientName, u.Email AS ClientEmail, u.Phone AS ClientPhone, o.OccasionName
+                SELECT b.*, p.Title AS PropertyTitle, u.FullName AS ClientName, u.Email AS ClientEmail, u.Phone AS ClientPhone, o.OccasionName,
+                       ep.Name AS EventPackageName, dec.FullName AS DecoratorName
                 FROM Bookings b
                 JOIN Properties p ON b.PropertyID = p.PropertyID
                 JOIN Users u ON b.ClientID = u.UserID
                 LEFT JOIN Occasions o ON b.OccasionID = o.OccasionID
+                LEFT JOIN EventPackages ep ON b.EventPackageID = ep.PackageID
+                LEFT JOIN Users dec ON b.DecoratorAssignedID = dec.UserID
                 WHERE b.BookingID = @BookingID";
 
             return await _db.ExecuteReaderSingleAsync(sql, MapBooking, new SqlParameter("@BookingID", bookingId));
@@ -51,11 +54,14 @@ namespace BookMyFun.Repositories
         {
             if (string.IsNullOrWhiteSpace(idempotencyKey)) return null;
             const string sql = @"
-                SELECT b.*, p.Title AS PropertyTitle, u.FullName AS ClientName, u.Email AS ClientEmail, u.Phone AS ClientPhone, o.OccasionName
+                SELECT b.*, p.Title AS PropertyTitle, u.FullName AS ClientName, u.Email AS ClientEmail, u.Phone AS ClientPhone, o.OccasionName,
+                       ep.Name AS EventPackageName, dec.FullName AS DecoratorName
                 FROM Bookings b
                 JOIN Properties p ON b.PropertyID = p.PropertyID
                 JOIN Users u ON b.ClientID = u.UserID
                 LEFT JOIN Occasions o ON b.OccasionID = o.OccasionID
+                LEFT JOIN EventPackages ep ON b.EventPackageID = ep.PackageID
+                LEFT JOIN Users dec ON b.DecoratorAssignedID = dec.UserID
                 WHERE b.IdempotencyKey = @IdempotencyKey";
 
             return await _db.ExecuteReaderSingleAsync(sql, MapBooking, new SqlParameter("@IdempotencyKey", idempotencyKey));
@@ -64,11 +70,14 @@ namespace BookMyFun.Repositories
         public async Task<List<Booking>> GetByClientIdAsync(int clientId)
         {
             const string sql = @"
-                SELECT b.*, p.Title AS PropertyTitle, u.FullName AS ClientName, u.Email AS ClientEmail, u.Phone AS ClientPhone, o.OccasionName
+                SELECT b.*, p.Title AS PropertyTitle, u.FullName AS ClientName, u.Email AS ClientEmail, u.Phone AS ClientPhone, o.OccasionName,
+                       ep.Name AS EventPackageName, dec.FullName AS DecoratorName
                 FROM Bookings b
                 JOIN Properties p ON b.PropertyID = p.PropertyID
                 JOIN Users u ON b.ClientID = u.UserID
                 LEFT JOIN Occasions o ON b.OccasionID = o.OccasionID
+                LEFT JOIN EventPackages ep ON b.EventPackageID = ep.PackageID
+                LEFT JOIN Users dec ON b.DecoratorAssignedID = dec.UserID
                 WHERE b.ClientID = @ClientID
                 ORDER BY b.CreatedAt DESC";
 
@@ -78,11 +87,14 @@ namespace BookMyFun.Repositories
         public async Task<List<Booking>> GetByOwnerIdAsync(int ownerId)
         {
             const string sql = @"
-                SELECT b.*, p.Title AS PropertyTitle, u.FullName AS ClientName, u.Email AS ClientEmail, u.Phone AS ClientPhone, o.OccasionName
+                SELECT b.*, p.Title AS PropertyTitle, u.FullName AS ClientName, u.Email AS ClientEmail, u.Phone AS ClientPhone, o.OccasionName,
+                       ep.Name AS EventPackageName, dec.FullName AS DecoratorName
                 FROM Bookings b
                 JOIN Properties p ON b.PropertyID = p.PropertyID
                 JOIN Users u ON b.ClientID = u.UserID
                 LEFT JOIN Occasions o ON b.OccasionID = o.OccasionID
+                LEFT JOIN EventPackages ep ON b.EventPackageID = ep.PackageID
+                LEFT JOIN Users dec ON b.DecoratorAssignedID = dec.UserID
                 WHERE p.OwnerID = @OwnerID
                 ORDER BY b.CreatedAt DESC";
 
@@ -92,11 +104,14 @@ namespace BookMyFun.Repositories
         public async Task<List<Booking>> GetAllBookingsAsync()
         {
             const string sql = @"
-                SELECT b.*, p.Title AS PropertyTitle, u.FullName AS ClientName, u.Email AS ClientEmail, u.Phone AS ClientPhone, o.OccasionName
+                SELECT b.*, p.Title AS PropertyTitle, u.FullName AS ClientName, u.Email AS ClientEmail, u.Phone AS ClientPhone, o.OccasionName,
+                       ep.Name AS EventPackageName, dec.FullName AS DecoratorName
                 FROM Bookings b
                 JOIN Properties p ON b.PropertyID = p.PropertyID
                 JOIN Users u ON b.ClientID = u.UserID
                 LEFT JOIN Occasions o ON b.OccasionID = o.OccasionID
+                LEFT JOIN EventPackages ep ON b.EventPackageID = ep.PackageID
+                LEFT JOIN Users dec ON b.DecoratorAssignedID = dec.UserID
                 ORDER BY b.CreatedAt DESC";
 
             return await _db.ExecuteReaderListAsync(sql, MapBooking);
@@ -108,12 +123,14 @@ namespace BookMyFun.Repositories
                 INSERT INTO Bookings 
                 (PropertyID, ClientID, OccasionID, CheckInDate, CheckOutDate, TotalAmount, Status, BookingType, SlotType, SlotStartTime, SlotEndTime,
                  FreeCancellationWindowHoursSnapshot, CancellationCutoffHoursSnapshot, CancellationFeeTypeSnapshot, CancellationFeeValueSnapshot,
-                 CommissionRateSnapshot, PlatformCommissionAmount, OwnerPayoutAmount, SecurityDepositAmount, SecurityDepositStatus, IdempotencyKey, CreatedAt)
+                 CommissionRateSnapshot, PlatformCommissionAmount, OwnerPayoutAmount, SecurityDepositAmount, SecurityDepositStatus, IdempotencyKey,
+                 IsEventBooking, EventPackageID, CustomEventNotes, EventDate, DecoratorAssignedID, SetupStatus, SetupProofMediaUrls, EventPackagePriceSnapshot, CreatedAt)
                 OUTPUT INSERTED.BookingID
                 VALUES 
                 (@PropertyID, @ClientID, @OccasionID, @CheckInDate, @CheckOutDate, @TotalAmount, @Status, @BookingType, @SlotType, @SlotStartTime, @SlotEndTime,
                  @FreeCancellationWindowHoursSnapshot, @CancellationCutoffHoursSnapshot, @CancellationFeeTypeSnapshot, @CancellationFeeValueSnapshot,
-                 @CommissionRateSnapshot, @PlatformCommissionAmount, @OwnerPayoutAmount, @SecurityDepositAmount, @SecurityDepositStatus, @IdempotencyKey, GETDATE())";
+                 @CommissionRateSnapshot, @PlatformCommissionAmount, @OwnerPayoutAmount, @SecurityDepositAmount, @SecurityDepositStatus, @IdempotencyKey,
+                 @IsEventBooking, @EventPackageID, @CustomEventNotes, @EventDate, @DecoratorAssignedID, @SetupStatus, @SetupProofMediaUrls, @EventPackagePriceSnapshot, GETDATE())";
 
             var result = await _db.ExecuteScalarAsync(sql,
                 new SqlParameter("@PropertyID", booking.PropertyID),
@@ -136,7 +153,15 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@OwnerPayoutAmount", booking.OwnerPayoutAmount),
                 new SqlParameter("@SecurityDepositAmount", booking.SecurityDepositAmount),
                 new SqlParameter("@SecurityDepositStatus", booking.SecurityDepositStatus ?? "Held"),
-                new SqlParameter("@IdempotencyKey", DBHelper.ToDbValue(booking.IdempotencyKey)));
+                new SqlParameter("@IdempotencyKey", DBHelper.ToDbValue(booking.IdempotencyKey)),
+                new SqlParameter("@IsEventBooking", booking.IsEventBooking),
+                new SqlParameter("@EventPackageID", DBHelper.ToDbValue(booking.EventPackageID)),
+                new SqlParameter("@CustomEventNotes", DBHelper.ToDbValue(booking.CustomEventNotes)),
+                new SqlParameter("@EventDate", DBHelper.ToDbValue(booking.EventDate?.Date)),
+                new SqlParameter("@DecoratorAssignedID", DBHelper.ToDbValue(booking.DecoratorAssignedID)),
+                new SqlParameter("@SetupStatus", booking.SetupStatus ?? "Pending"),
+                new SqlParameter("@SetupProofMediaUrls", DBHelper.ToDbValue(booking.SetupProofMediaUrls)),
+                new SqlParameter("@EventPackagePriceSnapshot", booking.EventPackagePriceSnapshot));
 
             return result != null ? Convert.ToInt32(result) : 0;
         }
@@ -362,6 +387,64 @@ namespace BookMyFun.Repositories
             try { b.ClientEmail = r.GetString(r.GetOrdinal("ClientEmail")); } catch { }
             try { b.ClientPhone = r.IsDBNull(r.GetOrdinal("ClientPhone")) ? null : r.GetString(r.GetOrdinal("ClientPhone")); } catch { }
             try { b.OccasionName = r.IsDBNull(r.GetOrdinal("OccasionName")) ? null : r.GetString(r.GetOrdinal("OccasionName")); } catch { }
+            try { b.EventPackageName = r.IsDBNull(r.GetOrdinal("EventPackageName")) ? null : r.GetString(r.GetOrdinal("EventPackageName")); } catch { }
+            try { b.DecoratorName = r.IsDBNull(r.GetOrdinal("DecoratorName")) ? null : r.GetString(r.GetOrdinal("DecoratorName")); } catch { }
+
+            try
+            {
+                int isEventOrd = r.GetOrdinal("IsEventBooking");
+                if (!r.IsDBNull(isEventOrd)) b.IsEventBooking = r.GetBoolean(isEventOrd);
+            }
+            catch { }
+
+            try
+            {
+                int pkgIdOrd = r.GetOrdinal("EventPackageID");
+                if (!r.IsDBNull(pkgIdOrd)) b.EventPackageID = r.GetInt32(pkgIdOrd);
+            }
+            catch { }
+
+            try
+            {
+                int notesOrd = r.GetOrdinal("CustomEventNotes");
+                if (!r.IsDBNull(notesOrd)) b.CustomEventNotes = r.GetString(notesOrd);
+            }
+            catch { }
+
+            try
+            {
+                int evtDateOrd = r.GetOrdinal("EventDate");
+                if (!r.IsDBNull(evtDateOrd)) b.EventDate = r.GetDateTime(evtDateOrd);
+            }
+            catch { }
+
+            try
+            {
+                int decOrd = r.GetOrdinal("DecoratorAssignedID");
+                if (!r.IsDBNull(decOrd)) b.DecoratorAssignedID = r.GetInt32(decOrd);
+            }
+            catch { }
+
+            try
+            {
+                int setupOrd = r.GetOrdinal("SetupStatus");
+                if (!r.IsDBNull(setupOrd)) b.SetupStatus = r.GetString(setupOrd);
+            }
+            catch { }
+
+            try
+            {
+                int proofOrd = r.GetOrdinal("SetupProofMediaUrls");
+                if (!r.IsDBNull(proofOrd)) b.SetupProofMediaUrls = r.GetString(proofOrd);
+            }
+            catch { }
+
+            try
+            {
+                int pkgPriceOrd = r.GetOrdinal("EventPackagePriceSnapshot");
+                if (!r.IsDBNull(pkgPriceOrd)) b.EventPackagePriceSnapshot = r.GetDecimal(pkgPriceOrd);
+            }
+            catch { }
 
             return b;
         }

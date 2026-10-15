@@ -1,0 +1,92 @@
+@model List<BookMyFun.Models.Entities.EventPackage>
+@{
+    ViewData["Title"] = "Décor Packages Catalog";
+}
+
+<div class="container py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-2 border-bottom">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <a asp-action="Dashboard" class="text-decoration-none small text-muted">
+                    <i class="bi bi-arrow-left me-1"></i> Dashboard
+                </a>
+            </div>
+            <h2 class="fw-bold mb-0">Décor & Staging Packages</h2>
+            <p class="text-muted small mb-0">Design, price, and publish themed packages available for guest add-on at booking checkout.</p>
+        </div>
+        <a asp-action="CreatePackage" class="btn btn-warning fw-bold shadow-sm">
+            <i class="bi bi-plus-circle me-1"></i> Add New Package
+        </a>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm d-flex align-items-center" role="alert">
+            <i class="bi bi-check-circle-fill fs-5 me-2"></i>
+            <div>@TempData["Success"]</div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="row g-4">
+        @if (!Model.Any())
+        {
+            <div class="col-12 text-center py-5">
+                <i class="bi bi-box-seam fs-1 text-muted d-block mb-3"></i>
+                <h5 class="fw-bold">No event packages created yet</h5>
+                <p class="text-muted">Click the button above to publish your first themed décor package.</p>
+                <a asp-action="CreatePackage" class="btn btn-warning fw-semibold">Create Package</a>
+            </div>
+        }
+        @foreach (var pkg in Model)
+        {
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 border-0 shadow-sm rounded-4 overflow-hidden bg-card">
+                    <div style="height: 180px; background-size: cover; background-position: center; background-image: url('@(string.IsNullOrEmpty(pkg.MediaUrl) ? "https://images.unsplash.com/photo-1519741497674-611481863552" : pkg.MediaUrl)');" class="position-relative">
+                        <span class="badge bg-dark bg-opacity-75 text-white position-absolute top-0 start-0 m-3 px-3 py-1 rounded-pill">
+                            @pkg.Category
+                        </span>
+                        <span class="badge @(pkg.IsActive ? "bg-success" : "bg-secondary") position-absolute top-0 end-0 m-3 px-3 py-1 rounded-pill">
+                            @(pkg.IsActive ? "Active" : "Inactive")
+                        </span>
+                    </div>
+                    <div class="card-body p-4 d-flex flex-column justify-content-between">
+                        <div>
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="fw-bold mb-0">@pkg.Name</h5>
+                            </div>
+                            <h4 class="fw-bold text-warning mb-2">₹@pkg.BasePrice.ToString("N0") <span class="text-muted small fw-normal">/ setup</span></h4>
+                            <p class="text-muted small mb-3">@pkg.Description</p>
+
+                            @if (!string.IsNullOrEmpty(pkg.IncludedItems))
+                            {
+                                <div class="mb-3">
+                                    <span class="text-uppercase small fw-bold text-secondary d-block mb-1" style="font-size: 0.75rem;">Includes:</span>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        @foreach (var item in pkg.IncludedItems.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries))
+                                        {
+                                            <span class="badge bg-light text-dark border small">@item.Trim()</span>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top mt-2">
+                            <form asp-action="TogglePackageStatus" asp-route-id="@pkg.PackageID" method="post" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-sm @(pkg.IsActive ? "btn-outline-secondary" : "btn-outline-success")">
+                                    <i class="bi @(pkg.IsActive ? "bi-eye-slash" : "bi-eye") me-1"></i>
+                                    @(pkg.IsActive ? "Deactivate" : "Activate")
+                                </button>
+                            </form>
+                            <a asp-action="EditPackage" asp-route-id="@pkg.PackageID" class="btn btn-sm btn-outline-primary px-3">
+                                <i class="bi bi-pencil-square me-1"></i> Edit
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>

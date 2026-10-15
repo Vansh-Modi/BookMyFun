@@ -6,8 +6,8 @@ The BookMyFun persistence layer is built on **Microsoft SQL Server 2022** and ac
 
 ### Key Architectural Highlights:
 1. **Zero ORM Overhead:** Eliminates Entity Framework Core overhead, memory caches, and implicit client-side evaluation. All queries execute through [`DBHelper.cs`](file:///d:/Projects/BookMyFun/Data/DBHelper.cs) using explicit parameterized `SqlCommand` objects.
-2. **Idempotent Migration on Startup:** Database schemas, structural additions, indexes, and seeded records are managed automatically through [`DatabaseInitializer.cs`](file:///d:/Projects/BookMyFun/Data/DatabaseInitializer.cs) and [`DatabaseSeeder.cs`](file:///d:/Projects/BookMyFun/Data/DatabaseSeeder.cs) on application bootstrap.
-3. **Immutable Financial & Policy Snapshots:** Crucial pricing, commission rates, and cancellation policies are snapshotted onto the `Bookings` record at checkout time to ensure that subsequent updates to properties or platform defaults never mutate historic agreements.
+2. **Idempotent Migration on Startup:** Database schemas, structural additions, indexes, and seeded records are managed automatically through [`DatabaseInitializer.cs`](file:///d:/Projects/BookMyFun/Data/DatabaseInitializer.cs) and [`DatabaseSeeder.cs`](file:///d:/Projects/BookMyFun/Data/DatabaseSeeder.cs) on application bootstrap across all 27 tables.
+3. **Immutable Financial & Policy Snapshots:** Crucial pricing, commission rates, event package prices, and cancellation policies are snapshotted onto the `Bookings` record at checkout time to ensure that subsequent updates to properties or platform defaults never mutate historic agreements.
 4. **Relational Constraints & Cascades:** Referential integrity is strictly maintained via foreign keys, cascading deletes on dependent child entities (e.g. `PropertyImages`, `PropertyMedia`, `PropertyAmenitiesMapping`), and strict `CHECK` constraints on state enumerations.
 
 ---
@@ -18,6 +18,8 @@ The BookMyFun persistence layer is built on **Microsoft SQL Server 2022** and ac
 erDiagram
     Users ||--o{ Properties : "owns"
     Users ||--o{ Bookings : "books"
+    Users ||--o{ Bookings : "assigned_decorator"
+    Users ||--o{ EventPackages : "creates"
     Users ||--o{ OwnerSubscriptions : "purchases"
     Users ||--o{ CustomerReviews : "writes"
     Users ||--o{ AuditLogs : "triggers"
@@ -38,6 +40,8 @@ erDiagram
     Occasions ||--o{ PropertyOccasions : "mapped_to"
     Occasions ||--o{ Bookings : "associated_with"
 
+    EventPackages ||--o{ Bookings : "includes"
+
     SubscriptionPlans ||--o{ OwnerSubscriptions : "defines"
 
     Bookings ||--o{ Payments : "funded_by"
@@ -50,12 +54,12 @@ erDiagram
 
 ---
 
-## 3. Complete Data Dictionary (26 Tables)
+## 3. Complete Data Dictionary (27 Tables)
 
 ### 3.1 Authentication, Users & Identity
 
 #### 1. `Users`
-Stores account credentials, role designations, host commission overrides, and subscription tiers.
+Stores account credentials, role designations (5 roles), host commission overrides, and subscription tiers.
 | Column | Data Type | Nullable | Constraints & Defaults | Description |
 |:---|:---|:---:|:---|:---|
 | `UserID` | `INT` | No | PK, IDENTITY(1,1) | Unique user surrogate identifier |
@@ -63,7 +67,7 @@ Stores account credentials, role designations, host commission overrides, and su
 | `Email` | `NVARCHAR(100)` | No | UNIQUE | Normalized email address for login |
 | `PasswordHash` | `NVARCHAR(255)` | No | - | BCrypt/PBKDF2 salted hash |
 | `Phone` | `NVARCHAR(20)` | Yes | - | Primary contact phone number |
-| `Role` | `NVARCHAR(20)` | No | CHECK ('Admin', 'Employee', 'Owner', 'Client') | Security authorization role |
+| `Role` | `NVARCHAR(20)` | No | CHECK ('Admin', 'Employee', 'Owner', 'Client', 'EventManager') | Security authorization role |
 | `IsActive` | `BIT` | No | DEFAULT 1 | Account status flag |
 | `CustomCommissionRate` | `DECIMAL(5,2)` | Yes | - | Host-specific commission rate override |
 | `SubscriptionTier` | `NVARCHAR(30)` | No | DEFAULT 'Free' | 'Free', 'Featured', 'Managed' |
@@ -193,7 +197,7 @@ Preserved for backward compatibility with older listing setups.
 ### 3.3 Bookings, Payments & Financials
 
 #### 12. `Bookings`
-Primary reservation entity containing immutable commission snapshots, cancellation policy snapshots, and security deposit tracking.
+Primary reservation entity containing immutable commission snapshots, cancellation policy snapshots, event celebration add-ons, and security deposit tracking.
 | Column | Data Type | Nullable | Constraints & Defaults | Description |
 |:---|:---|:---:|:---|:---|
 | `BookingID` | `INT` | No | PK, IDENTITY(1,1) | Booking surrogate identifier |
@@ -217,6 +221,14 @@ Primary reservation entity containing immutable commission snapshots, cancellati
 | `CancellationFeeValueSnapshot`| `DECIMAL(18,2)`| No | DEFAULT 10.00 | Fee amount snapshot |
 | `SecurityDepositAmount` | `DECIMAL(18,2)` | No | DEFAULT 0.00 | Held security deposit amount |
 | `SecurityDepositStatus` | `NVARCHAR(30)` | No | DEFAULT 'Held' | 'Held', 'Refunded', 'Claimed', 'Settled' |
+| `IsEventBooking` | `BIT` | No | DEFAULT 0 | Indicates event décor package selected |
+| `EventPackageID` | `INT` | Yes | FK -> `EventPackages(PackageID)` | Selected celebration package key |
+| `CustomEventNotes` | `NVARCHAR(MAX)`| Yes | - | Client theme requests & notes |
+| `EventDate` | `DATETIME2` | Yes | - | Date of on-ground celebration |
+| `DecoratorAssignedID` | `INT` | Yes | FK -> `Users(UserID)` | Assigned decorator crew user |
+| `SetupStatus` | `NVARCHAR(50)` | Yes | DEFAULT 'Pending' | 'Pending', 'Assigned', 'InProgress', 'Completed', 'Inspected' |
+| `SetupProofMediaUrls`| `NVARCHAR(MAX)`| Yes | - | Photo/video proofs uploaded by decorator |
+| `EventPackagePriceSnapshot`| `DECIMAL(18,2)`| No | DEFAULT 0.00 | Frozen package price at booking |
 | `IdempotencyKey` | `NVARCHAR(100)`| Yes | - | Duplicate request prevention token |
 | `CreatedAt` | `DATETIME2` | No | DEFAULT GETDATE() | Reservation timestamp |
 
@@ -238,145 +250,137 @@ Tracks full/partial cancellation refunds, fee deductions, and payment gateway re
 | `RefundID` | `INT` | No | PK, IDENTITY(1,1) | Refund primary key |
 | `BookingID` | `INT` | No | FK -> `Bookings(BookingID)` | Associated cancelled booking |
 | `GrossBookingAmount` | `DECIMAL(18,2)` | No | - | Total originally captured |
-| `CancellationFeeDeducted` | `DECIMAL(18,2)` | No | - | Penalty fee withheld |
-| `GatewayFeeDeducted` | `DECIMAL(18,2)` | No | - | 2% gateway processing fee withheld |
-| `NetRefundAmount` | `DECIMAL(18,2)` | No | - | Actual net refund credited to customer |
-| `RefundReason` | `NVARCHAR(500)` | Yes | - | Customer or operational reason |
-| `Status` | `NVARCHAR(30)` | No | CHECK ('Initiated', 'Processing', 'Completed', 'Failed', 'Overridden') | Refund status |
-| `GatewayRefundID` | `NVARCHAR(100)` | Yes | - | Razorpay refund identifier |
-| `ProcessedByUserID` | `INT` | Yes | FK -> `Users(UserID)` | User who executed refund |
-| `ProcessedAt` | `DATETIME2` | Yes | - | Completion timestamp |
-| `CreatedAt` | `DATETIME2` | No | DEFAULT GETDATE() | Record creation timestamp |
+| `GatewayFeeDeducted` | `DECIMAL(18,2)` | No | DEFAULT 0.00 | 2% gateway processing fee |
+| `CancellationFeeDeducted` | `DECIMAL(18,2)` | No | DEFAULT 0.00 | Penalty fee retained |
+| `NetRefundAmount` | `DECIMAL(18,2)` | No | - | Actual funds returned to guest |
+| `RefundReason` | `NVARCHAR(255)` | Yes | - | Client cancellation justification |
+| `GatewayRefundID`| `NVARCHAR(100)` | Yes | - | Gateway refund identifier |
+| `RefundStatus` | `NVARCHAR(30)` | No | CHECK ('Pending', 'Processed', 'Failed') | Processing state |
+| `ProcessedAt` | `DATETIME2` | No | DEFAULT GETDATE() | Disbursement timestamp |
 
 #### 15. `DamageClaims`
-Host security deposit claims filed within 24 hours of guest checkout.
+Evidence-backed security deposit claims filed by hosts within 24 hours of guest checkout.
 | Column | Data Type | Nullable | Constraints & Defaults | Description |
 |:---|:---|:---:|:---|:---|
-| `ClaimID` | `INT` | No | PK, IDENTITY(1,1) | Surrogate damage claim key |
-| `BookingID` | `INT` | No | FK -> `Bookings(BookingID)` | Relevant booking reservation |
-| `PropertyID` | `INT` | No | FK -> `Properties(PropertyID)` | Location of damage |
-| `OwnerID` | `INT` | No | FK -> `Users(UserID)` | Host filing the claim |
-| `ClaimAmount` | `DECIMAL(18,2)` | No | - | Total claimed damages |
-| `ItemizedDescription`| `NVARCHAR(MAX)` | No | - | Itemized damage breakdown |
-| `EvidenceMediaUrls` | `NVARCHAR(MAX)` | No | - | JSON array of photo/video evidence links |
-| `Status` | `NVARCHAR(30)` | No | CHECK ('UnderReview', 'Approved', 'Rejected', 'Settled') | Adjudication status |
-| `AdjudicatedAmount` | `DECIMAL(18,2)` | Yes | - | Amount granted by staff |
-| `AdjudicatedByUserID`| `INT` | Yes | FK -> `Users(UserID)` | Staff member who adjudicated |
-| `AdjudicationNotes` | `NVARCHAR(MAX)` | Yes | - | Findings and settlement rationale |
-| `AdjudicatedAt` | `DATETIME2` | Yes | - | Resolution timestamp |
+| `ClaimID` | `INT` | No | PK, IDENTITY(1,1) | Claim primary key |
+| `BookingID` | `INT` | No | FK -> `Bookings(BookingID)` | Targeted booking |
+| `PropertyID` | `INT` | No | FK -> `Properties(PropertyID)` | Property damaged |
+| `HostID` | `INT` | No | FK -> `Users(UserID)` | Host filing claim |
+| `ClaimAmount` | `DECIMAL(18,2)` | No | - | Amount claimed (≤ deposit) |
+| `Description` | `NVARCHAR(MAX)` | No | - | Narrative of damage |
+| `ItemizedBreakdown`| `NVARCHAR(MAX)`| Yes | - | Itemized JSON repair costs |
+| `EvidenceMediaUrls`| `NVARCHAR(MAX)`| Yes | - | Comma/JSON list of photo/video links |
+| `ClaimStatus` | `NVARCHAR(30)` | No | CHECK ('UnderReview', 'Approved', 'Rejected', 'Settled') | Review state |
+| `AdjudicatedAmount`| `DECIMAL(18,2)`| Yes | - | Final amount awarded to host |
+| `AdjudicatedByUserID`| `INT` | Yes | FK -> `Users(UserID)` | Staff member reviewing claim |
+| `AdjudicationNotes`| `NVARCHAR(MAX)`| Yes | - | Staff reasoning |
+| `AdjudicatedAt` | `DATETIME2` | Yes | - | Adjudication timestamp |
 | `CreatedAt` | `DATETIME2` | No | DEFAULT GETDATE() | Filing timestamp |
 
 #### 16. `FinancialLedger`
-Internal double-entry tracking for business operational revenue and expenses.
+Double-entry bookkeeping table tracking all money movements (Bookings, Payouts, Commissions, Refunds).
 | Column | Data Type | Nullable | Constraints & Defaults | Description |
 |:---|:---|:---:|:---|:---|
-| `LedgerID` | `INT` | No | PK, IDENTITY(1,1) | Ledger surrogate identifier |
-| `TransactionType` | `NVARCHAR(20)` | No | CHECK ('Income', 'Expense') | Financial classification |
-| `Category` | `NVARCHAR(50)` | No | - | 'BookingCommission', 'Subscription', 'Marketing', etc. |
+| `LedgerID` | `INT` | No | PK, IDENTITY(1,1) | Entry primary key |
+| `UserID` | `INT` | No | FK -> `Users(UserID)` | Account holder credited/debited |
+| `TransactionType`| `NVARCHAR(20)` | No | CHECK ('Credit', 'Debit') | Double-entry type |
 | `Amount` | `DECIMAL(18,2)` | No | - | Transaction amount |
-| `Title` | `NVARCHAR(150)` | No | - | Ledger line item title |
-| `Details` | `NVARCHAR(MAX)` | Yes | - | Contextual notes |
-| `TransactionDate` | `DATE` | No | - | Effective accounting date |
-| `LoggedByUserID` | `INT` | Yes | FK -> `Users(UserID)` | Staff member who posted entry |
-| `CreatedAt` | `DATETIME2` | No | DEFAULT GETDATE() | System entry timestamp |
+| `Category` | `NVARCHAR(50)` | No | - | 'Commission', 'BookingPayout', 'Refund' |
+| `ReferenceID` | `NVARCHAR(100)` | Yes | - | BookingID, PaymentID, or ClaimID |
+| `Description` | `NVARCHAR(255)` | Yes | - | Human-readable explanation |
+| `TransactionDate`| `DATETIME2` | No | DEFAULT GETDATE() | Transaction timestamp |
 
 ---
 
-### 3.4 Host Monetization, Subscriptions & Leads
+### 3.4 Host Onboarding & Subscriptions
 
-#### 17. `SubscriptionPlans`
-Host membership tiers offering listing capacity and featured placement.
-| Column | Data Type | Nullable | Constraints & Defaults | Description |
-|:---|:---|:---:|:---|:---|
-| `PlanID` | `INT` | No | PK, IDENTITY(1,1) | Plan surrogate key |
-| `PlanName` | `NVARCHAR(50)` | No | - | 'Starter Free', 'Spotlight Featured', 'Concierge Pack' |
-| `Price` | `DECIMAL(18,2)` | No | - | Plan subscription cost |
-| `DurationInDays`| `INT` | No | - | Plan duration (e.g., 30, 90, 365) |
-| `MaxListings` | `INT` | No | - | Allowed concurrent listings |
-| `IsActive` | `BIT` | No | DEFAULT 1 | Availability toggle |
-
-#### 18. `OwnerSubscriptions`
-Records of active and expired host subscriptions.
-| Column | Data Type | Nullable | Constraints & Defaults | Description |
-|:---|:---|:---:|:---|:---|
-| `SubscriptionID` | `INT` | No | PK, IDENTITY(1,1) | Subscription record key |
-| `OwnerID` | `INT` | No | FK -> `Users(UserID)` | Target host user |
-| `PlanID` | `INT` | No | FK -> `SubscriptionPlans(PlanID)` | Subscribed plan |
-| `StartDate` | `DATETIME2` | No | - | Plan validity start |
-| `EndDate` | `DATETIME2` | No | - | Plan validity expiration |
-| `PaymentStatus` | `NVARCHAR(20)` | No | CHECK ('Paid', 'Pending', 'Expired') | Subscription status |
-| `GatewayTransactionID` | `NVARCHAR(100)` | Yes | - | Gateway reference ID |
-
-#### 19. `PropertyListingPayments`
-One-time listing setup or concierge pack payments.
-| Column | Data Type | Nullable | Constraints & Defaults | Description |
-|:---|:---|:---:|:---|:---|
-| `ListingPaymentID` | `INT` | No | PK, IDENTITY(1,1) | Payment primary key |
-| `PropertyID` | `INT` | No | FK -> `Properties(PropertyID)` ON DELETE CASCADE | Target listing |
-| `OwnerID` | `INT` | No | FK -> `Users(UserID)` | Host making payment |
-| `Amount` | `DECIMAL(18,2)` | No | - | Paid amount |
-| `PaymentStatus` | `NVARCHAR(20)` | No | CHECK ('Success', 'Failed', 'Pending') | Status outcome |
-| `GatewayTransactionID`| `NVARCHAR(100)` | Yes | - | Transaction key |
-| `PaymentDate` | `DATETIME2` | No | DEFAULT GETDATE() | Timestamp |
-
-#### 20. `PartnerLeads`
-Host lead-intake pipeline replacing open public host self-registration.
+#### 17. `PartnerLeads`
+Curated host pipeline capturing prospective farm listing inquiries before granting accounts.
 | Column | Data Type | Nullable | Constraints & Defaults | Description |
 |:---|:---|:---:|:---|:---|
 | `LeadID` | `INT` | No | PK, IDENTITY(1,1) | Lead surrogate key |
-| `FullName` | `NVARCHAR(100)` | No | - | Applicant name |
-| `Phone` | `NVARCHAR(20)` | No | - | Phone number |
-| `Email` | `NVARCHAR(100)` | No | - | Contact email |
-| `PropertyName` | `NVARCHAR(150)` | No | - | Farm or villa property name |
-| `Location` | `NVARCHAR(255)` | No | - | City, State or District |
-| `AcreageOrType` | `NVARCHAR(100)` | No | - | Land area (e.g., '5 Acres Farm') |
-| `Message` | `NVARCHAR(MAX)` | Yes | - | Host message |
-| `Status` | `NVARCHAR(30)` | No | CHECK ('New', 'Contacted', 'Approved', 'Rejected') | Onboarding status |
-| `ActivationToken` | `NVARCHAR(255)`| Yes | - | Encrypted 48-hour activation token |
-| `TokenExpiresAt`| `DATETIME2` | Yes | - | Token expiry date |
-| `ReviewedByUserID`| `INT` | Yes | FK -> `Users(UserID)` | Reviewing staff member |
+| `FullName` | `NVARCHAR(100)` | No | - | Prospective host name |
+| `Phone` | `NVARCHAR(20)` | No | - | Primary phone |
+| `Email` | `NVARCHAR(100)` | No | - | Email address |
+| `PropertyName` | `NVARCHAR(150)` | No | - | Estate or farm title |
+| `Location` | `NVARCHAR(255)` | No | - | Region or city |
+| `AcreageOrType` | `NVARCHAR(100)` | Yes | - | Land area or property style |
+| `Message` | `NVARCHAR(MAX)` | Yes | - | Notes from applicant |
+| `Status` | `NVARCHAR(30)` | No | CHECK ('New', 'Contacted', 'Approved', 'Rejected') | Triage status |
+| `ActivationToken`| `NVARCHAR(255)`| Yes | - | 48-hour HMAC onboarding token |
+| `TokenExpiresAt`| `DATETIME2` | Yes | - | Token expiration deadline |
+| `ReviewedByUserID`| `INT` | Yes | FK -> `Users(UserID)` | Staff member reviewing lead |
 | `CreatedAt` | `DATETIME2` | No | DEFAULT GETDATE() | Submission timestamp |
 
-#### 21. `OwnerRequests`
-Manages trial period listing requests and administrative notes.
+#### 18. `SubscriptionPlans`
+Host monetization tiers (Free, Featured, Managed Concierge).
 | Column | Data Type | Nullable | Constraints & Defaults | Description |
 |:---|:---|:---:|:---|:---|
-| `RequestID` | `INT` | No | PK, IDENTITY(1,1) | Request primary key |
-| `UserID` | `INT` | No | FK -> `Users(UserID)` ON DELETE CASCADE | Host requesting trial |
-| `RequestedAt` | `DATETIME2` | No | DEFAULT GETDATE() | Request date |
-| `TrialDeadline`| `DATETIME2` | No | - | 1-2 day evaluation window |
-| `Status` | `NVARCHAR(30)` | No | CHECK ('PendingEvaluation', 'Approved', 'Rejected') | Request status |
-| `AdminNotes` | `NVARCHAR(MAX)` | Yes | - | Evaluation notes |
-| `ReviewedByUserID`| `INT` | Yes | FK -> `Users(UserID)` | Reviewing administrator |
-| `ReviewedAt` | `DATETIME2` | Yes | - | Approval date |
+| `PlanID` | `INT` | No | PK, IDENTITY(1,1) | Plan surrogate key |
+| `PlanName` | `NVARCHAR(50)` | No | UNIQUE | Tier name |
+| `Price` | `DECIMAL(18,2)` | No | - | Monthly/yearly fee |
+| `DurationDays` | `INT` | No | - | Active validity duration |
+| `MaxListings` | `INT` | No | - | Allowed property listings |
+| `CommissionDiscountPercentage` | `DECIMAL(5,2)` | No | DEFAULT 0.00 | Commission rate discount |
+| `IsActive` | `BIT` | No | DEFAULT 1 | Active plan flag |
+
+#### 19. `OwnerSubscriptions`
+Records of host subscription purchases.
+| Column | Data Type | Nullable | Constraints & Defaults | Description |
+|:---|:---|:---:|:---|:---|
+| `SubscriptionID`| `INT` | No | PK, IDENTITY(1,1) | Subscription primary key |
+| `OwnerID` | `INT` | No | FK -> `Users(UserID)` | Subscribed host |
+| `PlanID` | `INT` | No | FK -> `SubscriptionPlans(PlanID)` | Plan tier |
+| `StartDate` | `DATETIME2` | No | DEFAULT GETDATE() | Commencement date |
+| `EndDate` | `DATETIME2` | No | - | Expiration date |
+| `PaymentStatus` | `NVARCHAR(20)` | No | CHECK ('Pending', 'Active', 'Expired') | Status |
+| `GatewayPaymentID`| `NVARCHAR(100)`| Yes | - | Gateway transaction ID |
+
+#### 20. `PropertyListingPayments`
+A-la-carte listing promotion fees paid by hosts.
+| Column | Data Type | Nullable | Constraints & Defaults | Description |
+|:---|:---|:---:|:---|:---|
+| `PaymentID` | `INT` | No | PK, IDENTITY(1,1) | Key |
+| `PropertyID` | `INT` | No | FK -> `Properties(PropertyID)` | Featured property |
+| `Amount` | `DECIMAL(18,2)` | No | - | Fee paid |
+| `PaymentDate` | `DATETIME2` | No | DEFAULT GETDATE() | Timestamp |
+
+#### 21. `OwnerRequests`
+Special host requests (e.g. trial period extension, custom commissions).
+| Column | Data Type | Nullable | Constraints & Defaults | Description |
+|:---|:---|:---:|:---|:---|
+| `RequestID` | `INT` | No | PK, IDENTITY(1,1) | Key |
+| `OwnerID` | `INT` | No | FK -> `Users(UserID)` | Requesting host |
+| `RequestType` | `NVARCHAR(50)` | No | - | Category |
+| `Status` | `NVARCHAR(30)` | No | DEFAULT 'Pending' | Status |
+| `CreatedAt` | `DATETIME2` | No | DEFAULT GETDATE() | Timestamp |
 
 ---
 
-### 3.5 Communications, Reviews & Auditing
+### 3.5 Support, Auditing, Platform Config & Event Packages
 
 #### 22. `CustomerReviews`
-Guest feedback, ratings (1 to 5 stars), and testimonials.
+Verified guest reviews ($1$ to $5$ stars) submitted post-checkout.
 | Column | Data Type | Nullable | Constraints & Defaults | Description |
 |:---|:---|:---:|:---|:---|
-| `ReviewID` | `INT` | No | PK, IDENTITY(1,1) | Primary key |
-| `BookingID` | `INT` | No | FK -> `Bookings(BookingID)` | Verified stay |
-| `ClientID` | `INT` | No | FK -> `Users(UserID)` | Review author |
-| `PropertyID` | `INT` | No | FK -> `Properties(PropertyID)` | Reviewed farm |
-| `Rating` | `INT` | No | CHECK (Rating BETWEEN 1 AND 5) | Star rating |
-| `Comment` | `NVARCHAR(MAX)` | Yes | - | Review text |
-| `CreatedAt` | `DATETIME2` | No | DEFAULT GETDATE() | Submission date |
+| `ReviewID` | `INT` | No | PK, IDENTITY(1,1) | Review surrogate key |
+| `BookingID` | `INT` | No | FK -> `Bookings(BookingID)` ON DELETE CASCADE | Associated stay |
+| `PropertyID` | `INT` | No | FK -> `Properties(PropertyID)` | Evaluated farm |
+| `Rating` | `INT` | No | CHECK (Rating BETWEEN 1 AND 5) | Star rating score |
+| `Comment` | `NVARCHAR(MAX)` | Yes | - | Written feedback |
+| `CreatedAt` | `DATETIME2` | No | DEFAULT GETDATE() | Submission timestamp |
 
 #### 23. `ContactUs`
-Public customer support messages and inquiry tracking.
+General customer and guest support inquiries.
 | Column | Data Type | Nullable | Constraints & Defaults | Description |
 |:---|:---|:---:|:---|:---|
-| `ContactID` | `INT` | No | PK, IDENTITY(1,1) | Message primary key |
-| `Name` | `NVARCHAR(100)` | No | - | Sender name |
-| `Email` | `NVARCHAR(100)` | No | - | Sender email |
-| `Phone` | `NVARCHAR(20)` | Yes | - | Contact phone |
-| `Subject` | `NVARCHAR(255)` | Yes | - | Message topic |
-| `Message` | `NVARCHAR(MAX)` | No | - | Message body |
-| `Status` | `NVARCHAR(20)` | No | CHECK ('New', 'Responded') | Triage status |
+| `ContactID` | `INT` | No | PK, IDENTITY(1,1) | Inquiry key |
+| `FullName` | `NVARCHAR(100)` | No | - | Contact name |
+| `Email` | `NVARCHAR(100)` | No | - | Contact email |
+| `Phone` | `NVARCHAR(20)` | Yes | - | Phone number |
+| `Subject` | `NVARCHAR(150)` | No | - | Inquiry topic |
+| `Message` | `NVARCHAR(MAX)` | No | - | Detailed query |
+| `Status` | `NVARCHAR(30)` | No | DEFAULT 'New' | Triage status |
 | `CreatedAt` | `DATETIME2` | No | DEFAULT GETDATE() | Inquiry timestamp |
 
 #### 24. `AuditLogs`
@@ -412,11 +416,24 @@ Third-party integration credentials (Razorpay, SMTP, WhatsApp, Cashfree).
 | `ExtraParams` | `NVARCHAR(MAX)`| Yes | - | JSON metadata (ports, merchant IDs) |
 | `IsActive` | `BIT` | No | DEFAULT 1 | Enabled status flag |
 
+#### 27. `EventPackages` (5th Dashboard: Event Manager / Decorator)
+Celebration, floral, lighting, and stage setup packages curated by Event Managers and Decorators.
+| Column | Data Type | Nullable | Constraints & Defaults | Description |
+|:---|:---|:---:|:---|:---|
+| `PackageID` | `INT` | No | PK, IDENTITY(1,1) | Event package surrogate key |
+| `Name` | `NVARCHAR(150)` | No | - | Display name of package (e.g. 'Regal Wedding Setup') |
+| `Category` | `NVARCHAR(50)` | No | CHECK ('Birthday', 'Anniversary', 'Wedding', 'Corporate', 'Custom') | Event theme classification |
+| `BasePrice` | `DECIMAL(18,2)` | No | - | Base package price in INR |
+| `Description` | `NVARCHAR(MAX)` | Yes | - | Detailed description of setup |
+| `MediaUrl` | `NVARCHAR(500)` | Yes | - | Showcase image/video URL |
+| `IncludedItems` | `NVARCHAR(MAX)` | Yes | - | Comma or newline separated inventory items |
+| `IsActive` | `BIT` | No | DEFAULT 1 | Status toggle (Active/Inactive) |
+| `CreatedByUserID` | `INT` | Yes | FK -> `Users(UserID)` | Decorator/Admin who authored package |
+| `CreatedAt` | `DATETIME2` | No | DEFAULT GETDATE() | Creation timestamp |
+
 ---
 
 ## 4. Database Indexes & Performance Optimizations
-
-To ensure millisecond response times under heavy concurrent booking and search loads, the following index strategy is maintained:
 
 ```sql
 -- 1. Optimizing Public Property Search by City, Status & Approval
@@ -446,6 +463,179 @@ CREATE NONCLUSTERED INDEX IX_Bookings_Analytics
 ON Bookings (Status, CreatedAt) 
 INCLUDE (TotalAmount, PlatformCommissionAmount, OwnerPayoutAmount);
 
-CREATE NONCLUSTERED INDEX IX_FinancialLedger_Date 
-ON FinancialLedger (TransactionDate, TransactionType, Category);
+-- 7. Optimizing Event Decorator Setup Queries
+CREATE NONCLUSTERED INDEX IX_Bookings_EventSetups
+ON Bookings (IsEventBooking, DecoratorAssignedID, SetupStatus)
+INCLUDE (EventPackageID, CheckInDate, TotalAmount);
+```
+
+---
+
+## 5. Dual Schema Representations (SQL Server DDL / Prisma / Mongoose)
+
+### 5.1 Production SQL Server 2022 DDL (Extract)
+
+```sql
+-- Event Packages Table DDL
+CREATE TABLE EventPackages (
+    PackageID INT IDENTITY(1,1) PRIMARY KEY,
+    Name NVARCHAR(150) NOT NULL,
+    Category NVARCHAR(50) NOT NULL CHECK (Category IN ('Birthday', 'Anniversary', 'Wedding', 'Corporate', 'Custom')),
+    BasePrice DECIMAL(18,2) NOT NULL,
+    Description NVARCHAR(MAX) NULL,
+    MediaUrl NVARCHAR(500) NULL,
+    IncludedItems NVARCHAR(MAX) NULL,
+    IsActive BIT NOT NULL DEFAULT 1,
+    CreatedByUserID INT NULL FOREIGN KEY REFERENCES Users(UserID),
+    CreatedAt DATETIME2 NOT NULL DEFAULT GETDATE()
+);
+
+-- Core Users Table DDL with 5-Role Constraint
+CREATE TABLE Users (
+    UserID INT IDENTITY(1,1) PRIMARY KEY,
+    FullName NVARCHAR(100) NOT NULL,
+    Email NVARCHAR(100) NOT NULL UNIQUE,
+    PasswordHash NVARCHAR(255) NOT NULL,
+    Phone NVARCHAR(20) NULL,
+    Role NVARCHAR(20) NOT NULL CHECK (Role IN ('Admin', 'Employee', 'Owner', 'Client', 'EventManager')),
+    IsActive BIT NOT NULL DEFAULT 1,
+    CustomCommissionRate DECIMAL(5,2) NULL,
+    SubscriptionTier NVARCHAR(30) NOT NULL DEFAULT 'Free',
+    CreatedAt DATETIME2 NOT NULL DEFAULT GETDATE()
+);
+```
+
+### 5.2 Prisma Schema Representation (`schema.prisma`)
+
+```prisma
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  Admin
+  Employee
+  Owner
+  Client
+  EventManager
+}
+
+enum SetupStatus {
+  Pending
+  Assigned
+  InProgress
+  Completed
+  Inspected
+}
+
+model User {
+  userId               Int       @id @default(autoincrement()) @map("UserID")
+  fullName             String    @db.NVarChar(100) @map("FullName")
+  email                String    @unique @db.NVarChar(100) @map("Email")
+  passwordHash         String    @db.NVarChar(255) @map("PasswordHash")
+  phone                String?   @db.NVarChar(20) @map("Phone")
+  role                 UserRole  @default(Client) @map("Role")
+  isActive             Boolean   @default(true) @map("IsActive")
+  customCommissionRate Decimal?  @db.Decimal(5, 2) @map("CustomCommissionRate")
+  createdAt            DateTime  @default(now()) @map("CreatedAt")
+
+  propertiesOwned      Property[]
+  clientBookings       Booking[] @relation("ClientBookings")
+  assignedSetups       Booking[] @relation("AssignedDecorator")
+  createdPackages      EventPackage[]
+}
+
+model EventPackage {
+  packageId       Int       @id @default(autoincrement()) @map("PackageID")
+  name            String    @db.NVarChar(150) @map("Name")
+  category        String    @db.NVarChar(50) @map("Category")
+  basePrice       Decimal   @db.Decimal(18, 2) @map("BasePrice")
+  description     String?   @db.NVarChar(Max) @map("Description")
+  mediaUrl        String?   @db.NVarChar(500) @map("MediaUrl")
+  includedItems   String?   @db.NVarChar(Max) @map("IncludedItems")
+  isActive        Boolean   @default(true) @map("IsActive")
+  createdByUserId Int?      @map("CreatedByUserID")
+  createdAt       DateTime  @default(now()) @map("CreatedAt")
+
+  createdByUser   User?     @relation(fields: [createdByUserId], references: [userId])
+  bookings        Booking[]
+}
+
+model Booking {
+  bookingId                  Int          @id @default(autoincrement()) @map("BookingID")
+  propertyId                 Int          @map("PropertyID")
+  clientId                   Int          @map("ClientID")
+  checkInDate                DateTime     @db.Date @map("CheckInDate")
+  checkOutDate               DateTime     @db.Date @map("CheckOutDate")
+  totalAmount                Decimal      @db.Decimal(18, 2) @map("TotalAmount")
+  status                     String       @map("Status")
+  isEventBooking             Boolean      @default(false) @map("IsEventBooking")
+  eventPackageId             Int?         @map("EventPackageID")
+  customEventNotes           String?      @db.NVarChar(Max) @map("CustomEventNotes")
+  eventDate                  DateTime?    @map("EventDate")
+  decoratorAssignedId        Int?         @map("DecoratorAssignedID")
+  setupStatus                SetupStatus? @default(Pending) @map("SetupStatus")
+  setupProofMediaUrls        String?      @db.NVarChar(Max) @map("SetupProofMediaUrls")
+  eventPackagePriceSnapshot  Decimal      @default(0.00) @db.Decimal(18, 2) @map("EventPackagePriceSnapshot")
+
+  client                     User         @relation("ClientBookings", fields: [clientId], references: [userId])
+  assignedDecorator          User?        @relation("AssignedDecorator", fields: [decoratorAssignedId], references: [userId])
+  eventPackage               EventPackage? @relation(fields: [eventPackageId], references: [packageId])
+}
+```
+
+### 5.3 Mongoose / MongoDB Document Schema Equivalent
+
+```javascript
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
+
+const EventPackageSchema = new Schema({
+  name: { type: String, required: true },
+  category: { 
+    type: String, 
+    enum: ['Birthday', 'Anniversary', 'Wedding', 'Corporate', 'Custom'], 
+    required: true 
+  },
+  basePrice: { type: Number, required: true },
+  description: { type: String },
+  mediaUrl: { type: String },
+  includedItems: [{ type: String }],
+  isActive: { type: Boolean, default: true },
+  createdByUserId: { type: Schema.Types.ObjectId, ref: 'User' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const BookingSchema = new Schema({
+  propertyId: { type: Schema.Types.ObjectId, ref: 'Property', required: true },
+  clientId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  checkInDate: { type: Date, required: true },
+  checkOutDate: { type: Date, required: true },
+  totalAmount: { type: Number, required: true },
+  status: { type: String, enum: ['Pending', 'Confirmed', 'Cancelled'], default: 'Pending' },
+  eventDetails: {
+    isEventBooking: { type: Boolean, default: false },
+    eventPackageId: { type: Schema.Types.ObjectId, ref: 'EventPackage' },
+    customEventNotes: { type: String },
+    eventDate: { type: Date },
+    decoratorAssignedId: { type: Schema.Types.ObjectId, ref: 'User' },
+    setupStatus: { 
+      type: String, 
+      enum: ['Pending', 'Assigned', 'InProgress', 'Completed', 'Inspected'], 
+      default: 'Pending' 
+    },
+    setupProofMediaUrls: [{ type: String }],
+    eventPackagePriceSnapshot: { type: Number, default: 0.00 }
+  }
+}, { timestamps: true });
+
+module.exports = {
+  EventPackage: mongoose.model('EventPackage', EventPackageSchema),
+  Booking: mongoose.model('Booking', BookingSchema)
+};
 ```

@@ -121,6 +121,7 @@ namespace BookMyFun.Controllers
                 "Admin" => RedirectToAction("Index", "Admin"),
                 "Employee" => RedirectToAction("Index", "Employee"),
                 "Owner" => RedirectToAction("Index", "Owner"),
+                "EventManager" => RedirectToAction("Dashboard", "EventManager"),
                 _ => RedirectToAction("Index", "Client")
             };
         }

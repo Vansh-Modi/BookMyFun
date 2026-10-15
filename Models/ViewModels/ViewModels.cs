@@ -139,8 +139,14 @@ namespace BookMyFun.Models.ViewModels
         public int? OccasionID { get; set; }
         public decimal CalculatedAmount { get; set; }
 
+        // Event Décor Add-on Options
+        public bool IsEventBooking { get; set; }
+        public int? EventPackageID { get; set; }
+        public string? CustomEventNotes { get; set; }
+
         // Lookups
         public List<Occasion> AvailableOccasions { get; set; } = new();
+        public List<EventPackage> AvailableEventPackages { get; set; } = new();
     }
 
     public class PaymentPageViewModel
@@ -390,9 +396,12 @@ namespace BookMyFun.Models.ViewModels
     public class AdminAnalyticsViewModel
     {
         public decimal GMV { get; set; }
+        public decimal PropertyGMV { get; set; }
+        public decimal EventGMV { get; set; }
         public decimal NetPlatformCommission { get; set; }
         public decimal PendingPayouts { get; set; }
         public int ActiveProperties { get; set; }
+        public int TotalEventBookings { get; set; }
         public double OccupancyRate { get; set; }
 
         public string DateRangePreset { get; set; } = "7D"; // Today, 7D, MTD, YTD, Custom
@@ -404,5 +413,53 @@ namespace BookMyFun.Models.ViewModels
         public string? FilterStatus { get; set; }
 
         public List<PeriodFinancialStats> TrendData { get; set; } = new();
+    }
+
+    public class EventPackageCreateViewModel
+    {
+        [Required, MaxLength(150)]
+        public string Name { get; set; } = string.Empty;
+
+        [Required, MaxLength(50)]
+        public string Category { get; set; } = "Birthday"; // 'Birthday', 'Anniversary', 'Wedding', 'Corporate', 'Custom'
+
+        [Required, Range(1, 1000000)]
+        public decimal BasePrice { get; set; }
+
+        public string? Description { get; set; }
+
+        public string? MediaUrl { get; set; }
+
+        public string? IncludedItems { get; set; }
+
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class EventPackageEditViewModel : EventPackageCreateViewModel
+    {
+        [Required]
+        public int PackageID { get; set; }
+    }
+
+    public class DecoratorSetupAssignmentViewModel
+    {
+        [Required]
+        public int BookingID { get; set; }
+
+        [Required]
+        public int DecoratorAssignedID { get; set; }
+    }
+
+    public class SetupStatusUpdateViewModel
+    {
+        [Required]
+        public int BookingID { get; set; }
+
+        [Required]
+        public string SetupStatus { get; set; } = "InProgress"; // 'Assigned', 'InProgress', 'Completed', 'Inspected'
+
+        public string? SetupProofMediaUrls { get; set; } // comma separated or JSON array of image/video URLs
+
+        public string? Notes { get; set; }
     }
 }

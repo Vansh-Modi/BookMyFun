@@ -155,6 +155,19 @@
                                     </ul>
                                 </li>
                             }
+                            else if (role == "EventManager")
+                            {
+                                <li class="nav-item dropdown me-2">
+                                    <a class="btn btn-outline-warning text-warning px-3 dropdown-toggle shadow-sm" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-palette2 me-1"></i> Event Manager
+                                    </a>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
+                                        <li><a class="dropdown-item fw-semibold" asp-controller="EventManager" asp-action="Dashboard"><i class="bi bi-speedometer2 text-primary me-2"></i>Event Dashboard</a></li>
+                                        <li><a class="dropdown-item fw-semibold text-success" asp-controller="EventManager" asp-action="Packages"><i class="bi bi-box-seam text-success me-2"></i>Décor Packages</a></li>
+                                        <li><a class="dropdown-item fw-semibold text-warning" asp-controller="EventManager" asp-action="AssignedSetups"><i class="bi bi-calendar-event text-warning me-2"></i>Assigned Setups</a></li>
+                                    </ul>
+                                </li>
+                            }
                             else
                             {
                                 <li class="nav-item me-2">

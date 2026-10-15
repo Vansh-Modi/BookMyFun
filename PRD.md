@@ -5,40 +5,41 @@
 ## 1. Executive Summary & Product Vision
 
 ### 1.1 Product Vision
-**BookMyFun** is a premier digital marketplace and hospitality management platform tailored specifically for short-term and event-based rentals of farmhouses, private luxury villas, eco-resorts, and estate stays across India. The platform bridges the trust gap between discerning guests seeking exclusive, private escapes and property owners seeking optimized occupancy, predictable monetization, and asset protection.
+**BookMyFun** is a premier digital marketplace and hospitality management platform tailored specifically for short-term and event-based rentals of farmhouses, private luxury villas, eco-resorts, and estate stays across India. The platform bridges the trust gap between discerning guests seeking exclusive, private escapes and property owners seeking optimized occupancy, predictable monetization, asset protection, and end-to-end event decoration services.
 
 ### 1.2 Core Business Objectives
-- **Frictionless Guest Journey:** Deliver sub-second property discovery with flexible booking models (Full-Day, Morning/Evening Half-Day, Hourly Micro-stays).
+- **Frictionless Guest Journey:** Deliver sub-second property discovery with flexible booking models (Full-Day, Morning/Evening Half-Day, Hourly Micro-stays) and integrated event décor add-ons.
 - **Vetted Host Network:** Replace uncontrolled public host registrations with a curated partner lead pipeline and encrypted onboarding invitations.
 - **Financial Transparency & Fairness:** Provide automated, policy-enforced cancellation quotes with transparent refund breakdowns, eliminating guest-host disputes.
 - **Enterprise-Grade Asset Protection:** Safeguard host properties with refundable security deposits and an evidence-backed 24-hour damage claims adjudication engine.
 - **Data Privacy & Compliance:** Fully comply with Indian hospitality KYC regulations while shielding raw guest government identification documents from property hosts.
-- **Executive Operations & Analytics:** Empower administrators and support staff with real-time operational queues and multi-dimensional financial reporting (GMV, platform commission, pending payouts, occupancy) with native Excel (`.xlsx`) and CSV exports.
+- **Event Décor Ecosystem (5th Dashboard):** Provide specialized tooling for Event Managers and Decorators to curate celebration packages (weddings, birthdays, anniversaries, corporate retreats), manage assigned farm setups, advance execution milestones, and verify setups via media proofs.
+- **Executive Operations & Analytics:** Empower administrators and support staff with real-time operational queues and multi-dimensional financial reporting (Property GMV vs Event GMV, platform commission, pending payouts, occupancy) with native Excel (`.xlsx`) and CSV exports.
 
 ---
 
 ## 2. Target Market & User Personas
 
 ```
-                     ┌────────────────────────────────────────────────────────┐
-                     │                    User Personas                       │
-                     └───────────────────┬────────────────────────────────────┘
+                     ┌────────────────────────────────────────────────────────────────────────┐
+                     │                           User Personas                                │
+                     └───────────────────┬────────────────────────────────────────────────────┘
                                          │
-        ┌──────────────────┬─────────────┴────────────┬──────────────────┐
-        │                  │                          │                  │
-        ▼                  ▼                          ▼                  ▼
-┌───────────────┐  ┌───────────────┐          ┌───────────────┐  ┌───────────────┐
-│ Client (Guest)│  │  Owner (Host) │          │Employee (Ops) │  │Admin (Super)  │
-│               │  │               │          │               │  │               │
-│ • Families    │  │ • Farm Owners │          │ • Onboarding  │  │ • Platform    │
-│ • Party Hosts │  │ • Villa Hosts │          │ • KYC Triage  │  │   Executives  │
-│ • Corporate   │  │ • Estate Mgrs │          │ • Claims Adj. │  │ • Finance Dir.│
-└───────────────┘  └───────────────┘          └───────────────┘  └───────────────┘
+        ┌──────────────────┬─────────────┼────────────┬──────────────────┬────────────────────┐
+        │                  │             │            │                  │                    │
+        ▼                  ▼             ▼            ▼                  ▼                    ▼
+┌───────────────┐  ┌───────────────┐           ┌───────────────┐  ┌───────────────┐    ┌──────────────────┐
+│ Client (Guest)│  │  Owner (Host) │           │Employee (Ops) │  │Admin (Super)  │    │Event Mgr/Decorator│
+│               │  │               │           │               │  │               │    │                  │
+│ • Families    │  │ • Farm Owners │           │ • Onboarding  │  │ • Platform    │    │ • Theme Stylists │
+│ • Party Hosts │  │ • Villa Hosts │           │ • KYC Triage  │  │   Executives  │    │ • Floral/Sound   │
+│ • Corporate   │  │ • Estate Mgrs │           │ • Claims Adj. │  │ • Finance Dir.│    │ • On-Ground Crew │
+└───────────────┘  └───────────────┘           └───────────────┘  └───────────────┘    └──────────────────┘
 ```
 
 ### 2.1 Persona 1: The Guest / Client ("Urban Escape Seeker")
 - **Profile:** Working professionals, families, party organizers, or corporate managers planning staycations, birthdays, pool parties, or offsites within 2–4 hours of metro hubs.
-- **Key Needs:** Transparent pricing, flexible daytime/evening slots without paying full overnight rates, instant availability confirmation, crystal-clear cancellation policies, and high-resolution photo/video tours.
+- **Key Needs:** Transparent pricing, flexible daytime/evening slots without paying full overnight rates, instant availability confirmation, crystal-clear cancellation policies, high-resolution photo/video tours, and the option to add curated decoration packages directly at checkout.
 - **Pain Points:** Hidden cleaning/security fees, unvetted rustic properties lacking basic amenities, non-transparent cancellation penalties, and fears of identity misuse when handing over physical ID copies to roadside caretakers.
 
 ### 2.2 Persona 2: The Property Host / Owner ("Farm Partner")
@@ -53,8 +54,13 @@
 
 ### 2.4 Persona 4: Platform Administrator ("Executive Superuser")
 - **Profile:** Founders, business heads, and finance directors.
-- **Key Needs:** Real-time visibility into Gross Merchandise Value (GMV), net platform revenues, pending host liabilities, property occupancy indices, granular user role management, system white-label branding, and native ClosedXML Excel/CSV exports for accounting.
+- **Key Needs:** Real-time visibility into Gross Merchandise Value (GMV) split between Property stays and Event setups, net platform revenues, pending host liabilities, property occupancy indices, granular user role management, system white-label branding, and native ClosedXML Excel/CSV exports for accounting.
 - **Pain Points:** Data silos, slow reporting queries, manual financial reconciliation, and vulnerabilities to application-layer attacks (SSRF, malicious file uploads, injection).
+
+### 2.5 Persona 5: Event Manager / Decorator ("Celebration Architect")
+- **Profile:** Professional decorators, event planners, floral/lighting stylists, and celebration management agencies.
+- **Key Needs:** Dedicated portal to publish and price themed décor packages (Birthday, Wedding, Anniversary, Corporate, Custom), track upcoming event setups tied to farm bookings, coordinate staging with hosts, advance setup lifecycle stages, and submit photo/video completion proofs before guest arrival.
+- **Pain Points:** Last-minute booking confusion, uncoordinated property access, lack of digital setup checklists, and payment friction.
 
 ---
 
@@ -77,80 +83,62 @@
 ### Module 2: Flexible Multi-Duration Booking Engine
 BookMyFun recognizes that farmhouses and villas are frequently rented for day picnics, evening celebrations, or hourly photo shoots rather than conventional 24-hour hotel stays:
 1. **Full-Day Overnight Stay (`FullDay`):** Traditional check-in (11:00 AM) to check-out (10:00 AM next morning).
-2. **Half-Day Morning Slot (`MorningSlot`):** 09:00 AM to 05:00 PM (ideal for daytime pool parties, family barbecues, and school reunions).
-3. **Half-Day Evening Slot (`EveningSlot`):** 06:00 PM to 08:00 AM (ideal for evening cocktail parties, bonfires, and night stargazing).
-4. **Hourly Micro-Stays (`Hourly`):** 4h, 6h, or 8h reservations with dynamically calculated pro-rata pricing.
+2. **Half-Day Morning Slot (`MorningSlot`):** 08:00 AM to 02:00 PM (ideal for daytime pool parties, family barbecues, and school reunions).
+3. **Half-Day Evening Slot (`EveningSlot`):** 03:00 PM to 09:00 PM (ideal for sunset celebrations, cocktail gatherings, and evening dinners).
+4. **Night Stay Slot (`NightStay`):** 09:00 PM to 07:00 AM.
+5. **Hourly Micro-Stays (`Hourly`):** 2h, 4h, 6h, or 8h reservations with dynamically calculated pro-rata pricing.
 - **Automated Conflict Prevention:** Prevents double bookings across overlapping full-day and half-day slots using atomic SQL check constraints.
 
 ### Module 3: Checkout, Dynamic Pricing & PCI-DSS Payment Gateway
-- **Checkout Summary:**
-  - Base rental amount calculated according to slot duration and seasonal rates.
+- **Checkout Summary & Real-Time Calculation:**
+  - Base rental amount calculated according to duration type and date range.
+  - Optional Event Décor & Celebration package selection with real-time total updates.
   - Refundable Security Deposit hold clearly demarcated from base rental.
   - GST / Platform taxes (if applicable).
 - **PCI-DSS Compliant Payment Flow:**
-  - Direct integration with Razorpay Payment Gateway.
-  - No raw credit card or CVV details are ever handled, logged, or stored on application servers.
-  - Client initiates payment order (`/Booking/CreateOrder`); browser displays Razorpay Checkout modal; payment completion is verified server-side with HMAC-SHA256 signature verification (`/Booking/VerifyPayment`).
-  - Automated SMS and WhatsApp confirmation dispatch upon successful payment receipt.
+  - Hosted Razorpay checkout order generation.
+  - Signature verification (`HMAC-SHA256`) on callback.
+  - Immediate booking confirmation with transactional WhatsApp and Email receipts.
 
-### Module 4: Cancellation Policy Engine & Transparent 3-Tier Refunds
-- **Property-Level Parameters:**
-  - `FreeCancellationWindowHours`: Deadline prior to check-in (e.g., 48 hours) where client receives full refund minus 2% gateway processing fee.
-  - `CancellationCutoffHours`: Strict cutoff deadline (e.g., 24 hours) after which cancellations are completely non-refundable ($0$ refund).
-  - `CancellationFeeType`: `'percentage'` (e.g., 10%) or `'fixed'` (e.g., ₹1,000) applied between the free window and the cutoff deadline.
-  - `CancellationFeeValue`: Decimal value of the fee.
-- **Immutable Policy Snapshotting:** To prevent retrospective policy changes from affecting active bookings, every reservation snapshots policy parameters into `Bookings` at creation:
-  - `FreeCancellationWindowHoursSnapshot`
-  - `CancellationCutoffHoursSnapshot`
-  - `CancellationFeeTypeSnapshot`
-  - `CancellationFeeValueSnapshot`
-- **Transparent Refund Engine:**
-  - *Tier A (Free Window):* $\text{Refund} = \text{TotalPaid} - \text{GatewayFee (2\%)}$
-  - *Tier B (Cutoff Window):* $\text{Refund} = \text{TotalPaid} - \text{CancellationFee} - \text{GatewayFee}$
-  - *Tier C (Non-Refundable):* Inside cutoff deadline or post-checkin: $\text{Refund} = ₹0$
-- **Client Quote Modal:** Real-time modal on `/Client/Index` displays the exact calculation before client confirms cancellation.
-- **Staff Refund Operations Queue:** Admin and Employee dashboard queue (`/Admin/RefundsQueue`, `/Employee/RefundsQueue`) with capabilities to inspect automated quotes, verify gateway refund IDs, and execute staff overrides.
+### Module 4: Policy-Enforced Cancellation & Automated Refund Engine
+- **Configurable Policy Windows (Configured by Host; editable by Staff):**
+  - `FreeCancellationWindowHours`: e.g. 48 hours prior to check-in.
+  - `CancellationCutoffHours`: Strict deadline after which cancellations are non-refundable (e.g. 24 hours prior to check-in).
+  - `CancellationFeeType`: 'percentage' | 'fixed'.
+  - `CancellationFeeValue`: Numerical penalty applied outside the free window.
+- **Automated Refund Rules:**
+  - Prior to free cancellation window: 100% refund minus 2% payment gateway processing fee.
+  - Between free window and cutoff: Total amount minus cancellation penalty and 2% gateway processing fee.
+  - After cutoff or post-check-in: 0% refund (Non-refundable).
+- **Client Transparency Modal:** Real-time breakdown showing exact gross paid, gateway fee, penalty deduction, and net refund prior to cancellation confirmation.
+- **Staff Refund Operations Queue:** Admin and Employee override console to inspect dispute reasons and manually issue gateway refunds.
 
-### Module 5: Host Monetization & Subscription Tiers
-- **Subscription Plans:**
-  - **Starter / Free:** Basic listing, organic search placement, standard 10% platform commission, up to 1 active listing.
-  - **Featured / Spotlight:** Top search carousel, "Featured Farm" badge, optimized 8% platform commission, up to 3 active listings.
-  - **Managed Concierge Pack:** Priority ranking, professional photography/drone visit by field staff, 7% commission, up to 10 active listings.
-- **Owner Dashboard Experience:**
-  - Active plan name, expiration date, active listings count vs. quota limit.
-  - Direct upgrade portal integrated with payment gateway.
-- **Admin Tier Management:** Ability to manually override host subscription tiers and assign custom negotiated commission rates.
+### Module 5: Curated Partner Lead Pipeline & Tokenized Host Onboarding
+- **Elimination of Self-Registration:** Public registration is restricted to clients (`Client` role).
+- **Partner Intake Form (`/Home/Partner`):** Full Name, Phone, Email, Property Name, Location, Acreage, and Notes.
+- **Staff Qualification Console (`/Admin/OnboardingLeads`, `/Employee/OnboardingLeads`):**
+  - Leads status: `New`, `Contacted`, `Approved`, `Rejected`.
+  - One-click "Approve & Invite" generates an encrypted, 48-hour time-limited `HMAC-SHA256` token sent via email.
+- **Host Activation Form (`/Account/ActivateHost`):** Prospective hosts click the secure token link to set their password, confirm farm details, and immediately enter the Owner Dashboard.
 
-### Module 6: Partner Lead Acquisition & Encrypted Host Onboarding
-- **Public Self-Registration Elimination:** Prevent unauthorized or unvetted hosts from creating dummy listings. The public register page is strictly for Clients.
-- **Public Partner Intake Portal (`/Home/Partner`):**
-  - Fields: Full Name, Phone, Email, Property Name, Location, Acreage/Property Type, Message.
-- **Staff Onboarding Pipeline (`/Admin/PartnerLeads`, `/Employee/PartnerLeads`):**
-  - Leads categorized by `New`, `Contacted`, `Approved`, `Rejected`.
-  - **"Approve & Invite Owner" Action:** Automatically creates an inactive `User` account with role `Owner` and issues an encrypted, time-limited (48-hour) activation token.
-  - Automated email dispatch containing activation link (`/Account/ActivateHost?token=...`).
-  - Host activates account, sets password, and gains immediate access to the Host Dashboard.
+### Module 6: Dual-Mode Media Manager (Direct Upload + External URLs)
+- **Photos:** Minimum 5 photos enforced per listing.
+  - Option A: Drag-and-drop file upload (JPEG, PNG, WEBP up to 10MB each) with server magic-byte validation.
+  - Option B: External direct URL embedding (Cloudinary, S3, CDN links).
+- **Videos:**
+  - Option A: Direct MP4, MOV, WEBM upload up to 100MB.
+  - Option B: External video embedding (YouTube, Vimeo, Google Drive view URLs).
+- **Security Protections:** Server-side magic-byte inspection prevents executable masquerading; SSRF DNS verification blocks loopback (`127.0.0.1`), private RFC 1918 ranges, and cloud metadata endpoints (`169.254.169.254`).
 
-### Module 7: Dual-Mode Media Manager (Photos & Videos)
-- **Dual Ingestion Channels:**
-  1. **Direct Binary File Upload:** Drag-and-drop or file picker uploading to `/api/media/upload-file`. Validated via server-side magic bytes.
-  2. **External URL / Embed:** Direct CDN links or streaming embeds (YouTube, Vimeo) validated against SSRF via `/api/media/verify-url`.
-- **Photo Constraints:**
-  - Minimum 5 photos required per listing before the listing can be published.
-  - Real-time client-side photo counter badge changing from red to green when $\ge 5$ photos are provided.
-  - Accepted formats: JPG, PNG, WEBP ($\le 10\text{MB}$ each).
-- **Video Tour Toggle:**
-  - Switch between "Upload Video File" (MP4, MOV, WEBM $\le 100\text{MB}$) and "Paste Video Link (YouTube/Vimeo)".
-- **Media Gallery Grid:** Real-time thumbnail preview cards with primary cover photo selection and deletion controls.
+### Module 7: Categorized Amenities Taxonomy
+- Curated amenities database with Bootstrap Icons and categories (Comfort, Leisure, Outdoor, Essentials, Safety).
+- Multi-select checkbox interface with count badges and filter facets.
 
-### Module 8: Amenities Taxonomy & Geolocation
-- **Amenities Master Catalog (`AmenitiesMaster`):** Pre-seeded with 12 foundational amenities categorized by Water & Pool, Tech, Outdoor, and Service:
-  - Private Swimming Pool, Gazebo, Bonfire Pit, Barbecue Grill, Power Backup, Lawn Area, Caretaker, Pet-friendly, Sound System, High-Speed Wi-Fi, Air Conditioning, Free Parking.
-- **Interactive Geolocation:**
-  - Automatic browser GPS coordinate detection (`navigator.geolocation`).
-  - Google Places formatted address input.
-  - Exact `Latitude` and `Longitude` stored for every property.
-  - Client listing displays interactive "Open in Google Maps" link with driving directions.
+### Module 8: Google Maps & Precise Geolocation Integration
+- Automatic browser GPS coordinate detection (`navigator.geolocation`).
+- Google Places formatted address input.
+- Exact `Latitude` and `Longitude` stored for every property.
+- Client listing displays interactive "Open in Google Maps" link with driving directions.
 
 ### Module 9: Guest ID Verification & KYC Privacy Vault
 - **Compliance Rationale:** Mandatory compliance with local hospitality regulations requiring guest identification before occupancy.
@@ -175,7 +163,9 @@ BookMyFun recognizes that farmhouses and villas are frequently rented for day pi
 
 ### Module 11: Dynamic Analytics & Reporting Engine
 - **Real-Time KPI Metrics:**
-  - **Gross Merchandise Value (GMV):** Total confirmed booking volume.
+  - **Property GMV:** Gross merchandise volume from property stay reservations.
+  - **Event GMV:** Gross merchandise volume from celebration/décor package add-ons.
+  - **Total GMV:** Combined platform gross transacted volume.
   - **Net Platform Commission:** Actual revenue earned by the platform.
   - **Pending Host Payouts:** Gross amounts minus platform cut payable to hosts.
   - **Active Properties:** Live published inventory.
@@ -198,6 +188,27 @@ BookMyFun recognizes that farmhouses and villas are frequently rented for day pi
 - CSS variables for background, text, borders, and cards dynamically adjusted.
 - White-label configuration (`SiteSettingsService`) for Site Name, Tagline, Phone Helpline, WhatsApp number, and Logo URL.
 
+### Module 15: Event Décor Packages & On-Ground Setup Fulfillment System (5th Dashboard)
+- **Décor Packages Management (`/EventManager/Packages`, `/EventManager/CreatePackage`):**
+  - Category classification: `Birthday`, `Anniversary`, `Wedding`, `Corporate`, `Custom`.
+  - Base pricing, rich description, and bulleted included items.
+  - Dual media showcase (cover photo upload or high-res showcase URL).
+  - Status toggle (`Active` / `Inactive`).
+- **Client Add-on Integration at Checkout:**
+  - Guests toggle "Add Event Décor & Celebration Package" switch.
+  - Live selection dynamically updates the estimated total payable.
+  - Guests specify custom theme notes (e.g. "Neon lights, pink & gold theme, fairy lights on gazebo").
+- **Assigned Setups & Milestone Lifecycle (`/EventManager/AssignedSetups`):**
+  - Decorators access a tailored dashboard filtering reservations assigned to their crew.
+  - Five-stage milestone lifecycle:
+    1. `Pending`: Booking created; awaiting crew assignment.
+    2. `Assigned`: Crew assigned to venue.
+    3. `InProgress`: Decorators actively staging venue on event date.
+    4. `Completed`: Setup finished on-ground; photographic proof uploaded.
+    5. `Inspected`: Platform staff or host verified and cleared setup.
+- **Proof-of-Setup Verification Modal:**
+  - Decorators upload or link photo/video proofs of the completed setup before the guest checks in.
+
 ---
 
 ## 4. Non-Functional Requirements (NFRs)
@@ -215,4 +226,5 @@ BookMyFun recognizes that farmhouses and villas are frequently rented for day pi
 
 ### 4.3 High Availability & Data Integrity
 - **Idempotency:** Payment webhooks and cancellation refund calls enforce idempotency keys to eliminate double-charging or duplicate payouts.
-- **Atomic Ledgers:** Database mutations across bookings, payments, and refunds execute within atomic database transactions.
+- **Atomic Ledgers:** Database mutations across bookings, payments, refunds, and décor setups execute within atomic database transactions.
+- **Clean Code Standard:** Pristine, modular code with zero commented-out code snippets, zero redundant variables, and strict DRY architecture.

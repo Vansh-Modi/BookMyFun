@@ -1,14 +1,20 @@
 # BookMyFun — Engineering Standards, Security Rules & Compliance Guidelines
 
-## 1. Core Engineering Principles
+## 1. Core Engineering & Clean Code Principles
 
 Every engineer, autonomous agent, and contributor working on BookMyFun must strictly abide by the following fundamental engineering rules:
 
 1. **Report Ground Truth (Invariant 1):** Never claim a bug is resolved, a feature implemented, or an API working without verifiable execution output observed in the active session (e.g. `dotnet build --nologo` exiting with code 0).
 2. **Ground Before Mutating:** Always inspect target files, caller signatures, and related dependencies before applying edits or refactors.
-3. **Zero Plaintext Secrets:** Under no circumstance may database passwords, SMTP credentials, or payment gateway API secrets be hardcoded in source code or committed to git. All credentials must reside in `appsettings.json`, environment variables, or encrypted rows in `ApiConfigurations`.
-4. **Strictly Parameterized Data Access:** String concatenation in raw SQL queries is categorically forbidden. Every SQL statement must be executed through `DBHelper.cs` or explicit `SqlCommand.Parameters.AddWithValue` with explicit type matching to eliminate SQL Injection (OWASP A03).
-5. **No Blind Retries:** If a compiler build or unit test fails, determine the root cause before attempting an alternate implementation.
+3. **Clean Code & Zero Dead Code Mandate:**
+   - **No Commented-Out Code:** Absolutely no blocks of commented-out logic, historical code relics, or debugging print statements committed to the repository.
+   - **No Dead / Redundant Variables:** All variables, parameters, and private fields must serve an active, verified purpose.
+   - **No Unused Namespaces:** Keep `using` directives clean and relevant.
+   - **Strict DRY (Don't Repeat Yourself):** Reusable business calculations (pricing, commission, refunds) belong in dedicated domain services, not duplicated across controller actions.
+   - **Zero Compiler Warnings:** All project code must compile cleanly without nullable reference warnings (`CS8601`, `CS8618`, etc.) or obsolete symbol notices.
+4. **Zero Plaintext Secrets:** Under no circumstance may database passwords, SMTP credentials, or payment gateway API secrets be hardcoded in source code or committed to git. All credentials must reside in `appsettings.json`, environment variables, or encrypted rows in `ApiConfigurations`.
+5. **Strictly Parameterized Data Access:** String concatenation in raw SQL queries is categorically forbidden. Every SQL statement must be executed through `DBHelper.cs` or explicit `SqlCommand.Parameters.AddWithValue` with explicit type matching to eliminate SQL Injection (OWASP A03).
+6. **No Blind Retries:** If a compiler build or unit test fails, determine the root cause before attempting an alternate implementation.
 
 ---
 
@@ -18,7 +24,7 @@ Every engineer, autonomous agent, and contributor working on BookMyFun must stri
 
 | OWASP Vulnerability | Platform Risk | Enforced Architectural Defense |
 |:---|:---|:---|
-| **A01: Broken Access Control** | IDOR on properties, bookings, or guest IDs | Multi-tenant scoping in all queries (`WHERE OwnerID = @CurrentUserID`). Strict separation of guest government IDs from property hosts. Expiring 15-minute HMAC tokens for staff review. |
+| **A01: Broken Access Control** | IDOR on properties, bookings, or guest IDs | Multi-tenant scoping in all queries (`WHERE OwnerID = @CurrentUserID` for hosts; `WHERE DecoratorAssignedID = @CurrentUserID` for decorators). Strict separation of guest government IDs from property hosts. Expiring 15-minute HMAC tokens for staff review. |
 | **A02: Cryptographic Failures** | Insecure password hashing or cleartext transmission | TLS 1.3 encryption in transit. PBKDF2/BCrypt salted hashing for user passwords. HMAC-SHA256 signature verification on Razorpay payment webhooks and 48-hour host activation tokens. |
 | **A03: Injection** | SQL injection in raw ADO.NET queries; XSS in descriptions | 100% parameterized queries via `DBHelper.cs`. Automatic HTML encoding in Razor views. Backend string sanitization on user descriptions and reviews. |
 | **A04: Insecure Design** | Double booking race conditions; unlimited attempts | In-memory sliding-window IP rate limiting (100 req/min). Database unique constraints on `(PropertyID, Dates)`. Idempotency keys on booking and refund transactions. |
@@ -54,6 +60,7 @@ Client-supplied MIME types and file extensions are easily spoofed. The `MediaSto
 | **MOV Video** | `.mov` | 100 MB | `00 00 00 14 66 74 79 70 71 74` (`ftypqt`) |
 | **Government ID (PDF)** | `.pdf` | 5 MB | `25 50 44 46` (`%PDF`) |
 | **Government ID (Image)**| `.jpg`, `.png` | 5 MB | Matches JPEG or PNG signature above |
+| **Setup Proofs** | `.jpg`, `.png`, `.mp4` | 25 MB | Validated through image or video signature |
 
 **Executable binaries (e.g. `4D 5A` for PE/Windows executable, ELF, shell scripts) are rejected immediately.**
 
@@ -64,7 +71,7 @@ Client-supplied MIME types and file extensions are easily spoofed. The `MediaSto
    ```
 2. **Path Traversal Defense:** Filenames are stripped of `../`, `..\`, and illegal characters.
 3. **Storage Tier Isolation:**
-   - Public listing photos and videos: Saved to `/wwwroot/uploads/media/`.
+   - Public listing photos, videos, and décor proofs: Saved to `/wwwroot/uploads/media/`.
    - Restricted Government IDs: Saved to `/App_Data/PrivateDocuments/` (Outside web root; served only via authenticated controller with expiring token).
 
 ---

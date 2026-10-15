@@ -1161,6 +1161,9 @@ namespace BookMyFun.Controllers
                 filteredBookings = filteredBookings.Where(b => string.Equals(b.Status, status, StringComparison.OrdinalIgnoreCase)).ToList();
 
             decimal gmv = filteredBookings.Where(b => b.Status == "Confirmed").Sum(b => b.TotalAmount);
+            decimal eventGmv = filteredBookings.Where(b => b.Status == "Confirmed" && b.IsEventBooking).Sum(b => b.EventPackagePriceSnapshot);
+            decimal propertyGmv = gmv - eventGmv;
+            int totalEventBookings = filteredBookings.Count(b => b.IsEventBooking);
             decimal netPlatformCommission = filteredBookings.Where(b => b.Status == "Confirmed").Sum(b => b.PlatformCommissionAmount > 0 ? b.PlatformCommissionAmount : b.TotalAmount * 0.10m);
             decimal pendingPayouts = filteredBookings.Where(b => b.Status == "Confirmed").Sum(b => b.OwnerPayoutAmount > 0 ? b.OwnerPayoutAmount : b.TotalAmount * 0.90m);
             int activeProps = allProperties.Count(p => p.ListingStatus == "Active");
@@ -1169,6 +1172,9 @@ namespace BookMyFun.Controllers
             var vm = new AdminAnalyticsViewModel
             {
                 GMV = gmv,
+                PropertyGMV = propertyGmv,
+                EventGMV = eventGmv,
+                TotalEventBookings = totalEventBookings,
                 NetPlatformCommission = netPlatformCommission,
                 PendingPayouts = pendingPayouts,
                 ActiveProperties = activeProps,

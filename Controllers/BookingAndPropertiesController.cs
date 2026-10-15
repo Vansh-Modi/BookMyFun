@@ -49,6 +49,7 @@ namespace BookMyFun.Controllers
     {
         private readonly IPropertyRepository _propRepo;
         private readonly IBookingRepository _bookingRepo;
+        private readonly IEventPackageRepository _eventPackageRepo;
         private readonly IBookingPricingService _pricingService;
         private readonly ICommissionService _commissionService;
         private readonly IRefundEngineService _refundEngine;
@@ -60,6 +61,7 @@ namespace BookMyFun.Controllers
         public BookingController(
             IPropertyRepository propRepo,
             IBookingRepository bookingRepo,
+            IEventPackageRepository eventPackageRepo,
             IBookingPricingService pricingService,
             ICommissionService commissionService,
             IRefundEngineService refundEngine,
@@ -70,6 +72,7 @@ namespace BookMyFun.Controllers
         {
             _propRepo = propRepo;
             _bookingRepo = bookingRepo;
+            _eventPackageRepo = eventPackageRepo;
             _pricingService = pricingService;
             _commissionService = commissionService;
             _refundEngine = refundEngine;
@@ -101,7 +104,8 @@ namespace BookMyFun.Controllers
                 CheckInDate = DateTime.Today,
                 CheckOutDate = bookingType == "FullDay" ? DateTime.Today.AddDays(daysOrHours) : DateTime.Today,
                 CalculatedAmount = calculatedAmount,
-                AvailableOccasions = await _propRepo.GetOccasionsAsync()
+                AvailableOccasions = await _propRepo.GetOccasionsAsync(),
+                AvailableEventPackages = await _eventPackageRepo.GetActivePackagesAsync()
             };
 
             return View(vm);
@@ -118,12 +122,25 @@ namespace BookMyFun.Controllers
             int count = model.BookingType == "Hourly" ? (model.HourlyDuration ?? 1) : Math.Max(1, (model.CheckOutDate - model.CheckInDate).Days);
             decimal totalAmount = _pricingService.CalculatePrice(property.PricePerNight, model.BookingType, model.SlotType, count);
 
+            EventPackage? selectedPackage = null;
+            decimal eventPackagePrice = 0m;
+            if (model.IsEventBooking && model.EventPackageID.HasValue)
+            {
+                selectedPackage = await _eventPackageRepo.GetPackageByIdAsync(model.EventPackageID.Value);
+                if (selectedPackage != null && selectedPackage.IsActive)
+                {
+                    eventPackagePrice = selectedPackage.BasePrice;
+                    totalAmount += eventPackagePrice;
+                }
+            }
+
             // Availability verification
             bool isAvailable = await _bookingRepo.IsSlotAvailableAsync(model.PropertyID, model.CheckInDate, model.CheckOutDate, model.BookingType, model.SlotType);
             if (!isAvailable)
             {
                 ModelState.AddModelError("", "The selected dates/slots are already booked. Please pick another timeframe.");
                 model.AvailableOccasions = await _propRepo.GetOccasionsAsync();
+                model.AvailableEventPackages = await _eventPackageRepo.GetActivePackagesAsync();
                 return View("Checkout", model);
             }
 
@@ -155,6 +172,12 @@ namespace BookMyFun.Controllers
                 OwnerPayoutAmount = ownerPayout,
                 SecurityDepositAmount = property.SecurityDepositAmount,
                 SecurityDepositStatus = property.SecurityDepositAmount > 0 ? "Held" : "Released",
+                IsEventBooking = selectedPackage != null,
+                EventPackageID = selectedPackage?.PackageID,
+                EventPackagePriceSnapshot = eventPackagePrice,
+                CustomEventNotes = selectedPackage != null ? model.CustomEventNotes : null,
+                EventDate = selectedPackage != null ? model.CheckInDate : null,
+                SetupStatus = selectedPackage != null ? "Pending" : null,
                 IdempotencyKey = Guid.NewGuid().ToString("N")
             };
 

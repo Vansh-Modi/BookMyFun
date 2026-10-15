@@ -114,6 +114,38 @@
                         </select>
                     </div>
 
+                    <!-- Event Décor & Celebration Add-on -->
+                    <div class="card border-info mb-4 bg-light">
+                        <div class="card-body">
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" asp-for="IsEventBooking" id="toggleEventBooking" onchange="toggleEventSection()">
+                                <label class="form-check-label fw-bold text-dark" for="toggleEventBooking">
+                                    <i class="bi bi-balloon-heart text-danger"></i> Add Event Décor & Celebration Package
+                                </label>
+                            </div>
+                            <p class="text-muted small mb-3">Hosting a birthday, anniversary, party, or wedding? Add a managed decoration package curated by professional decorators.</p>
+
+                            <div id="eventPackageContainer" style="display: @(Model.IsEventBooking ? "block" : "none");">
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold">Select Celebration Package</label>
+                                    <select asp-for="EventPackageID" class="form-select" id="eventPackageSelect" onchange="updatePricing()">
+                                        <option value="" data-price="0">-- Select Décor Package --</option>
+                                        @foreach (var pkg in Model.AvailableEventPackages)
+                                        {
+                                            <option value="@pkg.PackageID" data-price="@pkg.BasePrice">
+                                                @pkg.Name (@pkg.Category) — ₹@pkg.BasePrice.ToString("N0")
+                                            </option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label fw-semibold">Special Instructions / Theme Requests for Decorator</label>
+                                    <textarea asp-for="CustomEventNotes" class="form-control" rows="2" placeholder="e.g., Pink and gold theme, neon happy birthday sign, extra fairy lights on gazebo"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Live Total Calculation Card -->
                     <div class="card bg-light border-warning p-3 mb-4">
                         <div class="d-flex justify-content-between align-items-center">
@@ -138,6 +170,16 @@
 
 @section Scripts {
 <script>
+    function toggleEventSection() {
+        const isEvent = document.getElementById('toggleEventBooking').checked;
+        const container = document.getElementById('eventPackageContainer');
+        container.style.display = isEvent ? 'block' : 'none';
+        if (!isEvent) {
+            document.getElementById('eventPackageSelect').value = '';
+        }
+        updatePricing();
+    }
+
     function updatePricing() {
         const type = document.querySelector('input[name="BookingType"]:checked').value;
         const baseRate = parseFloat(document.getElementById('basePrice').value) || 0;
@@ -164,6 +206,16 @@
             hourlyContainer.style.display = 'block';
             const hours = parseInt(document.getElementById('hourlySelect').value) || 4;
             total = Math.round((baseRate / 10) * hours);
+        }
+
+        const isEvent = document.getElementById('toggleEventBooking')?.checked;
+        if (isEvent) {
+            const pkgSelect = document.getElementById('eventPackageSelect');
+            if (pkgSelect && pkgSelect.selectedIndex > 0) {
+                const selectedOption = pkgSelect.options[pkgSelect.selectedIndex];
+                const pkgPrice = parseFloat(selectedOption.getAttribute('data-price')) || 0;
+                total += pkgPrice;
+            }
         }
 
         document.getElementById('totalAmountText').innerText = '₹' + total.toLocaleString('en-IN', { minimumFractionDigits: 2 });

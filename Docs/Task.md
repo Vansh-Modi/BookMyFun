@@ -1,29 +1,30 @@
 # BookMyFun — Master Platform Implementation & Verification Checklist
 
 ## Phase 0: Master System Documentation & Architectural Specification
-- [x] Create comprehensive [`Docs/PRD.md`](file:///d:/Projects/BookMyFun/Docs/PRD.md) and mirror to [`PRD.md`](file:///d:/Projects/BookMyFun/PRD.md) covering all 14 platform modules and 4 user personas.
-- [x] Create comprehensive [`Docs/Architecture.md`](file:///d:/Projects/BookMyFun/Docs/Architecture.md) and mirror to [`Architecture.md`](file:///d:/Projects/BookMyFun/Architecture.md) with system topology, RBAC matrix, service layer breakdown, and 5 Mermaid sequence diagrams.
-- [x] Create comprehensive [`Docs/Database.md`](file:///d:/Projects/BookMyFun/Docs/Database.md) and mirror to [`Database.md`](file:///d:/Projects/BookMyFun/Database.md) with ER diagram, complete data dictionary for all 26 tables, and index strategy.
-- [x] Create comprehensive [`Docs/Design.md`](file:///d:/Projects/BookMyFun/Docs/Design.md) and mirror to [`Design.md`](file:///d:/Projects/BookMyFun/Design.md) with design system tokens, anti-FOUC hydration script, and 5 interactive component wireframes.
-- [x] Create comprehensive [`Docs/API.md`](file:///d:/Projects/BookMyFun/Docs/API.md) and mirror to [`API.md`](file:///d:/Projects/BookMyFun/API.md) with full catalog across all 8 controllers, HTTP verbs, payload parameters, and status responses.
-- [x] Create comprehensive [`Docs/Rules.md`](file:///d:/Projects/BookMyFun/Docs/Rules.md) and mirror to [`Rules.md`](file:///d:/Projects/BookMyFun/Rules.md) with OWASP Top 10 mitigation matrix, PCI-DSS rules, magic-byte tables, SSRF defense, and custom exception hierarchy.
+- [x] Create comprehensive [`Docs/PRD.md`](file:///d:/Projects/BookMyFun/Docs/PRD.md) and mirror to [`PRD.md`](file:///d:/Projects/BookMyFun/PRD.md) covering all 15 platform modules and 5 user personas.
+- [x] Create comprehensive [`Docs/Architecture.md`](file:///d:/Projects/BookMyFun/Docs/Architecture.md) and mirror to [`Architecture.md`](file:///d:/Projects/BookMyFun/Architecture.md) with system topology, 5-role RBAC matrix, service layer breakdown, and 6 Mermaid sequence diagrams.
+- [x] Create comprehensive [`Docs/Database.md`](file:///d:/Projects/BookMyFun/Docs/Database.md) and mirror to [`Database.md`](file:///d:/Projects/BookMyFun/Database.md) with ER diagram, complete data dictionary for all 27 tables, and index strategy.
+- [x] Create comprehensive [`Docs/Design.md`](file:///d:/Projects/BookMyFun/Docs/Design.md) and mirror to [`Design.md`](file:///d:/Projects/BookMyFun/Design.md) with design system tokens, anti-FOUC hydration script, and 7 interactive component wireframes.
+- [x] Create comprehensive [`Docs/API.md`](file:///d:/Projects/BookMyFun/Docs/API.md) and mirror to [`API.md`](file:///d:/Projects/BookMyFun/API.md) with full catalog across all 9 controllers, HTTP verbs, payload parameters, and status responses.
+- [x] Create comprehensive [`Docs/Rules.md`](file:///d:/Projects/BookMyFun/Docs/Rules.md) and mirror to [`Rules.md`](file:///d:/Projects/BookMyFun/Rules.md) with clean code mandates, OWASP Top 10 mitigation matrix, PCI-DSS rules, magic-byte tables, SSRF defense, and custom exception hierarchy.
 - [x] Create comprehensive [`Docs/Task.md`](file:///d:/Projects/BookMyFun/Docs/Task.md) and mirror to [`Task.md`](file:///d:/Projects/BookMyFun/Task.md).
 - [x] Create comprehensive [`Docs/Memory.md`](file:///d:/Projects/BookMyFun/Docs/Memory.md) and mirror to [`Memory.md`](file:///d:/Projects/BookMyFun/Memory.md).
-- [x] Create comprehensive [`Docs/README.md`](file:///d:/Projects/BookMyFun/Docs/README.md) and mirror to [`README.md`](file:///d:/Projects/BookMyFun/README.md).
 
 ---
 
 ## Phase 1: Database Persistence Layer & Schema Evolution
 - [x] Implement [`Data/DBHelper.cs`](file:///d:/Projects/BookMyFun/Data/DBHelper.cs) with raw parameterized ADO.NET query execution and connection pooling.
-- [x] Implement [`Data/DatabaseInitializer.cs`](file:///d:/Projects/BookMyFun/Data/DatabaseInitializer.cs) for idempotent startup migrations covering all 26 tables:
+- [x] Implement [`Data/DatabaseInitializer.cs`](file:///d:/Projects/BookMyFun/Data/DatabaseInitializer.cs) for idempotent startup migrations covering all 27 tables:
   - [x] Core Authentication: `Users`, `OtpVerifications`, `ClientIdVerifications`
   - [x] Property Catalog: `Properties`, `PropertyTypes`, `Occasions`, `AmenitiesMaster`, `PropertyAmenitiesMapping`, `PropertyOccasions`, `PropertyMedia`, `PropertyImages`
   - [x] Booking & Billing: `Bookings`, `Payments`, `BookingRefunds`, `DamageClaims`, `FinancialLedger`
   - [x] Host Subscriptions & Onboarding: `SubscriptionPlans`, `OwnerSubscriptions`, `PropertyListingPayments`, `PartnerLeads`, `OwnerRequests`
   - [x] Support, Auditing & Config: `CustomerReviews`, `ContactUs`, `AuditLogs`, `SiteSettings`, `ApiConfigurations`
+  - [x] Event Décor Module: `EventPackages`
 - [x] Add immutable policy and commission snapshots to `Bookings` table.
+- [x] Add event décor tracking columns to `Bookings`: `IsEventBooking`, `EventPackageID`, `CustomEventNotes`, `EventDate`, `DecoratorAssignedID`, `SetupStatus`, `SetupProofMediaUrls`, `EventPackagePriceSnapshot`.
 - [x] Seed initial 12 categorized amenities with Bootstrap Icons in `AmenitiesMaster`.
-- [x] Seed default platform parameters and test personas in `DatabaseSeeder.cs`.
+- [x] Seed 4 initial celebration packages and test personas (including `eventmanager@bookmyfun.com`) in `DatabaseSeeder.cs`.
 
 ---
 
@@ -73,7 +74,8 @@
 ## Phase 4: Repositories & Data Access Layer
 - [x] [`Repositories/UserRepository.cs`](file:///d:/Projects/BookMyFun/Repositories/UserRepository.cs) — Credential lookup, role management, custom commission rates.
 - [x] [`Repositories/PropertyRepository.cs`](file:///d:/Projects/BookMyFun/Repositories/PropertyRepository.cs) — Property CRUD, dual-mode media persistence, amenities mapping, tenant scoping.
-- [x] [`Repositories/BookingRepository.cs`](file:///d:/Projects/BookMyFun/Repositories/BookingRepository.cs) — Availability checks, reservation creation with snapshots, status updates.
+- [x] [`Repositories/BookingRepository.cs`](file:///d:/Projects/BookMyFun/Repositories/BookingRepository.cs) — Availability checks, reservation creation with snapshots, event joins, status updates.
+- [x] [`Repositories/EventPackageRepository.cs`](file:///d:/Projects/BookMyFun/Repositories/EventPackageRepository.cs) — Décor package CRUD, assigned setups retrieval, milestone progression, decorator lookups.
 - [x] [`Repositories/RefundRepository.cs`](file:///d:/Projects/BookMyFun/Repositories/RefundRepository.cs) — Refund ledger tracking and status management.
 - [x] [`Repositories/PartnerLeadRepository.cs`](file:///d:/Projects/BookMyFun/Repositories/PartnerLeadRepository.cs) — Lead pipeline persistence and activation token lookup.
 - [x] [`Repositories/DamageClaimRepository.cs`](file:///d:/Projects/BookMyFun/Repositories/DamageClaimRepository.cs) — Damage claim persistence and adjudication status.
@@ -87,14 +89,15 @@
 
 ---
 
-## Phase 5: Controllers & Endpoints
-- [x] [`Controllers/AccountController.cs`](file:///d:/Projects/BookMyFun/Controllers/AccountController.cs) — Login, client registration, host activation via token, logout.
+## Phase 5: Controllers & Endpoints (9 Controllers)
+- [x] [`Controllers/AccountController.cs`](file:///d:/Projects/BookMyFun/Controllers/AccountController.cs) — Login, client registration, host activation via token, role redirections (including `EventManager` -> `/EventManager/Dashboard`).
 - [x] [`Controllers/HomeController.cs`](file:///d:/Projects/BookMyFun/Controllers/HomeController.cs) — Public catalog, search, details, "List Your Farm" intake, contact.
-- [x] [`Controllers/BookingAndPropertiesController.cs`](file:///d:/Projects/BookMyFun/Controllers/BookingAndPropertiesController.cs) — Reservation checkout, payment verification, cancellation quote & confirmation.
+- [x] [`Controllers/BookingAndPropertiesController.cs`](file:///d:/Projects/BookMyFun/Controllers/BookingAndPropertiesController.cs) — Reservation checkout with event package add-on, dynamic pricing, payment verification, cancellation quote & confirmation.
+- [x] [`Controllers/EventManagerController.cs`](file:///d:/Projects/BookMyFun/Controllers/EventManagerController.cs) — Dashboard KPIs, package CRUD, active toggling, assigned setup tracking, and milestone advancement with photo/video proofs.
 - [x] [`Controllers/ClientController.cs`](file:///d:/Projects/BookMyFun/Controllers/ClientController.cs) — Guest dashboard, booking history, KYC ID upload, review submission.
 - [x] [`Controllers/OwnerController.cs`](file:///d:/Projects/BookMyFun/Controllers/OwnerController.cs) — Host dashboard, listing CRUD with dual media, calendar, 24h damage claims, subscriptions.
 - [x] [`Controllers/EmployeeController.cs`](file:///d:/Projects/BookMyFun/Controllers/EmployeeController.cs) — Onboarding leads pipeline, guest ID verification, refunds queue, damage claims adjudication.
-- [x] [`Controllers/AdminController.cs`](file:///d:/Projects/BookMyFun/Controllers/AdminController.cs) — Master analytics, ClosedXML Excel export, CSV export, financial ledger, user governance, audit trail.
+- [x] [`Controllers/AdminController.cs`](file:///d:/Projects/BookMyFun/Controllers/AdminController.cs) — Master analytics (Property GMV vs Event GMV), ClosedXML Excel export, CSV export, financial ledger, user governance, audit trail.
 - [x] [`Controllers/MediaController.cs`](file:///d:/Projects/BookMyFun/Controllers/MediaController.cs) — Multipart upload, SSRF URL verification, expiring private KYC retrieval.
 
 ---
@@ -105,19 +108,34 @@
 - [x] Implement public "Partner With Us / List Your Farm" lead intake in [`Views/Home/Partner.cshtml`](file:///d:/Projects/BookMyFun/Views/Home/Partner.cshtml).
 - [x] Implement Host Activation interface in [`Views/Account/ActivateHost.cshtml`](file:///d:/Projects/BookMyFun/Views/Account/ActivateHost.cshtml).
 - [x] Implement Dual-Mode Media Uploader UI in [`Views/Owner/AddProperty.cshtml`](file:///d:/Projects/BookMyFun/Views/Owner/AddProperty.cshtml) and [`Views/Owner/EditProperty.cshtml`](file:///d:/Projects/BookMyFun/Views/Owner/EditProperty.cshtml).
+- [x] Implement Event Décor selection switch and live pricing update in [`Views/Booking/Checkout.cshtml`](file:///d:/Projects/BookMyFun/Views/Booking/Checkout.cshtml).
 - [x] Implement Cancellation & Refund Transparency Modal in [`Views/Client/MyBookings.cshtml`](file:///d:/Projects/BookMyFun/Views/Client/MyBookings.cshtml).
 - [x] Implement 24-Hour Damage Claim submission portal in [`Views/Owner/FileDamageClaim.cshtml`](file:///d:/Projects/BookMyFun/Views/Owner/FileDamageClaim.cshtml).
+- [x] Implement Event Manager portal views:
+  - [x] [`Views/EventManager/Dashboard.cshtml`](file:///d:/Projects/BookMyFun/Views/EventManager/Dashboard.cshtml)
+  - [x] [`Views/EventManager/Packages.cshtml`](file:///d:/Projects/BookMyFun/Views/EventManager/Packages.cshtml)
+  - [x] [`Views/EventManager/CreatePackage.cshtml`](file:///d:/Projects/BookMyFun/Views/EventManager/CreatePackage.cshtml)
+  - [x] [`Views/EventManager/EditPackage.cshtml`](file:///d:/Projects/BookMyFun/Views/EventManager/EditPackage.cshtml)
+  - [x] [`Views/EventManager/AssignedSetups.cshtml`](file:///d:/Projects/BookMyFun/Views/EventManager/AssignedSetups.cshtml)
 - [x] Implement shared operational queues for Admin and Employee:
   - [x] [`Views/Admin/OnboardingLeads.cshtml`](file:///d:/Projects/BookMyFun/Views/Admin/OnboardingLeads.cshtml)
   - [x] [`Views/Admin/IdVerifications.cshtml`](file:///d:/Projects/BookMyFun/Views/Admin/IdVerifications.cshtml)
   - [x] [`Views/Admin/RefundsQueue.cshtml`](file:///d:/Projects/BookMyFun/Views/Admin/RefundsQueue.cshtml)
   - [x] [`Views/Admin/DamageClaimsQueue.cshtml`](file:///d:/Projects/BookMyFun/Views/Admin/DamageClaimsQueue.cshtml)
-- [x] Implement Dynamic Analytics Dashboard with ClosedXML Excel and CSV download triggers in [`Views/Admin/Analytics.cshtml`](file:///d:/Projects/BookMyFun/Views/Admin/Analytics.cshtml).
+- [x] Implement Dynamic Analytics Dashboard with Property GMV vs Event GMV and ClosedXML Excel / CSV exports in [`Views/Admin/DynamicAnalytics.cshtml`](file:///d:/Projects/BookMyFun/Views/Admin/DynamicAnalytics.cshtml).
 
 ---
 
-## Phase 7: Verification & Build Quality Assurance
+## Phase 7: Clean Code & Codebase Hygiene Audit
+- [x] Purge all historical commented-out code blocks in [`Data/DatabaseInitializer.cs`](file:///d:/Projects/BookMyFun/Data/DatabaseInitializer.cs) and [`Data/DatabaseSeeder.cs`](file:///d:/Projects/BookMyFun/Data/DatabaseSeeder.cs).
+- [x] Eliminate unreferenced variables and unused namespace directives.
+- [x] Fix compiler warnings (`CS1061`, `CS8601`) to achieve clean build output.
+- [x] Verify DRY compliance across ADO.NET reader helpers and models.
+
+---
+
+## Phase 8: Verification & Build Quality Assurance
 - [x] Compile solution using `dotnet build --nologo` — Verify 0 project errors and 0 project warnings.
-- [x] Validate all 14 functional modules against actual running code.
-- [x] Verify tenant isolation and RBAC constraints across all 4 dashboards.
+- [x] Validate all 15 functional modules against actual running code.
+- [x] Verify tenant isolation and RBAC constraints across all 5 dashboards.
 - [x] Ensure all documentation cross-links resolve to existing files.

@@ -2,7 +2,7 @@
 
 ## 1. Architectural Overview & System Topology
 
-BookMyFun is an enterprise-grade Farmhouse, Luxury Villa, and Resort rental platform built on **ASP.NET Core (.NET 10)**, **Microsoft SQL Server 2022**, and **Raw Parameterized ADO.NET** (`Microsoft.Data.SqlClient`). Designed for predictable high-throughput and zero ORM overhead, the system incorporates tenant isolation, multi-dashboard Role-Based Access Control (RBAC), bank-grade media processing, automated refund calculation, and multi-tier host monetization.
+BookMyFun is an enterprise-grade Farmhouse, Luxury Villa, and Resort rental platform built on **ASP.NET Core (.NET 10)**, **Microsoft SQL Server 2022**, and **Raw Parameterized ADO.NET** (`Microsoft.Data.SqlClient`). Designed for predictable high-throughput and zero ORM overhead, the system incorporates tenant isolation, multi-dashboard Role-Based Access Control (RBAC) across 5 distinct user roles, bank-grade media processing, automated refund calculation, multi-tier host monetization, and full event decoration operations.
 
 ### 1.1 High-Level Architecture Diagram
 
@@ -23,11 +23,12 @@ flowchart TD
     subgraph ControllerLayer["Controllers (MVC / REST API)"]
         HomeCtrl["HomeController\n(Catalog, Public Search, Lead Intake)"]
         AccountCtrl["AccountController\n(Auth, OTP, Host Activation)"]
-        BookingCtrl["BookingAndPropertiesController\n(Slots, Checkout, Cancellation)"]
+        BookingCtrl["BookingAndPropertiesController\n(Slots, Checkout, Event Add-ons, Cancellation)"]
         ClientCtrl["ClientController\n(Bookings, Profile, KYC ID Upload)"]
         OwnerCtrl["OwnerController\n(Listings, Dual Media, Calendar, Claims)"]
         EmployeeCtrl["EmployeeController\n(Leads, ID Review, Claims, Triage)"]
-        AdminCtrl["AdminController\n(Analytics, Ledgers, Config, Users)"]
+        AdminCtrl["AdminController\n(Analytics, Ledgers, Config, Users, GMV)"]
+        EventCtrl["EventManagerController\n(Packages, Assigned Setups, Status, Proofs)"]
         MediaCtrl["MediaController\n(Multipart Upload, SSRF Verification)"]
     end
 
@@ -58,10 +59,11 @@ flowchart TD
         ConfigRepo["ConfigRepository"]
         ContactRepo["ContactRepository"]
         OwnerReqRepo["OwnerRequestRepository"]
+        EventRepo["EventPackageRepository"]
     end
 
     subgraph DataLayer["Persistence & Storage"]
-        DB["Microsoft SQL Server 2022\n(26 Normalized Tables, Atomic Transactions)"]
+        DB["Microsoft SQL Server 2022\n(27 Normalized Tables, Atomic Transactions)"]
         PublicStorage["Public Storage (/wwwroot/uploads/media/)\n(Optimized web photos & videos)"]
         PrivateVault["Private Document Vault (/App_Data/PrivateDocuments/)\n(Restricted KYC Government IDs)"]
     end
@@ -83,26 +85,33 @@ flowchart TD
 
 ---
 
-## 2. Multi-Dashboard Role-Based Access Control (RBAC) Matrix
+## 2. Multi-Dashboard Role-Based Access Control (RBAC) Matrix (5 Roles & Dashboards)
 
-BookMyFun enforces strict tenant isolation and role separation across four distinct dashboards:
+BookMyFun enforces strict tenant isolation and role separation across five distinct dashboards:
+1. **Client Dashboard:** Stays, bookings, KYC submission, reviews, and event décor selections.
+2. **Owner (Host) Dashboard:** Farm property inventory, dual file/URL media manager, booking calendar, and 24h damage claims.
+3. **Employee Dashboard:** Operational triage queues (partner leads, ID verifications, refund overrides, claims adjudication).
+4. **Admin Dashboard:** System superuser, property/event GMV financial ledgers, user governance, API configurations, and audit logs.
+5. **Event Manager / Decorator Dashboard:** Décor packages catalog management, assigned on-ground setups, status progression, and photo/video proof submissions.
 
-| Operational Capability | Client | Owner (Host) | Employee | Admin | Security & Isolation Enforcement |
-|:---|:---:|:---:|:---:|:---:|:---|
-| **Browse Catalog & Geo-Search** | Read | Read | Read | Read | Public access; rate limited to 100 req/min |
-| **Partner Lead Submission** | Create | - | Review | Review | Public form; no user created until approved |
-| **Host Activation via Token** | - | Complete Setup | Dispatch | Dispatch | 48h encrypted HMAC-SHA256 token |
-| **Property CRUD Management** | - | Scoped (Self) | Full | Full | Tenant isolation: `WHERE OwnerID = @CurrentUserID` |
-| **Dual Media Upload (Files/URLs)**| - | Scoped (Self) | Full | Full | Magic-byte checked files + SSRF-filtered URLs |
-| **Booking Creation & Slot Hold** | Create | - | Staff Booking | Full | Commission and cancellation snapshots stored |
-| **Booking Cancellation & Refund** | Self Request | - | Override Queue | Override Queue | Real-time policy breakdown modal before submit |
-| **Raw Government ID Access** | Self (Owner) | **DENIED** | 15-min Expiring | 15-min Expiring | Stored in `/App_Data/PrivateDocuments/` |
-| **Guest Verification Badge** | - | Flag Guest | Review & Grant | Review & Grant | Host sees only "Verified Guest" badge, zero PII |
-| **Security Deposit Hold & Claim** | Hold at Pay | File Claim (24h) | Adjudicate | Adjudicate | 24h deadline post-checkout with photo evidence |
-| **Subscription Tiers & Monetization**| - | View/Upgrade | Manage | Full Override | Free, Featured, Managed Concierge Pack |
-| **Financial Ledgers & Analytics** | - | Scoped Payouts | Support Stats | Full Dashboard | Date presets, ClosedXML Excel, streaming CSV |
-| **User & Account Management** | Self Profile | Self Profile | Support View | Full (Suspend/Reset)| Cryptographic audit logs on all state mutations |
-| **Platform Config & API Keys** | - | - | - | Full | AES/HMAC encrypted settings in database |
+| Operational Capability | Client | Owner (Host) | Employee | Admin | Event Manager / Decorator | Security & Isolation Enforcement |
+|:---|:---:|:---:|:---:|:---:|:---:|:---|
+| **Browse Catalog & Geo-Search** | Read | Read | Read | Read | Read | Public access; rate limited to 100 req/min |
+| **Partner Lead Submission** | Create | - | Review | Review | - | Public form; no user created until approved |
+| **Host Activation via Token** | - | Complete Setup | Dispatch | Dispatch | - | 48h encrypted HMAC-SHA256 token |
+| **Property CRUD Management** | - | Scoped (Self) | Full | Full | - | Tenant isolation: `WHERE OwnerID = @CurrentUserID` |
+| **Dual Media Upload (Files/URLs)**| - | Scoped (Self) | Full | Full | Scoped (Proof/Packs)| Magic-byte checked files + SSRF-filtered URLs |
+| **Booking Creation & Slot Hold** | Create | - | Staff Booking | Full | - | Commission and cancellation snapshots stored |
+| **Booking Cancellation & Refund** | Self Request | - | Override Queue | Override Queue | - | Real-time policy breakdown modal before submit |
+| **Raw Government ID Access** | Self (Owner) | **DENIED** | 15-min Expiring | 15-min Expiring | **DENIED** | Stored in `/App_Data/PrivateDocuments/` |
+| **Guest Verification Badge** | - | Flag Guest | Review & Grant | Review & Grant | View Badge | Host sees only "Verified Guest" badge, zero PII |
+| **Security Deposit Hold & Claim** | Hold at Pay | File Claim (24h) | Adjudicate | Adjudicate | - | 24h deadline post-checkout with photo evidence |
+| **Subscription Tiers & Monetization**| - | View/Upgrade | Manage | Full Override | - | Free, Featured, Managed Concierge Pack |
+| **Financial Ledgers & Analytics** | - | Scoped Payouts | Support Stats | Full Dashboard | Scoped Packages | Date presets, ClosedXML Excel, streaming CSV |
+| **Décor Package Management** | View in Checkout | - | View | Full | Create / Edit / Toggle | Catalog of active décor themes with pricing |
+| **Event Setup Fulfillment & Proof** | View Status | View Status | Review | Full Override | Manage Assigned & Upload Proof | Photo/video verification before marking completed |
+| **User & Account Management** | Self Profile | Self Profile | Support View | Full (Suspend/Reset)| Self Profile | Cryptographic audit logs on all state mutations |
+| **Platform Config & API Keys** | - | - | - | Full | - | AES/HMAC encrypted settings in database |
 
 ---
 
@@ -111,6 +120,7 @@ BookMyFun enforces strict tenant isolation and role separation across four disti
 ### 3.1 Presentation & Routing Layer
 - **Technology:** ASP.NET Core MVC with Razor View Engine.
 - **Unified Views for Operations:** Admin and Employee dashboards share operational views (`Views/Admin/RefundsQueue.cshtml`, `Views/Admin/OnboardingLeads.cshtml`, `Views/Admin/DamageClaimsQueue.cshtml`, `Views/Admin/IdVerificationsQueue.cshtml`). The active controller context (`@controllerName`) dynamically switches form submission endpoints to prevent permission elevation.
+- **Dedicated Event Manager Views:** Custom portal in `Views/EventManager/` providing dedicated KPI dashboards, package creation/editing, and setup tracking data grids with modal proof submission.
 - **Asynchronous AJAX Endpoints:** Lightweight RESTful actions return standardized JSON payloads (`{ success: true, data: ... }` or `{ success: false, error: ... }`).
 
 ### 3.2 Security & Middleware Pipeline
@@ -138,10 +148,10 @@ BookMyFun enforces strict tenant isolation and role separation across four disti
 | [`CommunicationService`](file:///d:/Projects/BookMyFun/Services/CommunicationService.cs) | Dispatches transactional booking confirmations, OTP verification codes, and host activation emails. |
 | [`SiteSettingsService`](file:///d:/Projects/BookMyFun/Services/SiteSettingsService.cs) | Manages global platform settings, commission percentages, support contact details, and encrypted third-party credentials. |
 
-### 3.4 Data Access Layer (Raw ADO.NET)
+### 3.4 Data Access Layer (Raw Parameterized ADO.NET)
 - **Elimination of ORM Latency:** Queries execute directly through `Microsoft.Data.SqlClient` with explicit parameterized queries, eliminating EF Core change tracker overhead.
 - **Helper Architecture (`DBHelper`):** Centralizes connection management, parameterized command creation, null value normalization (`DBNull.Value`), and scalar/reader/non-query execution.
-- **Idempotent Evolution (`DatabaseInitializer`):** Automatically initializes schemas, creates missing tables, and applies schema additions on application boot without external migration scripts.
+- **Idempotent Evolution (`DatabaseInitializer`):** Automatically initializes schemas, creates missing tables, and applies schema additions on application boot across all 27 tables.
 
 ---
 
@@ -155,27 +165,32 @@ sequenceDiagram
     actor Client
     participant Web as BookingController
     participant Pricing as BookingPricingService
+    participant EventRepo as EventPackageRepository
     participant Comm as CommissionService
     participant Gateway as RazorpayPaymentService
     participant Repo as BookingRepository
     participant DB as SQL Server 2022
 
-    Client->>Web: Select Property, Dates, Duration (Full Day / Slot)
+    Client->>Web: Select Property, Dates, Duration & Optional Event Décor Package
+    alt Event Package Selected
+        Web->>EventRepo: GetPackageByIdAsync(packageId)
+        EventRepo-->>Web: Package Details (Name, BasePrice)
+    end
     Web->>Pricing: CalculateTotal(propertyId, dates, slotType)
-    Pricing-->>Web: BaseAmount, SecurityDeposit, Taxes, GrandTotal
+    Pricing-->>Web: BaseAmount, SecurityDeposit, Taxes, GrandTotal (+ EventPackagePrice)
     Web->>Comm: ResolveCommissionRate(propertyId, ownerId)
-    Comm-->>Web: EffectiveRate (e.g. 12%), PlatformCommission, HostPayout
+    Comm-->>Web: EffectiveRate, PlatformCommission, HostPayout
     Web->>Gateway: CreateOrder(GrandTotal, Currency="INR")
     Gateway-->>Web: OrderId, KeyId
     Web-->>Client: Render Checkout Modal (Razorpay SDK)
 
     Client->>Gateway: Complete Payment (Card/UPI/NetBanking)
     Gateway-->>Client: RazorpayPaymentId, Signature
-    Client->>Web: POST /Booking/ConfirmPayment(BookingData, PaymentId, Signature)
+    Client->>Web: POST /Booking/ConfirmBooking(BookingData, PaymentId, Signature)
     Web->>Gateway: VerifySignature(OrderId, PaymentId, Signature)
     alt Signature Valid
         Web->>Repo: CreateBookingWithSnapshots(booking, payment)
-        Repo->>DB: INSERT Bookings (With Policy & Commission Snapshots)
+        Repo->>DB: INSERT Bookings (With Policy, Event & Commission Snapshots)
         Repo->>DB: INSERT Payments (Status='Success')
         DB-->>Repo: BookingID
         Web-->>Client: 200 OK (Booking Confirmed, Send Email/WhatsApp)
@@ -326,6 +341,49 @@ sequenceDiagram
     ClaimSvc-->>Staff: Adjudication Complete
 ```
 
+### 4.6 Event Décor Package Lifecycle & On-Ground Setup Fulfillment
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Decorator as Event Manager / Decorator
+    participant EventCtrl as EventManagerController
+    participant EventRepo as EventPackageRepository
+    actor Client
+    participant BookingCtrl as BookingController
+    participant BookRepo as BookingRepository
+    actor Admin
+    participant DB as SQL Server 2022
+
+    Decorator->>EventCtrl: POST /EventManager/CreatePackage (Name, Category, Price, IncludedItems, MediaUrl)
+    EventCtrl->>EventRepo: CreatePackageAsync(package)
+    EventRepo->>DB: INSERT EventPackages (IsActive=1)
+    
+    Client->>BookingCtrl: Select Farm + Toggle Event Décor Package at Checkout
+    BookingCtrl->>BookRepo: CreateBookingAsync(booking)
+    BookRepo->>DB: INSERT Bookings (IsEventBooking=1, EventPackageID=XYZ, SetupStatus='Pending')
+
+    Admin->>EventCtrl: POST /EventManager/AssignDecorator(BookingID, DecoratorUserID)
+    EventCtrl->>EventRepo: AssignDecoratorAsync(BookingID, DecoratorUserID)
+    EventRepo->>DB: UPDATE Bookings SET DecoratorAssignedID=XYZ, SetupStatus='Assigned'
+
+    Decorator->>EventCtrl: GET /EventManager/AssignedSetups
+    EventCtrl->>EventRepo: GetAssignedEventBookingsAsync(DecoratorUserID)
+    EventRepo-->>EventCtrl: List of Active Event Reservations
+
+    Decorator->>EventCtrl: POST /EventManager/UpdateSetupStatus (Status='InProgress')
+    EventCtrl->>DB: UPDATE Bookings SET SetupStatus='InProgress'
+
+    Note over Decorator: Completes stage, floral & lighting decor on-ground
+    Decorator->>EventCtrl: POST /EventManager/UpdateSetupStatus (Status='Completed', ProofUrls="photo1.jpg,photo2.jpg")
+    EventCtrl->>DB: UPDATE Bookings SET SetupStatus='Completed', SetupProofMediaUrls=...
+    EventCtrl-->>Decorator: Status updated to 'Completed' with proof attached
+
+    Admin->>EventCtrl: Review Setup Proofs & Inspect Setup
+    Admin->>EventCtrl: POST /EventManager/UpdateSetupStatus (Status='Inspected')
+    EventCtrl->>DB: UPDATE Bookings SET SetupStatus='Inspected'
+```
+
 ---
 
 ## 5. Security & Isolation Architecture
@@ -334,6 +392,10 @@ sequenceDiagram
 - **Multi-Tenant Scoping:** Every query executed within `OwnerController` and `PropertyRepository` includes the owner identifier:
   ```sql
   SELECT * FROM Properties WHERE PropertyID = @PropertyID AND OwnerID = @CurrentUserID;
+  ```
+- **Decorator Tenant Scoping:** In `EventManagerController`, decorators only inspect and advance setups assigned to their user ID (or all setups if Admin):
+  ```sql
+  WHERE b.IsEventBooking = 1 AND (b.DecoratorAssignedID = @DecoratorID OR @DecoratorID = 0);
   ```
 - **Staff Sovereign Access:** `Admin` and `Employee` roles bypass owner tenant scoping for administrative oversight, with all actions recorded in `AuditLogs`.
 
@@ -345,7 +407,7 @@ sequenceDiagram
   4. If any internal or link-local address is matched, the request is immediately aborted with a `SecurityViolationException`.
 
 ### 5.3 Cryptographic Audit Trail
-- Every administrative mutation, cancellation override, damage claim adjudication, and owner status change writes to `AuditLogs` containing:
+- Every administrative mutation, cancellation override, damage claim adjudication, owner status change, and decorator assignment writes to `AuditLogs` containing:
   - `PerformedByUserID`
   - `Action`
   - `EntityType`
@@ -359,4 +421,4 @@ sequenceDiagram
 
 - **Stateless Application Tier:** ASP.NET Core application nodes are stateless; sessions and authentication rely on signed HTTP-only cookies and SQL persistence, allowing horizontal scaling behind AWS ALB / Azure Application Gateway / Nginx.
 - **Static Assets Offloading:** Media uploads are structured to easily transition from local disk (`wwwroot/uploads`) to S3/Cloudflare R2 buckets by changing `IMediaStorageService` configuration without touching business controllers.
-- **Database Partitioning Readiness:** The 26 normalized SQL tables maintain foreign key boundaries enabling future table partitioning on `Bookings`, `FinancialLedger`, and `AuditLogs` by fiscal year.
+- **Database Partitioning Readiness:** The 27 normalized SQL tables maintain foreign key boundaries enabling future table partitioning on `Bookings`, `FinancialLedger`, and `AuditLogs` by fiscal year.

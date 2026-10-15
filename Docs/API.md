@@ -29,7 +29,7 @@ The BookMyFun platform utilizes an integrated hybrid architecture combining serv
 
 ---
 
-## 2. API Catalog by Controller
+## 2. API Catalog by Controller (9 Controllers)
 
 ### 2.1 `AccountController`
 Handles identity lifecycle, authentication, and secure tokenized host activation.
@@ -37,7 +37,7 @@ Handles identity lifecycle, authentication, and secure tokenized host activation
 | Endpoint | Verb | Authorization | Request Body / Query Params | Response Type | Description |
 |:---|:---:|:---:|:---|:---:|:---|
 | `/Account/Login` | `GET` | Anonymous | `returnUrl` (string, optional) | HTML View | Renders user login interface. |
-| `/Account/Login` | `POST` | Anonymous | `Email`, `Password`, `RememberMe`, `ReturnUrl` | HTML / Redirect | Validates credentials and issues auth cookie. |
+| `/Account/Login` | `POST` | Anonymous | `Email`, `Password`, `RememberMe`, `ReturnUrl` | HTML / Redirect | Validates credentials and issues auth cookie with role redirection. |
 | `/Account/Register` | `GET` | Anonymous | - | HTML View | Renders client (customer) registration form. |
 | `/Account/Register` | `POST` | Anonymous | `FullName`, `Email`, `Password`, `Phone` | HTML / Redirect | Registers client account (Host self-registration blocked). |
 | `/Account/Logout` | `GET` | Authenticated | - | Redirect | Clears auth cookie and redirects to `/Home/Index`. |
@@ -48,112 +48,119 @@ Handles identity lifecycle, authentication, and secure tokenized host activation
 ---
 
 ### 2.2 `HomeController`
-Public catalog exploration, search, lead intake, and support contact.
+Public catalog discovery, location search, lead intake, and customer support.
 
 | Endpoint | Verb | Authorization | Request Body / Query Params | Response Type | Description |
-|:---|:---|:---:|:---|:---:|:---|
-| `/` or `/Home/Index` | `GET` | Anonymous | - | HTML View | Homepage with hero search, featured farms, and reviews. |
-| `/Home/Explore` | `GET` | Anonymous | `location`, `typeId`, `occasionId`, `guests`, `minPrice`, `maxPrice` | HTML View | Search and filter listings with map pin view. |
-| `/Home/PropertyDetails/{id}`| `GET` | Anonymous | `id` (int, required) | HTML View | Listing details, gallery, amenities, and reviews. |
-| `/Home/Partner` | `GET` | Anonymous | - | HTML View | Public "List Your Farm / Partner With Us" lead intake. |
-| `/Home/Partner` | `POST` | Anonymous | `FullName`, `Phone`, `Email`, `PropertyName`, `Location`, `AcreageOrType`, `Message` | JSON / HTML | Submits partner lead into employee onboarding pipeline. |
-| `/Home/Contact` | `GET` | Anonymous | - | HTML View | Customer support inquiry form. |
-| `/Home/Contact` | `POST` | Anonymous | `Name`, `Email`, `Phone`, `Subject`, `Message` | HTML / Redirect | Submits inquiry into `ContactUs` repository. |
-| `/Home/Error` | `GET` | Anonymous | - | HTML View | Centralized error fallback page with correlation ID. |
+|:---|:---:|:---:|:---|:---:|:---|
+| `/Home/Index` | `GET` | Anonymous | - | HTML View | Landing page with featured stays, categories, search. |
+| `/Home/Partner` | `GET` | Anonymous | - | HTML View | Public "List Your Farm / Partner With Us" lead intake form. |
+| `/Home/Partner` | `POST` | Anonymous | `FullName`, `Email`, `Phone`, `PropertyName`, `Location`, `AcreageOrType`, `Message` | HTML / Redirect | Ingests prospective host lead for staff triage. |
+| `/Home/Contact` | `GET` | Anonymous | - | HTML View | Public support and inquiry contact form. |
+| `/Home/Contact` | `POST` | Anonymous | `FullName`, `Email`, `Phone`, `Subject`, `Message` | HTML / Redirect | Creates customer support inquiry ticket. |
 
 ---
 
-### 2.3 `BookingAndPropertiesController`
-Reservation creation, pricing calculations, payment verification, and cancellations.
+### 2.3 `PropertiesController` & `BookingController` (`BookingAndPropertiesController.cs`)
+Handles property search, detailed previews, flexible reservation checkout with event décor add-ons, payments, and cancellations.
 
 | Endpoint | Verb | Authorization | Request Body / Query Params | Response Type | Description |
-|:---|:---|:---:|:---|:---:|:---|
-| `/Booking/Checkout` | `GET` | Client | `propertyId`, `checkIn`, `checkOut`, `bookingType`, `slotType` | HTML View | Renders reservation checkout summary with breakdown. |
-| `/Booking/InitiateBooking` | `POST` | Client | `PropertyID`, `CheckInDate`, `CheckOutDate`, `BookingType`, `SlotType` | JSON | Creates order in Razorpay and returns payment order ID. |
-| `/Booking/ConfirmPayment` | `POST` | Client | `RazorpayPaymentID`, `RazorpayOrderID`, `RazorpaySignature`, `BookingData` | JSON | Validates signature, snapshots commission & policy, saves booking. |
-| `/Booking/GetCancellationQuote` | `GET` | Client / Staff | `bookingId` (int, required) | JSON | Calculates real-time policy breakdown and net refund. |
-| `/Booking/CancelBooking` | `POST` | Client / Staff | `BookingID`, `Reason` | JSON | Processes cancellation, issues gateway refund, records refund log. |
-| `/Booking/Details/{id}` | `GET` | Authenticated | `id` (int, required) | HTML View | Displays confirmed booking receipt and policy details. |
+|:---|:---:|:---:|:---|:---:|:---|
+| `/Properties/Index` | `GET` | Anonymous | `location`, `typeId`, `occasionId`, `minPrice`, `maxPrice`, `guests` | HTML View | Multi-criteria property search and filter results. |
+| `/Properties/Details/{id}` | `GET` | Anonymous | `id` (int, required) | HTML View | Property details, high-res gallery, amenities, reviews. |
+| `/Booking/Checkout` | `GET` | Authenticated | `propertyId`, `bookingType`, `slotType`, `daysOrHours` | HTML View | Checkout form with duration options and event décor add-on. |
+| `/Booking/ConfirmBooking` | `POST` | Authenticated | `BookingCheckoutViewModel` (includes `IsEventBooking`, `EventPackageID`, `CustomEventNotes`) | HTML / Redirect | Validates availability, calculates total with décor add-on, snapshots policy, redirects to payment. |
+| `/Booking/Payment/{id}` | `GET` | Authenticated | `id` (int, booking ID) | HTML View | Dedicated PCI-DSS payment page with order token. |
+| `/Booking/ProcessPayment` | `POST` | Authenticated | `bookingId`, `orderId`, `paymentMethod` | HTML / Redirect | Records payment success, confirms booking, dispatches receipts. |
+| `/Booking/GetRefundEstimate`| `GET` | Authenticated | `bookingId` (int, required) | JSON | Returns real-time refund quote with fee breakdown. |
+| `/Booking/CancelBooking` | `POST` | Authenticated | `BookingID`, `Reason` | JSON / Redirect | Policy-enforced cancellation and automated gateway refund. |
 
 ---
 
-### 2.4 `ClientController`
-Guest account management, reservation history, and government KYC upload.
+### 2.4 `EventManagerController` (5th Dashboard: Event Manager / Decorator)
+Décor package catalog curation, on-ground setup tracking, milestone progression, and photo/video proof verification.
 
 | Endpoint | Verb | Authorization | Request Body / Query Params | Response Type | Description |
-|:---|:---|:---:|:---|:---:|:---|
-| `/Client/Dashboard` | `GET` | Client | - | HTML View | Active reservations, past stays, and KYC badge status. |
-| `/Client/MyBookings` | `GET` | Client | - | HTML View | Comprehensive reservation list with cancellation triggers. |
-| `/Client/Profile` | `GET` | Client | - | HTML View | Personal profile details and notification preferences. |
-| `/Client/UploadIdVerification` | `POST` | Client | `DocumentType`, `File` (multipart) | JSON | Uploads government ID (PDF/JPG/PNG) into private KYC vault. |
-| `/Client/SubmitReview` | `POST` | Client | `BookingID`, `PropertyID`, `Rating` (1-5), `Comment` | JSON | Posts guest review and star rating post-stay. |
+|:---|:---:|:---:|:---|:---:|:---|
+| `/EventManager/Dashboard` | `GET` | EventManager, Admin | - | HTML View | KPI summary cards (GMV, active packages, assigned setups). |
+| `/EventManager/Packages` | `GET` | EventManager, Admin | - | HTML View | Grid of active and inactive celebration packages. |
+| `/EventManager/CreatePackage` | `GET` | EventManager, Admin | - | HTML View | Package creation form. |
+| `/EventManager/CreatePackage` | `POST` | EventManager, Admin | `EventPackageCreateViewModel` (Name, Category, BasePrice, MediaUrl, IncludedItems) | HTML / Redirect | Creates new event décor package. |
+| `/EventManager/EditPackage/{id}` | `GET` | EventManager, Admin | `id` (int, required) | HTML View | Package modification form. |
+| `/EventManager/EditPackage/{id}` | `POST` | EventManager, Admin | `EventPackageEditViewModel` | HTML / Redirect | Updates package pricing, media, and description. |
+| `/EventManager/TogglePackageStatus/{id}` | `POST` | EventManager, Admin | `id` (int, required) | JSON / Redirect | Toggles package between active and inactive. |
+| `/EventManager/AssignedSetups` | `GET` | EventManager, Admin | - | HTML View | Tracks setups assigned to decorator with status pills. |
+| `/EventManager/UpdateSetupStatus` | `POST` | EventManager, Admin | `BookingID`, `SetupStatus`, `SetupProofMediaUrls` | JSON / Redirect | Advances milestone (`Pending`, `Assigned`, `InProgress`, `Completed`, `Inspected`) with proofs. |
+| `/EventManager/AssignDecorator` | `POST` | Admin | `BookingID`, `DecoratorUserID` | JSON / Redirect | Reassigns reservation to specific decorator crew. |
 
 ---
 
-### 2.5 `OwnerController`
-Farm host dashboard, listing CRUD, dual-mode media management, and 24h damage claims.
+### 2.5 `ClientController`
+Guest profile governance, booking history, KYC government ID submission, and reviews.
 
 | Endpoint | Verb | Authorization | Request Body / Query Params | Response Type | Description |
-|:---|:---|:---:|:---|:---|:---|
-| `/Owner/Dashboard` | `GET` | Owner | - | HTML View | Host KPI metrics (revenue, occupancy, active listings). |
-| `/Owner/Properties` | `GET` | Owner | - | HTML View | Host property portfolio with listing status toggles. |
-| `/Owner/AddProperty` | `GET` | Owner | - | HTML View | Wizard for creating new farm/villa listing. |
-| `/Owner/AddProperty` | `POST` | Owner | `Title`, `Description`, `Location`, `Latitude`, `Longitude`, `PricePerNight`, `MaxGuests`, `Amenities[]`, `Media[]` | HTML / Redirect | Validates limits, creates property, attaches media. |
-| `/Owner/EditProperty/{id}` | `GET` | Owner | `id` (int, required) | HTML View | Edit property details (Enforces tenant isolation). |
-| `/Owner/EditProperty/{id}` | `POST` | Owner | `PropertyID`, Updated Fields | HTML / Redirect | Updates property configuration and media items. |
-| `/Owner/DeleteProperty/{id}` | `POST` | Owner | `id` (int, required) | JSON | Deletes listing (Tenant scoped). |
-| `/Owner/Bookings` | `GET` | Owner | - | HTML View | Host reservation calendar and guest arrival list. |
-| `/Owner/FileDamageClaim` | `GET` | Owner | `bookingId` (int, required) | HTML View | Form to file damage claim (within 24h of checkout). |
-| `/Owner/FileDamageClaim` | `POST` | Owner | `BookingID`, `ClaimAmount`, `ItemizedDescription`, `EvidenceMediaUrls[]` | JSON | Submits claim against client security deposit. |
-| `/Owner/Subscriptions` | `GET` | Owner | - | HTML View | Current subscription tier, listing allowance, upgrade CTA. |
-| `/Owner/UpgradeSubscription` | `POST` | Owner | `PlanID` (int, required) | JSON | Initiates subscription upgrade payment flow. |
+|:---|:---:|:---:|:---|:---|:---|
+| `/Client/Index` | `GET` | Client | - | HTML View | Client dashboard overview. |
+| `/Client/MyBookings` | `GET` | Client | - | HTML View | Reservation history with cancellation modals. |
+| `/Client/Profile` | `GET` | Client | - | HTML View | Personal information and KYC status. |
+| `/Client/UploadId` | `POST` | Client | `DocumentType`, `File` (multipart) | JSON / Redirect | Uploads government ID to private KYC vault. |
+| `/Client/SubmitReview` | `POST` | Client | `BookingID`, `Rating`, `Comment` | JSON / Redirect | Submits verified stay review ($1$ to $5$ stars). |
 
 ---
 
-### 2.6 `EmployeeController`
-Operational workflows for lead triage, identity verification, refunds, and damage claims.
+### 2.6 `OwnerController`
+Farm host dashboard, listing CRUD with dual-mode media uploader, availability calendar, and 24h damage claims.
 
 | Endpoint | Verb | Authorization | Request Body / Query Params | Response Type | Description |
-|:---|:---|:---:|:---|:---|:---|
-| `/Employee/Dashboard` | `GET` | Employee | - | HTML View | Operational KPI summary (pending leads, unverified IDs). |
-| `/Employee/OnboardingLeads` | `GET` | Employee | - | HTML View | Triage pipeline for host intake applications. |
-| `/Employee/ApproveLead` | `POST` | Employee | `LeadID` (int, required) | JSON | Approves lead and emails 48h activation token. |
-| `/Employee/RejectLead` | `POST` | Employee | `LeadID`, `Reason` | JSON | Rejects lead and records staff note. |
-| `/Employee/IdVerifications` | `GET` | Employee | - | HTML View | KYC verification queue for guest government IDs. |
-| `/Employee/VerifyId` | `POST` | Employee | `VerificationID` | JSON | Approves guest ID and grants "Verified Guest" badge. |
-| `/Employee/RejectId` | `POST` | Employee | `VerificationID`, `Reason` | JSON | Flags document rejection and prompts guest re-upload. |
-| `/Employee/RefundsQueue` | `GET` | Employee | - | HTML View | Operational refund requests queue and override review. |
-| `/Employee/OverrideRefund` | `POST` | Employee | `RefundID` or `BookingID`, `OverrideAmount`, `Notes` | JSON | Manually adjusts refund amount and dispatches payment. |
-| `/Employee/DamageClaimsQueue`| `GET` | Employee | - | HTML View | Host damage claims queue awaiting adjudication. |
-| `/Employee/AdjudicateClaim` | `POST` | Employee | `ClaimID`, `ApprovedAmount`, `Notes` | JSON | Adjudicates claim, settles deposit, and releases remainder. |
+|:---|:---:|:---:|:---|:---|:---|
+| `/Owner/Index` | `GET` | Owner | - | HTML View | Host dashboard with earnings, bookings, and listings. |
+| `/Owner/Properties` | `GET` | Owner | - | HTML View | Host portfolio (Scoped: `WHERE OwnerID = @CurrentUserID`). |
+| `/Owner/AddProperty` | `GET` | Owner | - | HTML View | New listing form with dual media uploader. |
+| `/Owner/AddProperty` | `POST` | Owner | `PropertyCreateViewModel` | HTML / Redirect | Validates and creates property draft with GPS & media. |
+| `/Owner/EditProperty/{id}` | `GET` | Owner | `id` (int, required) | HTML View | Listing edit form (Tenant scoped). |
+| `/Owner/EditProperty/{id}` | `POST` | Owner | `PropertyEditViewModel` | HTML / Redirect | Updates property details, policies, and media. |
+| `/Owner/FileDamageClaim` | `GET` | Owner | `bookingId` (int, required) | HTML View | 24-hour damage claim filing interface. |
+| `/Owner/SubmitDamageClaim` | `POST` | Owner | `DamageClaimViewModel` | JSON / Redirect | Enforces 24h cutoff; attaches itemized losses & photos. |
 
 ---
 
-### 2.7 `AdminController`
-Superuser platform administration, financial ledgers, dynamic analytics, and user governance.
+### 2.7 `EmployeeController`
+Operational triage queues for staff handling partner leads, KYC verifications, refund overrides, and claims.
 
 | Endpoint | Verb | Authorization | Request Body / Query Params | Response Type | Description |
-|:---|:---|:---:|:---|:---|:---|
-| `/Admin/Dashboard` | `GET` | Admin | - | HTML View | Master platform dashboard with high-level KPI tiles. |
-| `/Admin/Analytics` | `GET` | Admin | `range` (Today, 7D, MTD, YTD, Custom), `from`, `to` | HTML / JSON | Multi-dimensional financial analytics with charts. |
-| `/Admin/ExportAnalyticsExcel`| `GET` | Admin | `range`, `from`, `to` | File (`.xlsx`) | Generates ClosedXML spreadsheet report. |
+|:---|:---:|:---:|:---|:---|:---|
+| `/Employee/Index` | `GET` | Employee, Admin | - | HTML View | Operations workbench with pending task counters. |
+| `/Employee/OnboardingLeads` | `GET` | Employee, Admin | `status` (string, optional) | HTML View | Host partnership inquiry triage pipeline. |
+| `/Employee/ApproveLead` | `POST` | Employee, Admin | `leadId` (int, required) | JSON | Issues 48h encrypted HMAC activation token via email. |
+| `/Employee/IdVerifications` | `GET` | Employee, Admin | `status` (string, optional) | HTML View | Confidential KYC document review queue. |
+| `/Employee/ApproveId` | `POST` | Employee, Admin | `verificationId` (int, required) | JSON | Grants "Verified Guest" badge to client. |
+| `/Employee/RefundsQueue` | `GET` | Employee, Admin | `status` (string, optional) | HTML View | Refund operations queue with manual override triggers. |
+| `/Employee/DamageClaimsQueue` | `GET` | Employee, Admin | `status` (string, optional) | HTML View | 24-hour host damage claims adjudication queue. |
+
+---
+
+### 2.8 `AdminController`
+Executive command center, Property GMV vs Event GMV analytics, ClosedXML Excel/CSV exports, financial ledgers, user governance, and audit trails.
+
+| Endpoint | Verb | Authorization | Request Body / Query Params | Response Type | Description |
+|:---|:---:|:---:|:---|:---|:---|
+| `/Admin/Index` | `GET` | Admin | - | HTML View | Master platform dashboard with GMV KPIs. |
+| `/Admin/DynamicAnalytics` | `GET` | Admin | `range`, `from`, `to` | HTML View | Multi-dimensional financial analytics (Property GMV vs Event GMV). |
+| `/Admin/ExportAnalyticsExcel` | `GET` | Admin | `range`, `from`, `to` | File (`.xlsx`) | Generates styled ClosedXML spreadsheet with emerald headers. |
 | `/Admin/ExportAnalyticsCsv` | `GET` | Admin | `range`, `from`, `to` | File (`.csv`) | Streams UTF-8 comma-separated financial data. |
 | `/Admin/FinancialLedger` | `GET` | Admin | - | HTML View | Platform double-entry ledger (Income & Expenses). |
-| `/Admin/AddLedgerEntry` | `POST` | Admin | `TransactionType`, `Category`, `Amount`, `Title`, `Details`, `TransactionDate` | JSON | Posts new operational expense/income line item. |
-| `/Admin/Users` | `GET` | Admin | `roleFilter`, `search` | HTML View | User management grid across all 4 roles. |
+| `/Admin/Users` | `GET` | Admin | `roleFilter`, `search` | HTML View | User management grid across all 5 roles. |
 | `/Admin/ToggleUserStatus` | `POST` | Admin | `UserID`, `IsActive` | JSON | Suspends or reactivates user account. |
 | `/Admin/UpdateCommissionRate`| `POST` | Admin | `UserID`, `CommissionRate` | JSON | Sets custom commission rate override for host. |
 | `/Admin/AuditLogs` | `GET` | Admin | `page`, `entityType` | HTML View | Immutable system-wide audit trail with JSON inspection. |
 | `/Admin/SiteSettings` | `GET` | Admin | - | HTML View | Global platform parameters and commission defaults. |
-| `/Admin/UpdateSiteSettings` | `POST` | Admin | Key-Value settings dictionary | HTML / Redirect | Updates platform settings and commission rates. |
 
 ---
 
-### 2.8 `MediaController`
+### 2.9 `MediaController`
 Dual-mode media ingestion, magic-byte inspection, SSRF URL validation, and private KYC retrieval.
 
 | Endpoint | Verb | Authorization | Request Body / Query Params | Response Type | Description |
-|:---|:---|:---:|:---|:---|:---|
+|:---|:---:|:---:|:---|:---|:---|
 | `/Media/UploadFile` | `POST` | Authenticated | `File` (multipart/form-data), `MediaType` ('photo'\|'video') | JSON | Magic-byte checks file, saves with UUID name, returns URL. |
 | `/Media/VerifyExternalUrl` | `POST` | Authenticated | `Url` (string, required) | JSON | SSRF-checks HTTPS URL, validates DNS, returns embed preview. |
 | `/Media/PrivateDoc` | `GET` | Employee / Admin / Owner of Doc | `token` (HMAC-SHA256 expiring token) | File Stream | Streams private KYC document (Valid for 15 minutes). |

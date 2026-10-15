@@ -101,7 +101,10 @@
                     </div>
                 </div>
                 <h3 class="fw-bold mb-1 text-dark">₹@Model.GMV.ToString("N0")</h3>
-                <span class="text-muted small"><i class="bi bi-check-circle text-success me-1"></i>Total Confirmed Volume</span>
+                <div class="d-flex justify-content-between small text-muted pt-1 border-top">
+                    <span>Farm: ₹@Model.PropertyGMV.ToString("N0")</span>
+                    <span class="text-warning fw-semibold">Event: ₹@Model.EventGMV.ToString("N0")</span>
+                </div>
             </div>
         </div>
 
@@ -133,17 +136,17 @@
             </div>
         </div>
 
-        <!-- 4. Active Properties -->
+        <!-- 4. Active Stays & Event Setups -->
         <div class="col">
             <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-white">
                 <div class="d-flex align-items-center justify-content-between mb-2">
-                    <span class="text-secondary small fw-bold text-uppercase">Active Stays</span>
+                    <span class="text-secondary small fw-bold text-uppercase">Active Stays & Events</span>
                     <div class="bg-info bg-opacity-10 text-info p-2 rounded-circle">
                         <i class="bi bi-houses-fill fs-5"></i>
                     </div>
                 </div>
-                <h3 class="fw-bold mb-1 text-dark">@Model.ActiveProperties</h3>
-                <span class="text-muted small">Published Live Listings</span>
+                <h3 class="fw-bold mb-1 text-dark">@Model.ActiveProperties <span class="fs-6 text-muted fw-normal">/ @Model.TotalEventBookings events</span></h3>
+                <span class="text-muted small">Live listings & Décor bookings</span>
             </div>
         </div>
 

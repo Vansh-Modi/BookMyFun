@@ -30,6 +30,7 @@ builder.Services.AddScoped<IRefundRepository, RefundRepository>();
 builder.Services.AddScoped<IPartnerLeadRepository, PartnerLeadRepository>();
 builder.Services.AddScoped<IDamageClaimRepository, DamageClaimRepository>();
 builder.Services.AddScoped<IIdVerificationRepository, IdVerificationRepository>();
+builder.Services.AddScoped<IEventPackageRepository, EventPackageRepository>();
 
 // Services
 builder.Services.AddScoped<IBookingPricingService, BookingPricingService>();
