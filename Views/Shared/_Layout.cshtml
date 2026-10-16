@@ -105,18 +105,22 @@
                                     <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
                                         <li><a class="dropdown-item fw-semibold" asp-controller="Admin" asp-action="Index"><i class="bi bi-speedometer2 text-primary me-2"></i>Dashboard</a></li>
                                         <li><a class="dropdown-item fw-semibold text-success" asp-controller="Admin" asp-action="DynamicAnalytics"><i class="bi bi-graph-up-arrow text-success me-2"></i>Dynamic Analytics & Reports</a></li>
+                                        <li><a class="dropdown-item fw-semibold text-warning" asp-controller="EventManager" asp-action="Index"><i class="bi bi-palette2 text-warning me-2"></i>Event Manager Dashboard</a></li>
                                         <li><hr class="dropdown-divider"></li>
                                         <li><h6 class="dropdown-header text-uppercase small text-muted">Operations Queues</h6></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="RefundsQueue"><i class="bi bi-arrow-counterclockwise text-info me-2"></i>Refunds Operations</a></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="PartnerLeads"><i class="bi bi-people text-success me-2"></i>Partner Onboarding Leads</a></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="DamageClaims"><i class="bi bi-shield-shaded text-danger me-2"></i>Damage Claims Adjudication</a></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="IdVerifications"><i class="bi bi-person-vcard text-primary me-2"></i>Guest KYC Verifications</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="SupportQueries"><i class="bi bi-headset text-secondary me-2"></i>Customer Inquiries</a></li>
                                         <li><hr class="dropdown-divider"></li>
                                         <li><h6 class="dropdown-header text-uppercase small text-muted">Platform Management</h6></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageProperties"><i class="bi bi-houses me-2"></i>Manage Properties</a></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageBookings"><i class="bi bi-calendar-check me-2"></i>Manage Bookings</a></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageOwners"><i class="bi bi-person-badge me-2"></i>Manage Hosts & Tiers</a></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="Settings"><i class="bi bi-gear me-2"></i>System Settings</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item fw-semibold" asp-controller="Account" asp-action="Profile"><i class="bi bi-person-circle text-primary me-2"></i>My Profile</a></li>
                                     </ul>
                                 </li>
                             }
@@ -128,16 +132,20 @@
                                     </a>
                                     <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
                                         <li><a class="dropdown-item fw-semibold" asp-controller="Employee" asp-action="Index"><i class="bi bi-speedometer2 text-primary me-2"></i>Dashboard</a></li>
+                                        <li><a class="dropdown-item fw-semibold text-warning" asp-controller="EventManager" asp-action="Index"><i class="bi bi-palette2 text-warning me-2"></i>Event Manager Dashboard</a></li>
                                         <li><hr class="dropdown-divider"></li>
                                         <li><h6 class="dropdown-header text-uppercase small text-muted">Operational Queues</h6></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="RefundsQueue"><i class="bi bi-arrow-counterclockwise text-info me-2"></i>Refunds Operations</a></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="PartnerLeads"><i class="bi bi-people text-success me-2"></i>Partner Onboarding Leads</a></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="DamageClaims"><i class="bi bi-shield-shaded text-danger me-2"></i>Damage Claims</a></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="IdVerifications"><i class="bi bi-person-vcard text-primary me-2"></i>Guest KYC Verifications</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Employee" asp-action="SupportQueries"><i class="bi bi-headset text-secondary me-2"></i>Customer Inquiries</a></li>
                                         <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="ManageProperties"><i class="bi bi-houses me-2"></i>Manage Properties</a></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="ManageBookings"><i class="bi bi-calendar-check me-2"></i>Manage Bookings</a></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="ManageOwners"><i class="bi bi-person-badge me-2"></i>Manage Hosts</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item fw-semibold" asp-controller="Account" asp-action="Profile"><i class="bi bi-person-circle text-primary me-2"></i>My Profile</a></li>
                                     </ul>
                                 </li>
                             }
@@ -152,6 +160,8 @@
                                         <li><a class="dropdown-item text-success fw-semibold" asp-controller="Owner" asp-action="CreateProperty"><i class="bi bi-plus-circle-fill text-success me-2"></i>List New Farm</a></li>
                                         <li><a class="dropdown-item text-danger" asp-controller="Owner" asp-action="DamageClaims"><i class="bi bi-shield-exclamation text-danger me-2"></i>Security Deposit Claims</a></li>
                                         <li><a class="dropdown-item" asp-controller="Owner" asp-action="Subscriptions"><i class="bi bi-award text-primary me-2"></i>Subscription Plans</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item fw-semibold" asp-controller="Account" asp-action="Profile"><i class="bi bi-person-circle text-primary me-2"></i>My Profile</a></li>
                                     </ul>
                                 </li>
                             }
@@ -162,9 +172,11 @@
                                         <i class="bi bi-palette2 me-1"></i> Event Manager
                                     </a>
                                     <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
-                                        <li><a class="dropdown-item fw-semibold" asp-controller="EventManager" asp-action="Dashboard"><i class="bi bi-speedometer2 text-primary me-2"></i>Event Dashboard</a></li>
+                                        <li><a class="dropdown-item fw-semibold" asp-controller="EventManager" asp-action="Index"><i class="bi bi-speedometer2 text-primary me-2"></i>Event Manager Dashboard</a></li>
                                         <li><a class="dropdown-item fw-semibold text-success" asp-controller="EventManager" asp-action="Packages"><i class="bi bi-box-seam text-success me-2"></i>Décor Packages</a></li>
                                         <li><a class="dropdown-item fw-semibold text-warning" asp-controller="EventManager" asp-action="AssignedSetups"><i class="bi bi-calendar-event text-warning me-2"></i>Assigned Setups</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item fw-semibold" asp-controller="Account" asp-action="Profile"><i class="bi bi-person-circle text-primary me-2"></i>My Profile</a></li>
                                     </ul>
                                 </li>
                             }
@@ -173,6 +185,11 @@
                                 <li class="nav-item me-2">
                                     <a class="btn btn-outline-warning text-warning px-3" asp-controller="Client" asp-action="Index">
                                         <i class="bi bi-calendar-check me-1"></i> My Bookings & KYC
+                                    </a>
+                                </li>
+                                <li class="nav-item me-2">
+                                    <a class="btn btn-outline-light text-white px-3" asp-controller="Account" asp-action="Profile">
+                                        <i class="bi bi-person-circle me-1"></i> Profile
                                     </a>
                                 </li>
                             }
@@ -186,12 +203,12 @@
                         {
                             <li class="nav-item me-2">
                                 <a class="nav-link text-warning fw-medium" asp-controller="Home" asp-action="Partner">
-                                    <i class="bi bi-tree-fill me-1"></i> List Your Farm
+                                    <i class="bi bi-handshake me-1"></i> Partner With Us
                                 </a>
                             </li>
                             <li class="nav-item me-2">
                                 <a class="nav-link text-light fw-medium" asp-controller="Account" asp-action="Login">
-                                    <i class="bi bi-person"></i> Sign In
+                                    <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -294,9 +311,9 @@
                 </div>
 
                 <div class="col-lg-3 col-md-6 col-6">
-                    <h6 class="text-white fw-bold mb-3">Host with Us</h6>
+                    <h6 class="text-white fw-bold mb-3">Partner with Us</h6>
                     <ul class="list-unstyled small">
-                        <li class="mb-2"><a asp-controller="Account" asp-action="Register" class="text-white-50 text-decoration-none hover-white">List Your Farmhouse</a></li>
+                        <li class="mb-2"><a asp-controller="Home" asp-action="Partner" class="text-white-50 text-decoration-none hover-white">Partner With Us</a></li>
                         <li class="mb-2"><a asp-controller="Owner" asp-action="Subscriptions" class="text-white-50 text-decoration-none hover-white">Owner Subscription Plans</a></li>
                         <li class="mb-2"><a asp-controller="Home" asp-action="Contact" class="text-white-50 text-decoration-none hover-white">Partner Support Desk</a></li>
                     </ul>

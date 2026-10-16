@@ -15,9 +15,14 @@
                 <h2 class="fw-bold mb-1"><i class="bi bi-shield-shaded me-2"></i>Security Deposit Damage Claims</h2>
                 <p class="mb-0 text-white-50">Review host damage claims filed within 24h of checkout. Adjudicate approved deductions and release remaining deposit holds to clients.</p>
             </div>
-            <a asp-controller="@controllerName" asp-action="Index" class="btn btn-outline-light rounded-pill px-4">
-                <i class="bi bi-speedometer2 me-1"></i> Dashboard
-            </a>
+            <div>
+                <button type="button" class="btn btn-light text-danger fw-bold rounded-pill px-4 me-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#logDamageClaimModal">
+                    <i class="bi bi-plus-circle me-1"></i> Log Damage Incident
+                </button>
+                <a asp-controller="@controllerName" asp-action="Index" class="btn btn-outline-light rounded-pill px-4">
+                    <i class="bi bi-speedometer2 me-1"></i> Dashboard
+                </a>
+            </div>
         </div>
     </div>
 
@@ -192,29 +197,111 @@
     </div>
 </div>
 
-@section Scripts {
+<!-- Log Incident / Damage Claim Modal for Staff -->
+<div class="modal fade" id="logDamageClaimModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <form asp-controller="@controllerName" asp-action="LogDamageClaim" method="post">
+                @Html.AntiForgeryToken()
+                <div class="modal-header bg-danger text-white py-3">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-shield-exclamation me-2"></i>Log Incident / Property Damage Claim
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-muted small mb-3">
+                        Record a property damage incident on behalf of an owner or guest reservation. Claim will enter adjudication queue.
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Target Guest Booking <span class="text-danger">*</span></label>
+                        @{
+                            var allBookings = ViewBag.Bookings as List<BookMyFun.Models.Entities.Booking>;
+                        }
+                        @if (allBookings != null && allBookings.Any())
+                        {
+                            <select name="BookingID" class="form-select" required>
+                                <option value="">-- Select Reservation --</option>
+                                @foreach (var b in allBookings)
+                                {
+                                    <option value="@b.BookingID">
+                                        #@b.BookingID — @b.PropertyTitle (Guest: @b.ClientName, @b.CheckInDate.ToString("MMM dd")) — Deposit: ₹@b.SecurityDepositAmount.ToString("N0")
+                                    </option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <div class="alert alert-warning py-2 small">No bookings available.</div>
+                        }
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Claimed Damage Amount (₹) <span class="text-danger">*</span></label>
+                        <input type="number" step="0.01" min="1" name="ClaimAmount" class="form-control" placeholder="e.g. 5000.00" required />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Itemized Description &amp; Incident Notes <span class="text-danger">*</span></label>
+                        <textarea name="ItemizedDescription" class="form-control" rows="3" placeholder="Specify damaged assets and incident details reported..." required></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Photo / Video Evidence Proof URLs</label>
+                        <textarea name="EvidenceUrlsInput" class="form-control" rows="2" placeholder="Paste media links separated by commas or new lines"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-0 py-3">
+                    <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger fw-bold rounded-pill px-4">
+                        <i class="bi bi-shield-check me-1"></i> Record Damage Claim
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
-    document.querySelectorAll(".btn-adjudicate").forEach(btn => {
-        btn.addEventListener("click", function () {
-            const id = this.getAttribute("data-claim-id");
-            const bId = this.getAttribute("data-booking-id");
-            const amt = this.getAttribute("data-claim-amount");
+    (function () {
+        function initClaimScripts() {
+            document.querySelectorAll(".btn-adjudicate").forEach(btn => {
+                btn.addEventListener("click", function () {
+                    const id = this.getAttribute("data-claim-id");
+                    const bId = this.getAttribute("data-booking-id");
+                    const amt = this.getAttribute("data-claim-amount");
 
-            document.getElementById("modalClaimId").value = id;
-            document.getElementById("modalClaimTitle").textContent = `Claim #${id} (Booking #${bId})`;
-            document.getElementById("modalClaimAmount").textContent = `₹${amt}`;
-            document.getElementById("modalApprovedAmountInput").value = amt;
-        });
-    });
+                    const claimIdEl = document.getElementById("modalClaimId");
+                    if (claimIdEl) claimIdEl.value = id;
+                    const claimTitleEl = document.getElementById("modalClaimTitle");
+                    if (claimTitleEl) claimTitleEl.textContent = `Claim #${id} (Booking #${bId})`;
+                    const claimAmtEl = document.getElementById("modalClaimAmount");
+                    if (claimAmtEl) claimAmtEl.textContent = `₹${amt}`;
+                    const approvedInput = document.getElementById("modalApprovedAmountInput");
+                    if (approvedInput) approvedInput.value = amt;
+                });
+            });
 
-    document.getElementById("adjudicationAction").addEventListener("change", function () {
-        const group = document.getElementById("approvedAmountGroup");
-        if (this.value === "Reject") {
-            group.style.display = "none";
-            document.getElementById("modalApprovedAmountInput").value = "0";
-        } else {
-            group.style.display = "block";
+            const actionEl = document.getElementById("adjudicationAction");
+            if (actionEl) {
+                actionEl.addEventListener("change", function () {
+                    const group = document.getElementById("approvedAmountGroup");
+                    if (this.value === "Reject") {
+                        if (group) group.style.display = "none";
+                        const approvedInput = document.getElementById("modalApprovedAmountInput");
+                        if (approvedInput) approvedInput.value = "0";
+                    } else {
+                        if (group) group.style.display = "block";
+                    }
+                });
+            }
         }
-    });
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", initClaimScripts);
+        } else {
+            initClaimScripts();
+        }
+    })();
 </script>
-}

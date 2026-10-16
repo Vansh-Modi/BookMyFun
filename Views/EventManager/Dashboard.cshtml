@@ -1,258 +1,381 @@
 @model List<BookMyFun.Models.Entities.Booking>
 @{
-    ViewData["Title"] = "Event Manager & Décor Studio";
+    ViewData["Title"] = "Event Manager Dashboard";
     var packages = ViewBag.Packages as List<BookMyFun.Models.Entities.EventPackage> ?? new();
+    var decorators = ViewBag.Decorators as List<BookMyFun.Models.Entities.User> ?? new();
+    bool isStaff = ViewBag.IsStaffOrAdmin == true;
+    decimal totalRevenue = ViewBag.TotalEventRevenue != null ? Convert.ToDecimal(ViewBag.TotalEventRevenue) : 0m;
 }
 
-<div class="container py-4">
-    <!-- Header Section -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-2 border-bottom">
+<!-- Page Header (Universal Dashboard Styling) -->
+<div class="dash-page-header">
+    <div>
+        <p class="dash-eyebrow">Event Manager Portal · Celebrations &amp; Staging Operations</p>
+        <h1 class="dash-title">Event Manager Dashboard</h1>
+        <p class="dash-subtitle">Manage themed décor packages, track on-ground farm venue setups, dispatch decorator crews, and verify setup proofs.</p>
+    </div>
+    <div class="dash-actions">
+        <a asp-action="CreatePackage" class="dash-btn dash-btn-primary">
+            <i class="bi bi-plus-circle"></i> Create Décor Package
+        </a>
+        <a asp-action="Packages" class="dash-btn dash-btn-accent">
+            <i class="bi bi-boxes"></i> Décor Catalog
+        </a>
+        <a asp-action="AssignedSetups" class="dash-btn dash-btn-outline">
+            <i class="bi bi-calendar-check"></i> Assigned Setups
+        </a>
+    </div>
+</div>
+
+<!-- KPI Metric Cards Grid -->
+<div class="dash-stat-grid mb-4">
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Total Event Setups</span>
+            <span class="dash-stat-icon icon-blue"><i class="bi bi-calendar-event-fill"></i></span>
+        </div>
+        <div class="dash-stat-val">@ViewBag.TotalAssigned</div>
+        <div class="dash-stat-sub"><i class="bi bi-check2-circle text-primary me-1"></i>Farm reservations with décor</div>
+    </div>
+
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Pending / Claimable</span>
+            <span class="dash-stat-icon icon-amber"><i class="bi bi-hourglass-split"></i></span>
+        </div>
+        <div class="dash-stat-val text-warning">@ViewBag.PendingJobs</div>
+        <div class="dash-stat-sub">
+            @if (ViewBag.UnassignedCount > 0)
+            {
+                <span class="text-warning fw-semibold"><i class="bi bi-exclamation-circle-fill me-1"></i>@ViewBag.UnassignedCount awaiting crew</span>
+            }
+            else
+            {
+                <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>All orders assigned</span>
+            }
+        </div>
+    </div>
+
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Active Staging</span>
+            <span class="dash-stat-icon icon-blue"><i class="bi bi-tools"></i></span>
+        </div>
+        <div class="dash-stat-val text-info">@ViewBag.InProgressJobs</div>
+        <div class="dash-stat-sub"><i class="bi bi-clock-history text-info me-1"></i>In-progress on-ground</div>
+    </div>
+
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Completed &amp; Verified</span>
+            <span class="dash-stat-icon icon-emerald"><i class="bi bi-patch-check-fill"></i></span>
+        </div>
+        <div class="dash-stat-val text-success">@ViewBag.CompletedJobs</div>
+        <div class="dash-stat-sub"><i class="bi bi-shield-check text-success me-1"></i>Proofs submitted &amp; inspected</div>
+    </div>
+
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Active Packages</span>
+            <span class="dash-stat-icon icon-amber"><i class="bi bi-box-seam-fill"></i></span>
+        </div>
+        <div class="dash-stat-val">@ViewBag.ActivePackagesCount</div>
+        <div class="dash-stat-sub"><i class="bi bi-tags-fill text-warning me-1"></i>Themed offerings in catalog</div>
+    </div>
+
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Décor Revenue GMV</span>
+            <span class="dash-stat-icon icon-emerald"><i class="bi bi-currency-rupee"></i></span>
+        </div>
+        <div class="dash-stat-val text-success">₹@totalRevenue.ToString("N0")</div>
+        <div class="dash-stat-sub"><i class="bi bi-graph-up-arrow text-success me-1"></i>Gross event add-on value</div>
+    </div>
+</div>
+
+<!-- Active Décor Packages Showcase -->
+<div class="card border-0 shadow-sm rounded-4 mb-4 bg-card">
+    <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center pt-3 px-4">
         <div>
-            <div class="d-flex align-items-center gap-2 mb-1">
-                <span class="badge bg-warning text-dark px-3 py-1 rounded-pill fw-bold">
-                    <i class="bi bi-palette2 me-1"></i> 5th Dashboard: Event Decorator
-                </span>
-                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill small">
-                    <i class="bi bi-check-circle-fill me-1"></i> Active Crew
-                </span>
-            </div>
-            <h2 class="fw-bold mb-0">Event Décor & Staging Studio</h2>
-            <p class="text-muted small mb-0">Manage themed event packages, oversee farm setups, and submit on-ground photographic evidence.</p>
+            <h5 class="fw-bold mb-0 text-heading"><i class="bi bi-boxes text-warning me-2"></i>Active Décor &amp; Staging Packages</h5>
+            <span class="text-muted small">Themed offerings available for guest booking selection</span>
         </div>
-        <div class="d-flex gap-2 mt-3 mt-md-0">
-            <a asp-action="CreatePackage" class="btn btn-warning fw-semibold shadow-sm">
-                <i class="bi bi-plus-circle me-1"></i> Create Décor Package
-            </a>
-            <a asp-action="AssignedSetups" class="btn btn-outline-primary fw-semibold">
-                <i class="bi bi-list-task me-1"></i> View All Setups
-            </a>
-        </div>
+        <a asp-action="Packages" class="btn btn-sm btn-outline-secondary rounded-pill">Manage All (@ViewBag.ActivePackagesCount)</a>
     </div>
-
-    <!-- Alert Notifications -->
-    @if (TempData["Success"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm d-flex align-items-center" role="alert">
-            <i class="bi bi-check-circle-fill fs-5 me-2"></i>
-            <div>@TempData["Success"]</div>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-    @if (TempData["Error"] != null)
-    {
-        <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm d-flex align-items-center" role="alert">
-            <i class="bi bi-exclamation-triangle-fill fs-5 me-2"></i>
-            <div>@TempData["Error"]</div>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-
-    <!-- KPI Metric Cards -->
-    <div class="row g-3 mb-4">
-        <div class="col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-card">
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                    <span class="text-secondary small fw-bold text-uppercase">Assigned Setups</span>
-                    <div class="p-2 bg-primary-subtle rounded-3 text-primary">
-                        <i class="bi bi-calendar-check fs-4"></i>
-                    </div>
-                </div>
-                <h3 class="fw-bold mb-0">@ViewBag.TotalAssigned</h3>
-                <span class="text-muted small">Total farm events assigned</span>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-card">
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                    <span class="text-secondary small fw-bold text-uppercase">Pending Setup</span>
-                    <div class="p-2 bg-warning-subtle rounded-3 text-warning">
-                        <i class="bi bi-clock-history fs-4"></i>
-                    </div>
-                </div>
-                <h3 class="fw-bold mb-0 text-warning">@ViewBag.PendingJobs</h3>
-                <span class="text-muted small">Awaiting crew dispatch</span>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-card">
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                    <span class="text-secondary small fw-bold text-uppercase">In Progress</span>
-                    <div class="p-2 bg-info-subtle rounded-3 text-info">
-                        <i class="bi bi-tools fs-4"></i>
-                    </div>
-                </div>
-                <h3 class="fw-bold mb-0 text-info">@ViewBag.InProgressJobs</h3>
-                <span class="text-muted small">Active on-ground decorating</span>
-            </div>
-        </div>
-
-        <div class="col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-card">
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                    <span class="text-secondary small fw-bold text-uppercase">Completed / Inspected</span>
-                    <div class="p-2 bg-success-subtle rounded-3 text-success">
-                        <i class="bi bi-check-all fs-4"></i>
-                    </div>
-                </div>
-                <h3 class="fw-bold mb-0 text-success">@ViewBag.CompletedJobs</h3>
-                <span class="text-muted small">Proof submitted & verified</span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Active Décor Packages Showcase -->
-    <div class="card border-0 shadow-sm rounded-4 mb-4 bg-card">
-        <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center pt-3 px-4">
-            <div>
-                <h5 class="fw-bold mb-0"><i class="bi bi-boxes text-warning me-2"></i>Active Décor & Staging Packages</h5>
-                <span class="text-muted small">Themed offerings available for guest booking selection</span>
-            </div>
-            <a asp-action="Packages" class="btn btn-sm btn-outline-secondary">Manage All (@ViewBag.ActivePackagesCount)</a>
-        </div>
-        <div class="card-body px-4 pb-4">
-            <div class="row g-3">
-                @foreach (var pkg in packages.Take(4))
-                {
-                    <div class="col-md-6 col-xl-3">
-                        <div class="card h-100 border rounded-3 overflow-hidden shadow-sm">
-                            <div style="height: 140px; background-size: cover; background-position: center; background-image: url('@(string.IsNullOrEmpty(pkg.MediaUrl) ? "https://images.unsplash.com/photo-1519741497674-611481863552" : pkg.MediaUrl)');">
-                                <span class="badge bg-dark bg-opacity-75 text-white m-2">@pkg.Category</span>
+    <div class="card-body px-4 pb-4">
+        <div class="row g-3">
+            @foreach (var pkg in packages.Take(4))
+            {
+                <div class="col-md-6 col-xl-3">
+                    <div class="card h-100 border rounded-3 overflow-hidden shadow-sm bg-card">
+                        <div style="height: 140px; background-size: cover; background-position: center; background-image: url('@(string.IsNullOrEmpty(pkg.MediaUrl) ? "https://images.unsplash.com/photo-1519741497674-611481863552" : pkg.MediaUrl)');">
+                            <span class="badge bg-dark bg-opacity-75 text-white m-2">@pkg.Category</span>
+                        </div>
+                        <div class="card-body p-3 d-flex flex-column justify-content-between">
+                            <div>
+                                <h6 class="fw-bold mb-1 text-truncate text-heading" title="@pkg.Name">@pkg.Name</h6>
+                                <p class="text-muted small mb-2 line-clamp-2" style="font-size: 0.8rem;">@pkg.Description</p>
                             </div>
-                            <div class="card-body p-3 d-flex flex-column justify-content-between">
-                                <div>
-                                    <h6 class="fw-bold mb-1 text-truncate" title="@pkg.Name">@pkg.Name</h6>
-                                    <p class="text-muted small mb-2 line-clamp-2" style="font-size: 0.8rem;">@pkg.Description</p>
-                                </div>
-                                <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                                    <span class="fw-bold text-warning">₹@pkg.BasePrice.ToString("N0")</span>
-                                    <a asp-action="EditPackage" asp-route-id="@pkg.PackageID" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 0.75rem;">Edit</a>
-                                </div>
+                            <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                                <span class="fw-bold text-warning">₹@pkg.BasePrice.ToString("N0")</span>
+                                <a asp-action="EditPackage" asp-route-id="@pkg.PackageID" class="btn btn-sm btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;">Edit</a>
                             </div>
                         </div>
                     </div>
-                }
-            </div>
-        </div>
-    </div>
-
-    <!-- Recent Assigned Setups Table -->
-    <div class="card border-0 shadow-sm rounded-4 bg-card">
-        <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center pt-3 px-4">
-            <div>
-                <h5 class="fw-bold mb-0"><i class="bi bi-calendar-event text-primary me-2"></i>Upcoming Farm Setups</h5>
-                <span class="text-muted small">Confirmed guest bookings requesting event decorations</span>
-            </div>
-            <a asp-action="AssignedSetups" class="btn btn-sm btn-outline-primary">View All Setups</a>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light text-secondary small text-uppercase">
-                        <tr>
-                            <th class="ps-4">Booking #</th>
-                            <th>Farm Property</th>
-                            <th>Client / Contact</th>
-                            <th>Event Package</th>
-                            <th>Event Date</th>
-                            <th>Setup Status</th>
-                            <th class="text-end pe-4">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (!Model.Any())
-                        {
-                            <tr>
-                                <td colspan="7" class="text-center py-4 text-muted">
-                                    <i class="bi bi-inbox fs-3 d-block mb-1"></i>
-                                    No assigned event setups found.
-                                </td>
-                            </tr>
-                        }
-                        @foreach (var item in Model)
-                        {
-                            var badgeClass = item.SetupStatus switch
-                            {
-                                "Completed" or "Inspected" => "bg-success text-white",
-                                "InProgress" => "bg-info text-dark",
-                                "Assigned" => "bg-primary text-white",
-                                _ => "bg-warning text-dark"
-                            };
-
-                            <tr>
-                                <td class="ps-4 fw-bold">#@item.BookingID</td>
-                                <td>
-                                    <div class="fw-semibold">@item.PropertyTitle</div>
-                                    <span class="text-muted small">Check-in: @item.CheckInDate.ToString("dd MMM yyyy")</span>
-                                </td>
-                                <td>
-                                    <div>@item.ClientName</div>
-                                    <span class="text-muted small">@item.ClientPhone</span>
-                                </td>
-                                <td>
-                                    <span class="badge bg-secondary-subtle text-dark border">
-                                        @(string.IsNullOrEmpty(item.EventPackageName) ? "Custom Setup" : item.EventPackageName)
-                                    </span>
-                                </td>
-                                <td class="fw-semibold text-primary">
-                                    @(item.EventDate.HasValue ? item.EventDate.Value.ToString("dd MMM yyyy") : item.CheckInDate.ToString("dd MMM yyyy"))
-                                </td>
-                                <td>
-                                    <span class="badge @badgeClass px-2 py-1 rounded-pill">
-                                        @item.SetupStatus
-                                    </span>
-                                </td>
-                                <td class="text-end pe-4">
-                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#updateStatusModal-@item.BookingID">
-                                        <i class="bi bi-arrow-repeat me-1"></i> Update Status
-                                    </button>
-                                </td>
-                            </tr>
-
-                            <!-- Status & Proof Modal -->
-                            <div class="modal fade" id="updateStatusModal-@item.BookingID" tabindex="-1" aria-hidden="true">
-                                <div class="modal-dialog modal-dialog-centered">
-                                    <div class="modal-content rounded-4 shadow border-0">
-                                        <form asp-action="UpdateSetupStatus" method="post">
-                                            @Html.AntiForgeryToken()
-                                            <input type="hidden" name="BookingID" value="@item.BookingID" />
-                                            <div class="modal-header border-bottom">
-                                                <h5 class="modal-title fw-bold">Update Setup Status: Booking #@item.BookingID</h5>
-                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                            </div>
-                                            <div class="modal-body">
-                                                <div class="mb-3">
-                                                    <label class="form-label fw-semibold small">Current Farm</label>
-                                                    <input type="text" class="form-control bg-light" value="@item.PropertyTitle" readonly />
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label class="form-label fw-semibold small">Setup Progress Status</label>
-                                                    <select name="SetupStatus" class="form-select">
-                                                        <option value="Assigned" selected="@(item.SetupStatus == "Assigned")">Assigned (Crew Notified)</option>
-                                                        <option value="InProgress" selected="@(item.SetupStatus == "InProgress")">In Progress (Decorating)</option>
-                                                        <option value="Completed" selected="@(item.SetupStatus == "Completed")">Completed (Setup Ready)</option>
-                                                        <option value="Inspected" selected="@(item.SetupStatus == "Inspected")">Inspected (Host/Guest Approved)</option>
-                                                    </select>
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label class="form-label fw-semibold small">Photo / Video Proof URLs</label>
-                                                    <textarea name="SetupProofMediaUrls" class="form-control" rows="3" placeholder="Paste image links, Cloudinary/Drive URLs, or video walkthroughs...">@item.SetupProofMediaUrls</textarea>
-                                                    <div class="form-text small">Enter external URLs or uploaded media links demonstrating completed décor.</div>
-                                                </div>
-                                            </div>
-                                            <div class="modal-footer border-top">
-                                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                                                <button type="submit" class="btn btn-warning fw-bold px-4">Save & Submit Proof</button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-                        }
-                    </tbody>
-                </table>
-            </div>
+                </div>
+            }
         </div>
     </div>
 </div>
+
+<!-- Active Décor Setups & Orders Section -->
+<div class="card border-0 shadow-sm rounded-4 bg-card">
+    <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-center pt-3 px-4 gap-2">
+        <div>
+            <h5 class="fw-bold mb-0 text-heading"><i class="bi bi-calendar-event text-primary me-2"></i>Event Décor Orders &amp; Setups</h5>
+            <span class="text-muted small">Guest reservations with requested custom themes and stage decoration</span>
+        </div>
+        <!-- Order Filter Tabs -->
+        <ul class="nav nav-pills small" id="eventOrderTabs" role="tablist">
+            <li class="nav-item">
+                <button class="nav-link active py-1 px-3 rounded-pill" data-filter="all">All (@Model.Count)</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link py-1 px-3 rounded-pill text-warning" data-filter="pending">Pending / Claimable (@Model.Count(s => s.SetupStatus == "Pending" || s.DecoratorAssignedID == null))</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link py-1 px-3 rounded-pill text-info" data-filter="inprogress">In Progress (@Model.Count(s => s.SetupStatus == "InProgress" || s.SetupStatus == "Assigned"))</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link py-1 px-3 rounded-pill text-success" data-filter="completed">Completed (@Model.Count(s => s.SetupStatus == "Completed" || s.SetupStatus == "Inspected"))</button>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="eventOrdersTable">
+                <thead class="table-light text-secondary small text-uppercase">
+                    <tr>
+                        <th class="ps-4">Booking #</th>
+                        <th>Farm Property</th>
+                        <th>Client / Contact</th>
+                        <th>Event Package</th>
+                        <th>Event Date</th>
+                        <th>Assigned Crew</th>
+                        <th>Setup Status</th>
+                        <th class="text-end pe-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="8" class="text-center py-5 text-muted">
+                                <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                                <h6 class="fw-semibold">No assigned event setups found</h6>
+                                <p class="small mb-0">New bookings with event décor selections will appear here automatically.</p>
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var item in Model)
+                    {
+                        var badgeClass = item.SetupStatus switch
+                        {
+                            "Completed" or "Inspected" => "bg-success text-white",
+                            "InProgress" => "bg-info text-dark",
+                            "Assigned" => "bg-primary text-white",
+                            _ => "bg-warning text-dark"
+                        };
+
+                        var filterCategory = (item.SetupStatus == "Completed" || item.SetupStatus == "Inspected") ? "completed" :
+                                             (item.SetupStatus == "Pending" || item.DecoratorAssignedID == null) ? "pending" : "inprogress";
+
+                        <tr class="order-row" data-category="@filterCategory">
+                            <td class="ps-4 fw-bold">#@item.BookingID</td>
+                            <td>
+                                <div class="fw-semibold text-heading">@item.PropertyTitle</div>
+                                <span class="text-muted small"><i class="bi bi-calendar3 me-1"></i>Check-in: @item.CheckInDate.ToString("dd MMM yyyy")</span>
+                            </td>
+                            <td>
+                                <div class="fw-medium">@item.ClientName</div>
+                                <span class="text-muted small"><i class="bi bi-telephone me-1"></i>@item.ClientPhone</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary-subtle text-dark border">
+                                    @(string.IsNullOrEmpty(item.EventPackageName) ? "Custom Setup" : item.EventPackageName)
+                                </span>
+                                @if (item.EventPackagePriceSnapshot > 0)
+                                {
+                                    <div class="small fw-semibold text-success">₹@item.EventPackagePriceSnapshot.ToString("N0")</div>
+                                }
+                            </td>
+                            <td class="fw-semibold text-primary">
+                                @(item.EventDate.HasValue ? item.EventDate.Value.ToString("dd MMM yyyy") : item.CheckInDate.ToString("dd MMM yyyy"))
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(item.DecoratorName))
+                                {
+                                    <span class="badge bg-light text-dark border">
+                                        <i class="bi bi-person-check-fill text-success me-1"></i>@item.DecoratorName
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
+                                        <i class="bi bi-clock me-1"></i>Unassigned
+                                    </span>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge @badgeClass px-2 py-1 rounded-pill">
+                                    @item.SetupStatus
+                                </span>
+                            </td>
+                            <td class="text-end pe-4">
+                                <div class="d-flex justify-content-end gap-1">
+                                    @if (item.DecoratorAssignedID == null || item.SetupStatus == "Pending")
+                                    {
+                                        <!-- Accept / Claim Order Action -->
+                                        <form asp-action="AcceptOrder" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="bookingId" value="@item.BookingID" />
+                                            <button type="submit" class="btn btn-sm btn-success rounded-pill px-3 shadow-sm">
+                                                <i class="bi bi-check-circle me-1"></i> Accept Job
+                                            </button>
+                                        </form>
+
+                                        @if (isStaff)
+                                        {
+                                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-2" data-bs-toggle="modal" data-bs-target="#assignModal-@item.BookingID">
+                                                <i class="bi bi-person-plus me-1"></i> Assign
+                                            </button>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#updateStatusModal-@item.BookingID">
+                                            <i class="bi bi-arrow-repeat me-1"></i> Update Status
+                                        </button>
+
+                                        @if (isStaff)
+                                        {
+                                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" data-bs-toggle="modal" data-bs-target="#assignModal-@item.BookingID">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                        }
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+
+                        <!-- Assign Decorator Modal (Staff / Admin) -->
+                        <div class="modal fade" id="assignModal-@item.BookingID" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content rounded-4 shadow border-0 bg-card">
+                                    <form asp-action="AssignDecorator" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="bookingId" value="@item.BookingID" />
+                                        <div class="modal-header border-bottom">
+                                            <h5 class="modal-title fw-bold text-heading">Assign Event Decorator: Booking #@item.BookingID</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <p class="small text-muted">Assign a registered decorator / event crew to handle staging for <strong>@item.PropertyTitle</strong>.</p>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold small">Select Decorator</label>
+                                                <select name="decoratorId" class="form-select rounded-3" required>
+                                                    <option value="">-- Choose Decorator --</option>
+                                                    @foreach (var dec in decorators)
+                                                    {
+                                                        <option value="@dec.UserID" selected="@(item.DecoratorAssignedID == dec.UserID)">@dec.FullName (@dec.Email)</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer border-top">
+                                            <button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" class="btn btn-primary fw-bold px-4 rounded-pill">Assign Decorator</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Status & Proof Modal -->
+                        <div class="modal fade" id="updateStatusModal-@item.BookingID" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content rounded-4 shadow border-0 bg-card">
+                                    <form asp-action="UpdateSetupStatus" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="BookingID" value="@item.BookingID" />
+                                        <div class="modal-header border-bottom">
+                                            <h5 class="modal-title fw-bold text-heading">Update Setup Status: Booking #@item.BookingID</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold small">Farm Property</label>
+                                                <input type="text" class="form-control bg-light" value="@item.PropertyTitle" readonly />
+                                            </div>
+                                            @if (!string.IsNullOrEmpty(item.CustomEventNotes))
+                                            {
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-semibold small">Client Custom Request Notes</label>
+                                                    <textarea class="form-control bg-light" rows="2" readonly>@item.CustomEventNotes</textarea>
+                                                </div>
+                                            }
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold small">Setup Progress Milestone</label>
+                                                <select name="SetupStatus" class="form-select">
+                                                    <option value="Assigned" selected="@(item.SetupStatus == "Assigned")">Assigned (Crew Notified)</option>
+                                                    <option value="InProgress" selected="@(item.SetupStatus == "InProgress")">In Progress (Active Decorating)</option>
+                                                    <option value="Completed" selected="@(item.SetupStatus == "Completed")">Completed (Setup Ready on Ground)</option>
+                                                    <option value="Inspected" selected="@(item.SetupStatus == "Inspected")">Inspected (Host / Guest Verified)</option>
+                                                </select>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold small">Photo / Video Proof URLs</label>
+                                                <textarea name="SetupProofMediaUrls" class="form-control" rows="3" placeholder="Paste image links, Cloudinary/Drive URLs, or video walkthroughs...">@item.SetupProofMediaUrls</textarea>
+                                                <div class="form-text small">Upload or link verifiable photo/video evidence of the decorated venue.</div>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer border-top">
+                                            <button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" class="btn btn-warning fw-bold px-4 rounded-pill">Save &amp; Submit Proof</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const tabButtons = document.querySelectorAll("#eventOrderTabs button");
+        const rows = document.querySelectorAll(".order-row");
+
+        tabButtons.forEach(btn => {
+            btn.addEventListener("click", function () {
+                tabButtons.forEach(b => b.classList.remove("active"));
+                this.classList.add("active");
+
+                const filter = this.getAttribute("data-filter");
+                rows.forEach(row => {
+                    const cat = row.getAttribute("data-category");
+                    if (filter === "all" || cat === filter) {
+                        row.style.display = "";
+                    } else {
+                        row.style.display = "none";
+                    }
+                });
+            });
+        });
+    });
+</script>
+}

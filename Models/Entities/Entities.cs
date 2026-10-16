@@ -217,6 +217,13 @@ namespace BookMyFun.Models.Entities
         public string Message { get; set; } = string.Empty;
         public string Status { get; set; } = "New"; // 'New', 'Responded'
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        // Support Staff Accountability
+        public int? RespondedByUserID { get; set; }
+        public string? RespondedByUserName { get; set; }
+        public string? RespondedByUserRole { get; set; }
+        public DateTime? RespondedAt { get; set; }
+        public string? ResponseNotes { get; set; }
     }
 
     public class AuditLog
@@ -275,6 +282,7 @@ namespace BookMyFun.Models.Entities
         public string? ActivationToken { get; set; }
         public DateTime? TokenExpiresAt { get; set; }
         public int? ReviewedByUserID { get; set; }
+        public string PartnerType { get; set; } = "Owner"; // 'Owner' or 'EventManager'
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Joined properties

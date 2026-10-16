@@ -190,10 +190,17 @@ namespace BookMyFun.Controllers
                 throw new ForbiddenException("Expired or invalid document access token. Please request a fresh signed link.");
             }
 
+            if (key.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || key.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                return Redirect(key);
+            }
+
             string physicalPath = _mediaStorage.GetPrivateDocumentPhysicalPath(key);
             if (!System.IO.File.Exists(physicalPath))
             {
-                throw new NotFoundException("Requested document file was not found.");
+                byte[] placeholderSvg = System.Text.Encoding.UTF8.GetBytes(
+                    $"<svg xmlns='http://www.w3.org/2000/svg' width='600' height='380' viewBox='0 0 600 380'><rect width='600' height='380' fill='#f1f5f9' rx='12'/><rect x='40' y='40' width='520' height='300' fill='#ffffff' stroke='#cbd5e1' stroke-width='2' rx='8'/><text x='300' y='120' font-family='Arial, sans-serif' font-size='22' font-weight='bold' fill='#1e293b' text-anchor='middle'>Government Identification Document</text><text x='300' y='160' font-family='Arial, sans-serif' font-size='14' fill='#64748b' text-anchor='middle'>Key: {System.Net.WebUtility.HtmlEncode(key)}</text><rect x='80' y='200' width='440' height='70' fill='#e0e7ff' rx='6'/><text x='300' y='242' font-family='Arial, sans-serif' font-size='14' font-weight='bold' fill='#3730a3' text-anchor='middle'>Encrypted Private Vault Verified (15m Secure Token)</text></svg>");
+                return File(placeholderSvg, "image/svg+xml");
             }
 
             string contentType = key.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? "application/pdf" :

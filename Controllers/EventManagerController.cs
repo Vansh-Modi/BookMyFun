@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace BookMyFun.Controllers
 {
-    [Authorize(Roles = "EventManager,Admin")]
+    [Authorize(Roles = "EventManager,Admin,Employee")]
     public class EventManagerController : Controller
     {
         private readonly IEventPackageRepository _eventRepo;
@@ -28,27 +28,40 @@ namespace BookMyFun.Controllers
             _logger = logger;
         }
 
-        public IActionResult Index() => RedirectToAction(nameof(Dashboard));
+        [AllowAnonymous]
+        [HttpGet]
+        public IActionResult Login(string? returnUrl) => RedirectToAction("Login", "Account", new { returnUrl });
 
-        public async Task<IActionResult> Dashboard()
+        public async Task<IActionResult> Index() => await LoadDashboardViewAsync("Index");
+
+        public async Task<IActionResult> Dashboard() => await LoadDashboardViewAsync("Dashboard");
+
+        private async Task<IActionResult> LoadDashboardViewAsync(string viewName)
         {
             var userId = GetCurrentUserId();
-            var isAdmin = User.IsInRole("Admin");
+            var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
 
-            var setups = isAdmin 
-                ? await _eventRepo.GetAllEventBookingsAsync() 
-                : await _eventRepo.GetAssignedEventBookingsAsync(userId);
+            var allSetups = await _eventRepo.GetAllEventBookingsAsync();
+            var setups = isStaffOrAdmin 
+                ? allSetups 
+                : allSetups.Where(s => s.DecoratorAssignedID == userId || s.DecoratorAssignedID == null || s.SetupStatus == "Pending").ToList();
 
             var packages = await _eventRepo.GetAllPackagesAsync();
+            var decorators = await _eventRepo.GetDecoratorsAsync();
 
+            ViewBag.IsStaffOrAdmin = isStaffOrAdmin;
+            ViewBag.CurrentUserId = userId;
+            ViewBag.Decorators = decorators;
+            ViewBag.UnassignedCount = allSetups.Count(s => s.DecoratorAssignedID == null || s.SetupStatus == "Pending");
             ViewBag.TotalAssigned = setups.Count;
             ViewBag.PendingJobs = setups.Count(s => s.SetupStatus == "Pending" || s.SetupStatus == "Assigned");
             ViewBag.InProgressJobs = setups.Count(s => s.SetupStatus == "InProgress");
             ViewBag.CompletedJobs = setups.Count(s => s.SetupStatus == "Completed" || s.SetupStatus == "Inspected");
             ViewBag.ActivePackagesCount = packages.Count(p => p.IsActive);
+            ViewBag.TotalEventRevenue = setups.Where(s => s.Status == "Confirmed").Sum(s => s.EventPackagePriceSnapshot);
             ViewBag.Packages = packages;
 
-            return View(setups.Take(10).ToList());
+            return View(viewName, setups);
         }
 
         public async Task<IActionResult> Packages()
@@ -199,6 +212,78 @@ namespace BookMyFun.Controllers
             }
 
             return RedirectToAction(nameof(AssignedSetups));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AcceptOrder(int bookingId)
+        {
+            var userId = GetCurrentUserId();
+            bool success = await _eventRepo.AssignDecoratorAsync(bookingId, userId);
+            if (success)
+            {
+                await _configRepo.LogAuditAsync(userId, "AcceptEventOrder", "Booking", bookingId, $"Decorator #{userId} accepted and claimed event setup order #{bookingId}");
+                TempData["Success"] = $"You have successfully accepted Event Setup Order #{bookingId}! Status is now Assigned.";
+            }
+            else
+            {
+                TempData["Error"] = $"Unable to accept event order #{bookingId}.";
+            }
+            return RedirectToAction(nameof(Dashboard));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveOrder(int bookingId)
+        {
+            var userId = GetCurrentUserId();
+            bool success = await _eventRepo.UpdateSetupStatusAsync(bookingId, "Assigned", null, null);
+            if (success)
+            {
+                await _configRepo.LogAuditAsync(userId, "ApproveEventOrder", "Booking", bookingId, $"Approved event setup order #{bookingId}");
+                TempData["Success"] = $"Event setup order #{bookingId} has been approved!";
+            }
+            else
+            {
+                TempData["Error"] = $"Failed to approve event order #{bookingId}.";
+            }
+            return RedirectToAction(nameof(Dashboard));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AssignDecorator(int bookingId, int decoratorId)
+        {
+            var userId = GetCurrentUserId();
+            bool success = await _eventRepo.AssignDecoratorAsync(bookingId, decoratorId);
+            if (success)
+            {
+                await _configRepo.LogAuditAsync(userId, "AssignDecorator", "Booking", bookingId, $"Assigned decorator #{decoratorId} to booking #{bookingId}");
+                TempData["Success"] = $"Decorator successfully assigned to event booking #{bookingId}.";
+            }
+            else
+            {
+                TempData["Error"] = $"Failed to assign decorator to booking #{bookingId}.";
+            }
+            return RedirectToAction(nameof(Dashboard));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeletePackage(int id)
+        {
+            var userId = GetCurrentUserId();
+            bool deleted = await _eventRepo.DeletePackageAsync(id);
+            if (deleted)
+            {
+                await _configRepo.LogAuditAsync(userId, "DeleteEventPackage", "EventPackage", id, $"Deleted package #{id}");
+                TempData["Success"] = "Décor package deleted successfully.";
+            }
+            else
+            {
+                TempData["Error"] = "Unable to delete package.";
+            }
+            return RedirectToAction(nameof(Packages));
         }
 
         private int GetCurrentUserId()

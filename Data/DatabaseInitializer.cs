@@ -113,8 +113,20 @@ BEGIN
         Subject NVARCHAR(255),
         Message NVARCHAR(MAX) NOT NULL,
         Status NVARCHAR(20) CHECK (Status IN ('New', 'Responded')) DEFAULT 'New',
+        RespondedByUserID INT NULL FOREIGN KEY REFERENCES Users(UserID),
+        ResponseNotes NVARCHAR(MAX) NULL,
+        RespondedAt DATETIME2 NULL,
         CreatedAt DATETIME2 DEFAULT GETDATE()
     );
+END
+ELSE
+BEGIN
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('ContactUs') AND name = 'RespondedByUserID')
+    BEGIN
+        ALTER TABLE ContactUs ADD RespondedByUserID INT NULL FOREIGN KEY REFERENCES Users(UserID);
+        ALTER TABLE ContactUs ADD ResponseNotes NVARCHAR(MAX) NULL;
+        ALTER TABLE ContactUs ADD RespondedAt DATETIME2 NULL;
+    END
 END
 
 -- 8. Properties Table
@@ -439,8 +451,14 @@ BEGIN
         ActivationToken NVARCHAR(255) NULL,
         TokenExpiresAt DATETIME2 NULL,
         ReviewedByUserID INT NULL FOREIGN KEY REFERENCES Users(UserID),
+        PartnerType NVARCHAR(50) DEFAULT 'Owner',
         CreatedAt DATETIME2 DEFAULT GETDATE()
     );
+END
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('PartnerLeads') AND name = 'PartnerType')
+BEGIN
+    ALTER TABLE PartnerLeads ADD PartnerType NVARCHAR(50) DEFAULT 'Owner';
 END
 
 -- 25. BookingRefunds Table

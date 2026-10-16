@@ -68,20 +68,37 @@
     <!-- Property Listings -->
     <div class="col-lg-7">
         <div class="dash-card">
-            <div class="dash-card-header">
-                <h3 class="dash-card-title"><i class="bi bi-building me-2 text-primary"></i>My Property Listings</h3>
+            <div class="dash-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h3 class="dash-card-title mb-0"><i class="bi bi-building me-2 text-primary"></i>My Property Listings</h3>
                 <a asp-action="CreateProperty" class="dash-btn dash-btn-primary" style="padding: .35rem .85rem; font-size: .8rem;">
-                    <i class="bi bi-plus-lg"></i> Add
+                    <i class="bi bi-plus-lg"></i> List New Farm
                 </a>
             </div>
+
+            <!-- Property Status Filter Pills -->
+            <div class="p-3 border-bottom bg-light-subtle d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 filter-owner-prop-btn active" onclick="filterOwnerProps('all', this)">
+                    All (@Model.Properties.Count)
+                </button>
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-owner-prop-btn text-success" onclick="filterOwnerProps('approved', this)">
+                    <i class="bi bi-check-circle-fill me-1"></i> Live &amp; Active (@Model.Properties.Count(p => p.IsApproved))
+                </button>
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-owner-prop-btn text-warning" onclick="filterOwnerProps('waiting', this)">
+                    <i class="bi bi-clock-fill me-1"></i> Waiting Review (@Model.Properties.Count(p => !p.IsApproved && p.ListingStatus != "Rejected"))
+                </button>
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-owner-prop-btn text-danger" onclick="filterOwnerProps('rejected', this)">
+                    <i class="bi bi-x-circle-fill me-1"></i> Rejected (@Model.Properties.Count(p => p.ListingStatus == "Rejected"))
+                </button>
+            </div>
+
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
-                    <thead>
+                    <thead class="table-light">
                         <tr>
-                            <th>Property</th>
-                            <th>Price / Night</th>
+                            <th class="ps-3">Property</th>
+                            <th>Rate</th>
                             <th>Status</th>
-                            <th class="text-end">Action</th>
+                            <th class="text-end pe-3">Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -93,24 +110,29 @@
                         }
                         @foreach (var p in Model.Properties)
                         {
-                            <tr>
-                                <td>
-                                    <div class="fw-semibold">@p.Title</div>
+                            var propStatus = p.ListingStatus == "Rejected" ? "rejected" : (p.IsApproved ? "approved" : "waiting");
+                            <tr class="owner-prop-row" data-status="@propStatus">
+                                <td class="ps-3">
+                                    <div class="fw-semibold text-dark">@p.Title</div>
                                     <small class="text-muted"><i class="bi bi-geo-alt-fill text-danger me-1"></i>@p.Location</small>
                                 </td>
-                                <td><strong>₹@p.PricePerNight.ToString("N0")</strong></td>
+                                <td><strong>₹@p.PricePerNight.ToString("N0")</strong> <small class="text-muted">/ night</small></td>
                                 <td>
-                                    @if (p.IsApproved)
+                                    @if (p.ListingStatus == "Rejected")
                                     {
-                                        <span class="dash-badge dash-badge-success"><i class="bi bi-check-circle-fill"></i> Live & Active</span>
+                                        <span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Rejected</span>
+                                    }
+                                    else if (p.IsApproved)
+                                    {
+                                        <span class="dash-badge dash-badge-success"><i class="bi bi-check-circle-fill"></i> Live &amp; Active</span>
                                     }
                                     else
                                     {
-                                        <span class="dash-badge dash-badge-warning"><i class="bi bi-clock-fill"></i> Under Review</span>
+                                        <span class="dash-badge dash-badge-warning"><i class="bi bi-clock-fill"></i> Waiting Review</span>
                                     }
                                 </td>
-                                <td class="text-end">
-                                    <a asp-action="EditProperty" asp-route-id="@p.PropertyID" class="btn btn-sm btn-outline-primary rounded-pill py-0 px-2">
+                                <td class="text-end pe-3">
+                                    <a asp-action="EditProperty" asp-route-id="@p.PropertyID" class="btn btn-sm btn-outline-primary rounded-pill py-1 px-3">
                                         <i class="bi bi-pencil me-1"></i> Edit
                                     </a>
                                 </td>
@@ -122,45 +144,131 @@
         </div>
     </div>
 
-    <!-- Guest Bookings & Requests -->
+    <!-- Guest Bookings & Requests with Financial Transparency -->
     <div class="col-lg-5">
         <div class="dash-card">
-            <div class="dash-card-header">
-                <h3 class="dash-card-title"><i class="bi bi-calendar-check me-2 text-success"></i>Guest Bookings</h3>
+            <div class="dash-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h3 class="dash-card-title mb-0"><i class="bi bi-cash-stack me-2 text-success"></i>Bookings &amp; Earnings</h3>
                 <span class="dash-badge dash-badge-neutral">@Model.Bookings.Count total</span>
             </div>
-            <div class="list-group list-group-flush">
+
+            <!-- Booking Filter Tabs -->
+            <div class="p-2 border-bottom bg-light-subtle d-flex flex-wrap gap-1">
+                <button type="button" class="btn btn-sm btn-primary rounded-pill px-2 py-0 filter-booking-btn active" style="font-size: .75rem;" onclick="filterOwnerBookings('all', this)">All</button>
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-2 py-0 filter-booking-btn text-success" style="font-size: .75rem;" onclick="filterOwnerBookings('confirmed', this)">Confirmed</button>
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-2 py-0 filter-booking-btn text-danger" style="font-size: .75rem;" onclick="filterOwnerBookings('cancelled', this)">Cancelled</button>
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-2 py-0 filter-booking-btn text-warning" style="font-size: .75rem;" onclick="filterOwnerBookings('refunded', this)">Refunded</button>
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-2 py-0 filter-booking-btn text-info" style="font-size: .75rem;" onclick="filterOwnerBookings('damage', this)">Damage Claimed</button>
+            </div>
+
+            <div class="list-group list-group-flush" id="ownerBookingsList">
                 @if (!Model.Bookings.Any())
                 {
                     <div class="p-4 text-center text-muted">No bookings received yet.</div>
                 }
                 @foreach (var b in Model.Bookings)
                 {
-                    <div class="list-group-item p-3">
+                    var bookingStatusClass = b.Status.ToLowerInvariant();
+                    var hasDamageClaim = b.SecurityDepositStatus.Contains("Claimed");
+                    var category = hasDamageClaim ? "damage" : (b.Status == "Cancelled" ? "cancelled" : (b.Status == "Confirmed" ? "confirmed" : "other"));
+                    var commission = b.PlatformCommissionAmount > 0 ? b.PlatformCommissionAmount : Math.Round(b.TotalAmount * 0.10m, 2);
+                    var netPayout = b.OwnerPayoutAmount > 0 ? b.OwnerPayoutAmount : (b.TotalAmount - commission);
+
+                    <div class="list-group-item p-3 owner-booking-card" data-category="@category">
                         <div class="d-flex justify-content-between align-items-start mb-1">
-                            <strong class="text-heading">@b.PropertyTitle</strong>
-                            <span class="dash-badge dash-badge-success">@b.Status</span>
-                        </div>
-                        <div class="small text-muted mb-1">
-                            <i class="bi bi-person me-1"></i>@b.ClientName · <i class="bi bi-telephone me-1"></i>@b.ClientPhone
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center small mb-2">
-                            <span class="badge bg-secondary">@b.BookingType (@b.SlotType)</span>
-                            <strong class="text-success fs-6">₹@b.TotalAmount.ToString("N2")</strong>
-                        </div>
-                        @if (b.Status == "Confirmed" && b.SecurityDepositAmount > 0)
-                        {
-                            <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                                <span class="small text-muted">Deposit: ₹@b.SecurityDepositAmount.ToString("N0")</span>
-                                <a asp-action="CreateClaim" asp-route-bookingId="@b.BookingID" class="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill">
-                                    <i class="bi bi-shield-exclamation me-1"></i> File Damage Claim
-                                </a>
+                            <div>
+                                <strong class="text-heading text-dark">#@b.BookingID · @b.PropertyTitle</strong>
+                                <div class="small text-muted"><i class="bi bi-calendar3 me-1"></i>@b.CheckInDate.ToString("MMM dd") - @b.CheckOutDate.ToString("MMM dd, yyyy")</div>
                             </div>
-                        }
+                            @if (b.Status == "Confirmed")
+                            {
+                                <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-check-circle-fill me-1"></i>Confirmed</span>
+                            }
+                            else if (b.Status == "Cancelled")
+                            {
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="bi bi-x-circle-fill me-1"></i>Cancelled</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">@b.Status</span>
+                            }
+                        </div>
+
+                        <div class="small text-muted mb-2">
+                            <i class="bi bi-person me-1"></i>@b.ClientName · <i class="bi bi-telephone me-1"></i>@(b.ClientPhone ?? "N/A")
+                        </div>
+
+                        <!-- Itemized Financial Transparency Breakdown -->
+                        <div class="bg-light p-2 rounded-3 mb-2 border">
+                            <div class="d-flex justify-content-between small text-muted">
+                                <span>Gross Booking Total:</span>
+                                <strong>₹@b.TotalAmount.ToString("N2")</strong>
+                            </div>
+                            <div class="d-flex justify-content-between small text-danger">
+                                <span>Platform Fee (10%):</span>
+                                <span>- ₹@commission.ToString("N2")</span>
+                            </div>
+                            <div class="d-flex justify-content-between small fw-bold text-success border-top pt-1 mt-1">
+                                <span>Host Net Earning:</span>
+                                <span>₹@netPayout.ToString("N2")</span>
+                            </div>
+                            @if (b.SecurityDepositAmount > 0)
+                            {
+                                <div class="d-flex justify-content-between small text-muted pt-1">
+                                    <span>Security Deposit:</span>
+                                    <span>₹@b.SecurityDepositAmount.ToString("N0") <span class="badge bg-light text-dark border">@b.SecurityDepositStatus</span></span>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Action row -->
+                        <div class="d-flex justify-content-between align-items-center pt-1">
+                            <span class="badge bg-secondary-subtle text-dark border small">@b.BookingType (@(b.SlotType ?? "Standard"))</span>
+                            <a asp-action="CreateClaim" asp-route-bookingId="@b.BookingID" class="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill" title="Report any property damages">
+                                <i class="bi bi-shield-exclamation me-1"></i> Report Damage
+                            </a>
+                        </div>
                     </div>
                 }
             </div>
         </div>
     </div>
 </div>
+
+<script>
+    function filterOwnerProps(status, btn) {
+        document.querySelectorAll('.filter-owner-prop-btn').forEach(b => {
+            b.classList.remove('active', 'btn-primary');
+            b.classList.add('btn-light', 'border');
+        });
+        btn.classList.add('active', 'btn-primary');
+        btn.classList.remove('btn-light', 'border');
+
+        document.querySelectorAll('.owner-prop-row').forEach(row => {
+            if (status === 'all' || row.getAttribute('data-status') === status) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+
+    function filterOwnerBookings(cat, btn) {
+        document.querySelectorAll('.filter-booking-btn').forEach(b => {
+            b.classList.remove('active', 'btn-primary');
+            b.classList.add('btn-light', 'border');
+        });
+        btn.classList.add('active', 'btn-primary');
+        btn.classList.remove('btn-light', 'border');
+
+        document.querySelectorAll('.owner-booking-card').forEach(card => {
+            const c = card.getAttribute('data-category');
+            if (cat === 'all' || c === cat) {
+                card.style.display = '';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+</script>
 

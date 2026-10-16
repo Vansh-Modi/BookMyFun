@@ -85,7 +85,9 @@ namespace BookMyFun.Services
             var verification = await _idRepo.GetVerificationByIdAsync(verificationId);
             if (verification == null) throw new NotFoundException("Verification", verificationId);
 
-            string status = action.Equals("Verify", StringComparison.OrdinalIgnoreCase) ? "Verified" : "Rejected";
+            string status = (action.Equals("Verify", StringComparison.OrdinalIgnoreCase) || action.Equals("Verified", StringComparison.OrdinalIgnoreCase)) 
+                ? "Verified" 
+                : "Rejected";
             bool updated = await _idRepo.ReviewVerificationAsync(verificationId, status, staffUserId, rejectionReason);
 
             _logger.LogInformation("ID verification #{VerificationId} reviewed by Staff #{StaffId}: {Status}", verificationId, staffUserId, status);

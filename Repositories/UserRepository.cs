@@ -34,13 +34,13 @@ namespace BookMyFun.Repositories
 
         public async Task<User?> GetByEmailAsync(string email)
         {
-            const string sql = "SELECT * FROM Users WHERE Email = @Email";
+            const string sql = "SELECT * FROM Users WHERE LOWER(Email) = LOWER(@Email) OR Phone = @Email";
             return await _db.ExecuteReaderSingleAsync(sql, MapUser, new SqlParameter("@Email", email));
         }
 
         public async Task<List<User>> GetUsersByRoleAsync(string role)
         {
-            const string sql = "SELECT * FROM Users WHERE Role = @Role ORDER BY CreatedAt DESC";
+            const string sql = "SELECT * FROM Users WHERE Role = @Role AND (IsActive = 1 OR IsActive IS NULL) ORDER BY CreatedAt DESC";
             return await _db.ExecuteReaderListAsync(sql, MapUser, new SqlParameter("@Role", role));
         }
 
@@ -109,9 +109,19 @@ namespace BookMyFun.Repositories
 
         public async Task<bool> DeleteUserAsync(int userId)
         {
-            const string sql = "DELETE FROM Users WHERE UserID = @UserID";
-            var rows = await _db.ExecuteNonQueryAsync(sql, new SqlParameter("@UserID", userId));
-            return rows > 0;
+            try
+            {
+                const string sql = "DELETE FROM Users WHERE UserID = @UserID";
+                var rows = await _db.ExecuteNonQueryAsync(sql, new SqlParameter("@UserID", userId));
+                return rows > 0;
+            }
+            catch
+            {
+                // Safe soft-deactivation when child records (properties/bookings) exist
+                const string deactivateSql = "UPDATE Users SET IsActive = 0 WHERE UserID = @UserID";
+                var rows = await _db.ExecuteNonQueryAsync(deactivateSql, new SqlParameter("@UserID", userId));
+                return rows > 0;
+            }
         }
 
         public async Task<bool> ResetPasswordAsync(string email, string newPasswordHash)
@@ -135,6 +145,13 @@ namespace BookMyFun.Repositories
                 Role = reader.GetString(reader.GetOrdinal("Role")),
                 CreatedAt = reader.GetDateTime(reader.GetOrdinal("CreatedAt"))
             };
+
+            int activeOrdinal = -1;
+            try { activeOrdinal = reader.GetOrdinal("IsActive"); } catch { }
+            if (activeOrdinal >= 0 && !reader.IsDBNull(activeOrdinal))
+            {
+                user.IsActive = reader.GetBoolean(activeOrdinal);
+            }
 
             int commOrdinal = -1;
             try { commOrdinal = reader.GetOrdinal("CustomCommissionRate"); } catch { }

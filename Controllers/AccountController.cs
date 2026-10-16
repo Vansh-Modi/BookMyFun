@@ -19,6 +19,9 @@ namespace BookMyFun.Controllers
         private readonly IPartnerLeadService _partnerLeadService;
         private readonly IEmailService _emailService;
         private readonly IWhatsAppService _whatsAppService;
+        private readonly IBookingRepository _bookingRepo;
+        private readonly IPropertyRepository _propRepo;
+        private readonly IIdVerificationRepository _idRepo;
         private readonly ILogger<AccountController> _logger;
 
         public AccountController(
@@ -28,6 +31,9 @@ namespace BookMyFun.Controllers
             IPartnerLeadService partnerLeadService,
             IEmailService emailService,
             IWhatsAppService whatsAppService,
+            IBookingRepository bookingRepo,
+            IPropertyRepository propRepo,
+            IIdVerificationRepository idRepo,
             ILogger<AccountController> logger)
         {
             _userRepo = userRepo;
@@ -36,6 +42,9 @@ namespace BookMyFun.Controllers
             _partnerLeadService = partnerLeadService;
             _emailService = emailService;
             _whatsAppService = whatsAppService;
+            _bookingRepo = bookingRepo;
+            _propRepo = propRepo;
+            _idRepo = idRepo;
             _logger = logger;
         }
 
@@ -93,10 +102,16 @@ namespace BookMyFun.Controllers
         {
             if (!ModelState.IsValid) return View(model);
 
-            var user = await _userRepo.GetByEmailAsync(model.Email);
+            var user = await _userRepo.GetByEmailAsync(model.Email.Trim().ToLowerInvariant());
             if (user == null || !VerifyPassword(model.Password, user.PasswordHash))
             {
-                ModelState.AddModelError("", "Invalid email or password.");
+                ModelState.AddModelError("", "Invalid email/ID or password.");
+                return View(model);
+            }
+
+            if (!user.IsActive)
+            {
+                ModelState.AddModelError("", "This account is inactive or has been deactivated. Please contact support.");
                 return View(model);
             }
 
@@ -109,7 +124,12 @@ namespace BookMyFun.Controllers
             };
 
             var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+            var authProperties = new AuthenticationProperties
+            {
+                IsPersistent = model.RememberMe,
+                ExpiresUtc = model.RememberMe ? DateTimeOffset.UtcNow.AddDays(14) : null
+            };
+            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity), authProperties);
 
             if (!string.IsNullOrEmpty(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl))
             {
@@ -121,10 +141,16 @@ namespace BookMyFun.Controllers
                 "Admin" => RedirectToAction("Index", "Admin"),
                 "Employee" => RedirectToAction("Index", "Employee"),
                 "Owner" => RedirectToAction("Index", "Owner"),
-                "EventManager" => RedirectToAction("Dashboard", "EventManager"),
+                "EventManager" => RedirectToAction("Index", "EventManager"),
                 _ => RedirectToAction("Index", "Client")
             };
         }
+
+        [HttpGet]
+        public IActionResult OwnerLogin(string? returnUrl) => RedirectToAction(nameof(Login), new { returnUrl });
+
+        [HttpGet]
+        public IActionResult EventManagerLogin(string? returnUrl) => RedirectToAction(nameof(Login), new { returnUrl });
 
         [HttpGet]
         public IActionResult ForgotPassword()
@@ -254,6 +280,105 @@ namespace BookMyFun.Controllers
                 ModelState.AddModelError("", ex.Message);
                 return View(model);
             }
+        }
+
+        [Microsoft.AspNetCore.Authorization.Authorize]
+        [HttpGet]
+        public async Task<IActionResult> Profile()
+        {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out int userId))
+            {
+                return RedirectToAction(nameof(Login));
+            }
+
+            var user = await _userRepo.GetByIdAsync(userId);
+            if (user == null) return NotFound();
+
+            var vm = new UserProfileViewModel
+            {
+                UserID = user.UserID,
+                FullName = user.FullName,
+                Email = user.Email,
+                Phone = user.Phone,
+                Role = user.Role,
+                SubscriptionTier = user.SubscriptionTier,
+                CustomCommissionRate = user.CustomCommissionRate,
+                CreatedAt = user.CreatedAt
+            };
+
+            if (user.Role == "Client")
+            {
+                var bookings = await _bookingRepo.GetByClientIdAsync(userId);
+                vm.TotalBookingsCount = bookings.Count;
+                var kyc = await _idRepo.GetVerificationByClientIdAsync(userId);
+                vm.KycStatus = kyc?.VerificationStatus ?? "Unverified";
+            }
+            else if (user.Role == "Owner")
+            {
+                var properties = await _propRepo.GetPropertiesByOwnerIdAsync(userId);
+                vm.TotalPropertiesCount = properties.Count;
+                var bookings = await _bookingRepo.GetByOwnerIdAsync(userId);
+                vm.TotalBookingsCount = bookings.Count;
+            }
+            else
+            {
+                var bookings = await _bookingRepo.GetAllBookingsAsync();
+                vm.TotalBookingsCount = bookings.Count;
+            }
+
+            return View(vm);
+        }
+
+        [Microsoft.AspNetCore.Authorization.Authorize]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Profile(UserProfileViewModel model)
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var user = await _userRepo.GetByIdAsync(userId);
+            if (user == null) return NotFound();
+
+            if (string.IsNullOrWhiteSpace(model.FullName))
+            {
+                ModelState.AddModelError("FullName", "Full name is required.");
+                return View(model);
+            }
+
+            user.FullName = model.FullName.Trim();
+            user.Phone = model.Phone?.Trim();
+
+            await _userRepo.UpdateUserAsync(user);
+            TempData["Success"] = "Your profile information has been successfully updated!";
+            return RedirectToAction(nameof(Profile));
+        }
+
+        [Microsoft.AspNetCore.Authorization.Authorize]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ChangePassword(ChangePasswordViewModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                TempData["PasswordError"] = "Please fill in all password fields accurately.";
+                return RedirectToAction(nameof(Profile));
+            }
+
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var user = await _userRepo.GetByIdAsync(userId);
+            if (user == null) return NotFound();
+
+            if (!VerifyPassword(model.CurrentPassword, user.PasswordHash))
+            {
+                TempData["PasswordError"] = "The current password you entered is incorrect.";
+                return RedirectToAction(nameof(Profile));
+            }
+
+            string newHash = HashPassword(model.NewPassword);
+            await _userRepo.ResetPasswordAsync(user.Email, newHash);
+
+            TempData["Success"] = "Your password has been changed securely!";
+            return RedirectToAction(nameof(Profile));
         }
 
         [HttpPost]

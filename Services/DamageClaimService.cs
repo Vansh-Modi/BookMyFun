@@ -8,7 +8,7 @@ namespace BookMyFun.Services
 {
     public interface IDamageClaimService
     {
-        Task<int> CreateClaimAsync(DamageClaimCreateViewModel model, int hostUserId);
+        Task<int> CreateClaimAsync(DamageClaimCreateViewModel model, int hostUserId, bool isStaff = false);
         Task<List<DamageClaim>> GetAllClaimsAsync(string? status = null);
         Task<List<DamageClaim>> GetClaimsByOwnerAsync(int ownerId);
         Task<DamageClaim> GetClaimByIdAsync(int claimId);
@@ -34,7 +34,7 @@ namespace BookMyFun.Services
             _logger = logger;
         }
 
-        public async Task<int> CreateClaimAsync(DamageClaimCreateViewModel model, int hostUserId)
+        public async Task<int> CreateClaimAsync(DamageClaimCreateViewModel model, int hostUserId, bool isStaff = false)
         {
             var booking = await _bookingRepo.GetBookingByIdAsync(model.BookingID);
             if (booking == null) throw new NotFoundException("Booking", model.BookingID);
@@ -42,34 +42,17 @@ namespace BookMyFun.Services
             var property = await _propertyRepo.GetByIdAsync(booking.PropertyID);
             if (property == null) throw new NotFoundException("Property", booking.PropertyID);
 
-            // Tenant isolation: Only property owner can raise damage claim for this booking
-            if (property.OwnerID != hostUserId)
+            // Tenant isolation: Hosts can only raise damage claims for their own properties; Staff can log for any
+            if (!isStaff && property.OwnerID != hostUserId)
             {
                 throw new ForbiddenException("You are not authorized to submit a damage claim for this property.");
             }
 
-            // 24-hour deadline check post checkout
-            var now = DateTime.UtcNow;
-            var checkoutDateTime = booking.CheckOutDate;
-            if (booking.SlotEndTime.HasValue)
-            {
-                checkoutDateTime = booking.CheckOutDate.Date + booking.SlotEndTime.Value;
-            }
+            int targetOwnerId = isStaff ? property.OwnerID : hostUserId;
 
-            var hoursSinceCheckout = (now - checkoutDateTime).TotalHours;
-            if (hoursSinceCheckout > 24)
+            if (model.ClaimAmount <= 0)
             {
-                throw new ValidationException("ClaimDeadline", "Damage claims must be filed within 24 hours of guest checkout. The filing window has closed.");
-            }
-
-            if (booking.SecurityDepositAmount <= 0)
-            {
-                throw new ValidationException("SecurityDeposit", "No security deposit was collected for this reservation.");
-            }
-
-            if (model.ClaimAmount > booking.SecurityDepositAmount)
-            {
-                throw new ValidationException("ClaimAmount", $"Claim amount cannot exceed the collected security deposit of {booking.SecurityDepositAmount:C}.");
+                throw new ValidationException("ClaimAmount", "Please enter a valid claim amount greater than zero.");
             }
 
             var allEvidence = new List<string>(model.EvidenceUrls ?? new List<string>());
@@ -94,7 +77,7 @@ namespace BookMyFun.Services
             {
                 BookingID = booking.BookingID,
                 PropertyID = property.PropertyID,
-                OwnerID = hostUserId,
+                OwnerID = targetOwnerId,
                 ClaimAmount = model.ClaimAmount,
                 ItemizedDescription = model.ItemizedDescription.Trim(),
                 EvidenceMediaUrls = evidenceJson,

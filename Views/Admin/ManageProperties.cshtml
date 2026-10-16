@@ -1,71 +1,138 @@
 @model IEnumerable<BookMyFun.Models.Entities.Property>
 @{
     ViewData["Title"] = "Manage Properties - Staff Oversight";
+    var isEmployee = User.IsInRole("Employee");
+    var controllerName = isEmployee ? "Employee" : "Admin";
+    var totalCount = Model?.Count() ?? 0;
+    var approvedCount = Model?.Count(p => p.IsApproved) ?? 0;
+    var pendingCount = Model?.Count(p => !p.IsApproved && p.ListingStatus != "Rejected") ?? 0;
+    var rejectedCount = Model?.Count(p => p.ListingStatus == "Rejected") ?? 0;
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <div>
-        <h2><i class="bi bi-building text-primary"></i> Property Listings Management</h2>
-        <p class="text-muted mb-0">Create, edit, approve, or remove properties on behalf of owners.</p>
+        <h2 class="fw-bold mb-1"><i class="bi bi-building text-primary me-2"></i>Property Listings Management</h2>
+        <p class="text-muted mb-0">Create, edit, approve, or remove properties across hosts on the platform.</p>
     </div>
-    <a asp-action="CreateProperty" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Add Property for Owner</a>
+    <a asp-controller="@controllerName" asp-action="CreateProperty" class="btn btn-primary px-3 rounded-pill fw-semibold shadow-sm">
+        <i class="bi bi-plus-circle me-1"></i> Add Property for Owner
+    </a>
 </div>
 
-<div class="card shadow-sm">
+<!-- Status Filters -->
+<div class="d-flex flex-wrap gap-2 mb-4">
+    <button type="button" class="btn btn-primary rounded-pill px-3 filter-prop-btn active" data-filter="all" onclick="filterProps('all', this)">
+        All Properties <span class="badge bg-white text-primary ms-1">@totalCount</span>
+    </button>
+    <button type="button" class="btn btn-light border rounded-pill px-3 filter-prop-btn text-success" data-filter="approved" onclick="filterProps('approved', this)">
+        <i class="bi bi-check-circle-fill me-1"></i> Approved &amp; Live <span class="badge bg-success text-white ms-1">@approvedCount</span>
+    </button>
+    <button type="button" class="btn btn-light border rounded-pill px-3 filter-prop-btn text-warning" data-filter="waiting" onclick="filterProps('waiting', this)">
+        <i class="bi bi-clock-fill me-1"></i> Waiting Review <span class="badge bg-warning text-dark ms-1">@pendingCount</span>
+    </button>
+    <button type="button" class="btn btn-light border rounded-pill px-3 filter-prop-btn text-danger" data-filter="rejected" onclick="filterProps('rejected', this)">
+        <i class="bi bi-x-circle-fill me-1"></i> Rejected / Inactive <span class="badge bg-danger text-white ms-1">@rejectedCount</span>
+    </button>
+</div>
+
+<div class="card shadow-sm border-0 rounded-4 overflow-hidden">
     <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-hover align-middle mb-0" id="propertiesTable">
             <thead class="table-light">
                 <tr>
-                    <th>Property</th>
+                    <th class="ps-3">Property</th>
                     <th>Type</th>
                     <th>Owner</th>
                     <th>Location</th>
                     <th>Price/Night</th>
                     <th>Status</th>
-                    <th class="text-end">Actions</th>
+                    <th class="text-end pe-3">Actions</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach (var p in Model)
+                @if (Model == null || !Model.Any())
                 {
                     <tr>
-                        <td>
-                            <div class="d-flex align-items-center">
-                                <img src="@p.PrimaryImageUrl" class="rounded me-2" style="width: 50px; height: 50px; object-fit: cover;" onerror="this.src='/images/placeholder.jpg';" />
-                                <div>
-                                    <div class="fw-bold">@p.Title</div>
-                                    <small class="text-muted">Max @p.MaxGuests Guests</small>
-                                </div>
-                            </div>
-                        </td>
-                        <td>@p.PropertyTypeName</td>
-                        <td>@p.OwnerName</td>
-                        <td>@p.Location</td>
-                        <td>₹@p.PricePerNight.ToString("N2")</td>
-                        <td>
-                            @if (p.IsApproved)
-                            {
-                                <span class="badge bg-success">Active & Approved</span>
-                            }
-                            else
-                            {
-                                <span class="badge bg-warning text-dark">Pending Review</span>
-                            }
-                        </td>
-                        <td class="text-end">
-                            <form asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="@(!p.IsApproved)" method="post" class="d-inline me-1">
-                                <button type="submit" class="btn btn-sm @(p.IsApproved ? "btn-outline-warning" : "btn-outline-success")">
-                                    @(p.IsApproved ? "Revoke" : "Approve")
-                                </button>
-                            </form>
-                            <a asp-action="EditProperty" asp-route-id="@p.PropertyID" class="btn btn-sm btn-outline-primary me-1">Edit</a>
-                            <form asp-action="DeleteProperty" asp-route-id="@p.PropertyID" method="post" class="d-inline" onsubmit="return confirm('Delete this property?');">
-                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-                            </form>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="bi bi-building fs-1 d-block mb-2 text-muted opacity-50"></i>
+                            No properties found.
                         </td>
                     </tr>
+                }
+                else
+                {
+                    @foreach (var p in Model)
+                    {
+                        var statusCategory = p.ListingStatus == "Rejected" ? "rejected" : (p.IsApproved ? "approved" : "waiting");
+                        <tr class="prop-row" data-status="@statusCategory">
+                            <td class="ps-3">
+                                <div class="d-flex align-items-center">
+                                    <img src="@p.PrimaryImageUrl" class="rounded me-2" style="width: 50px; height: 50px; object-fit: cover;" onerror="this.src='/images/placeholder.jpg';" />
+                                    <div>
+                                        <div class="fw-bold text-dark">@p.Title</div>
+                                        <small class="text-muted"><i class="bi bi-people me-1"></i>Max @p.MaxGuests Guests</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="badge bg-light text-dark border">@p.PropertyTypeName</span></td>
+                            <td class="fw-medium">@p.OwnerName</td>
+                            <td><small class="text-muted"><i class="bi bi-geo-alt text-danger me-1"></i>@p.Location</small></td>
+                            <td><strong class="text-dark">₹@p.PricePerNight.ToString("N0")</strong></td>
+                            <td>
+                                @if (p.ListingStatus == "Rejected")
+                                {
+                                    <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Rejected</span>
+                                }
+                                else if (p.IsApproved)
+                                {
+                                    <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Active &amp; Approved</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning text-dark"><i class="bi bi-clock-fill me-1"></i>Pending Review</span>
+                                }
+                            </td>
+                            <td class="text-end pe-3">
+                                <form asp-controller="@controllerName" asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="@(!p.IsApproved)" method="post" class="d-inline me-1">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm @(p.IsApproved ? "btn-outline-warning" : "btn-outline-success")">
+                                        @(p.IsApproved ? "Revoke" : "Approve")
+                                    </button>
+                                </form>
+                                <a asp-controller="@controllerName" asp-action="EditProperty" asp-route-id="@p.PropertyID" class="btn btn-sm btn-outline-primary me-1">
+                                    <i class="bi bi-pencil"></i> Edit
+                                </a>
+                                <form asp-controller="@controllerName" asp-action="DeleteProperty" asp-route-id="@p.PropertyID" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete property #@p.PropertyID (@p.Title)?');">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>
     </div>
 </div>
+
+<script>
+    function filterProps(status, btn) {
+        document.querySelectorAll('.filter-prop-btn').forEach(b => {
+            b.classList.remove('active', 'btn-primary');
+            b.classList.add('btn-light', 'border');
+        });
+        btn.classList.add('active', 'btn-primary');
+        btn.classList.remove('btn-light', 'border');
+
+        const rows = document.querySelectorAll('.prop-row');
+        rows.forEach(r => {
+            if (status === 'all' || r.getAttribute('data-status') === status) {
+                r.style.display = '';
+            } else {
+                r.style.display = 'none';
+            }
+        });
+    }
+</script>

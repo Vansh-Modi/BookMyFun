@@ -1,0 +1,282 @@
+@model BookMyFun.Models.ViewModels.UserProfileViewModel
+@{
+    ViewData["Title"] = "My Account Profile";
+}
+
+<div class="container py-4">
+    <!-- Header Banner -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4 bg-gradient text-white p-4" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="rounded-circle bg-warning text-dark fw-bold d-flex align-items-center justify-content-center shadow" style="width: 64px; height: 64px; font-size: 1.75rem;">
+                    @(!string.IsNullOrEmpty(Model.FullName) ? Model.FullName.Substring(0, 1).ToUpper() : "U")
+                </div>
+                <div>
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <h2 class="fw-bold mb-0 text-white">@Model.FullName</h2>
+                        <span class="badge @(Model.Role switch {
+                            "Admin" => "bg-danger",
+                            "Employee" => "bg-info text-dark",
+                            "Owner" => "bg-warning text-dark",
+                            "EventManager" => "bg-primary",
+                            _ => "bg-success"
+                        }) px-3 py-1 rounded-pill fw-semibold">
+                            @Model.Role
+                        </span>
+                    </div>
+                    <p class="mb-0 text-white-50 small">
+                        <i class="bi bi-envelope me-1"></i> @Model.Email
+                        @if (!string.IsNullOrEmpty(Model.Phone))
+                        {
+                            <span class="ms-3"><i class="bi bi-telephone me-1"></i> @Model.Phone</span>
+                        }
+                        <span class="ms-3"><i class="bi bi-calendar3 me-1"></i> Member since @Model.CreatedAt.ToString("MMM yyyy")</span>
+                    </p>
+                </div>
+            </div>
+            <div>
+                @if (Model.Role == "Client")
+                {
+                    <a asp-controller="Client" asp-action="Index" class="btn btn-outline-light rounded-pill px-4">
+                        <i class="bi bi-compass me-1"></i> My Dashboard
+                    </a>
+                }
+                else if (Model.Role == "Owner")
+                {
+                    <a asp-controller="Owner" asp-action="Index" class="btn btn-outline-warning text-warning rounded-pill px-4">
+                        <i class="bi bi-speedometer2 me-1"></i> Host Dashboard
+                    </a>
+                }
+                else if (Model.Role == "EventManager")
+                {
+                    <a asp-controller="EventManager" asp-action="Dashboard" class="btn btn-outline-warning text-warning rounded-pill px-4">
+                        <i class="bi bi-palette2 me-1"></i> Event Dashboard
+                    </a>
+                }
+                else if (Model.Role == "Employee")
+                {
+                    <a asp-controller="Employee" asp-action="Index" class="btn btn-outline-info text-info rounded-pill px-4">
+                        <i class="bi bi-speedometer2 me-1"></i> Operations Dashboard
+                    </a>
+                }
+                else if (Model.Role == "Admin")
+                {
+                    <a asp-controller="Admin" asp-action="Index" class="btn btn-outline-danger text-danger rounded-pill px-4">
+                        <i class="bi bi-shield-shaded me-1"></i> Admin Portal
+                    </a>
+                }
+            </div>
+        </div>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> @TempData["Success"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["PasswordError"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i> @TempData["PasswordError"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="row g-4">
+        <!-- Left Sidebar: Account Summary & Status -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm rounded-4 p-4 mb-4">
+                <h5 class="fw-bold mb-3 text-dark"><i class="bi bi-person-badge text-primary me-2"></i>Account Overview</h5>
+                
+                <ul class="list-group list-group-flush small">
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+                        <span class="text-muted">Account ID:</span>
+                        <code class="fw-bold text-dark">#@Model.UserID</code>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+                        <span class="text-muted">Role Scope:</span>
+                        <span class="fw-semibold text-dark">@Model.Role Access</span>
+                    </li>
+                    @if (Model.Role == "Client")
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+                            <span class="text-muted">Reservations Made:</span>
+                            <span class="badge bg-primary rounded-pill">@Model.TotalBookingsCount</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+                            <span class="text-muted">Identity (KYC) Status:</span>
+                            @if (Model.KycStatus == "Verified")
+                            {
+                                <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-patch-check-fill me-1"></i>Verified</span>
+                            }
+                            else if (Model.KycStatus == "PendingReview")
+                            {
+                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle"><i class="bi bi-clock-fill me-1"></i>Under Review</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary-subtle text-secondary border">Optional at Checkout</span>
+                            }
+                        </li>
+                    }
+                    else if (Model.Role == "Owner")
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+                            <span class="text-muted">Active Properties:</span>
+                            <span class="badge bg-success rounded-pill">@Model.TotalPropertiesCount Listed</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+                            <span class="text-muted">Total Guest Orders:</span>
+                            <span class="badge bg-primary rounded-pill">@Model.TotalBookingsCount</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+                            <span class="text-muted">Host Tier:</span>
+                            <span class="badge bg-warning text-dark">@(Model.SubscriptionTier ?? "Complimentary")</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+                            <span class="text-muted">Commission Rate:</span>
+                            <span class="fw-bold text-success">@(Model.CustomCommissionRate.HasValue ? $"{Model.CustomCommissionRate.Value:F1}%" : "10.0% Standard")</span>
+                        </li>
+                    }
+                    else if (Model.Role == "EventManager")
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+                            <span class="text-muted">Role Description:</span>
+                            <span class="badge bg-primary">Event Decor &amp; Celebration Manager</span>
+                        </li>
+                    }
+                    else
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
+                            <span class="text-muted">Security Clearance:</span>
+                            <span class="badge bg-danger">Staff Management Authorized</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+
+            <!-- Quick Access Navigation -->
+            <div class="card border-0 shadow-sm rounded-4 p-4">
+                <h6 class="fw-bold mb-3 text-dark"><i class="bi bi-grid-fill text-warning me-2"></i>Quick Actions</h6>
+                <div class="d-grid gap-2">
+                    @if (Model.Role == "Client")
+                    {
+                        <a asp-controller="Properties" asp-action="Index" class="btn btn-outline-primary rounded-3 text-start btn-sm">
+                            <i class="bi bi-search me-2"></i> Browse Farmhouse Rentals
+                        </a>
+                        <a asp-controller="Client" asp-action="Index" class="btn btn-outline-secondary rounded-3 text-start btn-sm">
+                            <i class="bi bi-calendar-check me-2"></i> View My Reservations
+                        </a>
+                    }
+                    else if (Model.Role == "Owner")
+                    {
+                        <a asp-controller="Owner" asp-action="CreateProperty" class="btn btn-outline-success rounded-3 text-start btn-sm">
+                            <i class="bi bi-plus-circle me-2"></i> Add New Property Listing
+                        </a>
+                        <a asp-controller="Owner" asp-action="DamageClaims" class="btn btn-outline-danger rounded-3 text-start btn-sm">
+                            <i class="bi bi-shield-exclamation me-2"></i> File Damage Claims
+                        </a>
+                        <a asp-controller="Owner" asp-action="Subscriptions" class="btn btn-outline-primary rounded-3 text-start btn-sm">
+                            <i class="bi bi-gem me-2"></i> Upgrade Subscription
+                        </a>
+                    }
+                    else if (Model.Role == "EventManager")
+                    {
+                        <a asp-controller="EventManager" asp-action="Dashboard" class="btn btn-outline-warning text-dark rounded-3 text-start btn-sm">
+                            <i class="bi bi-palette2 me-2"></i> Decor Packages &amp; Orders
+                        </a>
+                    }
+                    else if (Model.Role == "Employee" || Model.Role == "Admin")
+                    {
+                        var controller = Model.Role == "Admin" ? "Admin" : "Employee";
+                        <a asp-controller="@controller" asp-action="ManageProperties" class="btn btn-outline-primary rounded-3 text-start btn-sm">
+                            <i class="bi bi-houses me-2"></i> Manage All Properties
+                        </a>
+                        <a asp-controller="@controller" asp-action="ManageOwners" class="btn btn-outline-success rounded-3 text-start btn-sm">
+                            <i class="bi bi-people me-2"></i> Manage Hosts &amp; Tiers
+                        </a>
+                        <a asp-controller="@controller" asp-action="RefundsQueue" class="btn btn-outline-info text-dark rounded-3 text-start btn-sm">
+                            <i class="bi bi-arrow-counterclockwise me-2"></i> Refund Operations
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Main Panel: Edit Profile & Security -->
+        <div class="col-lg-8">
+            <!-- Edit Personal Profile Information -->
+            <div class="card border-0 shadow-sm rounded-4 mb-4">
+                <div class="card-header bg-white py-3 border-bottom border-light-subtle">
+                    <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-pencil-square text-primary me-2"></i>Personal Information</h5>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-action="Profile" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="UserID" />
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Full Name <span class="text-danger">*</span></label>
+                                <input asp-for="FullName" class="form-control rounded-3" required />
+                                <span asp-validation-for="FullName" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Contact Phone Number</label>
+                                <input asp-for="Phone" class="form-control rounded-3" placeholder="+91 9876543210" />
+                                <span asp-validation-for="Phone" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label fw-semibold small">Primary Email Address</label>
+                                <input asp-for="Email" class="form-control rounded-3 bg-light" readonly />
+                                <div class="form-text small">Email cannot be changed directly for security and cryptographic authentication auditability.</div>
+                            </div>
+                        </div>
+
+                        <div class="text-end mt-4">
+                            <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm">
+                                <i class="bi bi-check2-circle me-1"></i> Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Change Password & Security -->
+            <div class="card border-0 shadow-sm rounded-4">
+                <div class="card-header bg-white py-3 border-bottom border-light-subtle">
+                    <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-shield-lock text-danger me-2"></i>Security &amp; Password</h5>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-action="ChangePassword" method="post">
+                        @Html.AntiForgeryToken()
+
+                        <div class="row g-3">
+                            <div class="col-md-12">
+                                <label class="form-label fw-semibold small">Current Password <span class="text-danger">*</span></label>
+                                <input type="password" name="CurrentPassword" class="form-control rounded-3" required autocomplete="current-password" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">New Password (Min 6 Characters) <span class="text-danger">*</span></label>
+                                <input type="password" name="NewPassword" class="form-control rounded-3" required minlength="6" autocomplete="new-password" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold small">Confirm New Password <span class="text-danger">*</span></label>
+                                <input type="password" name="ConfirmPassword" class="form-control rounded-3" required minlength="6" autocomplete="new-password" />
+                            </div>
+                        </div>
+
+                        <div class="text-end mt-4">
+                            <button type="submit" class="btn btn-danger rounded-pill px-4 fw-semibold shadow-sm">
+                                <i class="bi bi-key-fill me-1"></i> Update Password
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

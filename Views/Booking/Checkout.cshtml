@@ -21,7 +21,7 @@
                     </div>
                 </div>
 
-                <form asp-action="ConfirmBooking" method="post" id="bookingForm">
+                <form asp-action="ConfirmBooking" method="post" id="bookingForm" enctype="multipart/form-data">
                     @Html.AntiForgeryToken()
                     <input type="hidden" asp-for="PropertyID" />
                     <input type="hidden" asp-for="PricePerNight" id="basePrice" value="@Model.PricePerNight" />
@@ -145,6 +145,52 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- KYC Government ID Verification (Only required at booking time) -->
+                    @if (Model.IsClientAlreadyVerified)
+                    {
+                        <div class="alert alert-success d-flex align-items-center mb-4 rounded-3 border-0 bg-success bg-opacity-10 text-success">
+                            <i class="bi bi-shield-fill-check fs-2 me-3"></i>
+                            <div>
+                                <strong class="d-block">Identity Verification On File</strong>
+                                <small class="text-muted">Your verified government identification is safely secured in our vault. No re-upload required for this reservation.</small>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="card border-primary-subtle bg-light mb-4 rounded-3 shadow-none">
+                            <div class="card-body p-3">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <i class="bi bi-person-vcard text-primary fs-4"></i>
+                                    <div>
+                                        <h6 class="fw-bold mb-0 text-dark">Guest Identity Verification (Government ID)</h6>
+                                        <small class="text-muted">Required strictly at the time of reservation for farm gate check-in and guest safety.</small>
+                                    </div>
+                                </div>
+                                <div class="row g-2 mt-1">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold small">Document Type</label>
+                                        <select asp-for="DocumentType" class="form-select form-select-sm">
+                                            <option value="Aadhaar">Aadhaar Card</option>
+                                            <option value="Passport">Passport</option>
+                                            <option value="DrivingLicense">Driver's License</option>
+                                            <option value="VoterID">Voter ID</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold small">ID / Document Number</label>
+                                        <input asp-for="IdDocumentNumber" class="form-control form-select-sm" placeholder="e.g. XXXX-XXXX-1234" />
+                                    </div>
+                                    <div class="col-12 mt-2">
+                                        <label class="form-label fw-semibold small">Attach Photo / PDF of ID Document (Max 5MB)</label>
+                                        <input asp-for="IdDocumentFile" type="file" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.webp,.pdf" />
+                                        <div class="form-text small text-muted"><i class="bi bi-lock me-1"></i>Encrypted in private storage and never shared with hosts.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
 
                     <!-- Live Total Calculation Card -->
                     <div class="card bg-light border-warning p-3 mb-4">

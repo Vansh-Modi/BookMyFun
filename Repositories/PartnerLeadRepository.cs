@@ -27,10 +27,10 @@ namespace BookMyFun.Repositories
         {
             const string sql = @"
                 INSERT INTO PartnerLeads
-                (FullName, Phone, Email, PropertyName, Location, AcreageOrType, Message, Status, CreatedAt)
+                (FullName, Phone, Email, PropertyName, Location, AcreageOrType, Message, Status, PartnerType, CreatedAt)
                 OUTPUT INSERTED.LeadID
                 VALUES
-                (@FullName, @Phone, @Email, @PropertyName, @Location, @AcreageOrType, @Message, @Status, GETDATE())";
+                (@FullName, @Phone, @Email, @PropertyName, @Location, @AcreageOrType, @Message, @Status, @PartnerType, GETDATE())";
 
             var result = await _db.ExecuteScalarAsync(sql,
                 new SqlParameter("@FullName", lead.FullName),
@@ -40,7 +40,8 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@Location", lead.Location),
                 new SqlParameter("@AcreageOrType", lead.AcreageOrType),
                 new SqlParameter("@Message", DBHelper.ToDbValue(lead.Message)),
-                new SqlParameter("@Status", lead.Status ?? "New"));
+                new SqlParameter("@Status", lead.Status ?? "New"),
+                new SqlParameter("@PartnerType", lead.PartnerType ?? "Owner"));
 
             return result != null ? Convert.ToInt32(result) : 0;
         }
@@ -119,6 +120,9 @@ namespace BookMyFun.Repositories
 
         private static PartnerLead MapLead(SqlDataReader reader)
         {
+            int partnerTypeOrdinal = -1;
+            try { partnerTypeOrdinal = reader.GetOrdinal("PartnerType"); } catch { }
+
             return new PartnerLead
             {
                 LeadID = reader.GetInt32(reader.GetOrdinal("LeadID")),
@@ -133,6 +137,7 @@ namespace BookMyFun.Repositories
                 ActivationToken = reader.IsDBNull(reader.GetOrdinal("ActivationToken")) ? null : reader.GetString(reader.GetOrdinal("ActivationToken")),
                 TokenExpiresAt = reader.IsDBNull(reader.GetOrdinal("TokenExpiresAt")) ? null : reader.GetDateTime(reader.GetOrdinal("TokenExpiresAt")),
                 ReviewedByUserID = reader.IsDBNull(reader.GetOrdinal("ReviewedByUserID")) ? null : reader.GetInt32(reader.GetOrdinal("ReviewedByUserID")),
+                PartnerType = (partnerTypeOrdinal >= 0 && !reader.IsDBNull(partnerTypeOrdinal)) ? reader.GetString(partnerTypeOrdinal) : "Owner",
                 CreatedAt = reader.GetDateTime(reader.GetOrdinal("CreatedAt")),
                 ReviewedByUserName = reader.IsDBNull(reader.GetOrdinal("ReviewedByUserName")) ? null : reader.GetString(reader.GetOrdinal("ReviewedByUserName"))
             };

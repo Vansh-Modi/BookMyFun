@@ -168,38 +168,98 @@
     </div>
 </div>
 
-@section Scripts {
+<!-- Secure Document Preview Modal -->
+<div class="modal fade" id="docPreviewModal" tabindex="-1" aria-labelledby="docPreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header bg-dark text-white rounded-top-4">
+                <h5 class="modal-title fw-bold" id="docPreviewModalLabel">
+                    <i class="bi bi-shield-lock-fill text-warning me-2"></i>Private KYC Document Preview
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3 text-center bg-light">
+                <div id="docViewerLoading" class="py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-muted small mt-2">Generating secure expiring token & fetching document stream...</p>
+                </div>
+                <div id="docViewerContent" style="display: none;">
+                    <iframe id="docViewerIframe" src="" style="width: 100%; height: 500px; border: none; border-radius: 8px;"></iframe>
+                </div>
+            </div>
+            <div class="modal-footer border-top bg-white d-flex justify-content-between">
+                <span class="text-muted small"><i class="bi bi-clock-history me-1"></i>URL token valid for 15 minutes</span>
+                <div>
+                    <a id="docViewerNewTabBtn" href="#" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3 me-2">
+                        <i class="bi bi-box-arrow-up-right me-1"></i> Open in New Tab
+                    </a>
+                    <button type="button" class="btn btn-sm btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
-    document.querySelectorAll(".btn-view-doc").forEach(btn => {
-        btn.addEventListener("click", async function () {
-            const key = this.getAttribute("data-key");
-            const btnEl = this;
-            btnEl.disabled = true;
-            btnEl.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Signing Token...`;
+    (function () {
+        function initKycHandlers() {
+            document.querySelectorAll(".btn-view-doc").forEach(btn => {
+                btn.onclick = async function () {
+                    const key = this.getAttribute("data-key");
+                    const btnEl = this;
+                    btnEl.disabled = true;
+                    const originalHtml = btnEl.innerHTML;
+                    btnEl.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Opening...`;
 
-            try {
-                const res = await (await fetch(`/@controllerName/GetDocumentSignedUrl?storageKey=${encodeURIComponent(key)}`)).json();
-                if (res.success && res.url) {
-                    window.open(res.url, "_blank");
-                } else {
-                    alert("Could not generate secure signed URL for document.");
-                }
-            } catch {
-                alert("Error requesting secure document stream.");
-            }
+                    // Show Modal
+                    const previewModalEl = document.getElementById("docPreviewModal");
+                    const modal = new bootstrap.Modal(previewModalEl);
+                    const loadingEl = document.getElementById("docViewerLoading");
+                    const contentEl = document.getElementById("docViewerContent");
+                    const iframeEl = document.getElementById("docViewerIframe");
+                    const newTabBtn = document.getElementById("docViewerNewTabBtn");
 
-            btnEl.disabled = false;
-            btnEl.innerHTML = `<i class="bi bi-shield-lock-fill me-1"></i> Open Signed Doc (15m)`;
-        });
-    });
+                    loadingEl.style.display = "block";
+                    contentEl.style.display = "none";
+                    iframeEl.src = "";
+                    modal.show();
 
-    document.querySelectorAll(".btn-reject-kyc").forEach(btn => {
-        btn.addEventListener("click", function () {
-            const id = this.getAttribute("data-id");
-            const name = this.getAttribute("data-name");
-            document.getElementById("modalKycId").value = id;
-            document.getElementById("modalKycGuest").textContent = name;
-        });
-    });
+                    try {
+                        const controller = "@controllerName";
+                        const res = await (await fetch(`/${controller}/GetDocumentSignedUrl?storageKey=${encodeURIComponent(key)}`)).json();
+                        if (res.success && res.url) {
+                            iframeEl.src = res.url;
+                            newTabBtn.href = res.url;
+                            loadingEl.style.display = "none";
+                            contentEl.style.display = "block";
+                        } else {
+                            alert("Could not generate secure signed URL for document.");
+                            modal.hide();
+                        }
+                    } catch (err) {
+                        alert("Error requesting secure document stream.");
+                        modal.hide();
+                    } finally {
+                        btnEl.disabled = false;
+                        btnEl.innerHTML = originalHtml;
+                    }
+                };
+            });
+
+            document.querySelectorAll(".btn-reject-kyc").forEach(btn => {
+                btn.onclick = function () {
+                    const id = this.getAttribute("data-id");
+                    const name = this.getAttribute("data-name");
+                    document.getElementById("modalKycId").value = id;
+                    document.getElementById("modalKycGuest").textContent = name;
+                };
+            });
+        }
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", initKycHandlers);
+        } else {
+            initKycHandlers();
+        }
+    })();
 </script>
-}

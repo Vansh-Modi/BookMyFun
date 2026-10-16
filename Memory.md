@@ -116,3 +116,37 @@
 - **Context:** Rapid feature iterations can leave behind commented-out code blocks, unused variables, redundant parameters, or unnecessary boilerplate that compromise codebase health.
 - **Decision:** Enforce zero commented-out code snippets, zero unreferenced fields, clean using directives, and zero compiler warnings across all models, repositories, and controllers.
 - **Consequence:** Maintains a pristine, maintainable, enterprise-standard codebase that builds cleanly in every CI/CD cycle.
+
+---
+
+### ADR-15: Universal Profile & Security Credentials Architecture
+- **Context:** Users across all 5 dashboard roles (`Client`, `Owner`, `Employee`, `Admin`, `EventManager`) required an authenticated, unified interface to manage personal details and change passwords without exposing privileged administrative routes.
+- **Decision:** Implement a centralized `/Account/Profile` route in `AccountController` backed by `UserProfileViewModel` and `ChangePasswordViewModel`. Enforce BCrypt password verification, session identity preservation, and role-based badge rendering.
+- **Consequence:** Eliminates disjoint profile management while maintaining consistent role-scoped authentication rules across all user types.
+
+---
+
+### ADR-16: Owner Safe Deactivation & Complimentary Trial Quota
+- **Context:** Hard deletion of Property Owners caused foreign key integrity violations with existing properties and reservation records. Additionally, newly onboarded hosts faced quota lockouts on initial property creation.
+- **Decision:** Wrap user deletions in a foreign-key-safe deactivation fallback (`IsActive = 0`) preserving relational referential integrity. Grant verified hosts a complimentary 1-listing trial quota (`activeListings < 1`) so they can publish their first property immediately without subscription barriers.
+- **Consequence:** Eliminates runtime database exceptions, maintains historic financial audit trails, and provides seamless onboarding for vetted hosts.
+
+---
+
+### ADR-17: Support Accountability & End-to-End Operational Traceability
+- **Context:** Customer support responses previously lacked attribution, making it difficult to audit which employee or administrator resolved a customer inquiry.
+- **Decision:** Add responder metadata columns (`RespondedByUserName`, `RespondedByUserRole`, `RespondedAt`, `ResponseNotes`) to support query records. Capture the authenticated user's identity automatically upon query resolution.
+- **Consequence:** Enforces organizational accountability, enhances compliance, and simplifies dispute resolution.
+
+---
+
+### ADR-18: Dedicated Partner & Event Manager Login Portals and Separate Event Manager Dashboard
+- **Context:** Property hosts and Event Managers required tailored, dedicated sign-in portals aligned with their distinct operational workflows, rather than a single generic login form. Additionally, the Event Manager console required a separate, full-featured dashboard conforming to the system-wide design language.
+- **Decision:** 
+  1. Implement dedicated login routes `/Account/OwnerLogin` (accessible via `/Owner/Login`) with emerald branding and 1-click test fill (`owner@bookmyfun.com` / `Owner@123`).
+  2. Implement dedicated login routes `/Account/EventManagerLogin` (accessible via `/EventManager/Login`) designed identical to Owner's with amber celebration branding and 1-click test fill (`eventmanager@bookmyfun.com` / `Event@123`).
+  3. Implement separate Event Manager Dashboard view at `Views/EventManager/Index.cshtml` (and sync `Views/EventManager/Dashboard.cshtml`) using universal `.dash-*` tokens with full KPI grid, active package showcase, and order claiming/advancement queue.
+  4. Equip `_Layout.cshtml` and `Login.cshtml` with portal switcher chips and clear navigation entry points.
+- **Consequence:** Delivers an intuitive, role-specific authentication and management experience across all 5 platform roles without breaking generic login backwards compatibility.
+
+

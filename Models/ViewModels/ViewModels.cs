@@ -5,11 +5,14 @@ namespace BookMyFun.Models.ViewModels
 {
     public class LoginViewModel
     {
-        [Required, EmailAddress]
+        [Required(ErrorMessage = "Please enter your Email or User ID")]
+        [Display(Name = "Email or User ID")]
         public string Email { get; set; } = string.Empty;
 
-        [Required, DataType(DataType.Password)]
+        [Required(ErrorMessage = "Please enter your password"), DataType(DataType.Password)]
         public string Password { get; set; } = string.Empty;
+
+        public bool RememberMe { get; set; } = true;
 
         public string? ReturnUrl { get; set; }
     }
@@ -147,6 +150,12 @@ namespace BookMyFun.Models.ViewModels
         // Lookups
         public List<Occasion> AvailableOccasions { get; set; } = new();
         public List<EventPackage> AvailableEventPackages { get; set; } = new();
+
+        // KYC Identity Proof at Booking Time
+        public bool IsClientAlreadyVerified { get; set; }
+        public string? DocumentType { get; set; } = "Aadhaar"; // 'Aadhaar', 'Passport', 'DrivingLicense', 'VoterID'
+        public string? IdDocumentNumber { get; set; }
+        public IFormFile? IdDocumentFile { get; set; }
     }
 
     public class PaymentPageViewModel
@@ -263,6 +272,8 @@ namespace BookMyFun.Models.ViewModels
 
     public class PartnerLeadCreateViewModel
     {
+        public string PartnerType { get; set; } = "Owner"; // "Owner" or "EventManager"
+
         [Required(ErrorMessage = "Full Name is required"), MaxLength(100)]
         public string FullName { get; set; } = string.Empty;
 
@@ -272,13 +283,13 @@ namespace BookMyFun.Models.ViewModels
         [Required(ErrorMessage = "Email address is required"), EmailAddress]
         public string Email { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Property / Farm name is required"), MaxLength(150)]
+        [Required(ErrorMessage = "Property or Studio name is required"), MaxLength(150)]
         public string PropertyName { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Location is required"), MaxLength(255)]
+        [Required(ErrorMessage = "Location or Service Region is required"), MaxLength(255)]
         public string Location { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Acreage / Farm Type is required"), MaxLength(100)]
+        [Required(ErrorMessage = "Acreage or Specialization is required"), MaxLength(100)]
         public string AcreageOrType { get; set; } = string.Empty;
 
         public string? Message { get; set; }
@@ -461,5 +472,41 @@ namespace BookMyFun.Models.ViewModels
         public string? SetupProofMediaUrls { get; set; } // comma separated or JSON array of image/video URLs
 
         public string? Notes { get; set; }
+    }
+
+    public class UserProfileViewModel
+    {
+        public int UserID { get; set; }
+
+        [Required, MaxLength(100)]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required, EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [Phone]
+        public string? Phone { get; set; }
+
+        public string Role { get; set; } = "Client";
+        public string? SubscriptionTier { get; set; }
+        public decimal? CustomCommissionRate { get; set; }
+        public DateTime CreatedAt { get; set; }
+
+        // Associated metrics
+        public int TotalBookingsCount { get; set; }
+        public int TotalPropertiesCount { get; set; }
+        public string? KycStatus { get; set; }
+    }
+
+    public class ChangePasswordViewModel
+    {
+        [Required, DataType(DataType.Password)]
+        public string CurrentPassword { get; set; } = string.Empty;
+
+        [Required, MinLength(6), DataType(DataType.Password)]
+        public string NewPassword { get; set; } = string.Empty;
+
+        [Required, Compare("NewPassword", ErrorMessage = "New password and confirmation password do not match."), DataType(DataType.Password)]
+        public string ConfirmPassword { get; set; } = string.Empty;
     }
 }

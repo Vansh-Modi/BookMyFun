@@ -53,10 +53,13 @@ namespace BookMyFun.Controllers
         private readonly IBookingPricingService _pricingService;
         private readonly ICommissionService _commissionService;
         private readonly IRefundEngineService _refundEngine;
+        private readonly IRefundRepository _refundRepo;
         private readonly IPaymentGatewayService _paymentService;
         private readonly IEmailService _emailService;
         private readonly IWhatsAppService _whatsAppService;
         private readonly IUserRepository _userRepo;
+        private readonly IIdVerificationService _idVerificationService;
+        private readonly IMediaStorageService _mediaStorage;
 
         public BookingController(
             IPropertyRepository propRepo,
@@ -65,10 +68,13 @@ namespace BookMyFun.Controllers
             IBookingPricingService pricingService,
             ICommissionService commissionService,
             IRefundEngineService refundEngine,
+            IRefundRepository refundRepo,
             IPaymentGatewayService paymentService,
             IEmailService emailService,
             IWhatsAppService whatsAppService,
-            IUserRepository userRepo)
+            IUserRepository userRepo,
+            IIdVerificationService idVerificationService,
+            IMediaStorageService mediaStorage)
         {
             _propRepo = propRepo;
             _bookingRepo = bookingRepo;
@@ -76,10 +82,13 @@ namespace BookMyFun.Controllers
             _pricingService = pricingService;
             _commissionService = commissionService;
             _refundEngine = refundEngine;
+            _refundRepo = refundRepo;
             _paymentService = paymentService;
             _emailService = emailService;
             _whatsAppService = whatsAppService;
             _userRepo = userRepo;
+            _idVerificationService = idVerificationService;
+            _mediaStorage = mediaStorage;
         }
 
         [Authorize]
@@ -90,6 +99,9 @@ namespace BookMyFun.Controllers
             if (property == null) return NotFound();
 
             decimal calculatedAmount = _pricingService.CalculatePrice(property.PricePerNight, bookingType, slotType, daysOrHours);
+
+            int clientId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            bool isVerified = await _idVerificationService.IsClientVerifiedAsync(clientId);
 
             var vm = new BookingCheckoutViewModel
             {
@@ -105,7 +117,8 @@ namespace BookMyFun.Controllers
                 CheckOutDate = bookingType == "FullDay" ? DateTime.Today.AddDays(daysOrHours) : DateTime.Today,
                 CalculatedAmount = calculatedAmount,
                 AvailableOccasions = await _propRepo.GetOccasionsAsync(),
-                AvailableEventPackages = await _eventPackageRepo.GetActivePackagesAsync()
+                AvailableEventPackages = await _eventPackageRepo.GetActivePackagesAsync(),
+                IsClientAlreadyVerified = isVerified
             };
 
             return View(vm);
@@ -145,6 +158,23 @@ namespace BookMyFun.Controllers
             }
 
             int clientId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+            // If guest uploaded government ID at booking checkout, securely save into private vault
+            if (model.IdDocumentFile != null && model.IdDocumentFile.Length > 0)
+            {
+                try
+                {
+                    string docKey = await _mediaStorage.SavePrivateDocumentAsync(model.IdDocumentFile, clientId);
+                    await _idVerificationService.SubmitVerificationAsync(clientId, model.DocumentType ?? "Aadhaar", docKey, model.IdDocumentNumber);
+                }
+                catch (Exception ex)
+                {
+                    ModelState.AddModelError("IdDocumentFile", $"Identity document upload error: {ex.Message}");
+                    model.AvailableOccasions = await _propRepo.GetOccasionsAsync();
+                    model.AvailableEventPackages = await _eventPackageRepo.GetActivePackagesAsync();
+                    return View("Checkout", model);
+                }
+            }
 
             // Dynamic Commission calculation
             var (rateSnapshot, platformCommission, ownerPayout) = await _commissionService.CalculateDynamicCommissionAsync(
@@ -336,6 +366,62 @@ namespace BookMyFun.Controllers
 
             TempData["Success"] = $"Booking #{bookingId} has been cancelled successfully. Net refund: ₹{refund.NetRefundAmount:N2}";
             return RedirectToAction("Index", "Client");
+        }
+
+        [Authorize]
+        [HttpGet]
+        public async Task<IActionResult> GetPaymentAndRefundDetails(int bookingId)
+        {
+            var booking = await _bookingRepo.GetBookingByIdAsync(bookingId);
+            if (booking == null) return NotFound(new { success = false, message = "Booking not found." });
+
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var role = User.FindFirstValue(ClaimTypes.Role) ?? "Client";
+
+            if (role == "Client" && booking.ClientID != currentUserId)
+            {
+                return Forbid();
+            }
+
+            var payments = await _bookingRepo.GetPaymentsByBookingIdAsync(bookingId);
+            var refund = await _refundRepo.GetRefundByBookingIdAsync(bookingId);
+
+            return Json(new
+            {
+                success = true,
+                booking = new
+                {
+                    booking.BookingID,
+                    booking.PropertyTitle,
+                    booking.TotalAmount,
+                    booking.Status,
+                    booking.SecurityDepositAmount,
+                    booking.SecurityDepositStatus,
+                    CheckIn = booking.CheckInDate.ToString("MMM dd, yyyy"),
+                    CheckOut = booking.CheckOutDate.ToString("MMM dd, yyyy")
+                },
+                payments = payments.Select(p => new
+                {
+                    p.PaymentID,
+                    p.GatewayTransactionID,
+                    p.Amount,
+                    p.PaymentStatus,
+                    PaymentDate = p.PaymentDate.ToString("MMM dd, yyyy HH:mm")
+                }),
+                refund = refund != null ? new
+                {
+                    refund.RefundID,
+                    refund.GrossBookingAmount,
+                    refund.CancellationFeeDeducted,
+                    refund.GatewayFeeDeducted,
+                    refund.NetRefundAmount,
+                    refund.Status,
+                    refund.GatewayRefundID,
+                    refund.RefundReason,
+                    CreatedAt = refund.CreatedAt.ToString("MMM dd, yyyy HH:mm"),
+                    ProcessedAt = refund.ProcessedAt?.ToString("MMM dd, yyyy HH:mm")
+                } : null
+            });
         }
 
         public async Task<IActionResult> Confirmation(int id)

@@ -209,7 +209,18 @@ BookMyFun recognizes that farmhouses and villas are frequently rented for day pi
 - **Proof-of-Setup Verification Modal:**
   - Decorators upload or link photo/video proofs of the completed setup before the guest checks in.
 
+### Module 16: Universal User Profile & Security Center (`/Account/Profile`)
+- **Multi-Role Profile Management:**
+  - Unified interface serving all 5 roles (`Client`, `Owner`, `Employee`, `Admin`, `EventManager`).
+  - View personal details: Full Name, Email, Phone Number, Role Badge, and Account Creation Timestamp.
+  - In-place profile information editing with server-side validation.
+- **Account Security & Password Management:**
+  - Secure credential change with Current Password verification.
+  - Enforced password complexity requirements (minimum 6 characters, mixed alphanumeric).
+  - Secure BCrypt hashing and immediate session identity maintenance.
+
 ---
+
 
 ## 4. Non-Functional Requirements (NFRs)
 

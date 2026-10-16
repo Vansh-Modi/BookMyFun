@@ -998,10 +998,12 @@ namespace BookMyFun.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdateContactStatus(int contactId, string status)
+        public async Task<IActionResult> UpdateContactStatus(int contactId, string status, string? responseNotes = null)
         {
-            await _contactRepo.UpdateStatusAsync(contactId, status);
-            TempData["Success"] = $"Ticket #{contactId} status updated to {status}.";
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _contactRepo.UpdateStatusAsync(contactId, status, currentUserId, responseNotes);
+            await _configRepo.LogAuditAsync(currentUserId, "UpdateSupportQuery", "ContactUs", contactId, $"Updated ticket #{contactId} status to {status}");
+            TempData["Success"] = $"Ticket #{contactId} status updated to {status} with staff accountability recorded.";
             return RedirectToAction(nameof(SupportQueries));
         }
 
@@ -1040,11 +1042,11 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> ApprovePartnerLead(int leadId)
         {
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var (success, token) = await _partnerLeadService.ApproveLeadAsync(leadId, currentUserId);
+            var (success, initialPassword, token) = await _partnerLeadService.ApproveLeadAsync(leadId, currentUserId);
             if (success)
             {
-                await _configRepo.LogAuditAsync(currentUserId, "AdminApproveLead", "PartnerLead", leadId, $"Approved partner lead #{leadId} and generated activation invite.");
-                TempData["Success"] = $"Partner Lead #{leadId} approved and activation email dispatched!";
+                await _configRepo.LogAuditAsync(currentUserId, "AdminApproveLead", "PartnerLead", leadId, $"Approved partner lead #{leadId} and generated host account with temporary credentials.");
+                TempData["Success"] = $"Partner Lead #{leadId} approved! Host credentials generated (Temporary Password: {initialPassword}) and sent to owner via Email and WhatsApp.";
             }
             return RedirectToAction(nameof(PartnerLeads));
         }
@@ -1063,12 +1065,32 @@ namespace BookMyFun.Controllers
             return RedirectToAction(nameof(PartnerLeads));
         }
 
-        // --- Damage Claims Adjudication ---
+        // --- Damage Claims Adjudication & Logging ---
         public async Task<IActionResult> DamageClaims(string? status)
         {
             var claims = await _damageClaimService.GetAllClaimsAsync(status);
+            var bookings = await _bookingRepo.GetAllBookingsAsync();
+            ViewBag.Bookings = bookings;
             ViewBag.SelectedStatus = status;
             return View(claims);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> LogDamageClaim(DamageClaimCreateViewModel model)
+        {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            try
+            {
+                int claimId = await _damageClaimService.CreateClaimAsync(model, currentUserId, isStaff: true);
+                await _configRepo.LogAuditAsync(currentUserId, "AdminLogDamageClaim", "DamageClaim", claimId, $"Admin logged damage claim #{claimId} for booking #{model.BookingID}");
+                TempData["Success"] = $"Damage claim #{claimId} has been successfully logged on behalf of the host.";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+            return RedirectToAction(nameof(DamageClaims));
         }
 
         [HttpPost]

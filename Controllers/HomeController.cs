@@ -46,9 +46,13 @@ namespace BookMyFun.Controllers
         }
 
         [HttpGet]
-        public IActionResult Partner()
+        public IActionResult Partner(string? type)
         {
-            return View(new BookMyFun.Models.ViewModels.PartnerLeadCreateViewModel());
+            var initialType = string.Equals(type, "eventmanager", StringComparison.OrdinalIgnoreCase) 
+                ? "EventManager" 
+                : "Owner";
+            ViewBag.InitialType = initialType;
+            return View(new BookMyFun.Models.ViewModels.PartnerLeadCreateViewModel { PartnerType = initialType });
         }
 
         [HttpPost]
@@ -57,36 +61,43 @@ namespace BookMyFun.Controllers
         {
             if (!ModelState.IsValid)
             {
+                ViewBag.InitialType = model.PartnerType ?? "Owner";
                 return View(model);
             }
 
             int leadId = await _partnerLeadService.CreateLeadAsync(model);
+
+            bool isEventManager = string.Equals(model.PartnerType, "EventManager", StringComparison.OrdinalIgnoreCase);
+            string roleLabel = isEventManager ? "Event Manager & Décor Studio" : "Farmhouse Host";
 
             // Notify Operations team
             var staffList = (await _userRepo.GetUsersByRoleAsync("Employee"))
                 .Concat(await _userRepo.GetUsersByRoleAsync("Admin"))
                 .ToList();
 
-            string subject = $"[Host Lead #{leadId}] New Farm Host Partner Application: {model.PropertyName}";
+            string subject = $"[{roleLabel} Lead #{leadId}] New Partner Application: {model.PropertyName}";
             string body = $@"
-                <h3>New Farm Host Application Received</h3>
+                <h3>New {roleLabel} Application Received</h3>
                 <p><strong>Lead ID:</strong> #{leadId}<br/>
-                <strong>Owner Name:</strong> {model.FullName}<br/>
+                <strong>Candidate Name:</strong> {model.FullName}<br/>
                 <strong>Email:</strong> {model.Email}<br/>
                 <strong>Phone:</strong> {model.Phone}<br/>
-                <strong>Property Name:</strong> {model.PropertyName}<br/>
-                <strong>Location:</strong> {model.Location}<br/>
-                <strong>Acreage / Type:</strong> {model.AcreageOrType}</p>
+                <strong>{(isEventManager ? "Studio / Brand Name" : "Property Name")}:</strong> {model.PropertyName}<br/>
+                <strong>{(isEventManager ? "Operating Region" : "Location")}:</strong> {model.Location}<br/>
+                <strong>{(isEventManager ? "Specialization" : "Acreage / Type")}:</strong> {model.AcreageOrType}</p>
                 <p><strong>Message:</strong> {model.Message ?? "N/A"}</p>
-                <p>Please review and verify this host application from your Admin/Employee Dashboard.</p>";
+                <p>Please review and verify this application from your Admin/Employee Dashboard.</p>";
 
             foreach (var staff in staffList)
             {
                 _ = _emailService.SendEmailAsync(staff.Email, subject, body);
             }
 
-            TempData["Success"] = "Thank you for applying to partner with BookMyFun! Our onboarding team will inspect your property details and contact you with your activation link shortly.";
-            return RedirectToAction(nameof(Partner));
+            TempData["Success"] = isEventManager
+                ? "Thank you for applying to partner as an Event Manager & Décor Studio! Our operations team will review your profile and reach out shortly."
+                : "Thank you for applying to partner with BookMyFun! Our onboarding team will inspect your property details and contact you with your activation link shortly.";
+
+            return RedirectToAction(nameof(Partner), new { type = isEventManager ? "eventmanager" : "owner" });
         }
 
         [HttpGet]

@@ -36,6 +36,10 @@ namespace BookMyFun.Controllers
 
         private int GetCurrentUserId() => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
+        [AllowAnonymous]
+        [HttpGet]
+        public IActionResult Login(string? returnUrl) => RedirectToAction("Login", "Account", new { returnUrl });
+
         public async Task<IActionResult> Index()
         {
             var ownerId = GetCurrentUserId();
@@ -45,11 +49,11 @@ namespace BookMyFun.Controllers
             var sub = await _subRepo.GetActiveSubscriptionByOwnerIdAsync(ownerId);
             var plans = await _subRepo.GetAllPlansAsync();
 
-            int maxAllowed = 0;
+            int maxAllowed = 1; // Default 1 complimentary listing for approved trial hosts
             if (sub != null)
             {
                 var plan = await _subRepo.GetPlanByIdAsync(sub.PlanID);
-                maxAllowed = plan?.MaxListings ?? 0;
+                maxAllowed = plan?.MaxListings ?? 1;
             }
 
             decimal totalEarnings = bookings.Where(b => b.Status == "Confirmed").Sum(b => b.OwnerPayoutAmount > 0 ? b.OwnerPayoutAmount : b.TotalAmount * 0.90m);
@@ -280,6 +284,8 @@ namespace BookMyFun.Controllers
         {
             var ownerId = GetCurrentUserId();
             var claims = await _damageClaimService.GetClaimsByOwnerAsync(ownerId);
+            var bookings = await _bookingRepo.GetByOwnerIdAsync(ownerId);
+            ViewBag.EligibleBookings = bookings;
             return View(claims);
         }
 

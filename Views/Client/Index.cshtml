@@ -52,7 +52,7 @@
                             }
                         </h5>
                         <p class="text-muted small mb-0">
-                            Verified guests enjoy priority check-in, lower deposit friction, and instant host confirmations. Documents are stored in an encrypted private vault and shielded from property hosts.
+                            Government ID proof is required strictly at the time of reservation during booking checkout. Prior upload is optional and not required to browse or use your guest account. All documents are encrypted and shielded from property hosts.
                         </p>
                         @if (verification != null)
                         {
@@ -158,7 +158,10 @@
                             }
                         </td>
                         <td>
-                            <div class="d-flex gap-1">
+                            <div class="d-flex flex-wrap gap-1">
+                                <button type="button" class="btn btn-sm btn-outline-info" onclick="viewPaymentDetails(@b.BookingID)" title="View Payment Gateway & Refund Transparency">
+                                    <i class="bi bi-receipt"></i> Receipts
+                                </button>
                                 @if (b.Status == "Confirmed")
                                 {
                                     <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#reviewModal_@b.BookingID">
@@ -173,10 +176,6 @@
                                     <a asp-controller="Booking" asp-action="Payment" asp-route-id="@b.BookingID" class="btn btn-sm btn-warning">
                                         <i class="bi bi-credit-card"></i> Pay Now
                                     </a>
-                                }
-                                else
-                                {
-                                    <span class="text-muted small">Completed</span>
                                 }
                             </div>
 
@@ -423,5 +422,143 @@
             btn.innerHTML = '<i class="bi bi-upload me-1"></i>Secure Upload';
         }
     });
+
+    async function viewPaymentDetails(bookingId) {
+        const modal = new bootstrap.Modal(document.getElementById('paymentDetailsModal'));
+        const loading = document.getElementById('paymentModalLoading');
+        const content = document.getElementById('paymentModalContent');
+
+        loading.style.display = 'block';
+        content.style.display = 'none';
+        modal.show();
+
+        try {
+            const resp = await fetch(`/Booking/GetPaymentAndRefundDetails?bookingId=${bookingId}`);
+            if (!resp.ok) throw new Error('Failed to load transaction details.');
+
+            const data = await resp.json();
+            if (!data.success) throw new Error(data.message || 'Unable to retrieve data');
+
+            document.getElementById('pdBookingRef').textContent = `#${data.booking.bookingID} · ${data.booking.propertyTitle}`;
+            document.getElementById('pdBookingDates').textContent = `${data.booking.checkIn} — ${data.booking.checkOut}`;
+            document.getElementById('pdBookingStatus').textContent = data.booking.status;
+
+            // Render payments list
+            const payList = document.getElementById('pdPaymentsList');
+            payList.innerHTML = '';
+            if (data.payments && data.payments.length > 0) {
+                data.payments.forEach(p => {
+                    const row = document.createElement('div');
+                    row.className = 'd-flex justify-content-between align-items-center p-2 mb-1 bg-white border rounded';
+                    row.innerHTML = `
+                        <div>
+                            <span class="badge bg-success me-1">${p.paymentStatus}</span>
+                            <code class="small text-dark">${p.gatewayTransactionID || 'GATEWAY_SIMULATED'}</code>
+                            <div class="small text-muted">${p.paymentDate}</div>
+                        </div>
+                        <strong class="text-success fs-6">₹${parseFloat(p.amount).toLocaleString('en-IN', {minimumFractionDigits: 2})}</strong>
+                    `;
+                    payList.appendChild(row);
+                });
+            } else {
+                payList.innerHTML = `<div class="small text-muted p-2 bg-light rounded">No payment transactions recorded yet.</div>`;
+            }
+
+            // Render refund details if any
+            const refundBox = document.getElementById('pdRefundBox');
+            if (data.refund) {
+                refundBox.style.display = 'block';
+                document.getElementById('pdRefundStatus').textContent = data.refund.status;
+                document.getElementById('pdRefundId').textContent = data.refund.gatewayRefundID || 'PENDING_GATEWAY';
+                document.getElementById('pdGrossAmount').textContent = '₹' + parseFloat(data.refund.grossBookingAmount).toLocaleString('en-IN', {minimumFractionDigits: 2});
+                document.getElementById('pdCancelFee').textContent = '- ₹' + parseFloat(data.refund.cancellationFeeDeducted).toLocaleString('en-IN', {minimumFractionDigits: 2});
+                document.getElementById('pdGatewayFee').textContent = '- ₹' + parseFloat(data.refund.gatewayFeeDeducted).toLocaleString('en-IN', {minimumFractionDigits: 2});
+                document.getElementById('pdNetRefund').textContent = '₹' + parseFloat(data.refund.netRefundAmount).toLocaleString('en-IN', {minimumFractionDigits: 2});
+                document.getElementById('pdRefundReason').textContent = data.refund.refundReason || 'User cancellation';
+                document.getElementById('pdRefundDate').textContent = data.refund.processedAt || data.refund.createdAt;
+            } else {
+                refundBox.style.display = 'none';
+            }
+
+            loading.style.display = 'none';
+            content.style.display = 'block';
+        } catch (err) {
+            loading.innerHTML = `<div class="text-danger small py-3"><i class="bi bi-exclamation-circle me-1"></i>${err.message || 'Error loading transaction transparency details.'}</div>`;
+        }
+    }
 </script>
 }
+
+<!-- Payment & Refund Transparency Modal -->
+<div class="modal fade" id="paymentDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-dark text-white py-3">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-shield-check text-warning me-2"></i>Payment &amp; Refund Transparency
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="paymentModalLoading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="small text-muted mt-2">Fetching gateway transaction logs...</p>
+                </div>
+
+                <div id="paymentModalContent" style="display: none;">
+                    <!-- Reservation Header -->
+                    <div class="mb-3 pb-2 border-bottom">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <h6 class="fw-bold mb-0 text-dark" id="pdBookingRef"></h6>
+                            <span class="badge bg-secondary" id="pdBookingStatus"></span>
+                        </div>
+                        <small class="text-muted" id="pdBookingDates"></small>
+                    </div>
+
+                    <!-- Payment Gateway Transactions -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-uppercase text-muted"><i class="bi bi-credit-card me-1 text-primary"></i>Gateway Transactions</label>
+                        <div id="pdPaymentsList"></div>
+                    </div>
+
+                    <!-- Refund Breakdown -->
+                    <div id="pdRefundBox" class="card border-danger-subtle bg-danger-subtle bg-opacity-10 rounded-3 p-3 mt-3" style="display: none;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong class="text-danger small text-uppercase"><i class="bi bi-arrow-counterclockwise me-1"></i>Refund Audit Record</strong>
+                            <span class="badge bg-danger" id="pdRefundStatus"></span>
+                        </div>
+                        <div class="small mb-2">
+                            <span class="text-muted">Gateway Refund ID:</span>
+                            <code class="text-dark fw-bold" id="pdRefundId"></code>
+                        </div>
+                        <div class="bg-white p-2 rounded border small mb-2">
+                            <div class="d-flex justify-content-between text-muted mb-1">
+                                <span>Gross Booking Total:</span>
+                                <span id="pdGrossAmount"></span>
+                            </div>
+                            <div class="d-flex justify-content-between text-danger mb-1">
+                                <span>Cancellation Policy Fee:</span>
+                                <span id="pdCancelFee"></span>
+                            </div>
+                            <div class="d-flex justify-content-between text-danger mb-1">
+                                <span>Gateway Processing Fee (2%):</span>
+                                <span id="pdGatewayFee"></span>
+                            </div>
+                            <div class="d-flex justify-content-between fw-bold text-success border-top pt-1 mt-1">
+                                <span>Net Refund Credited:</span>
+                                <span id="pdNetRefund" class="fs-6"></span>
+                            </div>
+                        </div>
+                        <div class="small text-muted">
+                            <div><strong>Reason:</strong> <span id="pdRefundReason"></span></div>
+                            <div><strong>Processed:</strong> <span id="pdRefundDate"></span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0 py-2">
+                <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>

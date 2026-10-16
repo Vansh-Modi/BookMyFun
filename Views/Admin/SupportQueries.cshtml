@@ -27,6 +27,7 @@
                     <th>Message</th>
                     <th>Received At</th>
                     <th>Status</th>
+                    <th>Support Agent</th>
                     <th class="text-end">Action</th>
                 </tr>
             </thead>
@@ -34,7 +35,7 @@
                 @if (!Model.Any())
                 {
                     <tr>
-                        <td colspan="8" class="text-center py-4 text-muted">No customer inquiries found.</td>
+                        <td colspan="9" class="text-center py-4 text-muted">No customer inquiries found.</td>
                     </tr>
                 }
                 @foreach (var c in Model)
@@ -50,7 +51,15 @@
                             }
                         </td>
                         <td><span class="badge bg-light text-dark border">@(c.Subject ?? "General Inquiry")</span></td>
-                        <td style="max-width: 320px;" class="small text-secondary">@c.Message</td>
+                        <td style="max-width: 300px;" class="small text-secondary">
+                            <div>@c.Message</div>
+                            @if (!string.IsNullOrEmpty(c.ResponseNotes))
+                            {
+                                <div class="mt-1 p-1 bg-light rounded text-muted" style="font-size: 0.75rem;">
+                                    <strong>Resolution Note:</strong> @c.ResponseNotes
+                                </div>
+                            }
+                        </td>
                         <td>@c.CreatedAt.ToString("MMM dd, hh:mm tt")</td>
                         <td>
                             @if (c.Status == "Responded")
@@ -60,6 +69,25 @@
                             else
                             {
                                 <span class="badge bg-warning text-dark">New Query</span>
+                            }
+                        </td>
+                        <td>
+                            @if (c.Status == "Responded" && !string.IsNullOrEmpty(c.RespondedByUserName))
+                            {
+                                <div>
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                        <i class="bi bi-person-badge-fill me-1"></i>@c.RespondedByUserName
+                                    </span>
+                                </div>
+                                <span class="badge bg-secondary-subtle text-secondary small" style="font-size: 0.7rem;">@c.RespondedByUserRole</span>
+                                @if (c.RespondedAt.HasValue)
+                                {
+                                    <div class="text-muted small" style="font-size: 0.7rem;">@c.RespondedAt.Value.ToString("MMM dd, hh:mm tt")</div>
+                                }
+                            }
+                            else
+                            {
+                                <span class="text-muted small"><em>Awaiting response</em></span>
                             }
                         </td>
                         <td class="text-end">

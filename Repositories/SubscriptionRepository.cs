@@ -165,13 +165,17 @@ namespace BookMyFun.Repositories
 
         public async Task<bool> CanOwnerAddPropertyAsync(int ownerId)
         {
+            var activeListings = await GetActiveListingCountAsync(ownerId);
             var sub = await GetActiveSubscriptionByOwnerIdAsync(ownerId);
-            if (sub == null) return false;
+            if (sub == null)
+            {
+                // Allow 1 complimentary/trial listing for approved hosts
+                return activeListings < 1;
+            }
 
             var plan = await GetPlanByIdAsync(sub.PlanID);
-            if (plan == null) return false;
+            if (plan == null) return activeListings < 1;
 
-            var activeListings = await GetActiveListingCountAsync(ownerId);
             return activeListings < plan.MaxListings;
         }
 

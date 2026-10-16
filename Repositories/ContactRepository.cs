@@ -8,7 +8,7 @@ namespace BookMyFun.Repositories
     {
         Task<int> CreateContactAsync(ContactUs contact);
         Task<List<ContactUs>> GetAllContactsAsync();
-        Task<bool> UpdateStatusAsync(int contactId, string status);
+        Task<bool> UpdateStatusAsync(int contactId, string status, int? respondedByUserId = null, string? responseNotes = null);
     }
 
     public class ContactRepository : IContactRepository
@@ -39,26 +39,81 @@ namespace BookMyFun.Repositories
 
         public async Task<List<ContactUs>> GetAllContactsAsync()
         {
-            const string sql = "SELECT * FROM ContactUs ORDER BY CreatedAt DESC";
-            return await _db.ExecuteReaderListAsync(sql, r => new ContactUs
+            const string sql = @"
+                SELECT c.*, u.FullName AS RespondedByUserName, u.Role AS RespondedByUserRole
+                FROM ContactUs c
+                LEFT JOIN Users u ON c.RespondedByUserID = u.UserID
+                ORDER BY c.CreatedAt DESC";
+
+            return await _db.ExecuteReaderListAsync(sql, r =>
             {
-                ContactID = r.GetInt32(r.GetOrdinal("ContactID")),
-                Name = r.GetString(r.GetOrdinal("Name")),
-                Email = r.GetString(r.GetOrdinal("Email")),
-                Phone = r.IsDBNull(r.GetOrdinal("Phone")) ? null : r.GetString(r.GetOrdinal("Phone")),
-                Subject = r.IsDBNull(r.GetOrdinal("Subject")) ? null : r.GetString(r.GetOrdinal("Subject")),
-                Message = r.GetString(r.GetOrdinal("Message")),
-                Status = r.GetString(r.GetOrdinal("Status")),
-                CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt"))
+                var item = new ContactUs
+                {
+                    ContactID = r.GetInt32(r.GetOrdinal("ContactID")),
+                    Name = r.GetString(r.GetOrdinal("Name")),
+                    Email = r.GetString(r.GetOrdinal("Email")),
+                    Phone = r.IsDBNull(r.GetOrdinal("Phone")) ? null : r.GetString(r.GetOrdinal("Phone")),
+                    Subject = r.IsDBNull(r.GetOrdinal("Subject")) ? null : r.GetString(r.GetOrdinal("Subject")),
+                    Message = r.GetString(r.GetOrdinal("Message")),
+                    Status = r.GetString(r.GetOrdinal("Status")),
+                    CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt"))
+                };
+
+                try
+                {
+                    int respIdOrd = r.GetOrdinal("RespondedByUserID");
+                    if (!r.IsDBNull(respIdOrd)) item.RespondedByUserID = r.GetInt32(respIdOrd);
+                }
+                catch { }
+
+                try
+                {
+                    int respNameOrd = r.GetOrdinal("RespondedByUserName");
+                    if (!r.IsDBNull(respNameOrd)) item.RespondedByUserName = r.GetString(respNameOrd);
+                }
+                catch { }
+
+                try
+                {
+                    int respRoleOrd = r.GetOrdinal("RespondedByUserRole");
+                    if (!r.IsDBNull(respRoleOrd)) item.RespondedByUserRole = r.GetString(respRoleOrd);
+                }
+                catch { }
+
+                try
+                {
+                    int respNotesOrd = r.GetOrdinal("ResponseNotes");
+                    if (!r.IsDBNull(respNotesOrd)) item.ResponseNotes = r.GetString(respNotesOrd);
+                }
+                catch { }
+
+                try
+                {
+                    int respAtOrd = r.GetOrdinal("RespondedAt");
+                    if (!r.IsDBNull(respAtOrd)) item.RespondedAt = r.GetDateTime(respAtOrd);
+                }
+                catch { }
+
+                return item;
             });
         }
 
-        public async Task<bool> UpdateStatusAsync(int contactId, string status)
+        public async Task<bool> UpdateStatusAsync(int contactId, string status, int? respondedByUserId = null, string? responseNotes = null)
         {
-            const string sql = "UPDATE ContactUs SET Status = @Status WHERE ContactID = @ContactID";
+            const string sql = @"
+                UPDATE ContactUs 
+                SET Status = @Status,
+                    RespondedByUserID = COALESCE(@RespondedByUserID, RespondedByUserID),
+                    ResponseNotes = COALESCE(@ResponseNotes, ResponseNotes),
+                    RespondedAt = CASE WHEN @Status = 'Responded' THEN GETDATE() ELSE RespondedAt END
+                WHERE ContactID = @ContactID";
+
             var rows = await _db.ExecuteNonQueryAsync(sql,
                 new SqlParameter("@Status", status),
+                new SqlParameter("@RespondedByUserID", DBHelper.ToDbValue(respondedByUserId)),
+                new SqlParameter("@ResponseNotes", DBHelper.ToDbValue(responseNotes)),
                 new SqlParameter("@ContactID", contactId));
+
             return rows > 0;
         }
     }
