@@ -67,7 +67,7 @@ Stores account credentials, role designations (5 roles), host commission overrid
 | `Email` | `NVARCHAR(100)` | No | UNIQUE | Normalized email address for login |
 | `PasswordHash` | `NVARCHAR(255)` | No | - | BCrypt/PBKDF2 salted hash |
 | `Phone` | `NVARCHAR(20)` | Yes | - | Primary contact phone number |
-| `Role` | `NVARCHAR(20)` | No | CHECK ('Admin', 'Employee', 'Owner', 'Client', 'EventManager')) | Security authorization role |
+| `Role` | `NVARCHAR(20)` | No | CHECK ('Admin', 'Employee', 'Owner', 'Client', 'EventManager') | Security authorization role |
 | `IsActive` | `BIT` | No | DEFAULT 1 | Account status flag |
 | `CustomCommissionRate` | `DECIMAL(5,2)` | Yes | - | Host-specific commission rate override |
 | `SubscriptionTier` | `NVARCHAR(30)` | No | DEFAULT 'Free' | 'Free', 'Featured', 'Managed' |

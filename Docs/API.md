@@ -160,7 +160,7 @@ Executive command center, Property GMV vs Event GMV analytics, ClosedXML Excel/C
 Dual-mode media ingestion, magic-byte inspection, SSRF URL validation, and private KYC retrieval.
 
 | Endpoint | Verb | Authorization | Request Body / Query Params | Response Type | Description |
-|:---|:---:|:---:|:---|:---|:---|
+|:---|:---|:---:|:---|:---|:---|
 | `/Media/UploadFile` | `POST` | Authenticated | `File` (multipart/form-data), `MediaType` ('photo'\|'video') | JSON | Magic-byte checks file, saves with UUID name, returns URL. |
 | `/Media/VerifyExternalUrl` | `POST` | Authenticated | `Url` (string, required) | JSON | SSRF-checks HTTPS URL, validates DNS, returns embed preview. |
 | `/Media/PrivateDoc` | `GET` | Employee / Admin / Owner of Doc | `token` (HMAC-SHA256 expiring token) | File Stream | Streams private KYC document (Valid for 15 minutes). |

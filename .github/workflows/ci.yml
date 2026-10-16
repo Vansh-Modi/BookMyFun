@@ -1,4 +1,4 @@
-﻿name: Run Tests on GitHub
+name: Run Tests on GitHub
 
 on:
   push:
@@ -17,7 +17,7 @@ jobs:
     - name: Setup .NET SDK
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x' # Change this if your project uses .NET 6 or 9
+        dotnet-version: '10.0.x'
 
     - name: Restore Dependencies
       run: dotnet restore

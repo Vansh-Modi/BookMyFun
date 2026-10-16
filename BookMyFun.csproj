@@ -7,12 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ClosedXML" Version="0.104.2" />
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
+    <Compile Remove="BookMyFun.Tests\**" />
+    <Content Remove="BookMyFun.Tests\**" />
+    <EmbeddedResource Remove="BookMyFun.Tests\**" />
+    <None Remove="BookMyFun.Tests\**" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="wwwroot\.github\workflows\ci.yml" />
+    <PackageReference Include="ClosedXML" Version="0.104.2" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
   </ItemGroup>
 
 </Project>
