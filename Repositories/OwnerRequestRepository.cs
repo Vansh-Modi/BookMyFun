@@ -8,9 +8,10 @@ namespace BookMyFun.Repositories
     {
         Task<int> CreateRequestAsync(int userId, int trialDays = 2);
         Task<OwnerRequest?> GetActiveRequestByUserIdAsync(int userId);
+        Task<OwnerRequest?> GetRequestByIdAsync(int requestId);
         Task<List<OwnerRequest>> GetAllPendingRequestsAsync();
         Task<List<OwnerRequest>> GetAllRequestsAsync();
-        Task<bool> ApproveOwnerRequestAsync(int requestId, int reviewerUserId, string? notes);
+        Task<bool> ApproveOwnerRequestAsync(int requestId, int reviewerUserId, string? notes, string? newPasswordHash = null);
         Task<bool> RejectOwnerRequestAsync(int requestId, int reviewerUserId, string? notes);
     }
 
@@ -51,6 +52,18 @@ namespace BookMyFun.Repositories
             return await _db.ExecuteReaderSingleAsync(sql, MapOwnerRequest, new SqlParameter("@UserID", userId));
         }
 
+        public async Task<OwnerRequest?> GetRequestByIdAsync(int requestId)
+        {
+            const string sql = @"
+                SELECT TOP 1 r.*, u.FullName, u.Email, u.Phone,
+                       (SELECT COUNT(*) FROM Properties WHERE OwnerID = r.UserID) AS ListedPropertiesCount
+                FROM OwnerRequests r
+                JOIN Users u ON r.UserID = u.UserID
+                WHERE r.RequestID = @RequestID";
+
+            return await _db.ExecuteReaderSingleAsync(sql, MapOwnerRequest, new SqlParameter("@RequestID", requestId));
+        }
+
         public async Task<List<OwnerRequest>> GetAllPendingRequestsAsync()
         {
             const string sql = @"
@@ -76,10 +89,10 @@ namespace BookMyFun.Repositories
             return await _db.ExecuteReaderListAsync(sql, MapOwnerRequest);
         }
 
-        public async Task<bool> ApproveOwnerRequestAsync(int requestId, int reviewerUserId, string? notes)
+        public async Task<bool> ApproveOwnerRequestAsync(int requestId, int reviewerUserId, string? notes, string? newPasswordHash = null)
         {
             // 1. Mark request as Approved
-            // 2. Ensure User role remains/is 'Owner'
+            // 2. Ensure User role remains/is 'Owner', active, and optionally update password
             const string sql = @"
                 DECLARE @TargetUserId INT;
                 SELECT @TargetUserId = UserID FROM OwnerRequests WHERE RequestID = @RequestID;
@@ -93,7 +106,12 @@ namespace BookMyFun.Repositories
 
                 IF @TargetUserId IS NOT NULL
                 BEGIN
-                    UPDATE Users SET Role = 'Owner' WHERE UserID = @TargetUserId;
+                    UPDATE Users 
+                    SET Role = 'Owner',
+                        IsActive = 1,
+                        PasswordHash = CASE WHEN @PasswordHash IS NOT NULL THEN @PasswordHash ELSE PasswordHash END
+                    WHERE UserID = @TargetUserId;
+
                     -- Also approve their draft properties
                     UPDATE Properties SET IsApproved = 1, ListingStatus = 'Active' WHERE OwnerID = @TargetUserId;
                 END";
@@ -101,7 +119,8 @@ namespace BookMyFun.Repositories
             var rows = await _db.ExecuteNonQueryAsync(sql,
                 new SqlParameter("@RequestID", requestId),
                 new SqlParameter("@ReviewerID", reviewerUserId),
-                new SqlParameter("@Notes", DBHelper.ToDbValue(notes)));
+                new SqlParameter("@Notes", DBHelper.ToDbValue(notes)),
+                new SqlParameter("@PasswordHash", DBHelper.ToDbValue(newPasswordHash)));
 
             return rows > 0;
         }

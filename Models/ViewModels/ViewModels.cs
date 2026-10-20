@@ -277,10 +277,10 @@ namespace BookMyFun.Models.ViewModels
         [Required(ErrorMessage = "Full Name is required"), MaxLength(100)]
         public string FullName { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Phone number is required"), Phone]
+        [Required(ErrorMessage = "Phone number is required"), MinLength(8, ErrorMessage = "Please enter a valid phone number")]
         public string Phone { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Email address is required"), EmailAddress]
+        [Required(ErrorMessage = "Email address is required"), EmailAddress(ErrorMessage = "Please enter a valid email address")]
         public string Email { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Property or Studio name is required"), MaxLength(150)]
@@ -357,6 +357,7 @@ namespace BookMyFun.Models.ViewModels
         public string ItemizedDescription { get; set; } = string.Empty;
 
         public string? EvidenceUrlsInput { get; set; }
+        public List<IFormFile>? EvidenceFiles { get; set; }
         public List<string> EvidenceUrls { get; set; } = new();
     }
 
@@ -508,5 +509,19 @@ namespace BookMyFun.Models.ViewModels
 
         [Required, Compare("NewPassword", ErrorMessage = "New password and confirmation password do not match."), DataType(DataType.Password)]
         public string ConfirmPassword { get; set; } = string.Empty;
+    }
+
+    public class EventManagerFinancialsViewModel
+    {
+        public List<Booking> EventBookings { get; set; } = new();
+        public decimal TotalGrossRevenue { get; set; }
+        public decimal TotalSettledEarnings { get; set; }
+        public decimal TotalPendingEscrowEarnings { get; set; }
+        public int TotalOrdersCount { get; set; }
+        public int CompletedOrdersCount { get; set; }
+        public int ActiveJobsCount { get; set; }
+        public string? SelectedStatus { get; set; }
+        public DateTime? FromDate { get; set; }
+        public DateTime? ToDate { get; set; }
     }
 }

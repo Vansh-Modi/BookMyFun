@@ -1,0 +1,161 @@
+@model IEnumerable<BookMyFun.Models.Entities.Booking>
+@{
+    ViewData["Title"] = "Manage Bookings & Reservations";
+    var selectedStatus = ViewBag.SelectedStatus as string ?? "All";
+    var controllerName = ViewContext.RouteData.Values["controller"]?.ToString() ?? "Admin";
+}
+
+<div class="container-fluid py-4 px-lg-4">
+    <!-- Header Banner -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4 bg-gradient text-white p-4" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <span class="badge bg-white text-dark px-3 py-2 rounded-pill fw-bold mb-2">Central Operations</span>
+                <h2 class="fw-bold mb-1"><i class="bi bi-calendar-check me-2 text-warning"></i>Manage Platform Reservations</h2>
+                <p class="mb-0 text-white-50">Review real-time guest bookings, check-in schedules, security deposit holds, and payment statuses.</p>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <a asp-controller="@controllerName" asp-action="RefundsQueue" class="btn btn-outline-light rounded-pill px-3">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i> Refunds Operations
+                </a>
+                <a asp-controller="@controllerName" asp-action="DamageClaims" class="btn btn-warning text-dark fw-bold rounded-pill px-3 shadow-sm">
+                    <i class="bi bi-shield-shaded me-1"></i> Damage Claims
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Filters & Search Bar -->
+    <div class="card border-0 shadow-sm rounded-4 p-3 mb-4 bg-light">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div class="btn-group rounded-pill p-1 bg-white shadow-sm" role="group">
+                <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="All" class="btn btn-sm rounded-pill px-3 fw-semibold @(selectedStatus == "All" ? "btn-dark" : "btn-light text-muted border-0")">All (@Model.Count())</a>
+                <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="Confirmed" class="btn btn-sm rounded-pill px-3 fw-semibold @(selectedStatus == "Confirmed" ? "btn-success" : "btn-light text-muted border-0")">Confirmed</a>
+                <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="Pending" class="btn btn-sm rounded-pill px-3 fw-semibold @(selectedStatus == "Pending" ? "btn-warning text-dark" : "btn-light text-muted border-0")">Pending</a>
+                <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="Cancelled" class="btn btn-sm rounded-pill px-3 fw-semibold @(selectedStatus == "Cancelled" ? "btn-danger" : "btn-light text-muted border-0")">Cancelled</a>
+            </div>
+
+            <div class="input-group" style="max-width: 350px;">
+                <span class="input-group-text bg-white border-end-0 rounded-start-pill"><i class="bi bi-search text-muted"></i></span>
+                <input type="text" id="bookingSearchInput" class="form-control border-start-0 rounded-end-pill" placeholder="Search by ID, guest, property..." />
+            </div>
+        </div>
+    </div>
+
+    <!-- Bookings Table Card -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="bookingsTable">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Booking ID</th>
+                        <th>Property &amp; Dates</th>
+                        <th>Guest Information</th>
+                        <th>Total Amount</th>
+                        <th>Status</th>
+                        <th>Security Deposit</th>
+                        <th class="text-end pe-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <i class="bi bi-calendar-x fs-1 d-block mb-2 text-secondary"></i>
+                                <h5>No bookings found matching filter '@selectedStatus'</h5>
+                                <p class="small mb-0">Check back after guests make reservations or clear your filter.</p>
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var b in Model)
+                    {
+                        var statusBadgeClass = b.Status switch
+                        {
+                            "Confirmed" => "bg-success-subtle text-success border border-success-subtle",
+                            "Pending" => "bg-warning-subtle text-warning border border-warning-subtle",
+                            "Cancelled" => "bg-danger-subtle text-danger border border-danger-subtle",
+                            _ => "bg-secondary-subtle text-secondary border"
+                        };
+
+                        <tr>
+                            <td class="ps-4">
+                                <span class="fw-bold font-monospace text-dark">#@b.BookingID</span>
+                                <div class="text-muted small">@b.CreatedAt.ToString("dd MMM yyyy")</div>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-dark">@b.PropertyTitle</div>
+                                <div class="small text-muted">
+                                    <i class="bi bi-calendar3 text-primary me-1"></i>@b.CheckInDate.ToString("dd MMM") &ndash; @b.CheckOutDate.ToString("dd MMM yyyy")
+                                    <span class="badge bg-light text-dark border ms-1">@b.BookingType</span>
+                                    @if (b.IsEventBooking)
+                                    {
+                                        <span class="badge bg-warning-subtle text-dark border border-warning-subtle ms-1"><i class="bi bi-palette2 me-1"></i>Décor Added</span>
+                                    }
+                                </div>
+                            </td>
+                            <td>
+                                <div class="fw-semibold text-dark">@b.ClientName</div>
+                                <div class="small text-muted"><i class="bi bi-envelope me-1"></i>@b.ClientEmail</div>
+                                @if (!string.IsNullOrEmpty(b.ClientPhone))
+                                {
+                                    <div class="small text-muted"><i class="bi bi-telephone me-1"></i>@b.ClientPhone</div>
+                                }
+                            </td>
+                            <td>
+                                <div class="fw-bold fs-6 text-success">₹@b.TotalAmount.ToString("N2")</div>
+                                @if (b.PlatformCommissionAmount > 0)
+                                {
+                                    <div class="small text-muted">Platform Cut: ₹@b.PlatformCommissionAmount.ToString("N2")</div>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge px-3 py-1 rounded-pill @statusBadgeClass">
+                                    @b.Status
+                                </span>
+                            </td>
+                            <td>
+                                @if (b.SecurityDepositAmount > 0)
+                                {
+                                    <div class="fw-semibold small text-dark">₹@b.SecurityDepositAmount.ToString("N2")</div>
+                                    <span class="badge bg-light text-dark border small">@b.SecurityDepositStatus</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">None</span>
+                                }
+                            </td>
+                            <td class="text-end pe-4">
+                                <div class="btn-group btn-group-sm">
+                                    <a asp-controller="@controllerName" asp-action="DamageClaims" asp-route-status="All" class="btn btn-outline-danger" title="Damage Claim Operations">
+                                        <i class="bi bi-shield-exclamation"></i>
+                                    </a>
+                                    @if (b.Status == "Cancelled")
+                                    {
+                                        <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="All" class="btn btn-outline-info" title="Refund Details">
+                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                        </a>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.getElementById("bookingSearchInput").addEventListener("input", function () {
+        const query = this.value.toLowerCase().trim();
+        const rows = document.querySelectorAll("#bookingsTable tbody tr");
+
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(query) ? "" : "none";
+        });
+    });
+</script>
+}

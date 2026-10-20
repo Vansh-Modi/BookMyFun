@@ -2,8 +2,10 @@
 @{
     ViewData["Title"] = "Employee Operations Console";
     var totalProps = ViewBag.TotalProperties ?? 0;
-    var totalOwners = ViewBag.TotalOwners ?? 0;
+    var totalBookings = ViewBag.TotalBookings ?? 0;
     var pendingBookings = ViewBag.PendingBookings ?? 0;
+    var pendingLeads = ViewBag.PendingLeads ?? 0;
+    var pendingKyc = ViewBag.PendingKYC ?? 0;
 }
 
 <!-- Page Header -->
@@ -11,20 +13,23 @@
     <div>
         <p class="dash-eyebrow">Staff Portal · Operations</p>
         <h1 class="dash-title">Employee Operations Console</h1>
-        <p class="dash-subtitle">Oversee property inventory, facilitate owner onboarding, and verify reservations across all partner stays.</p>
+        <p class="dash-subtitle">Oversee guest reservations, handle operational queues, and verify KYC &amp; partner onboarding applications.</p>
     </div>
     <div class="dash-actions">
-        <a asp-action="CreateProperty" class="dash-btn dash-btn-primary">
-            <i class="bi bi-plus-lg"></i> Add Property
+        <a asp-action="ManageBookings" class="dash-btn dash-btn-primary">
+            <i class="bi bi-calendar-check"></i> Manage Bookings
         </a>
-        <a asp-action="OwnerRequests" class="dash-btn dash-btn-accent">
-            <i class="bi bi-person-check"></i> Owner Requests
+        <a asp-action="IdVerifications" class="dash-btn dash-btn-accent">
+            <i class="bi bi-person-vcard"></i> KYC Verifications
         </a>
-        <a asp-action="ManageProperties" class="dash-btn dash-btn-outline">
-            <i class="bi bi-building"></i> Properties
+        <a asp-action="PartnerLeads" class="dash-btn dash-btn-outline">
+            <i class="bi bi-people"></i> Partner Leads
         </a>
-        <a asp-action="ManageOwners" class="dash-btn dash-btn-outline">
-            <i class="bi bi-people"></i> Owners
+        <a asp-action="RefundsQueue" class="dash-btn dash-btn-outline">
+            <i class="bi bi-arrow-counterclockwise"></i> Refunds Queue
+        </a>
+        <a asp-action="DamageClaims" class="dash-btn dash-btn-outline">
+            <i class="bi bi-shield-shaded"></i> Damage Claims
         </a>
         <a asp-action="SupportQueries" class="dash-btn dash-btn-outline">
             <i class="bi bi-headset"></i> Support Queries
@@ -39,7 +44,7 @@
 <div class="dash-stat-grid">
     <div class="dash-stat-card">
         <div class="dash-stat-top">
-            <span class="dash-stat-label">Properties Managed</span>
+            <span class="dash-stat-label">Properties Monitored</span>
             <span class="dash-stat-icon icon-blue"><i class="bi bi-house-door-fill"></i></span>
         </div>
         <div class="dash-stat-val">@totalProps</div>
@@ -47,11 +52,11 @@
     </div>
     <div class="dash-stat-card">
         <div class="dash-stat-top">
-            <span class="dash-stat-label">Registered Owners</span>
-            <span class="dash-stat-icon icon-emerald"><i class="bi bi-person-badge-fill"></i></span>
+            <span class="dash-stat-label">Pending Partner Leads</span>
+            <span class="dash-stat-icon icon-emerald"><i class="bi bi-handshake-fill"></i></span>
         </div>
-        <div class="dash-stat-val">@totalOwners</div>
-        <div class="dash-stat-sub"><i class="bi bi-patch-check-fill text-success me-1"></i>Verified host accounts</div>
+        <div class="dash-stat-val">@pendingLeads</div>
+        <div class="dash-stat-sub"><i class="bi bi-clock-history text-success me-1"></i>Awaiting onboarding review</div>
     </div>
     <div class="dash-stat-card">
         <div class="dash-stat-top">
@@ -76,8 +81,8 @@
 <div class="dash-card">
     <div class="dash-card-header">
         <h3 class="dash-card-title"><i class="bi bi-building me-2 text-primary"></i>Active Property Inventory</h3>
-        <a asp-action="CreateOwner" class="dash-btn dash-btn-outline" style="padding: .35rem .85rem; font-size: .8rem;">
-            <i class="bi bi-person-plus"></i> Register Owner
+        <a asp-action="ManageProperties" class="dash-btn dash-btn-outline" style="padding: .35rem .85rem; font-size: .8rem;">
+            <i class="bi bi-list-check"></i> Manage All Properties
         </a>
     </div>
     <div class="table-responsive">

@@ -20,17 +20,20 @@ namespace BookMyFun.Services
         private readonly IDamageClaimRepository _claimRepo;
         private readonly IBookingRepository _bookingRepo;
         private readonly IPropertyRepository _propertyRepo;
+        private readonly IMediaStorageService _mediaStorage;
         private readonly ILogger<DamageClaimService> _logger;
 
         public DamageClaimService(
             IDamageClaimRepository claimRepo,
             IBookingRepository bookingRepo,
             IPropertyRepository propertyRepo,
+            IMediaStorageService mediaStorage,
             ILogger<DamageClaimService> logger)
         {
             _claimRepo = claimRepo;
             _bookingRepo = bookingRepo;
             _propertyRepo = propertyRepo;
+            _mediaStorage = mediaStorage;
             _logger = logger;
         }
 
@@ -56,6 +59,31 @@ namespace BookMyFun.Services
             }
 
             var allEvidence = new List<string>(model.EvidenceUrls ?? new List<string>());
+
+            // Upload directly submitted evidence image/video files
+            if (model.EvidenceFiles != null && model.EvidenceFiles.Count > 0)
+            {
+                foreach (var file in model.EvidenceFiles)
+                {
+                    if (file != null && file.Length > 0)
+                    {
+                        try
+                        {
+                            string mediaType = (file.ContentType != null && file.ContentType.StartsWith("video", StringComparison.OrdinalIgnoreCase)) ? "video" : "photo";
+                            var (uploadedUrl, _) = await _mediaStorage.SaveMediaFileAsync(file, mediaType);
+                            if (!string.IsNullOrEmpty(uploadedUrl) && !allEvidence.Contains(uploadedUrl))
+                            {
+                                allEvidence.Add(uploadedUrl);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to upload evidence file for damage claim on booking #{BookingID}", model.BookingID);
+                        }
+                    }
+                }
+            }
+
             if (!string.IsNullOrWhiteSpace(model.EvidenceUrlsInput))
             {
                 var inputUrls = model.EvidenceUrlsInput.Split(new[] { '\r', '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);

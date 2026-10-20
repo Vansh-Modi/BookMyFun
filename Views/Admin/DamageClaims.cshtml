@@ -201,7 +201,7 @@
 <div class="modal fade" id="logDamageClaimModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
-            <form asp-controller="@controllerName" asp-action="LogDamageClaim" method="post">
+            <form asp-controller="@controllerName" asp-action="LogDamageClaim" method="post" enctype="multipart/form-data">
                 @Html.AntiForgeryToken()
                 <div class="modal-header bg-danger text-white py-3">
                     <h5 class="modal-title fw-bold">
@@ -248,7 +248,13 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-semibold small">Photo / Video Evidence Proof URLs</label>
+                        <label class="form-label fw-semibold small">Direct Upload Evidence Photos / Videos</label>
+                        <input type="file" name="EvidenceFiles" class="form-control" accept=".jpg,.jpeg,.png,.webp,.mp4,.mov" multiple />
+                        <small class="text-muted">Directly select photos or videos to upload as proof.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Additional Photo / Video Evidence Proof URLs</label>
                         <textarea name="EvidenceUrlsInput" class="form-control" rows="2" placeholder="Paste media links separated by commas or new lines"></textarea>
                     </div>
                 </div>

@@ -28,6 +28,9 @@ namespace BookMyFun.Services
     public class SiteSettingsService : ISiteSettingsService
     {
         private readonly IConfigRepository _configRepo;
+        private static SiteSettingsModel? _cachedSettings;
+        private static DateTime _cacheExpiry = DateTime.MinValue;
+        private static readonly object _lock = new();
 
         public SiteSettingsService(IConfigRepository configRepo)
         {
@@ -36,6 +39,12 @@ namespace BookMyFun.Services
 
         public async Task<SiteSettingsModel> GetSettingsAsync()
         {
+            // Fast in-memory cached return to prevent database roundtrips on every page render
+            if (_cachedSettings != null && DateTime.UtcNow < _cacheExpiry)
+            {
+                return _cachedSettings;
+            }
+
             var settings = await _configRepo.GetAllSettingsAsync();
             var dict = settings.ToDictionary(s => s.SettingKey, s => s.SettingValue ?? "");
 
@@ -59,6 +68,12 @@ namespace BookMyFun.Services
                 model.PlatformCommissionPercent = cVal;
             }
 
+            lock (_lock)
+            {
+                _cachedSettings = model;
+                _cacheExpiry = DateTime.UtcNow.AddMinutes(15);
+            }
+
             return model;
         }
 
@@ -77,6 +92,13 @@ namespace BookMyFun.Services
             await _configRepo.SetSettingValueAsync("YouTubeUrl", model.YouTubeUrl ?? "");
             await _configRepo.SetSettingValueAsync("CurrencySymbol", model.CurrencySymbol ?? "₹");
             await _configRepo.SetSettingValueAsync("PlatformCommissionPercent", model.PlatformCommissionPercent.ToString("0.##"));
+
+            // Immediately invalidate in-memory cache
+            lock (_lock)
+            {
+                _cachedSettings = null;
+                _cacheExpiry = DateTime.MinValue;
+            }
         }
     }
 }

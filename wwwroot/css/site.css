@@ -1,5 +1,23 @@
+:root {
+  /* 60% Dominant - Clean, airy backgrounds */
+  --bg-primary: #F8FAFC;       /* Crisp Alabaster White */
+  --bg-card: #FFFFFF;          /* Pure White for Villa Cards */
+  --bg-glass: rgba(255, 255, 255, 0.85); /* For sticky navbars */
+
+  /* 30% Structural - Deep trust & typography */
+  --brand-navy: #0B4F6C;       /* Deep Oceanic Blue (from 'Book' & 'Fun') */
+  --brand-sky: #01BAEF;        /* Vibrant Pool Blue (links & active states) */
+  --text-main: #0F172A;        /* Deep Slate (easier on the eyes than #000000) */
+  --text-muted: #64748B;       /* Soft Grey for property sub-details */
+  --border-subtle: #E2E8F0;    /* Hairline card borders */
+
+  /* 10% Accents - Eco tags & high-conversion buttons */
+  --brand-green: #2E933C;      /* Palm Green (from 'My' - use for 'Verified' or category pills) */
+  --brand-gold: #F59E0B;       /* Sunburst Gold (for ratings & urgent 'Hot Deal' badges) */
+}
+
 /* Modern Luxury Farmhouse & Villa Theme */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+/* Plus Jakarta Sans loaded asynchronously via <link rel="preconnect"> in _Layout.cshtml */
 
 /* ============================================================
    DESIGN TOKENS — Light Mode (default)

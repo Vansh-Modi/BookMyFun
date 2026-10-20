@@ -149,4 +149,86 @@
   4. Equip `_Layout.cshtml` and `Login.cshtml` with portal switcher chips and clear navigation entry points.
 - **Consequence:** Delivers an intuitive, role-specific authentication and management experience across all 5 platform roles without breaking generic login backwards compatibility.
 
+---
 
+### ADR-19: Explicit Cookie Lifecycle, Dual-Verb Logout & Database Column Migration for IsActive
+- **Context:** During development and application restart, stale browser authentication cookies (`.AspNetCore.Cookies` with 7-day lifetimes) kept previous administrative sessions active upon initial site launch. Furthermore, invoking `/Account/Logout` via direct GET navigation caused HTTP 405 Method Not Allowed exceptions, and logging in as Admin failed with `SqlException: Invalid column name 'IsActive'` because pre-existing database instances lacked the `IsActive` column in `Users`.
+- **Decision:**
+  1. Assign an explicit cookie name `BookMyFun.AuthCookie` in `Program.cs`, configure `SameSiteMode.Lax`, and constrain default expiration to 8 hours.
+  2. Implement dual-verb `[AcceptVerbs("GET", "POST")]` with `[IgnoreAntiforgeryToken]` on `AccountController.Logout` and explicitly invoke `Response.Cookies.Delete()` for `BookMyFun.AuthCookie` and `.AspNetCore.Cookies`.
+  3. Ensure idempotent schema migration in `DatabaseInitializer.cs` to automatically execute `ALTER TABLE Users ADD IsActive BIT NOT NULL DEFAULT 1 WITH VALUES;` whenever the column is missing in existing databases.
+  4. Include `IsActive` in `UserRepository.CreateUserAsync` and `UserRepository.UpdateUserAsync`.
+- **Consequence:** Guarantees clean initial unauthenticated launches, provides robust sign-out across all navigation methods, and prevents SQL Server runtime schema errors when logging in as administrator.
+
+---
+
+### ADR-20: Automated Dual-Channel Credential Dispatch (WhatsApp API & Email) on Partner Lead & Owner Approval
+- **Context:** When operations staff approve an Owner or Event Manager partner lead or a trial listing request, partners must receive instant access credentials without manual administrative intervention. Relying only on email often results in delayed opens or spam filtering, while phone communications need high reliability in the Indian market.
+- **Decision:**
+  1. Standardize secure password generation (`Host@<6-digits>` for Hosts/Owners, `Event@<6-digits>` for Event Managers) across both `PartnerLead` approvals and `OwnerRequest` reviews.
+  2. Hash initial passwords using SHA-256 and store them directly in `Users.PasswordHash` with `IsActive = 1`.
+  3. Dispatch account credentials across both Email (`IEmailService`) and WhatsApp (`IWhatsAppService` via Meta Cloud API / WhatsApp Gateway), explicitly communicating:
+     - The Account ID (`#<UserID>`)
+     - The Login Email / ID
+     - The auto-generated temporary password
+     - The official portal sign-in link
+  4. Ensure both notification tasks are explicitly awaited with resilient error trapping so transmission glitches do not roll back the database transaction.
+  5. Reflect the generated Account ID and temporary password directly in `TempData["Success"]` on the Admin/Employee console for instant staff reference and phone support.
+- **Consequence:** Provides instant, friction-free onboarding for approved partners via their primary communication channels, eliminates manual staff friction, and reinforces transparency.
+
+
+
+
+
+---
+
+### ADR-21: Financial Segregation of Property Stays vs. Event Décor Add-ons & Event Manager Escrow Ledger
+- **Context:** When guests booked a farm stay with an event decoration package, the combined sum was previously displayed as the total booking amount in the property owner's dashboard. This created mistrust, as host commission calculations and gross metrics appeared to encompass decoration revenue that was rightfully earned by and disbursed to the Event Decorator Studio. Furthermore, Event Managers needed a dedicated financial dashboard to monitor their GMV, settled earnings, and escrow-protected funds.
+- **Decision:**
+  1. Segregate property stay gross (`propertyStayAmount`) and event décor fee (`eventPackagePrice`) at reservation time in `BookingAndPropertiesController.ConfirmBooking`.
+  2. Enforce that platform commission (10%) is strictly assessed on `propertyStayAmount`. The property host's `OwnerPayoutAmount` equals `propertyStayAmount - platformCommission`.
+  3. Store `EventPackagePriceSnapshot` independently on `Bookings`, ensuring 100% of the décor fee is allocated to the Event Decorator Studio without reducing the host's payout.
+  4. Explicitly itemize the financial breakdown on the Owner Dashboard (`Views/Owner/Index.cshtml`), showing Host Gross, Platform Commission, Net Host Payout, and an unambiguous Décor Add-on callout clarifying that the guest's decoration package is allocated to the Event Decorator.
+  5. Build a dedicated Event Manager Financials console at `/EventManager/Financials` (`Views/EventManager/Financials.cshtml`) tracking Gross Revenue, Settled Disbursements (upon completion/inspection), and Escrow-Protected Funds with date/status filters.
+- **Consequence:** Eliminates host mistrust and perceived financial shortchanging, ensures clean multi-tenant commission accounting, and empowers Event Managers with full financial visibility.
+
+---
+
+### ADR-22: Razorpay Gateway Integration & Multi-Party WhatsApp Notifications
+- **Context:** BookMyFun required a production-grade Indian payment gateway (Razorpay) supporting standard orders API creation, secure client-side modal checkout (`checkout.js`), and server-side HMAC-SHA256 signature verification. Additionally, booking confirmations needed instantaneous multi-stakeholder alerts dispatched across WhatsApp to Guests, Property Owners, and Event Managers.
+- **Decision:**
+  1. Add `Razorpay` and `WhatsApp` configuration blocks to `appsettings.json`.
+  2. Implement `RazorpayPaymentService` in `Services/PaymentGatewayService.cs` with HTTP Basic Auth orders API integration (`https://api.razorpay.com/v1/orders`), verifiable fallback tokens for sandbox testing, and cryptographic HMAC-SHA256 signature verification.
+  3. Add `/Booking/VerifyPayment` in `BookingAndPropertiesController` to validate the Razorpay signature and advance bookings to `Confirmed`.
+  4. Embed official Razorpay Checkout SDK (`https://checkout.razorpay.com/v1/checkout.js`) in `Views/Booking/Payment.cshtml` with modal auto-launch and callback form submission.
+  5. Implement multi-stakeholder alert dispatching in `Services/CommunicationService.cs`:
+     - Guest notification with booking ID, stay dates, and payment receipt.
+     - Owner notification with property gross, net payout, and separate décor notice.
+     - Event Manager notification with venue name, client details, décor package, and allocated décor fee.
+- **Consequence:** Provides frictionless UPI/Card/NetBanking checkout with cryptographic tamper resistance, keeps all three transaction parties synchronized via real-time WhatsApp alerts, and maintains full local sandbox testability.
+
+---
+
+### ADR-23: Modern Luxury Resort UI/UX Design System (Airbnb Luxe / Plum Guide Aesthetic)
+- **Context:** The property catalog page required an elevated aesthetic matching luxury booking platforms like Airbnb Luxe and Plum Guide, adopting a 60-30-10 color hierarchy (`#F8FAFC` background, `#FFFFFF` cards, `#0B4F6C` Deep Navy structural primary, `#2E933C` Palm Green subtle category pills, `#F59E0B` Warm Gold rating stars).
+- **Decision:**
+  1. Define global design tokens in `wwwroot/css/site.css` and scoped component styles in `Views/Properties/Index.cshtml`.
+  2. Implement generous padding and replace heavy borders with hairline `1px solid #E2E8F0` and ambient soft shadows (`0 10px 30px -5px rgba(11, 79, 108, 0.05)`).
+  3. Apply strict typography standards: bold headings with tight `-0.02em` letter-spacing in Deep Navy (`#0B4F6C`) and muted secondary metadata (`#64748B`).
+  4. Implement smooth micro-interactions (`transition: all 0.3s ease`): card lift (`translateY(-4px)`), elevated shadow (`0 20px 35px -5px rgba(11, 79, 108, 0.12)`), and image zoom (`scale(1.03)`).
+  5. Strictly preserve all existing backend Razor bindings (`@model`, `types`, `occasions`, `ViewBag.Selected*`), query parameters, and form names.
+- **Consequence:** Provides an editorial luxury resort booking experience while guaranteeing zero regressions in form submission, search filtering, and property navigation.
+
+---
+
+### ADR-24: Full Platform Verification, Live Email OTP Verification & End-to-End Performance Hardening
+- **Context:** The application required end-to-end verification of all platform operations (Registration, Real OTP dispatch, Razorpay Gateway, Financial Segregation, Event Staging, Host Damage Claims, Support Queries, and KYC ID verification). Additionally, website performance issues needed to be addressed to eliminate database query roundtrips on layout renders, render-blocking Google Fonts stylesheets, and uncompressed payload transfers.
+- **Decision:**
+  1. Validate real email OTP generation using the live configured Gmail SMTP credentials without test bypasses, verifying delivery and registration integrity.
+  2. Implement an automated integration test suite in `BookMyFun.Tests/EndToEndWorkflowTests.cs` exercising all 5 role journeys: Client, Host/Owner, Event Manager, Employee, and Administrator.
+  3. Correct `ContactUs.Status` update handling to align with SQL Server's `CHECK (Status IN ('New', 'Responded'))` constraint.
+  4. Cache `SiteSettingsModel` in memory for 15 minutes with thread-safe locking and instant invalidation on save, eliminating recurring database queries from `_Layout.cshtml`.
+  5. Remove render-blocking `@import` from `site.css` and use preconnected `<link rel="preconnect">` tags for Google Fonts in `<head>`.
+  6. Enable ASP.NET Core response compression (Gzip and Brotli) in `Program.cs`.
+  7. Add `loading="lazy"` and `decoding="async"` across all catalog property card image elements.
+- **Consequence:** Guarantees an error-free, regression-tested platform with sub-second page rendering and validated payment, communication, and onboarding workflows.

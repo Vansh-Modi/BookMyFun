@@ -56,7 +56,15 @@ namespace BookMyFun.Controllers
                 maxAllowed = plan?.MaxListings ?? 1;
             }
 
-            decimal totalEarnings = bookings.Where(b => b.Status == "Confirmed").Sum(b => b.OwnerPayoutAmount > 0 ? b.OwnerPayoutAmount : b.TotalAmount * 0.90m);
+            decimal totalEarnings = bookings
+                .Where(b => b.Status == "Confirmed")
+                .Sum(b => {
+                    decimal propertyGross = Math.Max(0, b.TotalAmount - b.EventPackagePriceSnapshot);
+                    if (b.OwnerPayoutAmount > 0 && b.OwnerPayoutAmount <= propertyGross)
+                        return b.OwnerPayoutAmount;
+                    decimal commRate = b.CommissionRateSnapshot > 0 ? b.CommissionRateSnapshot : 10.0m;
+                    return Math.Max(0, propertyGross - Math.Round(propertyGross * commRate / 100m, 2));
+                });
 
             var vm = new OwnerDashboardViewModel
             {

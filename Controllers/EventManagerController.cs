@@ -286,6 +286,68 @@ namespace BookMyFun.Controllers
             return RedirectToAction(nameof(Packages));
         }
 
+        [HttpGet]
+        public async Task<IActionResult> Financials(string? status, DateTime? fromDate, DateTime? toDate)
+        {
+            var userId = GetCurrentUserId();
+            var isAdminOrStaff = User.IsInRole("Admin") || User.IsInRole("Employee");
+
+            var allSetups = isAdminOrStaff
+                ? await _eventRepo.GetAllEventBookingsAsync()
+                : await _eventRepo.GetAssignedEventBookingsAsync(userId);
+
+            // Filter confirmed bookings with event packages
+            var query = allSetups.Where(s => s.Status == "Confirmed" || s.IsEventBooking).AsEnumerable();
+
+            if (fromDate.HasValue)
+            {
+                query = query.Where(s => (s.EventDate ?? s.CheckInDate) >= fromDate.Value.Date);
+            }
+
+            if (toDate.HasValue)
+            {
+                query = query.Where(s => (s.EventDate ?? s.CheckInDate) <= toDate.Value.Date);
+            }
+
+            if (!string.IsNullOrWhiteSpace(status) && status != "All")
+            {
+                if (status == "Settled")
+                {
+                    query = query.Where(s => s.SetupStatus == "Completed" || s.SetupStatus == "Inspected");
+                }
+                else if (status == "Escrow")
+                {
+                    query = query.Where(s => s.SetupStatus == "InProgress" || s.SetupStatus == "Assigned" || s.SetupStatus == "Pending");
+                }
+                else
+                {
+                    query = query.Where(s => string.Equals(s.SetupStatus, status, StringComparison.OrdinalIgnoreCase));
+                }
+            }
+
+            var filteredList = query.OrderByDescending(s => s.EventDate ?? s.CheckInDate).ToList();
+
+            var totalGross = allSetups.Where(s => s.Status == "Confirmed").Sum(s => s.EventPackagePriceSnapshot);
+            var settled = allSetups.Where(s => s.Status == "Confirmed" && (s.SetupStatus == "Completed" || s.SetupStatus == "Inspected")).Sum(s => s.EventPackagePriceSnapshot);
+            var escrow = allSetups.Where(s => s.Status == "Confirmed" && s.SetupStatus != "Completed" && s.SetupStatus != "Inspected").Sum(s => s.EventPackagePriceSnapshot);
+
+            var vm = new EventManagerFinancialsViewModel
+            {
+                EventBookings = filteredList,
+                TotalGrossRevenue = totalGross,
+                TotalSettledEarnings = settled,
+                TotalPendingEscrowEarnings = escrow,
+                TotalOrdersCount = allSetups.Count(s => s.Status == "Confirmed"),
+                CompletedOrdersCount = allSetups.Count(s => s.Status == "Confirmed" && (s.SetupStatus == "Completed" || s.SetupStatus == "Inspected")),
+                ActiveJobsCount = allSetups.Count(s => s.Status == "Confirmed" && s.SetupStatus == "InProgress"),
+                SelectedStatus = status,
+                FromDate = fromDate,
+                ToDate = toDate
+            };
+
+            return View(vm);
+        }
+
         private int GetCurrentUserId()
         {
             var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);

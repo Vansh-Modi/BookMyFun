@@ -192,7 +192,7 @@
             <div class="col">
                 <div class="card h-100 shadow-sm border-0 property-card overflow-hidden">
                     <div class="position-relative">
-                        <img src="@p.PrimaryImageUrl" class="card-img-top" style="height: 240px; object-fit: cover;" alt="@p.Title" onerror="this.src='/images/placeholder.jpg';" />
+                        <img src="@p.PrimaryImageUrl" class="card-img-top" style="height: 240px; object-fit: cover;" alt="@p.Title" loading="lazy" decoding="async" onerror="this.src='/images/placeholder.jpg';" />
                         <span class="badge bg-dark bg-opacity-75 text-white position-absolute top-0 start-0 m-3 px-2 py-1" style="backdrop-filter: blur(4px);">
                             @p.PropertyTypeName
                         </span>

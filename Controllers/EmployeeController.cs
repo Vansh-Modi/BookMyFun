@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace BookMyFun.Controllers
 {
-    [Authorize(Roles = "Employee")]
+    [Authorize(Roles = "Employee,Admin")]
     public class EmployeeController : Controller
     {
         private readonly IPropertyRepository _propRepo;
@@ -52,14 +52,29 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> Index()
         {
             var properties = await _propRepo.GetAllPropertiesAsync();
-            var owners = await _userRepo.GetUsersByRoleAsync("Owner");
             var bookings = await _bookingRepo.GetAllBookingsAsync();
+            var leads = await _partnerLeadService.GetAllLeadsAsync("New");
+            var pendingVerifications = await _idVerificationService.GetAllVerificationsAsync("PendingReview");
 
             ViewBag.TotalProperties = properties.Count;
-            ViewBag.TotalOwners = owners.Count;
+            ViewBag.TotalBookings = bookings.Count;
             ViewBag.PendingBookings = bookings.Count(b => b.Status == "Pending");
+            ViewBag.PendingLeads = leads.Count;
+            ViewBag.PendingKYC = pendingVerifications.Count;
 
             return View(properties);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ManageBookings(string? status = null)
+        {
+            var bookings = await _bookingRepo.GetAllBookingsAsync();
+            if (!string.IsNullOrEmpty(status) && !string.Equals(status, "All", StringComparison.OrdinalIgnoreCase))
+            {
+                bookings = bookings.Where(b => string.Equals(b.Status, status, StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+            ViewBag.SelectedStatus = status ?? "All";
+            return View(bookings);
         }
 
         // --- Employee CRUD on Owners ---
@@ -338,10 +353,17 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> ApproveOwnerRequest(int requestId, string? notes)
         {
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            await _ownerReqRepo.ApproveOwnerRequestAsync(requestId, currentUserId, notes);
+            var (success, accountId, generatedPassword, email, phone, fullName) = await _partnerLeadService.ApproveOwnerRequestAsync(requestId, currentUserId, notes);
 
-            await _configRepo.LogAuditAsync(currentUserId, "EmployeeApproveOwnerRequest", "OwnerRequest", requestId, $"Employee approved owner request #{requestId}");
-            TempData["Success"] = "Owner application approved by Employee! Listings are now live on the platform.";
+            if (success)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "EmployeeApproveOwnerRequest", "OwnerRequest", requestId, $"Employee approved owner request #{requestId} for account #{accountId}");
+                TempData["Success"] = $"Owner application #{requestId} approved! Account ID: #{accountId}, Temporary Password: {generatedPassword}. Credentials dispatched to {email} via WhatsApp and Email.";
+            }
+            else
+            {
+                TempData["Error"] = $"Unable to approve owner request #{requestId}.";
+            }
             return RedirectToAction(nameof(OwnerRequests));
         }
 
@@ -410,11 +432,11 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> ApprovePartnerLead(int leadId)
         {
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var (success, initialPassword, token) = await _partnerLeadService.ApproveLeadAsync(leadId, currentUserId);
+            var (success, initialPassword, token, accountId, roleDisplayName, email, phone) = await _partnerLeadService.ApproveLeadAsync(leadId, currentUserId);
             if (success)
             {
-                await _configRepo.LogAuditAsync(currentUserId, "EmployeeApproveLead", "PartnerLead", leadId, $"Approved partner lead #{leadId} and generated host account with temporary credentials.");
-                TempData["Success"] = $"Partner Lead #{leadId} approved! Host credentials generated (Temporary Password: {initialPassword}) and sent to owner via Email and WhatsApp.";
+                await _configRepo.LogAuditAsync(currentUserId, "EmployeeApproveLead", "PartnerLead", leadId, $"Approved partner lead #{leadId} and generated {roleDisplayName} account #{accountId} with temporary credentials.");
+                TempData["Success"] = $"Partner Lead #{leadId} approved! Account #{accountId} ({roleDisplayName}) generated with Temporary Password: {initialPassword}. Credentials dispatched to {email} via WhatsApp and Email.";
             }
             return RedirectToAction(nameof(PartnerLeads));
         }

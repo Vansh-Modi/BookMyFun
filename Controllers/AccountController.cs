@@ -381,11 +381,14 @@ namespace BookMyFun.Controllers
             return RedirectToAction(nameof(Profile));
         }
 
-        [HttpPost]
-        [ValidateAntiForgeryToken]
+        [AcceptVerbs("GET", "POST")]
+        [IgnoreAntiforgeryToken]
         public async Task<IActionResult> Logout()
         {
             await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            Response.Cookies.Delete("BookMyFun.AuthCookie");
+            Response.Cookies.Delete(".AspNetCore.Cookies");
+            Response.Cookies.Delete(CookieAuthenticationDefaults.AuthenticationScheme);
             return RedirectToAction("Index", "Home");
         }
 

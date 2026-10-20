@@ -133,7 +133,7 @@ namespace BookMyFun.Controllers
             if (property == null) return NotFound();
 
             int count = model.BookingType == "Hourly" ? (model.HourlyDuration ?? 1) : Math.Max(1, (model.CheckOutDate - model.CheckInDate).Days);
-            decimal totalAmount = _pricingService.CalculatePrice(property.PricePerNight, model.BookingType, model.SlotType, count);
+            decimal propertyStayAmount = _pricingService.CalculatePrice(property.PricePerNight, model.BookingType, model.SlotType, count);
 
             EventPackage? selectedPackage = null;
             decimal eventPackagePrice = 0m;
@@ -143,9 +143,10 @@ namespace BookMyFun.Controllers
                 if (selectedPackage != null && selectedPackage.IsActive)
                 {
                     eventPackagePrice = selectedPackage.BasePrice;
-                    totalAmount += eventPackagePrice;
                 }
             }
+
+            decimal totalAmount = propertyStayAmount + eventPackagePrice;
 
             // Availability verification
             bool isAvailable = await _bookingRepo.IsSlotAvailableAsync(model.PropertyID, model.CheckInDate, model.CheckOutDate, model.BookingType, model.SlotType);
@@ -176,9 +177,10 @@ namespace BookMyFun.Controllers
                 }
             }
 
-            // Dynamic Commission calculation
+            // Dynamic Commission calculation: Calculated on Property Stay Amount ONLY!
+            // Event decoration fees belong to the Event Manager and are strictly segregated.
             var (rateSnapshot, platformCommission, ownerPayout) = await _commissionService.CalculateDynamicCommissionAsync(
-                totalAmount, property.CommissionRate, property.OwnerID);
+                propertyStayAmount, property.CommissionRate, property.OwnerID);
 
             var booking = new Booking
             {
@@ -279,31 +281,168 @@ namespace BookMyFun.Controllers
             // Update booking status to Confirmed
             await _bookingRepo.UpdateBookingStatusAsync(bookingId, "Confirmed");
 
-            // Dispatch Notifications
+            // Dispatch Notifications across Client, Owner, and Event Manager
             var client = await _userRepo.GetByIdAsync(booking.ClientID);
             var property = await _propRepo.GetByIdAsync(booking.PropertyID);
 
             if (client != null && property != null)
             {
-                if (!string.IsNullOrEmpty(client.Phone))
-                {
-                    _ = _whatsAppService.SendBookingConfirmationAsync(client.Phone, client.FullName, property.Title, bookingId.ToString(), booking.TotalAmount);
-                }
-
-                string emailBody = $@"
-                    <h2>Payment Received & Booking Confirmed!</h2>
-                    <p>Dear {client.FullName},</p>
-                    <p>Your payment of <strong>₹{booking.TotalAmount:N2}</strong> via {paymentMethod} for <strong>{property.Title}</strong> was successful.</p>
-                    <p><strong>Booking ID:</strong> #{bookingId}<br/>
-                    <strong>Dates:</strong> {booking.CheckInDate:yyyy-MM-dd} (Check-in: {booking.SlotStartTime}) to {booking.CheckOutDate:yyyy-MM-dd} (Check-out: {booking.SlotEndTime})<br/>
-                    <strong>Transaction ID:</strong> {paymentId}</p>
-                    <p>Enjoy your luxurious stay!</p>";
-
-                _ = _emailService.SendEmailAsync(client.Email, $"Booking & Payment Confirmation #{bookingId} - BookMyFun", emailBody);
+                await DispatchConfirmedBookingAlertsAsync(booking, property, client, paymentId, paymentMethod);
             }
 
             TempData["Success"] = "Payment completed successfully! Booking confirmed.";
             return RedirectToAction("Confirmation", new { id = bookingId });
+        }
+
+        [Authorize]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> VerifyPayment(int bookingId, string razorpay_order_id, string razorpay_payment_id, string razorpay_signature)
+        {
+            var booking = await _bookingRepo.GetByIdAsync(bookingId);
+            if (booking == null) return NotFound();
+
+            bool isValid = await _paymentService.VerifyPaymentSignatureAsync(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+            if (!isValid)
+            {
+                TempData["Error"] = "Payment signature verification failed. Please try again or reach our 24/7 helpdesk.";
+                return RedirectToAction("Payment", new { id = bookingId });
+            }
+
+            // Record Razorpay payment transaction
+            await _bookingRepo.RecordPaymentAsync(new Payment
+            {
+                BookingID = bookingId,
+                GatewayTransactionID = $"RAZORPAY_{razorpay_payment_id}",
+                Amount = booking.TotalAmount,
+                PaymentStatus = "Success"
+            });
+
+            // Update booking status to Confirmed
+            await _bookingRepo.UpdateBookingStatusAsync(bookingId, "Confirmed");
+
+            // Dispatch Notifications across Client, Owner, and Event Manager
+            var client = await _userRepo.GetByIdAsync(booking.ClientID);
+            var property = await _propRepo.GetByIdAsync(booking.PropertyID);
+
+            if (client != null && property != null)
+            {
+                await DispatchConfirmedBookingAlertsAsync(booking, property, client, razorpay_payment_id, "Razorpay");
+            }
+
+            TempData["Success"] = "Razorpay payment verified successfully! Your booking is confirmed.";
+            return RedirectToAction("Confirmation", new { id = bookingId });
+        }
+
+        private async Task DispatchConfirmedBookingAlertsAsync(Booking booking, Property property, User client, string transactionId, string paymentMethod)
+        {
+            decimal propertyStayGross = booking.TotalAmount - booking.EventPackagePriceSnapshot;
+            decimal hostPayout = booking.OwnerPayoutAmount > 0 ? booking.OwnerPayoutAmount : Math.Round(propertyStayGross * 0.90m, 2);
+
+            // 1. WhatsApp & Email to Guest / Client
+            if (!string.IsNullOrEmpty(client.Phone))
+            {
+                _ = _whatsAppService.SendBookingConfirmationAsync(client.Phone, client.FullName, property.Title, booking.BookingID.ToString(), booking.TotalAmount);
+            }
+
+            string clientEmailBody = $@"
+                <div style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px;'>
+                    <h2 style='color: #059669;'>Payment Received &amp; Booking Confirmed!</h2>
+                    <p>Dear {client.FullName},</p>
+                    <p>Your payment of <strong>₹{booking.TotalAmount:N2}</strong> via {paymentMethod} for <strong>{property.Title}</strong> was successful.</p>
+                    <div style='background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin: 15px 0;'>
+                        <p style='margin: 4px 0;'><strong>Booking Reference:</strong> #{booking.BookingID}</p>
+                        <p style='margin: 4px 0;'><strong>Transaction ID:</strong> {transactionId}</p>
+                        <p style='margin: 4px 0;'><strong>Stay Dates:</strong> {booking.CheckInDate:dd MMM yyyy} to {booking.CheckOutDate:dd MMM yyyy}</p>
+                        <p style='margin: 4px 0;'><strong>Property Stay Amount:</strong> ₹{propertyStayGross:N2}</p>
+                        {(booking.IsEventBooking && booking.EventPackagePriceSnapshot > 0 ? $"<p style='margin: 4px 0; color: #0284c7;'><strong>Décor Package:</strong> ₹{booking.EventPackagePriceSnapshot:N2}</p>" : "")}
+                        <p style='margin: 4px 0; font-size: 1.1em; font-weight: bold;'><strong>Total Paid:</strong> ₹{booking.TotalAmount:N2}</p>
+                    </div>
+                    <p>Check-in details and digital access pass have been generated in your BookMyFun dashboard.</p>
+                </div>";
+            _ = _emailService.SendEmailAsync(client.Email, $"Booking & Payment Confirmation #{booking.BookingID} - BookMyFun", clientEmailBody);
+
+            // 2. WhatsApp & Email to Property Owner
+            var owner = await _userRepo.GetByIdAsync(property.OwnerID);
+            if (owner != null)
+            {
+                if (!string.IsNullOrEmpty(owner.Phone))
+                {
+                    _ = _whatsAppService.SendOwnerBookingAlertAsync(
+                        owner.Phone, 
+                        owner.FullName, 
+                        property.Title, 
+                        booking.BookingID.ToString(), 
+                        propertyStayGross, 
+                        hostPayout, 
+                        client.FullName, 
+                        booking.CheckInDate, 
+                        booking.CheckOutDate, 
+                        booking.IsEventBooking, 
+                        booking.EventPackagePriceSnapshot);
+                }
+
+                string ownerEmailBody = $@"
+                    <div style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px;'>
+                        <h2 style='color: #0284c7;'>New Confirmed Reservation #{booking.BookingID}</h2>
+                        <p>Dear {owner.FullName},</p>
+                        <p>A new guest has confirmed a reservation for your property <strong>{property.Title}</strong>.</p>
+                        <div style='background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin: 15px 0;'>
+                            <h4 style='margin-top: 0; color: #0f172a;'>Financial Breakdown for Host</h4>
+                            <p style='margin: 4px 0;'><strong>Guest Name:</strong> {client.FullName}</p>
+                            <p style='margin: 4px 0;'><strong>Stay Dates:</strong> {booking.CheckInDate:dd MMM yyyy} to {booking.CheckOutDate:dd MMM yyyy}</p>
+                            <p style='margin: 4px 0;'><strong>Property Stay (Host Gross):</strong> ₹{propertyStayGross:N2}</p>
+                            <p style='margin: 4px 0;'><strong>Platform Fee ({booking.CommissionRateSnapshot:0.#}%):</strong> -₹{(propertyStayGross - hostPayout):N2}</p>
+                            <p style='margin: 4px 0; font-size: 1.15em; font-weight: bold; color: #059669;'><strong>Your Net Host Payout:</strong> ₹{hostPayout:N2}</p>
+                            {(booking.IsEventBooking && booking.EventPackagePriceSnapshot > 0 ? $@"
+                            <hr style='border: none; border-top: 1px dashed #cbd5e1; margin: 12px 0;'/>
+                            <p style='margin: 4px 0; color: #64748b; font-size: 0.9em;'>
+                                <em>Client also added a themed décor package for ₹{booking.EventPackagePriceSnapshot:N2}. This fee is allocated directly to the Event Decorator Studio and does not impact your host payout.</em>
+                            </p>" : "")}
+                        </div>
+                        <p>Sign in to your Host Dashboard to view guest contact details and prepare for arrival.</p>
+                    </div>";
+                _ = _emailService.SendEmailAsync(owner.Email, $"New Booking Alert #{booking.BookingID} - {property.Title}", ownerEmailBody);
+            }
+
+            // 3. WhatsApp & Email to Event Manager if décor package was booked
+            if (booking.IsEventBooking && booking.EventPackagePriceSnapshot > 0)
+            {
+                var decorators = await _eventPackageRepo.GetDecoratorsAsync();
+                var eventManager = decorators.FirstOrDefault();
+                if (eventManager != null)
+                {
+                    string pkgName = booking.EventPackageName ?? "Selected Décor Package";
+                    if (!string.IsNullOrEmpty(eventManager.Phone))
+                    {
+                        _ = _whatsAppService.SendEventManagerSetupAlertAsync(
+                            eventManager.Phone,
+                            eventManager.FullName,
+                            property.Title,
+                            booking.BookingID.ToString(),
+                            pkgName,
+                            booking.EventPackagePriceSnapshot,
+                            booking.CheckInDate,
+                            client.FullName);
+                    }
+
+                    string emEmailBody = $@"
+                        <div style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px;'>
+                            <h2 style='color: #d97706;'>New Event Staging Order #{booking.BookingID}</h2>
+                            <p>Dear {eventManager.FullName},</p>
+                            <p>A new event décor setup order has been booked on BookMyFun for venue <strong>{property.Title}</strong>.</p>
+                            <div style='background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 15px; margin: 15px 0;'>
+                                <p style='margin: 4px 0;'><strong>Décor Package:</strong> {pkgName}</p>
+                                <p style='margin: 4px 0;'><strong>Event Date:</strong> {booking.CheckInDate:dd MMM yyyy}</p>
+                                <p style='margin: 4px 0;'><strong>Venue Location:</strong> {property.Location}</p>
+                                <p style='margin: 4px 0;'><strong>Client Name:</strong> {client.FullName}</p>
+                                <p style='margin: 4px 0; font-size: 1.15em; font-weight: bold; color: #b45309;'><strong>Allocated Décor Revenue:</strong> ₹{booking.EventPackagePriceSnapshot:N2}</p>
+                            </div>
+                            <p>Sign in to your Event Manager portal to accept this setup order and dispatch staging crew.</p>
+                        </div>";
+                    _ = _emailService.SendEmailAsync(eventManager.Email, $"New Event Setup Order #{booking.BookingID} - {pkgName}", emEmailBody);
+                }
+            }
         }
 
         [Authorize]

@@ -12,7 +12,8 @@ namespace BookMyFun.Services
         Task<int> CreateLeadAsync(PartnerLeadCreateViewModel model);
         Task<List<PartnerLead>> GetAllLeadsAsync(string? status = null);
         Task<PartnerLead> GetLeadByIdAsync(int leadId);
-        Task<(bool success, string generatedPassword, string activationToken)> ApproveLeadAsync(int leadId, int staffUserId);
+        Task<(bool success, string generatedPassword, string activationToken, int accountId, string roleDisplayName, string email, string? phone)> ApproveLeadAsync(int leadId, int staffUserId);
+        Task<(bool success, int userId, string generatedPassword, string email, string? phone, string fullName)> ApproveOwnerRequestAsync(int requestId, int staffUserId, string? notes);
         Task<bool> RejectLeadAsync(int leadId, int staffUserId);
         Task<bool> ActivateOwnerAccountAsync(ActivateOwnerViewModel model);
     }
@@ -21,6 +22,7 @@ namespace BookMyFun.Services
     {
         private readonly IPartnerLeadRepository _leadRepo;
         private readonly IUserRepository _userRepo;
+        private readonly IOwnerRequestRepository _ownerReqRepo;
         private readonly IEmailService _emailService;
         private readonly IWhatsAppService _whatsAppService;
         private readonly ILogger<PartnerLeadService> _logger;
@@ -28,12 +30,14 @@ namespace BookMyFun.Services
         public PartnerLeadService(
             IPartnerLeadRepository leadRepo,
             IUserRepository userRepo,
+            IOwnerRequestRepository ownerReqRepo,
             IEmailService emailService,
             IWhatsAppService whatsAppService,
             ILogger<PartnerLeadService> logger)
         {
             _leadRepo = leadRepo;
             _userRepo = userRepo;
+            _ownerReqRepo = ownerReqRepo;
             _emailService = emailService;
             _whatsAppService = whatsAppService;
             _logger = logger;
@@ -76,7 +80,7 @@ namespace BookMyFun.Services
             return lead;
         }
 
-        public async Task<(bool success, string generatedPassword, string activationToken)> ApproveLeadAsync(int leadId, int staffUserId)
+        public async Task<(bool success, string generatedPassword, string activationToken, int accountId, string roleDisplayName, string email, string? phone)> ApproveLeadAsync(int leadId, int staffUserId)
         {
             var lead = await _leadRepo.GetLeadByIdAsync(leadId);
             if (lead == null) throw new NotFoundException("Partner Lead", leadId);
@@ -97,6 +101,7 @@ namespace BookMyFun.Services
             string passwordHash = HashPassword(generatedPassword);
 
             // Check if user already exists
+            int accountId;
             var existingUser = await _userRepo.GetByEmailAsync(lead.Email);
             if (existingUser == null)
             {
@@ -111,7 +116,7 @@ namespace BookMyFun.Services
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow
                 };
-                await _userRepo.CreateUserAsync(newUser);
+                accountId = await _userRepo.CreateUserAsync(newUser);
             }
             else
             {
@@ -123,10 +128,11 @@ namespace BookMyFun.Services
                     existingUser.Phone = lead.Phone;
                 }
                 await _userRepo.UpdateUserAsync(existingUser);
+                accountId = existingUser.UserID;
             }
 
             bool updated = await _leadRepo.UpdateLeadStatusAsync(leadId, "Approved", staffUserId, token, expiresAt);
-            if (!updated) return (false, string.Empty, string.Empty);
+            if (!updated) return (false, string.Empty, string.Empty, 0, roleDisplayName, lead.Email, lead.Phone);
 
             // Send activation and credentials notification via Email
             try
@@ -139,17 +145,18 @@ namespace BookMyFun.Services
                         <p>Congratulations! Your partner application for <strong>'{lead.PropertyName}'</strong> has been reviewed and approved by our operations team.</p>
                         <div style='background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 18px; border-radius: 8px; margin: 20px 0;'>
                             <h3 style='margin-top: 0; color: #0f172a;'>Your Login Credentials</h3>
-                            <p style='margin-bottom: 8px;'><strong>Login Portal:</strong> <a href='/Account/Login'>Sign In to BookMyFun Portal</a></p>
-                            <p style='margin-bottom: 8px;'><strong>User ID / Email:</strong> <code>{lead.Email}</code></p>
-                            <p style='margin-bottom: 0;'><strong>Temporary Password:</strong> <code style='font-size: 1.1em; background: #e2e8f0; padding: 2px 6px; border-radius: 4px;'>{generatedPassword}</code></p>
+                            <p style='margin-bottom: 8px;'><strong>Login Portal:</strong> <a href='https://bookmyfun.in/Account/Login'>Sign In to BookMyFun Portal</a></p>
+                            <p style='margin-bottom: 8px;'><strong>Account ID:</strong> <code>#{accountId}</code></p>
+                            <p style='margin-bottom: 8px;'><strong>Login Email / ID:</strong> <code>{lead.Email}</code></p>
+                            <p style='margin-bottom: 0;'><strong>Password:</strong> <code style='font-size: 1.1em; background: #e2e8f0; padding: 2px 6px; border-radius: 4px;'>{generatedPassword}</code></p>
                         </div>
-                        <p>You can immediately sign in to your dedicated dashboard, manage your offerings, and start connecting with guests!</p>
+                        <p>You can immediately sign in with your Account ID or Email to access your dedicated dashboard, manage your offerings, and start connecting with guests!</p>
                         <p style='color: #64748b; font-size: 0.9em;'>For security, please change your password after your first login via your Profile page.</p>
                         <hr style='border: none; border-top: 1px solid #e2e8f0; margin: 25px 0;' />
                         <p style='color: #64748b; font-size: 0.85em;'>The BookMyFun Operations &amp; Support Team</p>
                     </div>";
 
-                _ = _emailService.SendEmailAsync(
+                await _emailService.SendEmailAsync(
                     lead.Email,
                     $"Partner Application Approved - Your BookMyFun {roleDisplayName} Credentials",
                     emailBody);
@@ -159,7 +166,7 @@ namespace BookMyFun.Services
                 _logger.LogWarning(ex, "Failed to send partner credential email to {Email}", lead.Email);
             }
 
-            // Send credentials via WhatsApp / SMS message
+            // Send credentials via WhatsApp API
             try
             {
                 if (!string.IsNullOrWhiteSpace(lead.Phone))
@@ -168,11 +175,12 @@ namespace BookMyFun.Services
                                        $"Your BookMyFun Partner account ({roleDisplayName}) for '{lead.PropertyName}' has been approved!\n\n" +
                                        $"🔑 *Your Login Credentials:*\n" +
                                        $"• Portal: https://bookmyfun.in/Account/Login\n" +
-                                       $"• Login ID: {lead.Email}\n" +
+                                       $"• Account ID: #{accountId}\n" +
+                                       $"• Login Email / ID: {lead.Email}\n" +
                                        $"• Password: {generatedPassword}\n\n" +
                                        $"Sign in now to access your dashboard. Welcome to BookMyFun!";
 
-                    _ = _whatsAppService.SendWhatsAppMessageAsync(lead.Phone, waMessage);
+                    await _whatsAppService.SendWhatsAppMessageAsync(lead.Phone, waMessage);
                 }
             }
             catch (Exception ex)
@@ -180,7 +188,88 @@ namespace BookMyFun.Services
                 _logger.LogWarning(ex, "Failed to send credential WhatsApp to {Phone}", lead.Phone);
             }
 
-            return (true, generatedPassword, token);
+            return (true, generatedPassword, token, accountId, roleDisplayName, lead.Email, lead.Phone);
+        }
+
+        public async Task<(bool success, int userId, string generatedPassword, string email, string? phone, string fullName)> ApproveOwnerRequestAsync(int requestId, int staffUserId, string? notes)
+        {
+            var req = await _ownerReqRepo.GetRequestByIdAsync(requestId);
+            if (req == null)
+                throw new NotFoundException("Owner Request", requestId);
+
+            if (req.Status == "Approved")
+                throw new ConflictException("Owner request has already been approved.");
+
+            // Generate secure temporary initial password for approved owner
+            string generatedPassword = $"Host@{RandomNumberGenerator.GetInt32(100000, 999999)}";
+            string passwordHash = HashPassword(generatedPassword);
+
+            bool approved = await _ownerReqRepo.ApproveOwnerRequestAsync(requestId, staffUserId, notes, passwordHash);
+            if (!approved)
+                return (false, req.UserID, string.Empty, req.Email ?? string.Empty, req.Phone, req.FullName ?? "Owner");
+
+            string userEmail = req.Email ?? string.Empty;
+            string userPhone = req.Phone ?? string.Empty;
+            string fullName = req.FullName ?? "Host Partner";
+            int accountId = req.UserID;
+
+            // Dispatch Credentials via Email
+            if (!string.IsNullOrWhiteSpace(userEmail))
+            {
+                try
+                {
+                    string emailBody = $@"
+                        <div style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px;'>
+                            <h2 style='color: #059669;'>Welcome to BookMyFun! Your Owner Account is Approved</h2>
+                            <p>Dear {fullName},</p>
+                            <p>Congratulations! Your Host / Owner application has been reviewed and officially approved. Your property listings are now published and live on the platform.</p>
+                            <div style='background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 18px; border-radius: 8px; margin: 20px 0;'>
+                                <h3 style='margin-top: 0; color: #0f172a;'>Your Host Account Credentials</h3>
+                                <p style='margin-bottom: 8px;'><strong>Login Portal:</strong> <a href='https://bookmyfun.in/Account/Login'>Sign In to BookMyFun Portal</a></p>
+                                <p style='margin-bottom: 8px;'><strong>Account ID:</strong> <code>#{accountId}</code></p>
+                                <p style='margin-bottom: 8px;'><strong>Login Email / ID:</strong> <code>{userEmail}</code></p>
+                                <p style='margin-bottom: 0;'><strong>Password:</strong> <code style='font-size: 1.1em; background: #e2e8f0; padding: 2px 6px; border-radius: 4px;'>{generatedPassword}</code></p>
+                            </div>
+                            <p>You can immediately sign in with your Account ID or Email to manage your properties, calendars, and guest bookings.</p>
+                            <p style='color: #64748b; font-size: 0.9em;'>For security, please change your password after logging in via your Account Profile.</p>
+                            <hr style='border: none; border-top: 1px solid #e2e8f0; margin: 25px 0;' />
+                            <p style='color: #64748b; font-size: 0.85em;'>The BookMyFun Operations &amp; Support Team</p>
+                        </div>";
+
+                    await _emailService.SendEmailAsync(
+                        userEmail,
+                        "Owner Application Approved - Your BookMyFun Host Credentials",
+                        emailBody);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send owner credential email to {Email}", userEmail);
+                }
+            }
+
+            // Dispatch Credentials via WhatsApp API
+            if (!string.IsNullOrWhiteSpace(userPhone))
+            {
+                try
+                {
+                    string waMessage = $"🎉 Congratulations {fullName}!\n\n" +
+                                       $"Your BookMyFun Owner / Host account application has been approved! Your property listings are now live.\n\n" +
+                                       $"🔑 *Your Login Credentials:*\n" +
+                                       $"• Portal: https://bookmyfun.in/Account/Login\n" +
+                                       $"• Account ID: #{accountId}\n" +
+                                       $"• Login Email / ID: {userEmail}\n" +
+                                       $"• Password: {generatedPassword}\n\n" +
+                                       $"Sign in now to manage your properties and bookings. Welcome to the BookMyFun Host Community!";
+
+                    await _whatsAppService.SendWhatsAppMessageAsync(userPhone, waMessage);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send owner credential WhatsApp to {Phone}", userPhone);
+                }
+            }
+
+            return (true, accountId, generatedPassword, userEmail, userPhone, fullName);
         }
 
         public async Task<bool> RejectLeadAsync(int leadId, int staffUserId)

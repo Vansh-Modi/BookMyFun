@@ -11,17 +11,20 @@
         <p class="dash-subtitle">Real-time overview of property inventory, owner partnerships, guest reservations, and platform revenue.</p>
     </div>
     <div class="dash-actions">
-        <a asp-action="Reports" class="dash-btn dash-btn-primary">
-            <i class="bi bi-graph-up-arrow"></i> Financial Reports
+        <a asp-action="DynamicAnalytics" class="dash-btn dash-btn-primary">
+            <i class="bi bi-graph-up-arrow"></i> Financial Analytics
         </a>
-        <a asp-action="OwnerRequests" class="dash-btn dash-btn-accent">
-            <i class="bi bi-person-check"></i> Owner Requests
+        <a asp-action="ManageBookings" class="dash-btn dash-btn-accent">
+            <i class="bi bi-calendar-check"></i> Reservations
+        </a>
+        <a asp-action="PartnerLeads" class="dash-btn dash-btn-outline">
+            <i class="bi bi-people"></i> Partner Leads
         </a>
         <a asp-action="ManageProperties" class="dash-btn dash-btn-outline">
             <i class="bi bi-building"></i> Properties
         </a>
         <a asp-action="ManageOwners" class="dash-btn dash-btn-outline">
-            <i class="bi bi-people"></i> Owners
+            <i class="bi bi-person-badge"></i> Hosts
         </a>
         <a asp-action="SupportQueries" class="dash-btn dash-btn-outline">
             <i class="bi bi-headset"></i> Queries
@@ -146,7 +149,7 @@
         <div class="dash-card">
             <div class="dash-card-header">
                 <h3 class="dash-card-title"><i class="bi bi-calendar-check me-2 text-success"></i>Recent Bookings</h3>
-                <a asp-controller="Properties" asp-action="Index" class="text-decoration-none small text-muted">View all &rarr;</a>
+                <a asp-action="ManageBookings" class="text-decoration-none small text-muted">View all &rarr;</a>
             </div>
             <div class="list-group list-group-flush">
                 @if (!Model.RecentBookings.Any())

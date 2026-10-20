@@ -1,6 +1,6 @@
 @model BookMyFun.Models.ViewModels.ClientDashboardViewModel
 @{
-    ViewData["Title"] = "Guest Dashboard";
+    ViewData["Title"] = "Traveler Hub";
     var verification = ViewBag.Verification as BookMyFun.Models.Entities.ClientIdVerification;
 }
 
@@ -8,15 +8,15 @@
 <div class="dash-page-header">
     <div>
         <div class="d-flex align-items-center gap-2 mb-1">
-            <span class="dash-eyebrow mb-0">Guest Portal · My Reservations</span>
+            <span class="dash-eyebrow mb-0">Traveler Hub · My Reservations</span>
             @if (verification != null && verification.VerificationStatus == "Verified")
             {
                 <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill small">
-                    <i class="bi bi-patch-check-fill me-1"></i>Verified Guest
+                    <i class="bi bi-patch-check-fill me-1"></i>Verified Member
                 </span>
             }
         </div>
-        <h1 class="dash-title">Guest Dashboard</h1>
+        <h1 class="dash-title">Traveler Dashboard</h1>
         <p class="dash-subtitle">Welcome back, <strong>@Model.Client.FullName</strong> (@Model.Client.Email) · Review past stays, active bookings, and submit reviews.</p>
     </div>
     <div class="dash-actions">
@@ -52,7 +52,7 @@
                             }
                         </h5>
                         <p class="text-muted small mb-0">
-                            Government ID proof is required strictly at the time of reservation during booking checkout. Prior upload is optional and not required to browse or use your guest account. All documents are encrypted and shielded from property hosts.
+                            Government ID proof is required strictly at the time of reservation during booking checkout. Prior upload is optional and not required to browse or use your account. All documents are encrypted and shielded from property hosts.
                         </p>
                         @if (verification != null)
                         {

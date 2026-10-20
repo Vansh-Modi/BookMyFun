@@ -42,14 +42,14 @@
                 </div>
             </div>
 
-            <form asp-action="CreateClaim" method="post" id="claimForm">
+            <form asp-action="CreateClaim" method="post" id="claimForm" enctype="multipart/form-data">
                 @Html.AntiForgeryToken()
                 <input type="hidden" asp-for="BookingID" />
                 <input type="hidden" asp-for="PropertyID" />
 
                 <div class="card border-0 shadow-sm rounded-4 mb-4">
                     <div class="card-header bg-white py-3 border-bottom border-light-subtle">
-                        <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-card-checklist text-danger me-2"></i>Damage Details & Proof</h5>
+                        <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-card-checklist text-danger me-2"></i>Damage Details &amp; Proof</h5>
                     </div>
                     <div class="card-body p-4">
                         <div class="mb-3">
@@ -62,22 +62,23 @@
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label fw-semibold">Itemized Description & Details of Damages <span class="text-danger">*</span></label>
+                            <label class="form-label fw-semibold">Itemized Description &amp; Details of Damages <span class="text-danger">*</span></label>
                             <textarea asp-for="ItemizedDescription" class="form-control rounded-3" rows="5" placeholder="Itemize each damaged article, incident details, and repair/replacement estimate (e.g. Broken Coffee Table Glass: ₹1500, Deep Cleaning / Fabric Wash: ₹1000)..." required></textarea>
                             <span class="form-text text-muted">Provide a full itemized breakdown of costs and circumstances.</span>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label fw-semibold">Photographic & Video Evidence Links (URLs)</label>
-                            <textarea asp-for="EvidenceUrlsInput" id="evidenceUrlsInput" class="form-control rounded-3" rows="2" placeholder="Paste image/video URLs or upload files below (comma or newline separated)"></textarea>
+                            <label class="form-label fw-semibold">Photographic &amp; Video Evidence Links (URLs)</label>
+                            <textarea asp-for="EvidenceUrlsInput" id="evidenceUrlsInput" class="form-control rounded-3" rows="2" placeholder="Paste image/video URLs (comma or newline separated)"></textarea>
                         </div>
 
                         <!-- Direct File Upload for Proof -->
                         <div class="p-3 bg-light rounded-3 border">
                             <label class="form-label fw-semibold small mb-2"><i class="bi bi-cloud-arrow-up-fill text-danger me-1"></i>Direct Upload Damage Photos/Videos</label>
-                            <input type="file" id="claimEvidenceFiles" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.webp,.mp4,.mov" multiple />
+                            <input type="file" name="EvidenceFiles" id="claimEvidenceFiles" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.webp,.mp4,.mov" multiple />
+                            <small class="text-muted d-block mt-1">Select one or multiple images/videos from your device. You can click 'Upload &amp; Attach' to preview or simply submit the form directly.</small>
                             <button type="button" class="btn btn-sm btn-outline-danger mt-2 rounded-pill" id="btnUploadClaimEvidence">
-                                <i class="bi bi-upload me-1"></i> Upload Evidence & Attach
+                                <i class="bi bi-upload me-1"></i> Upload Evidence &amp; Attach
                             </button>
                             <div id="uploadStatus" class="small mt-1 text-muted"></div>
                         </div>

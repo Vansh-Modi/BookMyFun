@@ -88,194 +88,100 @@
                     </div>
                 }
 
-                <!-- ══════════════════════════════════════════════════
-                     1. OWNER REQUEST FORM (FARM / VILLA HOST)
-                ══════════════════════════════════════════════════ -->
-                <div id="formSectionOwner" style="@(isEventTab ? "display: none;" : "")">
-                    <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-card">
-                        <div class="card-header bg-white border-0 pt-4 px-4 px-md-5">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1 rounded-pill small fw-semibold mb-2">
-                                        <i class="bi bi-house-check me-1"></i> Farm &amp; Villa Host Intake
-                                    </span>
-                                    <h4 class="fw-bold mb-1 text-heading">List Your Farmstay or Private Villa</h4>
-                                    <p class="text-muted small mb-0">Fill out your farm details. Our onboarding team inspects submissions within 24-48 business hours.</p>
-                                </div>
-                                <div class="d-none d-sm-block p-3 bg-success-subtle rounded-4 text-success fs-3">
-                                    <i class="bi bi-tree"></i>
-                                </div>
+                <!-- Unified Dynamic Partner Intake Form -->
+                <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-card">
+                    <div class="card-header bg-white border-0 pt-4 px-4 px-md-5">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <span id="partnerBadge" class="badge @(isEventTab ? "bg-warning-subtle text-dark border border-warning-subtle" : "bg-success-subtle text-success border border-success-subtle") px-3 py-1 rounded-pill small fw-semibold mb-2">
+                                    <i id="partnerBadgeIcon" class="bi @(isEventTab ? "bi-palette2" : "bi-house-check") me-1"></i>
+                                    <span id="partnerBadgeText">@(isEventTab ? "Event Manager & Décor Studio Intake" : "Farm & Villa Host Intake")</span>
+                                </span>
+                                <h4 id="partnerHeading" class="fw-bold mb-1 text-heading">@(isEventTab ? "Partner as Event Planner & Décor Studio" : "List Your Farmstay or Private Villa")</h4>
+                                <p id="partnerSubtitle" class="text-muted small mb-0">@(isEventTab ? "Offer themed packages, stage decor, and floral styling to guests booking stays on BookMyFun." : "Fill out your farm details. Our onboarding team inspects submissions within 24-48 business hours.")</p>
                             </div>
-                        </div>
-                        <div class="card-body p-4 p-md-5">
-                            <form asp-action="Partner" method="post" class="needs-validation">
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="PartnerType" value="Owner" />
-
-                                <div asp-validation-summary="ModelOnly" class="alert alert-danger rounded-3" role="alert"></div>
-
-                                <div class="row g-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold small text-muted">Owner Full Name <span class="text-danger">*</span></label>
-                                        <div class="input-group">
-                                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-person"></i></span>
-                                            <input asp-for="FullName" class="form-control border-start-0 ps-0" placeholder="e.g. Ramesh Patel" required />
-                                        </div>
-                                        <span asp-validation-for="FullName" class="text-danger small"></span>
-                                    </div>
-
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold small text-muted">Contact Phone / WhatsApp <span class="text-danger">*</span></label>
-                                        <div class="input-group">
-                                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-whatsapp"></i></span>
-                                            <input asp-for="Phone" class="form-control border-start-0 ps-0" placeholder="e.g. +91 98765 43210" required />
-                                        </div>
-                                        <span asp-validation-for="Phone" class="text-danger small"></span>
-                                    </div>
-
-                                    <div class="col-12">
-                                        <label class="form-label fw-semibold small text-muted">Email Address (for dashboard activation) <span class="text-danger">*</span></label>
-                                        <div class="input-group">
-                                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope"></i></span>
-                                            <input asp-for="Email" type="email" class="form-control border-start-0 ps-0" placeholder="name@domain.com" required />
-                                        </div>
-                                        <span asp-validation-for="Email" class="text-danger small"></span>
-                                        <small class="text-muted">An automated invite with temporary login credentials will be dispatched to this email upon approval.</small>
-                                    </div>
-
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold small text-muted">Farm / Property Name <span class="text-danger">*</span></label>
-                                        <div class="input-group">
-                                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-house"></i></span>
-                                            <input asp-for="PropertyName" class="form-control border-start-0 ps-0" placeholder="e.g. Whispering Palms Luxury Villa" required />
-                                        </div>
-                                        <span asp-validation-for="PropertyName" class="text-danger small"></span>
-                                    </div>
-
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold small text-muted">City / Region / Landmark <span class="text-danger">*</span></label>
-                                        <div class="input-group">
-                                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-geo-alt"></i></span>
-                                            <input asp-for="Location" class="form-control border-start-0 ps-0" placeholder="e.g. Lonavala, Maharashtra" required />
-                                        </div>
-                                        <span asp-validation-for="Location" class="text-danger small"></span>
-                                    </div>
-
-                                    <div class="col-12">
-                                        <label class="form-label fw-semibold small text-muted">Acreage &amp; Farm Type <span class="text-danger">*</span></label>
-                                        <div class="input-group">
-                                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-aspect-ratio"></i></span>
-                                            <input asp-for="AcreageOrType" class="form-control border-start-0 ps-0" placeholder="e.g. 4 Acres with Swimming Pool &amp; Gazebo, 5 BHK" required />
-                                        </div>
-                                        <span asp-validation-for="AcreageOrType" class="text-danger small"></span>
-                                    </div>
-
-                                    <div class="col-12">
-                                        <label class="form-label fw-semibold small text-muted">Key Amenities &amp; Caretaker Availability</label>
-                                        <textarea asp-for="Message" class="form-control" rows="4" placeholder="Mention private pool, lawn capacity, music system, barbecue, caretaker availability, pricing expectations..."></textarea>
-                                        <span asp-validation-for="Message" class="text-danger small"></span>
-                                    </div>
-                                </div>
-
-                                <div class="mt-4 pt-2">
-                                    <button type="submit" class="btn btn-success btn-lg w-100 py-3 fw-bold rounded-3 shadow-sm" style="background-color: #059669; border-color: #059669;">
-                                        <i class="bi bi-send-check me-2"></i> Submit Farm Host Application
-                                    </button>
-                                </div>
-                            </form>
+                            <div id="partnerHeaderIconBox" class="d-none d-sm-block p-3 @(isEventTab ? "bg-warning-subtle text-warning" : "bg-success-subtle text-success") rounded-4 fs-3">
+                                <i id="partnerHeaderIcon" class="bi @(isEventTab ? "bi-balloon-heart" : "bi-tree")"></i>
+                            </div>
                         </div>
                     </div>
-                </div>
+                    <div class="card-body p-4 p-md-5">
+                        <form asp-action="Partner" method="post" id="partnerForm" novalidate>
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" asp-for="PartnerType" id="partnerTypeInput" value="@(isEventTab ? "EventManager" : "Owner")" />
 
-                <!-- ══════════════════════════════════════════════════
-                     2. EVENT MANAGER REQUEST FORM (DÉCOR & STAGING)
-                ══════════════════════════════════════════════════ -->
-                <div id="formSectionEvent" style="@(!isEventTab ? "display: none;" : "")">
-                    <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-card">
-                        <div class="card-header bg-white border-0 pt-4 px-4 px-md-5">
-                            <div class="d-flex align-items-center justify-content-between">
-                                <div>
-                                    <span class="badge bg-warning-subtle text-dark border border-warning-subtle px-3 py-1 rounded-pill small fw-semibold mb-2">
-                                        <i class="bi bi-palette2 me-1"></i> Event Manager &amp; Décor Studio Intake
-                                    </span>
-                                    <h4 class="fw-bold mb-1 text-heading">Partner as Event Planner &amp; Décor Studio</h4>
-                                    <p class="text-muted small mb-0">Offer themed packages, stage decor, and floral styling to guests booking stays on BookMyFun.</p>
+                            <div asp-validation-summary="All" class="alert alert-danger rounded-3 @(ViewData.ModelState.IsValid ? "d-none" : "")" role="alert"></div>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold small text-muted" id="lblFullName">@(isEventTab ? "Lead Decorator / Planner Name" : "Owner Full Name") <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-person"></i></span>
+                                        <input asp-for="FullName" id="inputFullName" class="form-control border-start-0 ps-0" placeholder="@(isEventTab ? "e.g. Aarti Sharma" : "e.g. Ramesh Patel")" required />
+                                    </div>
+                                    <span asp-validation-for="FullName" class="text-danger small"></span>
                                 </div>
-                                <div class="d-none d-sm-block p-3 bg-warning-subtle rounded-4 text-warning fs-3">
-                                    <i class="bi bi-balloon-heart"></i>
+
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold small text-muted">Contact Phone / WhatsApp <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-whatsapp"></i></span>
+                                        <input asp-for="Phone" class="form-control border-start-0 ps-0" placeholder="e.g. +91 98765 43210" required />
+                                    </div>
+                                    <span asp-validation-for="Phone" class="text-danger small"></span>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold small text-muted" id="lblEmail">@(isEventTab ? "Business Email Address (for event manager dashboard)" : "Email Address (for host dashboard activation)") <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope"></i></span>
+                                        <input asp-for="Email" type="email" class="form-control border-start-0 ps-0" placeholder="name@domain.com" required />
+                                    </div>
+                                    <span asp-validation-for="Email" class="text-danger small"></span>
+                                    <small class="text-muted" id="lblEmailHelp">@(isEventTab ? "An automated invite with your Event Manager Dashboard login credentials will be dispatched to this email upon approval." : "An automated invite with your Host Dashboard login credentials will be dispatched to this email upon approval.")</small>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold small text-muted" id="lblPropertyName">@(isEventTab ? "Décor Studio / Agency / Brand Name" : "Farm / Villa Property Name") <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0"><i id="iconPropertyName" class="bi @(isEventTab ? "bi-stars" : "bi-house")"></i></span>
+                                        <input asp-for="PropertyName" id="inputPropertyName" class="form-control border-start-0 ps-0" placeholder="@(isEventTab ? "e.g. Royal Bloom Celebration Staging" : "e.g. Whispering Palms Luxury Villa")" required />
+                                    </div>
+                                    <span asp-validation-for="PropertyName" class="text-danger small"></span>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold small text-muted" id="lblLocation">@(isEventTab ? "Operating Cities / Service Regions" : "City / Region / Landmark") <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-geo-alt"></i></span>
+                                        <input asp-for="Location" id="inputLocation" class="form-control border-start-0 ps-0" placeholder="@(isEventTab ? "e.g. Lonavala, Pune, Alibaug, Mumbai" : "e.g. Lonavala, Maharashtra")" required />
+                                    </div>
+                                    <span asp-validation-for="Location" class="text-danger small"></span>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold small text-muted" id="lblAcreageOrType">@(isEventTab ? "Décor Specialization & Package Offerings" : "Acreage & Farm Type") <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0"><i id="iconAcreageOrType" class="bi @(isEventTab ? "bi-boxes" : "bi-aspect-ratio")"></i></span>
+                                        <input asp-for="AcreageOrType" id="inputAcreageOrType" class="form-control border-start-0 ps-0" placeholder="@(isEventTab ? "e.g. Weddings, Birthday Themes, Poolside Stages, Neon Lights, Floral Gazebos" : "e.g. 4 Acres with Swimming Pool & Gazebo, 5 BHK")" required />
+                                    </div>
+                                    <span asp-validation-for="AcreageOrType" class="text-danger small"></span>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label fw-semibold small text-muted" id="lblMessage">@(isEventTab ? "Portfolio Links, Instagram Handle & Crew Details" : "Key Amenities & Caretaker Availability")</label>
+                                    <textarea asp-for="Message" id="inputMessage" class="form-control" rows="4" placeholder="@(isEventTab ? "Share links to your Instagram, website, past work photos, crew sizes, staging equipment available (truss, sound, lights)..." : "Mention private pool, lawn capacity, music system, barbecue, caretaker availability, pricing expectations...")"></textarea>
+                                    <span asp-validation-for="Message" class="text-danger small"></span>
                                 </div>
                             </div>
-                        </div>
-                        <div class="card-body p-4 p-md-5">
-                            <form asp-action="Partner" method="post" class="needs-validation">
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="PartnerType" value="EventManager" />
 
-                                <div asp-validation-summary="ModelOnly" class="alert alert-danger rounded-3" role="alert"></div>
-
-                                <div class="row g-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold small text-muted">Lead Decorator / Planner Name <span class="text-danger">*</span></label>
-                                        <div class="input-group">
-                                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-person"></i></span>
-                                            <input name="FullName" value="@(isEventTab ? Model.FullName : "")" class="form-control border-start-0 ps-0" placeholder="e.g. Aarti Sharma" required />
-                                        </div>
-                                    </div>
-
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold small text-muted">Contact Phone / WhatsApp <span class="text-danger">*</span></label>
-                                        <div class="input-group">
-                                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-whatsapp"></i></span>
-                                            <input name="Phone" value="@(isEventTab ? Model.Phone : "")" class="form-control border-start-0 ps-0" placeholder="e.g. +91 98765 00000" required />
-                                        </div>
-                                    </div>
-
-                                    <div class="col-12">
-                                        <label class="form-label fw-semibold small text-muted">Business Email Address <span class="text-danger">*</span></label>
-                                        <div class="input-group">
-                                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope"></i></span>
-                                            <input name="Email" type="email" value="@(isEventTab ? Model.Email : "")" class="form-control border-start-0 ps-0" placeholder="decor@studio.com" required />
-                                        </div>
-                                        <small class="text-muted">An automated invite with your Event Manager Dashboard login credentials will be sent here upon approval.</small>
-                                    </div>
-
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold small text-muted">Décor Studio / Agency / Brand Name <span class="text-danger">*</span></label>
-                                        <div class="input-group">
-                                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-stars"></i></span>
-                                            <input name="PropertyName" value="@(isEventTab ? Model.PropertyName : "")" class="form-control border-start-0 ps-0" placeholder="e.g. Royal Bloom Celebration Staging" required />
-                                        </div>
-                                    </div>
-
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold small text-muted">Operating Cities / Service Regions <span class="text-danger">*</span></label>
-                                        <div class="input-group">
-                                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-geo-alt"></i></span>
-                                            <input name="Location" value="@(isEventTab ? Model.Location : "")" class="form-control border-start-0 ps-0" placeholder="e.g. Lonavala, Pune, Alibaug, Mumbai" required />
-                                        </div>
-                                    </div>
-
-                                    <div class="col-12">
-                                        <label class="form-label fw-semibold small text-muted">Décor Specialization &amp; Package Offerings <span class="text-danger">*</span></label>
-                                        <div class="input-group">
-                                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-boxes"></i></span>
-                                            <input name="AcreageOrType" value="@(isEventTab ? Model.AcreageOrType : "")" class="form-control border-start-0 ps-0" placeholder="e.g. Weddings, Birthday Themes, Poolside Stages, Neon Lights, Floral Gazebos" required />
-                                        </div>
-                                    </div>
-
-                                    <div class="col-12">
-                                        <label class="form-label fw-semibold small text-muted">Portfolio Links, Instagram Handle &amp; Crew Details</label>
-                                        <textarea name="Message" class="form-control" rows="4" placeholder="Share links to your Instagram, website, past work photos, crew sizes, staging equipment available (truss, sound, lights)...">@(isEventTab ? Model.Message : "")</textarea>
-                                    </div>
-                                </div>
-
-                                <div class="mt-4 pt-2">
-                                    <button type="submit" class="btn btn-warning btn-lg w-100 py-3 fw-bold rounded-3 shadow-sm">
-                                        <i class="bi bi-send-check me-2"></i> Submit Event Manager Application
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
+                            <div class="mt-4 pt-2">
+                                <button type="submit" id="btnSubmitPartner" class="btn @(isEventTab ? "btn-warning text-dark" : "btn-success") btn-lg w-100 py-3 fw-bold rounded-3 shadow-sm" style="@(!isEventTab ? "background-color: #059669; border-color: #059669;" : "")">
+                                    <i class="bi bi-send-check me-2"></i>
+                                    <span id="btnSubmitText">@(isEventTab ? "Submit Event Manager Application" : "Submit Farm Host Application")</span>
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
 
@@ -290,31 +196,102 @@
 </div>
 
 @section Scripts {
+<partial name="_ValidationScriptsPartial" />
 <script>
     function switchPartnerTab(tab) {
+        const isEvent = (tab === 'EventManager');
         const ownerBtn = document.getElementById('btnTabOwner');
         const eventBtn = document.getElementById('btnTabEvent');
-        const ownerForm = document.getElementById('formSectionOwner');
-        const eventForm = document.getElementById('formSectionEvent');
+        const partnerTypeInput = document.getElementById('partnerTypeInput');
 
-        if (tab === 'EventManager') {
-            ownerForm.style.display = 'none';
-            eventForm.style.display = 'block';
+        partnerTypeInput.value = isEvent ? 'EventManager' : 'Owner';
 
+        if (isEvent) {
             ownerBtn.className = 'btn w-100 py-3 rounded-3 fw-bold btn-light border-0 text-muted';
             ownerBtn.style.backgroundColor = '';
             ownerBtn.style.borderColor = '';
 
             eventBtn.className = 'btn w-100 py-3 rounded-3 fw-bold btn-warning text-dark shadow-sm';
-        } else {
-            eventForm.style.display = 'none';
-            ownerForm.style.display = 'block';
 
+            // Update badge & header
+            document.getElementById('partnerBadge').className = 'badge bg-warning-subtle text-dark border border-warning-subtle px-3 py-1 rounded-pill small fw-semibold mb-2';
+            document.getElementById('partnerBadgeIcon').className = 'bi bi-palette2 me-1';
+            document.getElementById('partnerBadgeText').textContent = 'Event Manager & Décor Studio Intake';
+            document.getElementById('partnerHeading').textContent = 'Partner as Event Planner & Décor Studio';
+            document.getElementById('partnerSubtitle').textContent = 'Offer themed packages, stage decor, and floral styling to guests booking stays on BookMyFun.';
+            document.getElementById('partnerHeaderIconBox').className = 'd-none d-sm-block p-3 bg-warning-subtle text-warning rounded-4 fs-3';
+            document.getElementById('partnerHeaderIcon').className = 'bi bi-balloon-heart';
+
+            // Update labels & placeholders
+            document.getElementById('lblFullName').innerHTML = 'Lead Decorator / Planner Name <span class="text-danger">*</span>';
+            document.getElementById('inputFullName').placeholder = 'e.g. Aarti Sharma';
+
+            document.getElementById('lblEmail').innerHTML = 'Business Email Address (for event manager dashboard) <span class="text-danger">*</span>';
+            document.getElementById('lblEmailHelp').textContent = 'An automated invite with your Event Manager Dashboard login credentials will be dispatched to this email upon approval.';
+
+            document.getElementById('lblPropertyName').innerHTML = 'Décor Studio / Agency / Brand Name <span class="text-danger">*</span>';
+            document.getElementById('iconPropertyName').className = 'bi bi-stars';
+            document.getElementById('inputPropertyName').placeholder = 'e.g. Royal Bloom Celebration Staging';
+
+            document.getElementById('lblLocation').innerHTML = 'Operating Cities / Service Regions <span class="text-danger">*</span>';
+            document.getElementById('inputLocation').placeholder = 'e.g. Lonavala, Pune, Alibaug, Mumbai';
+
+            document.getElementById('lblAcreageOrType').innerHTML = 'Décor Specialization & Package Offerings <span class="text-danger">*</span>';
+            document.getElementById('iconAcreageOrType').className = 'bi bi-boxes';
+            document.getElementById('inputAcreageOrType').placeholder = 'e.g. Weddings, Birthday Themes, Poolside Stages, Neon Lights, Floral Gazebos';
+
+            document.getElementById('lblMessage').textContent = 'Portfolio Links, Instagram Handle & Crew Details';
+            document.getElementById('inputMessage').placeholder = 'Share links to your Instagram, website, past work photos, crew sizes, staging equipment available (truss, sound, lights)...';
+
+            // Update submit button
+            const btnSubmit = document.getElementById('btnSubmitPartner');
+            btnSubmit.className = 'btn btn-warning text-dark btn-lg w-100 py-3 fw-bold rounded-3 shadow-sm';
+            btnSubmit.style.backgroundColor = '';
+            btnSubmit.style.borderColor = '';
+            document.getElementById('btnSubmitText').textContent = 'Submit Event Manager Application';
+        } else {
             eventBtn.className = 'btn w-100 py-3 rounded-3 fw-bold btn-light border-0 text-muted';
 
             ownerBtn.className = 'btn w-100 py-3 rounded-3 fw-bold btn-success shadow-sm';
             ownerBtn.style.backgroundColor = '#059669';
             ownerBtn.style.borderColor = '#059669';
+
+            // Update badge & header
+            document.getElementById('partnerBadge').className = 'badge bg-success-subtle text-success border border-success-subtle px-3 py-1 rounded-pill small fw-semibold mb-2';
+            document.getElementById('partnerBadgeIcon').className = 'bi bi-house-check me-1';
+            document.getElementById('partnerBadgeText').textContent = 'Farm & Villa Host Intake';
+            document.getElementById('partnerHeading').textContent = 'List Your Farmstay or Private Villa';
+            document.getElementById('partnerSubtitle').textContent = 'Fill out your farm details. Our onboarding team inspects submissions within 24-48 business hours.';
+            document.getElementById('partnerHeaderIconBox').className = 'd-none d-sm-block p-3 bg-success-subtle text-success rounded-4 fs-3';
+            document.getElementById('partnerHeaderIcon').className = 'bi bi-tree';
+
+            // Update labels & placeholders
+            document.getElementById('lblFullName').innerHTML = 'Owner Full Name <span class="text-danger">*</span>';
+            document.getElementById('inputFullName').placeholder = 'e.g. Ramesh Patel';
+
+            document.getElementById('lblEmail').innerHTML = 'Email Address (for host dashboard activation) <span class="text-danger">*</span>';
+            document.getElementById('lblEmailHelp').textContent = 'An automated invite with your Host Dashboard login credentials will be dispatched to this email upon approval.';
+
+            document.getElementById('lblPropertyName').innerHTML = 'Farm / Villa Property Name <span class="text-danger">*</span>';
+            document.getElementById('iconPropertyName').className = 'bi bi-house';
+            document.getElementById('inputPropertyName').placeholder = 'e.g. Whispering Palms Luxury Villa';
+
+            document.getElementById('lblLocation').innerHTML = 'City / Region / Landmark <span class="text-danger">*</span>';
+            document.getElementById('inputLocation').placeholder = 'e.g. Lonavala, Maharashtra';
+
+            document.getElementById('lblAcreageOrType').innerHTML = 'Acreage & Farm Type <span class="text-danger">*</span>';
+            document.getElementById('iconAcreageOrType').className = 'bi bi-aspect-ratio';
+            document.getElementById('inputAcreageOrType').placeholder = 'e.g. 4 Acres with Swimming Pool & Gazebo, 5 BHK';
+
+            document.getElementById('lblMessage').textContent = 'Key Amenities & Caretaker Availability';
+            document.getElementById('inputMessage').placeholder = 'Mention private pool, lawn capacity, music system, barbecue, caretaker availability, pricing expectations...';
+
+            // Update submit button
+            const btnSubmit = document.getElementById('btnSubmitPartner');
+            btnSubmit.className = 'btn btn-success btn-lg w-100 py-3 fw-bold rounded-3 shadow-sm';
+            btnSubmit.style.backgroundColor = '#059669';
+            btnSubmit.style.borderColor = '#059669';
+            document.getElementById('btnSubmitText').textContent = 'Submit Farm Host Application';
         }
     }
 </script>

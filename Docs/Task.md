@@ -166,5 +166,57 @@
   - Created dedicated Event Manager Sign In portal in [`Views/Account/EventManagerLogin.cshtml`](file:///d:/Projects/BookMyFun/Views/Account/EventManagerLogin.cshtml) (`/Account/EventManagerLogin` and `/EventManager/Login`) designed identical to Owner's with 1-click demo auto-fill (`eventmanager@bookmyfun.com` / `Event@123`).
   - Built dedicated separate Event Manager Dashboard in [`Views/EventManager/Index.cshtml`](file:///d:/Projects/BookMyFun/Views/EventManager/Index.cshtml) and [`Views/EventManager/Dashboard.cshtml`](file:///d:/Projects/BookMyFun/Views/EventManager/Dashboard.cshtml) conforming to the standardized design system (`dash-page-header`, `dash-stat-grid`, `dash-stat-card`, order lifecycle tabs, package management, photo proofs modal).
   - Enhanced [`Views/Account/Login.cshtml`](file:///d:/Projects/BookMyFun/Views/Account/Login.cshtml) and [`Views/Shared/_Layout.cshtml`](file:///d:/Projects/BookMyFun/Views/Shared/_Layout.cshtml) with portal switcher pills and navigation links across all roles.
+- [x] **Issue 15 (Admin Startup Session Cleanup & Admin Login Schema Fix):**
+  - Configured named cookie `BookMyFun.AuthCookie` in [`Program.cs`](file:///d:/Projects/BookMyFun/Program.cs) with `SameSiteMode.Lax` and 8-hour lifetime, immediately invalidating stale persistent `.AspNetCore.Cookies` from previous debugging runs so the application starts unauthenticated.
+  - Enabled dual-verb `[AcceptVerbs("GET", "POST")]` with `[IgnoreAntiforgeryToken]` on [`Controllers/AccountController.cs`](file:///d:/Projects/BookMyFun/Controllers/AccountController.cs) `Logout()` with explicit cookie deletion to prevent HTTP 405 errors on link/GET navigation.
+  - Added idempotent schema migration for missing `IsActive` column on `Users` in [`Data/DatabaseInitializer.cs`](file:///d:/Projects/BookMyFun/Data/DatabaseInitializer.cs) and updated [`Repositories/UserRepository.cs`](file:///d:/Projects/BookMyFun/Repositories/UserRepository.cs) (`CreateUserAsync`, `UpdateUserAsync`) to eliminate `SqlException: Invalid column name 'IsActive'` when logging into the Admin panel.
+  - Added automated xUnit regression tests in [`BookMyFun.Tests/UnitTest1.cs`](file:///d:/Projects/BookMyFun/BookMyFun.Tests/UnitTest1.cs) verifying admin credentials and administrative dashboard query execution.
+- [x] **Issue 16 (Owner & Event Manager Approval Password Auto-Generation & Dual WhatsApp/Email Dispatch):**
+  - Integrated Meta Cloud API / custom WhatsApp gateway payload format into [`Services/CommunicationService.cs`](file:///d:/Projects/BookMyFun/Services/CommunicationService.cs) (`SendWhatsAppMessageAsync`) with phone number normalization (stripping spaces, symbols, and prefixing country code `91` for 10-digit mobile numbers) and live configuration lookup from `ApiConfigurations`.
+  - Added `GetRequestByIdAsync(int requestId)` and enhanced `ApproveOwnerRequestAsync(..., string? newPasswordHash = null)` in [`Repositories/OwnerRequestRepository.cs`](file:///d:/Projects/BookMyFun/Repositories/OwnerRequestRepository.cs) to atomically set hashed initial passwords on `Users.PasswordHash`.
+  - Implemented `ApproveOwnerRequestAsync` in [`Services/PartnerLeadService.cs`](file:///d:/Projects/BookMyFun/Services/PartnerLeadService.cs), generating secure `Host@<6-digits>` passwords, hashing them, and awaiting dual-channel notifications via both Email and WhatsApp API containing the Account ID (`UserID`), Login Email/ID, and auto-generated Password.
+  - Updated `ApproveLeadAsync` in [`Services/PartnerLeadService.cs`](file:///d:/Projects/BookMyFun/Services/PartnerLeadService.cs) to await Email and WhatsApp dispatches, returning full partner metadata and credentials.
+  - Updated `ApprovePartnerLead` and `ApproveOwnerRequest` in [`Controllers/AdminController.cs`](file:///d:/Projects/BookMyFun/Controllers/AdminController.cs) and [`Controllers/EmployeeController.cs`](file:///d:/Projects/BookMyFun/Controllers/EmployeeController.cs) to unpack credentials, log staff accountability, and display the Account ID and temporary password in `TempData["Success"]`.
+  - Added comprehensive automated xUnit tests in [`BookMyFun.Tests/UnitTest1.cs`](file:///d:/Projects/BookMyFun/BookMyFun.Tests/UnitTest1.cs) verifying lead and owner request approval, credential generation, and authentication verification.
 
 
+
+
+
+- [x] **Issue 17 (Razorpay Payment Gateway, WhatsApp Multi-Stakeholder Alerts, Host/Decorator Financial Segregation & Dedicated Event Manager Financials Page):**
+  - Configured `Razorpay` (`KeyId`, `KeySecret`) and `WhatsApp` (`ApiKey`, `PhoneNumberId`, `Endpoint`) credentials in [`appsettings.json`](file:///d:/Projects/BookMyFun/appsettings.json).
+  - Enhanced [`Services/PaymentGatewayService.cs`](file:///d:/Projects/BookMyFun/Services/PaymentGatewayService.cs) (`RazorpayPaymentService`) with live HTTP Basic Auth API call to `https://api.razorpay.com/v1/orders`, verifiable sandbox tokens (`order_<16 chars>`), and HMAC-SHA256 signature verification.
+  - Implemented `/Booking/VerifyPayment` endpoint in [`Controllers/BookingAndPropertiesController.cs`](file:///d:/Projects/BookMyFun/Controllers/BookingAndPropertiesController.cs) validating Razorpay payment signature and transitioning bookings to `Confirmed`.
+  - Integrated official Razorpay Checkout SDK (`https://checkout.razorpay.com/v1/checkout.js`) in [`Views/Booking/Payment.cshtml`](file:///d:/Projects/BookMyFun/Views/Booking/Payment.cshtml) with instant popup modal and signature form dispatch.
+  - Implemented multi-stakeholder alert dispatching in [`Services/CommunicationService.cs`](file:///d:/Projects/BookMyFun/Services/CommunicationService.cs) with `SendOwnerBookingAlertAsync` (alerting hosts with stay dates, property gross, and clear décor add-on notice) and `SendEventManagerSetupAlertAsync` (alerting event decorators with venue, package name, allocated décor fee, and event date).
+  - Segregated property stay pricing from event décor package fees in `ConfirmBooking` ([`Controllers/BookingAndPropertiesController.cs`](file:///d:/Projects/BookMyFun/Controllers/BookingAndPropertiesController.cs)): host commission is strictly calculated on `propertyStayAmount`, `OwnerPayoutAmount` reflects property earnings without décor distortions, and `EventPackagePriceSnapshot` is cleanly preserved for the decorator.
+  - Updated [`Views/Owner/Index.cshtml`](file:///d:/Projects/BookMyFun/Views/Owner/Index.cshtml) with itemized financial cards (Property Stay Gross, Platform Commission, Host Net Payout) and a prominent Décor Add-on callout explaining that the client's décor fee is allocated 100% to the Event Decorator Studio and not deducted from the host's revenue.
+  - Created dedicated Event Manager Financials page at `/EventManager/Financials` backed by `EventManagerFinancialsViewModel` in [`Controllers/EventManagerController.cs`](file:///d:/Projects/BookMyFun/Controllers/EventManagerController.cs) and [`Views/EventManager/Financials.cshtml`](file:///d:/Projects/BookMyFun/Views/EventManager/Financials.cshtml) with GMV KPI cards, Settled vs Escrow earnings metrics, status/date filters, itemized ledger table, and escrow protection guarantee banner.
+  - Added 3 automated xUnit regression tests in [`BookMyFun.Tests/UnitTest1.cs`](file:///d:/Projects/BookMyFun/BookMyFun.Tests/UnitTest1.cs) verifying Razorpay order creation/signature validation, strict host/decorator financial segregation, and WhatsApp multi-party alert dispatches. All 7 tests passing.
+
+- [x] **Issue 18 (Luxury Resort UI/UX Redesign — Airbnb Luxe / Plum Guide Style):**
+  - Integrated the exact luxury design system tokens into [`wwwroot/css/site.css`](file:///d:/Projects/BookMyFun/wwwroot/css/site.css) and [`Views/Properties/Index.cshtml`](file:///d:/Projects/BookMyFun/Views/Properties/Index.cshtml) (`--bg-primary: #F8FAFC`, `--bg-card: #FFFFFF`, `--brand-navy: #0B4F6C`, `--brand-sky: #01BAEF`, `--text-main: #0F172A`, `--text-muted: #64748B`, `--border-subtle: #E2E8F0`, `--brand-green: #2E933C`, `--brand-gold: #F59E0B`).
+  - Restructured [`Views/Properties/Index.cshtml`](file:///d:/Projects/BookMyFun/Views/Properties/Index.cshtml) with a luxury hero header, handpicked badge, and live property counter.
+  - Redesigned search card with generous whitespace, subtle `1px solid #E2E8F0` border, and soft ambient shadow (`0 10px 30px -5px rgba(11, 79, 108, 0.05)`).
+  - Implemented horizontal quick-navigation category pills using Palm Green (`#2E933C`) for active indicators.
+  - Upgraded property cards to 16px rounded corners (`overflow: hidden`) with micro-interactions: card hover lift (`translateY(-4px)`), elevated ambient shadow (`0 20px 35px -5px rgba(11, 79, 108, 0.12)`), and smooth image zoom (`scale(1.03)`).
+  - Applied typography hierarchy: bold headings with tight letter-spacing (`-0.02em`) in Deep Navy (`#0B4F6C`), muted secondary metadata in `#64748B`, and rating star badges in Warm Gold (`#F59E0B`).
+  - Preserved 100% of existing backend data bindings, variable names, routing parameters, and form attributes without breaking changes.
+
+- [x] **Issue 19 (End-to-End System Testing, Real Email OTP Verification & Full Performance Optimization):**
+  - Tested and validated real email OTP generation and dispatch using live Gmail SMTP credentials (`showsgarage@gmail.com`). Verified that dynamic 6-digit random OTPs are stored in `OtpVerifications`, dispatched via SMTP, and validated during registration without mock or bypass codes.
+  - Implemented end-to-end integration tests in [`BookMyFun.Tests/EndToEndWorkflowTests.cs`](file:///d:/Projects/BookMyFun/BookMyFun.Tests/EndToEndWorkflowTests.cs) covering all major platform modules:
+    1. Flexible booking checkout with event decor package.
+    2. Razorpay order generation and HMAC-SHA256 signature verification.
+    3. Multi-stakeholder real-time alerts (Guest, Host, Decorator).
+    4. Cancellation quote calculation and refund execution.
+    5. Event Manager decor catalog curation, order advancement, and financial metrics.
+    6. Host damage claim submission and staff adjudication against security deposits.
+    7. Customer support inquiry handling with staff accountability tracking.
+    8. Client KYC ID document submission and administrative review.
+  - Resolved `ContactUs` database check constraint violation (`CK__ContactUs__Statu__5FD33367`), standardizing valid status transitions (`New`, `Responded`).
+  - Added thread-safe in-memory caching to [`Services/SiteSettingsService.cs`](file:///d:/Projects/BookMyFun/Services/SiteSettingsService.cs) with 15-minute TTL, eliminating repeated database roundtrips on every page render.
+  - Replaced render-blocking `@import` in [`wwwroot/css/site.css`](file:///d:/Projects/BookMyFun/wwwroot/css/site.css) with preconnected `<link rel="preconnect">` and `<link rel="stylesheet">` tags in [`Views/Shared/_Layout.cshtml`](file:///d:/Projects/BookMyFun/Views/Shared/_Layout.cshtml).
+  - Configured response compression (`AddResponseCompression`, `UseResponseCompression`) for Gzip and Brotli payload delivery in [`Program.cs`](file:///d:/Projects/BookMyFun/Program.cs).
+  - Added `loading="lazy"` and `decoding="async"` across property card catalog and landing page image tags.
+  - Verified 100% test pass rate across **13 comprehensive unit and integration tests** with **0 build warnings and 0 errors**.

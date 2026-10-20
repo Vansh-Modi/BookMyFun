@@ -1,0 +1,246 @@
+@model BookMyFun.Models.ViewModels.EventManagerFinancialsViewModel
+@{
+    ViewData["Title"] = "Event Manager Financials & Earnings Ledger";
+}
+
+<!-- Page Header (Universal Dashboard Styling) -->
+<div class="dash-page-header">
+    <div>
+        <p class="dash-eyebrow">Event Manager Portal · Revenue &amp; Settlement Ledger</p>
+        <h1 class="dash-title">Earnings &amp; Financials</h1>
+        <p class="dash-subtitle">Track your event staging revenue, completed setup disbursements, escrow-protected client payments, and itemized décor orders.</p>
+    </div>
+    <div class="dash-actions">
+        <a asp-action="Index" class="dash-btn dash-btn-outline">
+            <i class="bi bi-speedometer2"></i> Dashboard
+        </a>
+        <a asp-action="Packages" class="dash-btn dash-btn-outline">
+            <i class="bi bi-boxes"></i> Décor Packages
+        </a>
+        <a asp-action="AssignedSetups" class="dash-btn dash-btn-outline">
+            <i class="bi bi-calendar-check"></i> Assigned Setups
+        </a>
+        <button type="button" onclick="window.print()" class="dash-btn dash-btn-primary">
+            <i class="bi bi-printer"></i> Print Statement
+        </button>
+    </div>
+</div>
+
+<!-- KPI Metric Cards Grid -->
+<div class="dash-stat-grid mb-4">
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Total Décor Revenue</span>
+            <span class="dash-stat-icon icon-emerald"><i class="bi bi-currency-rupee"></i></span>
+        </div>
+        <div class="dash-stat-val text-success">₹@Model.TotalGrossRevenue.ToString("N2")</div>
+        <div class="dash-stat-sub"><i class="bi bi-graph-up text-success me-1"></i>Cumulative value of confirmed setups</div>
+    </div>
+
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Settled &amp; Disbursed</span>
+            <span class="dash-stat-icon icon-blue"><i class="bi bi-check-circle-fill"></i></span>
+        </div>
+        <div class="dash-stat-val text-primary">₹@Model.TotalSettledEarnings.ToString("N2")</div>
+        <div class="dash-stat-sub"><i class="bi bi-shield-check text-primary me-1"></i>Released for completed &amp; inspected jobs</div>
+    </div>
+
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Escrow Protected</span>
+            <span class="dash-stat-icon icon-amber"><i class="bi bi-shield-lock-fill"></i></span>
+        </div>
+        <div class="dash-stat-val text-warning">₹@Model.TotalPendingEscrowEarnings.ToString("N2")</div>
+        <div class="dash-stat-sub"><i class="bi bi-lock-fill text-warning me-1"></i>Guaranteed funds held in escrow</div>
+    </div>
+
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Fulfillment Rate</span>
+            <span class="dash-stat-icon icon-emerald"><i class="bi bi-patch-check-fill"></i></span>
+        </div>
+        <div class="dash-stat-val">@Model.CompletedOrdersCount <span class="text-muted fs-6 fw-normal">/ @Model.TotalOrdersCount Setups</span></div>
+        <div class="dash-stat-sub"><i class="bi bi-stars text-warning me-1"></i>Active Staging Jobs: @Model.ActiveJobsCount</div>
+    </div>
+</div>
+
+<!-- Main Ledger Container -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4 bg-card">
+    <!-- Filter Toolbar -->
+    <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
+        <form method="get" asp-action="Financials" class="row g-3 align-items-end mb-3">
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold text-muted">From Event Date</label>
+                <input type="date" name="fromDate" value="@(Model.FromDate?.ToString("yyyy-MM-dd"))" class="form-control form-control-sm rounded-pill" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold text-muted">To Event Date</label>
+                <input type="date" name="toDate" value="@(Model.ToDate?.ToString("yyyy-MM-dd"))" class="form-control form-control-sm rounded-pill" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold text-muted">Payout &amp; Setup Status</label>
+                <select name="status" class="form-select form-select-sm rounded-pill">
+                    <option value="All" selected="@(string.IsNullOrEmpty(Model.SelectedStatus) || Model.SelectedStatus == "All")">All Payout Statuses</option>
+                    <option value="Settled" selected="@(Model.SelectedStatus == "Settled")">Settled &amp; Disbursed (Completed)</option>
+                    <option value="Escrow" selected="@(Model.SelectedStatus == "Escrow")">Escrow Held (In-Progress / Pending)</option>
+                    <option value="Completed" selected="@(Model.SelectedStatus == "Completed")">Completed</option>
+                    <option value="InProgress" selected="@(Model.SelectedStatus == "InProgress")">In-Progress</option>
+                    <option value="Pending" selected="@(Model.SelectedStatus == "Pending")">Pending</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-sm btn-primary rounded-pill px-4 flex-grow-1">
+                    <i class="bi bi-filter me-1"></i> Apply Filter
+                </button>
+                <a asp-action="Financials" class="btn btn-sm btn-outline-secondary rounded-pill px-3" title="Clear Filters">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Data Table -->
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Order #</th>
+                        <th>Event Date &amp; Venue</th>
+                        <th>Client Details</th>
+                        <th>Décor Package</th>
+                        <th class="text-end">Gross Décor Fee</th>
+                        <th class="text-end">Platform Fee</th>
+                        <th class="text-end">Net Decorator Share</th>
+                        <th class="text-center">Staging Status</th>
+                        <th class="text-center">Settlement</th>
+                        <th class="pe-4 text-end">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.EventBookings.Any())
+                    {
+                        <tr>
+                            <td colspan="10" class="text-center py-5 text-muted">
+                                <i class="bi bi-wallet2 fs-1 text-muted d-block mb-3"></i>
+                                <h5 class="fw-bold text-secondary">No Financial Records Found</h5>
+                                <p class="text-muted small mb-0">No event décor orders match your selected filter criteria.</p>
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var b in Model.EventBookings)
+                    {
+                        var isSettled = b.SetupStatus == "Completed" || b.SetupStatus == "Inspected";
+                        var eventPrice = b.EventPackagePriceSnapshot;
+                        var platformFee = 0.00m; // Platform absorbs fee for decor partners
+                        var netEarnings = eventPrice - platformFee;
+
+                        <tr>
+                            <td class="ps-4 fw-bold">
+                                <span class="badge bg-light text-dark border">#@b.BookingID</span>
+                            </td>
+                            <td>
+                                <div class="fw-semibold text-dark">
+                                    <i class="bi bi-calendar-event text-primary me-1"></i>@(b.EventDate?.ToString("MMM dd, yyyy") ?? b.CheckInDate.ToString("MMM dd, yyyy"))
+                                </div>
+                                <div class="small text-muted"><i class="bi bi-geo-alt text-danger me-1"></i>@b.PropertyTitle</div>
+                            </td>
+                            <td>
+                                <div class="small fw-semibold text-dark">@b.ClientName</div>
+                                <div class="small text-muted"><i class="bi bi-telephone me-1"></i>@(b.ClientPhone ?? "N/A")</div>
+                            </td>
+                            <td>
+                                <span class="badge bg-warning-subtle text-dark border border-warning-subtle px-2 py-1 rounded-pill">
+                                    <i class="bi bi-palette2 me-1"></i>@(b.EventPackageName ?? "Custom Celebration Staging")
+                                </span>
+                            </td>
+                            <td class="text-end fw-semibold text-dark">
+                                ₹@eventPrice.ToString("N2")
+                            </td>
+                            <td class="text-end small text-muted">
+                                <span class="text-success">₹0.00 (0%)</span>
+                            </td>
+                            <td class="text-end fw-bold text-success">
+                                ₹@netEarnings.ToString("N2")
+                            </td>
+                            <td class="text-center">
+                                @switch (b.SetupStatus)
+                                {
+                                    case "Completed":
+                                    case "Inspected":
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1">
+                                            <i class="bi bi-check-circle-fill me-1"></i>Completed
+                                        </span>
+                                        break;
+                                    case "InProgress":
+                                        <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill px-3 py-1">
+                                            <i class="bi bi-clock-history me-1"></i>Staging In-Progress
+                                        </span>
+                                        break;
+                                    case "Assigned":
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1">
+                                            <i class="bi bi-person-check-fill me-1"></i>Crew Assigned
+                                        </span>
+                                        break;
+                                    default:
+                                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-3 py-1">
+                                            <i class="bi bi-hourglass-split me-1"></i>Pending Setup
+                                        </span>
+                                        break;
+                                }
+                            </td>
+                            <td class="text-center">
+                                @if (isSettled)
+                                {
+                                    <span class="badge bg-success rounded-pill px-3 py-1 text-white">
+                                        <i class="bi bi-cash-stack me-1"></i>Settled
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary rounded-pill px-3 py-1 text-white" title="Client payment held safely in platform escrow. Disbursed upon completed setup.">
+                                        <i class="bi bi-lock me-1"></i>Escrow Held
+                                    </span>
+                                }
+                            </td>
+                            <td class="pe-4 text-end">
+                                <a asp-action="AssignedSetups" class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1">
+                                    <i class="bi bi-eye me-1"></i>View Setup
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                @if (Model.EventBookings.Any())
+                {
+                    <tfoot class="table-light border-top-2">
+                        <tr class="fw-bold">
+                            <td colspan="4" class="ps-4">Total Filtered Décor Earnings:</td>
+                            <td class="text-end text-dark">₹@Model.EventBookings.Sum(s => s.EventPackagePriceSnapshot).ToString("N2")</td>
+                            <td class="text-end text-success">₹0.00</td>
+                            <td class="text-end text-success fs-6">₹@Model.EventBookings.Sum(s => s.EventPackagePriceSnapshot).ToString("N2")</td>
+                            <td colspan="3"></td>
+                        </tr>
+                    </tfoot>
+                }
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Financial Policy & Escrow Guarantee Note Card -->
+<div class="card border-0 shadow-sm rounded-4 bg-light p-4 mb-4">
+    <div class="row align-items-center">
+        <div class="col-auto">
+            <i class="bi bi-shield-check text-success fs-1"></i>
+        </div>
+        <div class="col">
+            <h6 class="fw-bold mb-1 text-dark">BookMyFun Guaranteed Decorator Escrow Policy</h6>
+            <p class="mb-0 text-muted small">
+                All client decoration payments are collected upfront via Razorpay and 100% segregated from property accommodation fees. 
+                Funds remain protected in platform escrow throughout the setup timeline and are released directly to your verified payout account upon setup proof submission and inspection.
+            </p>
+        </div>
+    </div>
+</div>

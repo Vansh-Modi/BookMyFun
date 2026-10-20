@@ -8,6 +8,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - @site.SiteName | @site.SiteTagline</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap">
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
@@ -143,7 +146,6 @@
                                         <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="ManageProperties"><i class="bi bi-houses me-2"></i>Manage Properties</a></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="ManageBookings"><i class="bi bi-calendar-check me-2"></i>Manage Bookings</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Employee" asp-action="ManageOwners"><i class="bi bi-person-badge me-2"></i>Manage Hosts</a></li>
                                         <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item fw-semibold" asp-controller="Account" asp-action="Profile"><i class="bi bi-person-circle text-primary me-2"></i>My Profile</a></li>
                                     </ul>
@@ -175,6 +177,7 @@
                                         <li><a class="dropdown-item fw-semibold" asp-controller="EventManager" asp-action="Index"><i class="bi bi-speedometer2 text-primary me-2"></i>Event Manager Dashboard</a></li>
                                         <li><a class="dropdown-item fw-semibold text-success" asp-controller="EventManager" asp-action="Packages"><i class="bi bi-box-seam text-success me-2"></i>Décor Packages</a></li>
                                         <li><a class="dropdown-item fw-semibold text-warning" asp-controller="EventManager" asp-action="AssignedSetups"><i class="bi bi-calendar-event text-warning me-2"></i>Assigned Setups</a></li>
+                                        <li><a class="dropdown-item fw-semibold text-info" asp-controller="EventManager" asp-action="Financials"><i class="bi bi-wallet2 text-info me-2"></i>Earnings &amp; Financials</a></li>
                                         <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item fw-semibold" asp-controller="Account" asp-action="Profile"><i class="bi bi-person-circle text-primary me-2"></i>My Profile</a></li>
                                     </ul>

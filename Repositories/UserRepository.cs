@@ -34,8 +34,19 @@ namespace BookMyFun.Repositories
 
         public async Task<User?> GetByEmailAsync(string email)
         {
-            const string sql = "SELECT * FROM Users WHERE LOWER(Email) = LOWER(@Email) OR Phone = @Email";
-            return await _db.ExecuteReaderSingleAsync(sql, MapUser, new SqlParameter("@Email", email));
+            var cleanId = email?.Trim().TrimStart('#');
+            bool isNumericId = int.TryParse(cleanId, out int accountId);
+
+            const string sql = @"
+                SELECT * FROM Users 
+                WHERE LOWER(Email) = LOWER(@Email) 
+                   OR Phone = @Email
+                   OR (@IsNumeric = 1 AND UserID = @AccountID)";
+
+            return await _db.ExecuteReaderSingleAsync(sql, MapUser, 
+                new SqlParameter("@Email", email ?? string.Empty),
+                new SqlParameter("@IsNumeric", isNumericId ? 1 : 0),
+                new SqlParameter("@AccountID", accountId));
         }
 
         public async Task<List<User>> GetUsersByRoleAsync(string role)
@@ -53,9 +64,9 @@ namespace BookMyFun.Repositories
         public async Task<int> CreateUserAsync(User user)
         {
             const string sql = @"
-                INSERT INTO Users (FullName, Email, PasswordHash, Phone, Role, CustomCommissionRate, SubscriptionTier, CreatedAt)
+                INSERT INTO Users (FullName, Email, PasswordHash, Phone, Role, IsActive, CustomCommissionRate, SubscriptionTier, CreatedAt)
                 OUTPUT INSERTED.UserID
-                VALUES (@FullName, @Email, @PasswordHash, @Phone, @Role, @CustomCommissionRate, @SubscriptionTier, GETDATE())";
+                VALUES (@FullName, @Email, @PasswordHash, @Phone, @Role, @IsActive, @CustomCommissionRate, @SubscriptionTier, GETDATE())";
 
             var result = await _db.ExecuteScalarAsync(sql,
                 new SqlParameter("@FullName", user.FullName),
@@ -63,6 +74,7 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@PasswordHash", user.PasswordHash),
                 new SqlParameter("@Phone", DBHelper.ToDbValue(user.Phone)),
                 new SqlParameter("@Role", user.Role),
+                new SqlParameter("@IsActive", user.IsActive),
                 new SqlParameter("@CustomCommissionRate", DBHelper.ToDbValue(user.CustomCommissionRate)),
                 new SqlParameter("@SubscriptionTier", user.SubscriptionTier ?? "Free"));
 
@@ -76,6 +88,7 @@ namespace BookMyFun.Repositories
                 SET FullName = @FullName, 
                     Phone = @Phone, 
                     Role = @Role,
+                    IsActive = @IsActive,
                     CustomCommissionRate = @CustomCommissionRate,
                     SubscriptionTier = @SubscriptionTier
                 WHERE UserID = @UserID";
@@ -84,6 +97,7 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@FullName", user.FullName),
                 new SqlParameter("@Phone", DBHelper.ToDbValue(user.Phone)),
                 new SqlParameter("@Role", user.Role),
+                new SqlParameter("@IsActive", user.IsActive),
                 new SqlParameter("@CustomCommissionRate", DBHelper.ToDbValue(user.CustomCommissionRate)),
                 new SqlParameter("@SubscriptionTier", user.SubscriptionTier ?? "Free"),
                 new SqlParameter("@UserID", user.UserID));

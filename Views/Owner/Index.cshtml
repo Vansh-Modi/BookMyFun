@@ -55,11 +55,11 @@
 
     <div class="dash-stat-card">
         <div class="dash-stat-top">
-            <span class="dash-stat-label">Net Earnings (90%)</span>
+            <span class="dash-stat-label">Host Earnings</span>
             <span class="dash-stat-icon icon-amber"><i class="bi bi-wallet2"></i></span>
         </div>
         <div class="dash-stat-val text-success">₹@Model.TotalEarnings.ToString("N2")</div>
-        <div class="dash-stat-sub">Net payout after 10% platform commission</div>
+        <div class="dash-stat-sub">Total Payout for Completed Stays</div>
     </div>
 </div>
 
@@ -171,8 +171,14 @@
                     var bookingStatusClass = b.Status.ToLowerInvariant();
                     var hasDamageClaim = b.SecurityDepositStatus.Contains("Claimed");
                     var category = hasDamageClaim ? "damage" : (b.Status == "Cancelled" ? "cancelled" : (b.Status == "Confirmed" ? "confirmed" : "other"));
-                    var commission = b.PlatformCommissionAmount > 0 ? b.PlatformCommissionAmount : Math.Round(b.TotalAmount * 0.10m, 2);
-                    var netPayout = b.OwnerPayoutAmount > 0 ? b.OwnerPayoutAmount : (b.TotalAmount - commission);
+                    var propertyStayGross = Math.Max(0, b.TotalAmount - b.EventPackagePriceSnapshot);
+                    var commRate = b.CommissionRateSnapshot > 0 ? b.CommissionRateSnapshot : 10.0m;
+                    var commission = (b.PlatformCommissionAmount > 0 && b.PlatformCommissionAmount <= propertyStayGross)
+                        ? b.PlatformCommissionAmount 
+                        : Math.Round(propertyStayGross * (commRate / 100m), 2);
+                    var netPayout = (b.OwnerPayoutAmount > 0 && b.OwnerPayoutAmount <= propertyStayGross)
+                        ? b.OwnerPayoutAmount 
+                        : Math.Max(0, propertyStayGross - commission);
 
                     <div class="list-group-item p-3 owner-booking-card" data-category="@category">
                         <div class="d-flex justify-content-between align-items-start mb-1">
@@ -199,22 +205,40 @@
                         </div>
 
                         <!-- Itemized Financial Transparency Breakdown -->
-                        <div class="bg-light p-2 rounded-3 mb-2 border">
-                            <div class="d-flex justify-content-between small text-muted">
-                                <span>Gross Booking Total:</span>
-                                <strong>₹@b.TotalAmount.ToString("N2")</strong>
+                        <div class="bg-light p-3 rounded-3 mb-2 border">
+                            <div class="d-flex justify-content-between small text-muted mb-1">
+                                <span>Property Stay (Host Gross):</span>
+                                <strong class="text-dark">₹@propertyStayGross.ToString("N2")</strong>
                             </div>
-                            <div class="d-flex justify-content-between small text-danger">
-                                <span>Platform Fee (10%):</span>
-                                <span>- ₹@commission.ToString("N2")</span>
+                            <div class="d-flex justify-content-between small text-muted mb-1">
+                                <span>Platform Commission (@commRate.ToString("0.#")%):</span>
+                                <span class="text-danger">-₹@commission.ToString("N2")</span>
                             </div>
-                            <div class="d-flex justify-content-between small fw-bold text-success border-top pt-1 mt-1">
-                                <span>Host Net Earning:</span>
-                                <span>₹@netPayout.ToString("N2")</span>
+                            <div class="d-flex justify-content-between small fw-bold text-success border-top pt-2 mt-1">
+                                <span>Your Net Host Payout:</span>
+                                <span class="fs-6">₹@netPayout.ToString("N2")</span>
                             </div>
+
+                            @if (b.IsEventBooking && b.EventPackagePriceSnapshot > 0)
+                            {
+                                <div class="border-top pt-2 mt-2 p-2 bg-white rounded border">
+                                    <div class="d-flex justify-content-between small text-primary fw-semibold">
+                                        <span><i class="bi bi-palette2 me-1"></i>Guest Décor Add-on:</span>
+                                        <span>₹@b.EventPackagePriceSnapshot.ToString("N2")</span>
+                                    </div>
+                                    <div class="small text-muted mt-1" style="font-size: 0.76rem; line-height: 1.3;">
+                                        <i class="bi bi-info-circle me-1 text-primary"></i>Package: <em>@(b.EventPackageName ?? "Event Staging")</em>. Paid 100% directly to Event Decorator Studio (not deducted from your host revenue).
+                                    </div>
+                                    <div class="d-flex justify-content-between small text-muted border-top pt-1 mt-1">
+                                        <span>Guest Invoice Grand Total:</span>
+                                        <span class="fw-bold text-dark">₹@b.TotalAmount.ToString("N2")</span>
+                                    </div>
+                                </div>
+                            }
+
                             @if (b.SecurityDepositAmount > 0)
                             {
-                                <div class="d-flex justify-content-between small text-muted pt-1">
+                                <div class="d-flex justify-content-between small text-muted pt-2 border-top mt-2">
                                     <span>Security Deposit:</span>
                                     <span>₹@b.SecurityDepositAmount.ToString("N0") <span class="badge bg-light text-dark border">@b.SecurityDepositStatus</span></span>
                                 </div>

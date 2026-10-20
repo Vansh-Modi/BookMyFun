@@ -5,77 +5,613 @@
     var occasions = ViewBag.Occasions as List<BookMyFun.Models.Entities.Occasion> ?? new();
 }
 
-<div class="card shadow-sm p-4 mb-5 border-0">
-    <form method="get" asp-action="Index" class="row g-3 align-items-end">
-        <div class="col-md-3">
-            <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-geo-alt-fill text-danger me-1"></i>Location / Keyword</label>
-            <input type="text" name="location" value="@ViewBag.SelectedLocation" class="form-control" placeholder="City, landmark, or region..." />
-        </div>
-        <div class="col-md-2">
-            <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-building text-primary me-1"></i>Property Type</label>
-            <select name="typeId" class="form-select">
-                <option value="">All Types</option>
-                @foreach (var t in types)
-                {
-                    <option value="@t.PropertyTypeID" selected="@(ViewBag.SelectedTypeId == t.PropertyTypeID)">@t.TypeName</option>
-                }
-            </select>
-        </div>
-        <div class="col-md-3">
-            <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-balloon-heart-fill text-warning me-1"></i>Occasion</label>
-            <select name="occasionId" class="form-select">
-                <option value="">Any Occasion</option>
-                @foreach (var o in occasions)
-                {
-                    <option value="@o.OccasionID" selected="@(ViewBag.SelectedOccasionId == o.OccasionID)">@o.OccasionName</option>
-                }
-            </select>
-        </div>
-        <div class="col-md-2">
-            <label class="form-label small fw-bold text-muted mb-1"><i class="bi bi-people-fill text-primary me-1"></i>Min Guests</label>
-            <input type="number" name="guests" value="@ViewBag.SelectedGuests" class="form-control" placeholder="1+" />
-        </div>
-        <div class="col-md-2">
-            <button type="submit" class="btn btn-warning w-100 fw-bold py-2"><i class="bi bi-search me-1"></i> Search</button>
-        </div>
-    </form>
-</div>
+<style>
+    :root {
+        /* 60% Dominant - Clean, airy backgrounds */
+        --bg-primary: #F8FAFC;       /* Crisp Alabaster White */
+        --bg-card: #FFFFFF;          /* Pure White for Villa Cards */
+        --bg-glass: rgba(255, 255, 255, 0.85); /* For sticky navbars */
 
-<div class="row row-cols-1 row-cols-md-3 g-4">
-    @if (!Model.Any())
+        /* 30% Structural - Deep trust & typography */
+        --brand-navy: #0B4F6C;       /* Deep Oceanic Blue (from 'Book' & 'Fun') */
+        --brand-navy-dark: #083c53;  /* Hover state */
+        --brand-sky: #01BAEF;        /* Vibrant Pool Blue (links & active states) */
+        --text-main: #0F172A;        /* Deep Slate (easier on the eyes than #000000) */
+        --text-muted: #64748B;       /* Soft Grey for property sub-details */
+        --border-subtle: #E2E8F0;    /* Hairline card borders */
+
+        /* 10% Accents - Eco tags & high-conversion buttons */
+        --brand-green: #2E933C;      /* Palm Green (from 'My' - use for 'Verified' or category pills) */
+        --brand-green-subtle: rgba(46, 147, 60, 0.12);
+        --brand-gold: #F59E0B;       /* Sunburst Gold (for ratings & urgent 'Hot Deal' badges) */
+        --brand-gold-subtle: rgba(245, 158, 11, 0.15);
+
+        /* Soft ambient luxury elevation */
+        --shadow-ambient: 0 10px 30px -5px rgba(11, 79, 108, 0.05);
+        --shadow-hover: 0 20px 35px -5px rgba(11, 79, 108, 0.12);
+    }
+
+    .luxe-catalog-wrap {
+        background-color: var(--bg-primary);
+        font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: var(--text-main);
+        padding: 0.5rem 0 3.5rem;
+    }
+
+    /* Page Header Section */
+    .luxe-header {
+        margin-bottom: 2rem;
+    }
+
+    .luxe-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: var(--brand-green-subtle);
+        color: var(--brand-green);
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 0.35rem 0.85rem;
+        border-radius: 9999px;
+        margin-bottom: 0.75rem;
+    }
+
+    .luxe-title {
+        color: var(--brand-navy);
+        font-weight: 800;
+        font-size: 2.25rem;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+        margin-bottom: 0.5rem;
+    }
+
+    .luxe-subtitle {
+        color: var(--text-muted);
+        font-size: 1rem;
+        font-weight: 400;
+        max-width: 680px;
+        line-height: 1.6;
+        margin-bottom: 0;
+    }
+
+    /* Floating Concierge Search Card */
+    .luxe-search-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 20px;
+        box-shadow: var(--shadow-ambient);
+        padding: 1.75rem 2rem;
+        margin-bottom: 2rem;
+        transition: all 0.3s ease;
+    }
+
+    .luxe-search-card:focus-within {
+        border-color: rgba(11, 79, 108, 0.25);
+        box-shadow: 0 12px 35px -5px rgba(11, 79, 108, 0.08);
+    }
+
+    .luxe-field-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 0.4rem;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .luxe-control {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        color: var(--text-main);
+        font-size: 0.9375rem;
+        font-weight: 500;
+        padding: 0.65rem 0.95rem;
+        transition: all 0.25s ease;
+    }
+
+    .luxe-control:focus {
+        background: #FFFFFF;
+        border-color: var(--brand-sky);
+        box-shadow: 0 0 0 3px rgba(1, 186, 239, 0.15);
+        outline: none;
+    }
+
+    .luxe-search-btn {
+        background: var(--brand-navy);
+        color: #FFFFFF;
+        border: none;
+        border-radius: 12px;
+        font-size: 0.9375rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        padding: 0.72rem 1.25rem;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        box-shadow: 0 4px 14px rgba(11, 79, 108, 0.2);
+    }
+
+    .luxe-search-btn:hover {
+        background: var(--brand-navy-dark);
+        color: #FFFFFF;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(11, 79, 108, 0.3);
+    }
+
+    /* Category Pill Quick Filters */
+    .luxe-category-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        overflow-x: auto;
+        padding-bottom: 0.85rem;
+        margin-bottom: 2rem;
+        scrollbar-width: thin;
+    }
+
+    .luxe-category-bar::-webkit-scrollbar {
+        height: 4px;
+    }
+
+    .luxe-category-bar::-webkit-scrollbar-thumb {
+        background: var(--border-subtle);
+        border-radius: 4px;
+    }
+
+    .luxe-category-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.5rem 1.15rem;
+        border-radius: 9999px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        text-decoration: none;
+        white-space: nowrap;
+        background: var(--bg-card);
+        color: var(--text-muted);
+        border: 1px solid var(--border-subtle);
+        box-shadow: 0 2px 6px rgba(11, 79, 108, 0.03);
+        transition: all 0.3s ease;
+    }
+
+    .luxe-category-pill:hover {
+        color: var(--brand-navy);
+        border-color: rgba(11, 79, 108, 0.25);
+        background: #FFFFFF;
+        transform: translateY(-1px);
+    }
+
+    .luxe-category-pill.active {
+        background: var(--brand-green);
+        color: #FFFFFF;
+        border-color: var(--brand-green);
+        box-shadow: 0 4px 12px rgba(46, 147, 60, 0.25);
+    }
+
+    /* Villa / Resort Property Cards */
+    .luxe-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 16px;
+        box-shadow: var(--shadow-ambient);
+        overflow: hidden;
+        transition: all 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        position: relative;
+    }
+
+    .luxe-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-hover);
+        border-color: rgba(1, 186, 239, 0.35);
+    }
+
+    /* Overflow-hidden Image Box with Scale Micro-Interaction */
+    .luxe-img-container {
+        position: relative;
+        height: 250px;
+        width: 100%;
+        overflow: hidden;
+        border-radius: 16px 16px 0 0;
+        background: #E2E8F0;
+    }
+
+    .luxe-img-container img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: all 0.3s ease;
+    }
+
+    .luxe-card:hover .luxe-img-container img {
+        transform: scale(1.03);
+    }
+
+    /* Category Pill on Image (Palm Green: #2E933C) */
+    .luxe-card-badge {
+        position: absolute;
+        top: 14px;
+        left: 14px;
+        background: var(--brand-green);
+        color: #FFFFFF;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 0.35rem 0.8rem;
+        border-radius: 9999px;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+        z-index: 2;
+    }
+
+    /* Rating Star Pill on Image (Warm Gold: #F59E0B) */
+    .luxe-card-rating {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        border-radius: 9999px;
+        padding: 0.25rem 0.65rem;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--text-main);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+        z-index: 2;
+    }
+
+    /* Card Content Area */
+    .luxe-card-body {
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1;
+    }
+
+    /* Secondary Muted Metadata (#64748B) */
+    .luxe-meta-location {
+        color: var(--text-muted);
+        font-size: 0.8125rem;
+        font-weight: 500;
+        margin-bottom: 0.4rem;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    /* Bold Heading with Tight Letter-Spacing (-0.02em), Deep Navy (#0B4F6C) */
+    .luxe-card-heading {
+        color: var(--brand-navy);
+        font-weight: 700;
+        font-size: 1.1875rem;
+        letter-spacing: -0.02em;
+        line-height: 1.35;
+        margin-bottom: 0.65rem;
+        display: -webkit-box;
+        -webkit-line-clamp: 1;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    /* Secondary Amenities Info */
+    .luxe-amenity-strip {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: var(--text-muted);
+        font-size: 0.8125rem;
+        font-weight: 500;
+        margin-bottom: 1.25rem;
+    }
+
+    .luxe-amenity-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .luxe-hairline {
+        border: none;
+        border-top: 1px solid var(--border-subtle);
+        margin: auto 0 1.25rem 0;
+    }
+
+    /* Pricing Section */
+    .luxe-pricing-box {
+        display: flex;
+        align-items: baseline;
+        gap: 0.35rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .luxe-price-figure {
+        font-size: 1.35rem;
+        font-weight: 800;
+        color: var(--text-main);
+        letter-spacing: -0.02em;
+    }
+
+    .luxe-price-period {
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+        font-weight: 500;
+    }
+
+    /* Action Buttons */
+    .luxe-card-actions {
+        display: grid;
+        grid-template-columns: 1fr 1.2fr;
+        gap: 0.65rem;
+    }
+
+    .luxe-btn-secondary {
+        border: 1px solid var(--border-subtle);
+        background: #FFFFFF;
+        color: var(--brand-navy);
+        border-radius: 10px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        padding: 0.6rem 0.75rem;
+        text-align: center;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .luxe-btn-secondary:hover {
+        background: var(--bg-primary);
+        border-color: rgba(11, 79, 108, 0.3);
+        color: var(--brand-navy);
+    }
+
+    /* Primary Heading & Main CTA: Deep Navy (#0B4F6C) */
+    .luxe-btn-primary {
+        background: var(--brand-navy);
+        color: #FFFFFF;
+        border: none;
+        border-radius: 10px;
+        font-size: 0.8125rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        padding: 0.6rem 0.75rem;
+        text-align: center;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(11, 79, 108, 0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+    }
+
+    .luxe-btn-primary:hover {
+        background: var(--brand-navy-dark);
+        color: #FFFFFF;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(11, 79, 108, 0.25);
+    }
+
+    /* Empty State */
+    .luxe-empty-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 20px;
+        box-shadow: var(--shadow-ambient);
+        padding: 4.5rem 2rem;
+        text-align: center;
+    }
+
+    .luxe-empty-icon {
+        width: 76px;
+        height: 76px;
+        border-radius: 50%;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-subtle);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.2rem;
+        color: var(--brand-navy);
+        margin-bottom: 1.5rem;
+    }
+</style>
+
+<div class="luxe-catalog-wrap">
+    <!-- Header: Bold with tight letter-spacing (-0.02em), Deep Navy (#0B4F6C) -->
+    <div class="luxe-header d-flex flex-column flex-md-row justify-content-between align-items-md-end gap-3">
+        <div>
+            <div class="luxe-eyebrow">
+                <i class="bi bi-shield-check"></i> BookMyFun Handpicked Collection
+            </div>
+            <h1 class="luxe-title">Luxury Farmhouses, Villas &amp; Resorts</h1>
+            <p class="luxe-subtitle">
+                Explore personally verified private sanctuaries, poolside villas, and celebration estates with flexible booking slots.
+            </p>
+        </div>
+        @if (Model != null && Model.Any())
+        {
+            <div class="text-md-end text-muted small">
+                Showing <strong class="text-dark">@Model.Count()</strong> curated properties
+            </div>
+        }
+    </div>
+
+    <!-- Concierge Floating Search Bar: Generous padding, 1px solid #E2E8F0, soft ambient shadow -->
+    <div class="luxe-search-card">
+        <form method="get" asp-action="Index" class="row g-3 align-items-end">
+            <div class="col-lg-3 col-md-6">
+                <label class="luxe-field-label">
+                    <i class="bi bi-geo-alt-fill text-danger"></i> Location / Keyword
+                </label>
+                <input type="text" name="location" value="@ViewBag.SelectedLocation" class="form-control luxe-control" placeholder="City, landmark, or region..." />
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <label class="luxe-field-label">
+                    <i class="bi bi-building" style="color: var(--brand-sky);"></i> Property Type
+                </label>
+                <select name="typeId" class="form-select luxe-control">
+                    <option value="">All Types</option>
+                    @foreach (var t in types)
+                    {
+                        <option value="@t.PropertyTypeID" selected="@(ViewBag.SelectedTypeId == t.PropertyTypeID)">@t.TypeName</option>
+                    }
+                </select>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <label class="luxe-field-label">
+                    <i class="bi bi-balloon-heart-fill" style="color: var(--brand-gold);"></i> Occasion
+                </label>
+                <select name="occasionId" class="form-select luxe-control">
+                    <option value="">Any Occasion</option>
+                    @foreach (var o in occasions)
+                    {
+                        <option value="@o.OccasionID" selected="@(ViewBag.SelectedOccasionId == o.OccasionID)">@o.OccasionName</option>
+                    }
+                </select>
+            </div>
+            <div class="col-lg-1 col-md-3 col-6">
+                <label class="luxe-field-label">
+                    <i class="bi bi-people-fill" style="color: var(--brand-navy);"></i> Guests
+                </label>
+                <input type="number" name="guests" value="@ViewBag.SelectedGuests" class="form-control luxe-control" placeholder="1+" />
+            </div>
+            <div class="col-lg-2 col-md-3 col-6">
+                <button type="submit" class="btn luxe-search-btn w-100">
+                    <i class="bi bi-search"></i> Search
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Category Pills Quick Navigation -->
+    @if (types.Any())
     {
-        <div class="col-12 text-center py-5">
-            <i class="bi bi-house-x fs-1 d-block mb-2 text-muted opacity-50"></i>
-            <h4 class="text-muted">No properties found matching your criteria.</h4>
-            <a asp-action="Index" class="btn btn-outline-secondary mt-3">Clear Filters</a>
+        <div class="luxe-category-bar">
+            <a asp-action="Index" 
+               asp-route-location="@ViewBag.SelectedLocation"
+               asp-route-occasionId="@ViewBag.SelectedOccasionId"
+               asp-route-guests="@ViewBag.SelectedGuests"
+               class="luxe-category-pill @(ViewBag.SelectedTypeId == null ? "active" : "")">
+                <i class="bi bi-grid-fill"></i> All Stays
+            </a>
+            @foreach (var t in types)
+            {
+                <a asp-action="Index" 
+                   asp-route-typeId="@t.PropertyTypeID"
+                   asp-route-location="@ViewBag.SelectedLocation"
+                   asp-route-occasionId="@ViewBag.SelectedOccasionId"
+                   asp-route-guests="@ViewBag.SelectedGuests"
+                   class="luxe-category-pill @(ViewBag.SelectedTypeId == t.PropertyTypeID ? "active" : "")">
+                    @t.TypeName
+                </a>
+            }
         </div>
     }
-    @foreach (var p in Model)
-    {
-        <div class="col">
-            <div class="card h-100 shadow-sm border-0 property-card overflow-hidden">
-                <div class="position-relative">
-                    <img src="@p.PrimaryImageUrl" class="card-img-top" style="height: 230px; object-fit: cover;" alt="@p.Title" onerror="this.src='/images/placeholder.jpg';" />
-                    <span class="badge bg-dark bg-opacity-75 text-white position-absolute top-0 start-0 m-3 px-2 py-1">
-                        @p.PropertyTypeName
-                    </span>
+
+    <!-- Property Catalog Grid -->
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        @if (Model == null || !Model.Any())
+        {
+            <div class="col-12">
+                <div class="luxe-empty-card">
+                    <div class="luxe-empty-icon">
+                        <i class="bi bi-house-x"></i>
+                    </div>
+                    <h3 class="fw-bold mb-2" style="color: var(--brand-navy); letter-spacing: -0.02em;">No properties found</h3>
+                    <p class="text-muted mb-4" style="max-width: 480px; margin: 0 auto;">
+                        We couldn't find any stays matching your specified criteria. Try clearing some filters or searching a broader destination.
+                    </p>
+                    <a asp-action="Index" class="btn luxe-search-btn d-inline-flex px-4 py-2">
+                        <i class="bi bi-arrow-counterclockwise"></i> Reset All Filters
+                    </a>
                 </div>
-                <div class="card-body p-4">
-                    <h5 class="card-title fw-bold mb-1">@p.Title</h5>
-                    <p class="text-muted small mb-3"><i class="bi bi-geo-alt-fill text-danger me-1"></i> @p.Location</p>
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <span class="small text-muted"><i class="bi bi-people me-1"></i> Up to @p.MaxGuests Guests</span>
-                        <span class="fw-bold fs-5 text-primary">₹@p.PricePerNight.ToString("N0") <small class="text-muted fs-6">/ night</small></span>
+            </div>
+        }
+        else
+        {
+            @foreach (var p in Model)
+            {
+            <div class="col">
+                <!-- Luxury Villa Card: 16px rounded corners, 1px solid #E2E8F0, soft ambient shadow -->
+                <div class="luxe-card">
+                    <!-- Image Container: overflow hidden, 16px rounded top, smooth scale(1.03) hover micro-interaction -->
+                    <div class="luxe-img-container">
+                        <img src="@p.PrimaryImageUrl" alt="@p.Title" loading="lazy" decoding="async" onerror="this.src='/images/placeholder.jpg';" />
+                        
+                        <!-- Subtle Category Badge/Pill (Palm Green: #2E933C) -->
+                        <span class="luxe-card-badge">
+                            @p.PropertyTypeName
+                        </span>
+
+                        <!-- Rating Badge with Warm Gold (#F59E0B) Star -->
+                        <div class="luxe-card-rating">
+                            <i class="bi bi-star-fill" style="color: var(--brand-gold);"></i>
+                            <span>4.95</span>
+                        </div>
                     </div>
 
-                    <div class="d-grid gap-2">
-                        <a asp-action="Details" asp-route-id="@p.PropertyID" class="btn btn-outline-secondary btn-sm">View Details</a>
-                        <a asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@p.PropertyID" class="btn btn-warning btn-sm fw-bold">
-                            Book Flexible Slot
-                        </a>
+                    <!-- Card Body: Generous padding, typography hierarchy -->
+                    <div class="luxe-card-body">
+                        <!-- Muted Secondary Location Metadata (#64748B) -->
+                        <div class="luxe-meta-location">
+                            <i class="bi bi-geo-alt-fill" style="color: var(--brand-sky);"></i>
+                            <span>@p.Location</span>
+                        </div>
+
+                        <!-- Bold Heading with Tight Letter-Spacing (-0.02em), Deep Navy (#0B4F6C) -->
+                        <h2 class="luxe-card-heading">
+                            @p.Title
+                        </h2>
+
+                        <!-- Muted Secondary Capacity / Amenities Metadata (#64748B) -->
+                        <div class="luxe-amenity-strip">
+                            <span class="luxe-amenity-item">
+                                <i class="bi bi-people"></i> Up to @p.MaxGuests Guests
+                            </span>
+                            <span class="luxe-amenity-item" style="color: var(--brand-green);">
+                                <i class="bi bi-patch-check-fill"></i> Verified Host
+                            </span>
+                        </div>
+
+                        <!-- Subtle Hairline Divider -->
+                        <hr class="luxe-hairline" />
+
+                        <!-- Pricing Section -->
+                        <div class="luxe-pricing-box">
+                            <span class="luxe-price-figure">₹@p.PricePerNight.ToString("N0")</span>
+                            <span class="luxe-price-period">/ night</span>
+                        </div>
+
+                        <!-- Actions: Deep Navy Primary Button, Subtle Outline Secondary -->
+                        <div class="luxe-card-actions">
+                            <a asp-action="Details" asp-route-id="@p.PropertyID" class="luxe-btn-secondary">
+                                View Details
+                            </a>
+                            <a asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@p.PropertyID" class="luxe-btn-primary">
+                                <i class="bi bi-calendar2-check"></i> Book Slot
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    }
+        }
+        }
+    </div>
 </div>

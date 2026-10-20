@@ -37,10 +37,32 @@ END
 ELSE
 BEGIN
     -- Ensure columns exist
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'IsActive')
+    BEGIN
+        ALTER TABLE Users ADD IsActive BIT NOT NULL DEFAULT 1 WITH VALUES;
+    END
+
     IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'CustomCommissionRate')
     BEGIN
         ALTER TABLE Users ADD CustomCommissionRate DECIMAL(5,2) NULL;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'SubscriptionTier')
+    BEGIN
         ALTER TABLE Users ADD SubscriptionTier NVARCHAR(30) DEFAULT 'Free';
+    END
+
+    -- Ensure Role CHECK constraint supports all 5 roles (Admin, Employee, Owner, Client, EventManager)
+    DECLARE @RoleConstraint NVARCHAR(200);
+    SELECT @RoleConstraint = cc.name 
+    FROM sys.check_constraints cc
+    JOIN sys.columns c ON cc.parent_object_id = c.object_id AND cc.parent_column_id = c.column_id
+    WHERE cc.parent_object_id = OBJECT_ID('Users') AND c.name = 'Role';
+
+    IF @RoleConstraint IS NOT NULL AND @RoleConstraint <> 'CK_Users_Role_V2'
+    BEGIN
+        EXEC('ALTER TABLE Users DROP CONSTRAINT ' + @RoleConstraint);
+        ALTER TABLE Users ADD CONSTRAINT CK_Users_Role_V2 CHECK (Role IN ('Admin', 'Employee', 'Owner', 'Client', 'EventManager'));
     END
 END
 

@@ -40,7 +40,7 @@ Handles identity lifecycle, authentication, and secure tokenized host activation
 | `/Account/Login` | `POST` | Anonymous | `Email`, `Password`, `RememberMe`, `ReturnUrl` | HTML / Redirect | Validates credentials and issues auth cookie with role redirection. |
 | `/Account/Register` | `GET` | Anonymous | - | HTML View | Renders client (customer) registration form. |
 | `/Account/Register` | `POST` | Anonymous | `FullName`, `Email`, `Password`, `Phone` | HTML / Redirect | Registers client account (Host self-registration blocked). |
-| `/Account/Logout` | `GET` | Authenticated | - | Redirect | Clears auth cookie and redirects to `/Home/Index`. |
+| `/Account/Logout` | `GET, POST` | Authenticated | - | Redirect | Clears auth cookies (`BookMyFun.AuthCookie`, `.AspNetCore.Cookies`) and redirects to `/Home/Index`. |
 | `/Account/ActivateHost` | `GET` | Anonymous | `token` (HMAC token, required) | HTML View | Validates 48h activation token and renders host setup. |
 | `/Account/ActivateHost` | `POST` | Anonymous | `Token`, `Password`, `Phone`, `PropertyName` | HTML / Redirect | Finalizes host account creation and grants `Owner` role. |
 | `/Account/AccessDenied` | `GET` | Anonymous | - | HTML View | Friendly 403 Forbidden error view. |
@@ -71,6 +71,7 @@ Handles property search, detailed previews, flexible reservation checkout with e
 | `/Booking/ConfirmBooking` | `POST` | Authenticated | `BookingCheckoutViewModel` (includes `IsEventBooking`, `EventPackageID`, `CustomEventNotes`) | HTML / Redirect | Validates availability, calculates total with décor add-on, snapshots policy, redirects to payment. |
 | `/Booking/Payment/{id}` | `GET` | Authenticated | `id` (int, booking ID) | HTML View | Dedicated PCI-DSS payment page with order token. |
 | `/Booking/ProcessPayment` | `POST` | Authenticated | `bookingId`, `orderId`, `paymentMethod` | HTML / Redirect | Records payment success, confirms booking, dispatches receipts. |
+| `/Booking/VerifyPayment` | `POST` | Authenticated | `bookingId`, `razorpay_payment_id`, `razorpay_order_id`, `razorpay_signature` | HTML / Redirect | Validates Razorpay HMAC signature, marks booking confirmed, triggers alerts. |
 | `/Booking/GetRefundEstimate`| `GET` | Authenticated | `bookingId` (int, required) | JSON | Returns real-time refund quote with fee breakdown. |
 | `/Booking/CancelBooking` | `POST` | Authenticated | `BookingID`, `Reason` | JSON / Redirect | Policy-enforced cancellation and automated gateway refund. |
 
@@ -91,6 +92,7 @@ Décor package catalog curation, on-ground setup tracking, milestone progression
 | `/EventManager/AssignedSetups` | `GET` | EventManager, Admin | - | HTML View | Tracks setups assigned to decorator with status pills. |
 | `/EventManager/UpdateSetupStatus` | `POST` | EventManager, Admin | `BookingID`, `SetupStatus`, `SetupProofMediaUrls` | JSON / Redirect | Advances milestone (`Pending`, `Assigned`, `InProgress`, `Completed`, `Inspected`) with proofs. |
 | `/EventManager/AssignDecorator` | `POST` | Admin | `BookingID`, `DecoratorUserID` | JSON / Redirect | Reassigns reservation to specific decorator crew. |
+| `/EventManager/Financials` | `GET` | EventManager, Admin | `status`, `fromDate`, `toDate` | HTML View | Dedicated financial earnings ledger with escrow vs settled KPIs and filters. |
 
 ---
 
@@ -129,17 +131,24 @@ Operational triage queues for staff handling partner leads, KYC verifications, r
 | Endpoint | Verb | Authorization | Request Body / Query Params | Response Type | Description |
 |:---|:---:|:---:|:---|:---|:---|
 | `/Employee/Index` | `GET` | Employee, Admin | - | HTML View | Operations workbench with pending task counters. |
-| `/Employee/OnboardingLeads` | `GET` | Employee, Admin | `status` (string, optional) | HTML View | Host partnership inquiry triage pipeline. |
-| `/Employee/ApproveLead` | `POST` | Employee, Admin | `leadId` (int, required) | JSON | Issues 48h encrypted HMAC activation token via email. |
+| `/Employee/PartnerLeads` | `GET` | Employee, Admin | `status` (string, optional) | HTML View | Host and Event Manager partner lead triage pipeline. |
+| `/Employee/ApprovePartnerLead` | `POST` | Employee, Admin | `leadId` (int, required) | Redirect | Approves lead, creates active account, auto-generates password, and dispatches Account ID & password via WhatsApp and Email. |
+| `/Employee/RejectPartnerLead` | `POST` | Employee, Admin | `leadId` (int, required) | Redirect | Rejects inbound partner lead. |
+| `/Employee/OwnerRequests` | `GET` | Employee, Admin | - | HTML View | Review 1-2 day trial property listings from candidate hosts. |
+| `/Employee/ApproveOwnerRequest` | `POST` | Employee, Admin | `requestId` (int, required), `notes` (string, optional) | Redirect | Approves host trial, sets listings live, generates password, and dispatches Account ID & password via WhatsApp and Email. |
+| `/Employee/RejectOwnerRequest` | `POST` | Employee, Admin | `requestId` (int, required), `notes` (string, optional) | Redirect | Rejects trial, purges listed trial properties, and demotes user to Client. |
 | `/Employee/IdVerifications` | `GET` | Employee, Admin | `status` (string, optional) | HTML View | Confidential KYC document review queue. |
-| `/Employee/ApproveId` | `POST` | Employee, Admin | `verificationId` (int, required) | JSON | Grants "Verified Guest" badge to client. |
+| `/Employee/ReviewIdVerification` | `POST` | Employee, Admin | `verificationId` (int, required), `action`, `reason` | Redirect | Approves or rejects client government KYC document. |
 | `/Employee/RefundsQueue` | `GET` | Employee, Admin | `status` (string, optional) | HTML View | Refund operations queue with manual override triggers. |
-| `/Employee/DamageClaimsQueue` | `GET` | Employee, Admin | `status` (string, optional) | HTML View | 24-hour host damage claims adjudication queue. |
+| `/Employee/OverrideRefund` | `POST` | Employee, Admin | `refundId`, `status`, `notes` | Redirect | Overrides booking refund status with audit logging. |
+| `/Employee/DamageClaims` | `GET` | Employee, Admin | `status` (string, optional) | HTML View | 24-hour host damage claims adjudication queue. |
+| `/Employee/LogDamageClaim` | `POST` | Employee, Admin | `DamageClaimCreateViewModel` | Redirect | Logs damage incident on behalf of host with photo proofs. |
+| `/Employee/AdjudicateDamageClaim` | `POST` | Employee, Admin | `DamageClaimAdjudicateViewModel` | Redirect | Adjudicates claim amount between host security deposit and guest refund. |
 
 ---
 
 ### 2.8 `AdminController`
-Executive command center, Property GMV vs Event GMV analytics, ClosedXML Excel/CSV exports, financial ledgers, user governance, and audit trails.
+Executive command center, Property GMV vs Event GMV analytics, ClosedXML Excel/CSV exports, financial ledgers, user governance, partner approvals, and audit trails.
 
 | Endpoint | Verb | Authorization | Request Body / Query Params | Response Type | Description |
 |:---|:---:|:---:|:---|:---|:---|
@@ -148,6 +157,12 @@ Executive command center, Property GMV vs Event GMV analytics, ClosedXML Excel/C
 | `/Admin/ExportAnalyticsExcel` | `GET` | Admin | `range`, `from`, `to` | File (`.xlsx`) | Generates styled ClosedXML spreadsheet with emerald headers. |
 | `/Admin/ExportAnalyticsCsv` | `GET` | Admin | `range`, `from`, `to` | File (`.csv`) | Streams UTF-8 comma-separated financial data. |
 | `/Admin/FinancialLedger` | `GET` | Admin | - | HTML View | Platform double-entry ledger (Income & Expenses). |
+| `/Admin/PartnerLeads` | `GET` | Admin | `status` (string, optional) | HTML View | Partner onboarding leads pipeline. |
+| `/Admin/ApprovePartnerLead` | `POST` | Admin | `leadId` (int, required) | Redirect | Approves lead, generates initial password, and dispatches Account ID & password via WhatsApp and Email. |
+| `/Admin/RejectPartnerLead` | `POST` | Admin | `leadId` (int, required) | Redirect | Marks partner lead as Rejected. |
+| `/Admin/OwnerRequests` | `GET` | Admin | - | HTML View | Review 1-2 day trial property listings from candidate hosts. |
+| `/Admin/ApproveOwnerRequest` | `POST` | Admin | `requestId` (int, required), `notes` (string, optional) | Redirect | Approves host trial, sets listings live, generates password, and dispatches Account ID & password via WhatsApp and Email. |
+| `/Admin/RejectOwnerRequest` | `POST` | Admin | `requestId` (int, required), `notes` (string, optional) | Redirect | Rejects trial, purges listed properties, and demotes user to Client. |
 | `/Admin/Users` | `GET` | Admin | `roleFilter`, `search` | HTML View | User management grid across all 5 roles. |
 | `/Admin/ToggleUserStatus` | `POST` | Admin | `UserID`, `IsActive` | JSON | Suspends or reactivates user account. |
 | `/Admin/UpdateCommissionRate`| `POST` | Admin | `UserID`, `CommissionRate` | JSON | Sets custom commission rate override for host. |
