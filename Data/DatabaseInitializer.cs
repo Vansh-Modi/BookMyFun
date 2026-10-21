@@ -167,6 +167,7 @@ BEGIN
         PricePerNight DECIMAL(18,2) NOT NULL,
         SecurityDepositAmount DECIMAL(18,2) DEFAULT 0.00,
         CommissionRate DECIMAL(5,2) NULL,
+        EventCommissionRate DECIMAL(5,2) NULL,
         FreeCancellationWindowHours INT DEFAULT 48,
         CancellationCutoffHours INT DEFAULT 24,
         CancellationFeeType NVARCHAR(20) DEFAULT 'percentage',
@@ -293,6 +294,7 @@ BEGIN
         MediaUrl NVARCHAR(MAX) NULL,
         IncludedItems NVARCHAR(MAX) NULL,
         IsActive BIT DEFAULT 1,
+        CommissionRate DECIMAL(5,2) NULL,
         CreatedByUserID INT NULL FOREIGN KEY REFERENCES Users(UserID),
         CreatedAt DATETIME2 DEFAULT GETDATE()
     );
@@ -339,6 +341,9 @@ BEGIN
         SetupStatus NVARCHAR(30) DEFAULT 'Pending',
         SetupProofMediaUrls NVARCHAR(MAX) NULL,
         EventPackagePriceSnapshot DECIMAL(18,2) DEFAULT 0.00,
+        EventCommissionRateSnapshot DECIMAL(5,2) DEFAULT 0.00,
+        EventPlatformCommissionAmount DECIMAL(18,2) DEFAULT 0.00,
+        EventManagerPayoutAmount DECIMAL(18,2) DEFAULT 0.00,
         CreatedAt DATETIME2 DEFAULT GETDATE()
     );
 END
@@ -354,7 +359,22 @@ BEGIN
         ALTER TABLE Bookings ADD SetupStatus NVARCHAR(30) DEFAULT 'Pending';
         ALTER TABLE Bookings ADD SetupProofMediaUrls NVARCHAR(MAX) NULL;
         ALTER TABLE Bookings ADD EventPackagePriceSnapshot DECIMAL(18,2) DEFAULT 0.00;
+        ALTER TABLE Bookings ADD EventCommissionRateSnapshot DECIMAL(5,2) DEFAULT 0.00;
+        ALTER TABLE Bookings ADD EventPlatformCommissionAmount DECIMAL(18,2) DEFAULT 0.00;
+        ALTER TABLE Bookings ADD EventManagerPayoutAmount DECIMAL(18,2) DEFAULT 0.00;
     END
+END
+
+-- 16.5 PropertyEventCommissions Table (Per-event manual custom commissions per property)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'PropertyEventCommissions')
+BEGIN
+    CREATE TABLE PropertyEventCommissions (
+        PropertyID INT NOT NULL FOREIGN KEY REFERENCES Properties(PropertyID) ON DELETE CASCADE,
+        PackageID INT NOT NULL FOREIGN KEY REFERENCES EventPackages(PackageID) ON DELETE CASCADE,
+        CommissionRate DECIMAL(5,2) NOT NULL,
+        UpdatedAt DATETIME2 DEFAULT GETDATE(),
+        PRIMARY KEY (PropertyID, PackageID)
+    );
 END
 
 -- 17. Payments Table

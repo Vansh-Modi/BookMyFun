@@ -124,13 +124,15 @@ namespace BookMyFun.Repositories
                 (PropertyID, ClientID, OccasionID, CheckInDate, CheckOutDate, TotalAmount, Status, BookingType, SlotType, SlotStartTime, SlotEndTime,
                  FreeCancellationWindowHoursSnapshot, CancellationCutoffHoursSnapshot, CancellationFeeTypeSnapshot, CancellationFeeValueSnapshot,
                  CommissionRateSnapshot, PlatformCommissionAmount, OwnerPayoutAmount, SecurityDepositAmount, SecurityDepositStatus, IdempotencyKey,
-                 IsEventBooking, EventPackageID, CustomEventNotes, EventDate, DecoratorAssignedID, SetupStatus, SetupProofMediaUrls, EventPackagePriceSnapshot, CreatedAt)
+                 IsEventBooking, EventPackageID, CustomEventNotes, EventDate, DecoratorAssignedID, SetupStatus, SetupProofMediaUrls, EventPackagePriceSnapshot,
+                 EventCommissionRateSnapshot, EventPlatformCommissionAmount, EventManagerPayoutAmount, CreatedAt)
                 OUTPUT INSERTED.BookingID
                 VALUES 
                 (@PropertyID, @ClientID, @OccasionID, @CheckInDate, @CheckOutDate, @TotalAmount, @Status, @BookingType, @SlotType, @SlotStartTime, @SlotEndTime,
                  @FreeCancellationWindowHoursSnapshot, @CancellationCutoffHoursSnapshot, @CancellationFeeTypeSnapshot, @CancellationFeeValueSnapshot,
                  @CommissionRateSnapshot, @PlatformCommissionAmount, @OwnerPayoutAmount, @SecurityDepositAmount, @SecurityDepositStatus, @IdempotencyKey,
-                 @IsEventBooking, @EventPackageID, @CustomEventNotes, @EventDate, @DecoratorAssignedID, @SetupStatus, @SetupProofMediaUrls, @EventPackagePriceSnapshot, GETDATE())";
+                 @IsEventBooking, @EventPackageID, @CustomEventNotes, @EventDate, @DecoratorAssignedID, @SetupStatus, @SetupProofMediaUrls, @EventPackagePriceSnapshot,
+                 @EventCommissionRateSnapshot, @EventPlatformCommissionAmount, @EventManagerPayoutAmount, GETDATE())";
 
             var result = await _db.ExecuteScalarAsync(sql,
                 new SqlParameter("@PropertyID", booking.PropertyID),
@@ -161,7 +163,10 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@DecoratorAssignedID", DBHelper.ToDbValue(booking.DecoratorAssignedID)),
                 new SqlParameter("@SetupStatus", booking.SetupStatus ?? "Pending"),
                 new SqlParameter("@SetupProofMediaUrls", DBHelper.ToDbValue(booking.SetupProofMediaUrls)),
-                new SqlParameter("@EventPackagePriceSnapshot", booking.EventPackagePriceSnapshot));
+                new SqlParameter("@EventPackagePriceSnapshot", booking.EventPackagePriceSnapshot),
+                new SqlParameter("@EventCommissionRateSnapshot", booking.EventCommissionRateSnapshot),
+                new SqlParameter("@EventPlatformCommissionAmount", booking.EventPlatformCommissionAmount),
+                new SqlParameter("@EventManagerPayoutAmount", booking.EventManagerPayoutAmount));
 
             return result != null ? Convert.ToInt32(result) : 0;
         }
@@ -443,6 +448,27 @@ namespace BookMyFun.Repositories
             {
                 int pkgPriceOrd = r.GetOrdinal("EventPackagePriceSnapshot");
                 if (!r.IsDBNull(pkgPriceOrd)) b.EventPackagePriceSnapshot = r.GetDecimal(pkgPriceOrd);
+            }
+            catch { }
+
+            try
+            {
+                int eCommRateOrd = r.GetOrdinal("EventCommissionRateSnapshot");
+                if (!r.IsDBNull(eCommRateOrd)) b.EventCommissionRateSnapshot = r.GetDecimal(eCommRateOrd);
+            }
+            catch { }
+
+            try
+            {
+                int eCommAmtOrd = r.GetOrdinal("EventPlatformCommissionAmount");
+                if (!r.IsDBNull(eCommAmtOrd)) b.EventPlatformCommissionAmount = r.GetDecimal(eCommAmtOrd);
+            }
+            catch { }
+
+            try
+            {
+                int eMgrPayoutOrd = r.GetOrdinal("EventManagerPayoutAmount");
+                if (!r.IsDBNull(eMgrPayoutOrd)) b.EventManagerPayoutAmount = r.GetDecimal(eMgrPayoutOrd);
             }
             catch { }
 

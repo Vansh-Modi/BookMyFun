@@ -190,39 +190,88 @@
         @foreach (var p in featured)
         {
             <div class="col">
-                <div class="card h-100 shadow-sm border-0 property-card overflow-hidden">
-                    <div class="position-relative">
-                        <img src="@p.PrimaryImageUrl" class="card-img-top" style="height: 240px; object-fit: cover;" alt="@p.Title" loading="lazy" decoding="async" onerror="this.src='/images/placeholder.jpg';" />
-                        <span class="badge bg-dark bg-opacity-75 text-white position-absolute top-0 start-0 m-3 px-2 py-1" style="backdrop-filter: blur(4px);">
-                            @p.PropertyTypeName
+                <div class="property-card h-100">
+                    <!-- Property Image with Type & Verified Badges -->
+                    <div class="property-card-img-wrap">
+                        <img src="@p.PrimaryImageUrl" alt="@p.Title" loading="lazy" decoding="async" onerror="this.src='/images/placeholder.jpg';" />
+                        
+                        <!-- Cottage / Type Badge (top-left) -->
+                        <span class="property-badge-type">
+                            @(string.IsNullOrWhiteSpace(p.PropertyTypeName) ? "Cottage" : p.PropertyTypeName)
                         </span>
-                        <span class="badge bg-warning text-dark position-absolute top-0 end-0 m-3 px-2 py-1 fw-bold shadow-sm">
+
+                        <!-- 100% Verified Badge (top-right) -->
+                        <span class="property-badge-verified">
                             <i class="bi bi-patch-check-fill text-success"></i> 100% Verified
                         </span>
                     </div>
-                    <div class="card-body p-4 d-flex flex-direction-column justify-content-between">
-                        <div>
-                            <h3 class="card-title fw-bold mb-1 fs-5">@p.Title</h3>
-                            <p class="text-muted small mb-3">
-                                <i class="bi bi-geo-alt-fill text-danger me-1"></i>@p.Location
-                            </p>
-                            
-                            <div class="d-flex justify-content-between align-items-center mb-3 pt-2 border-top">
-                                <span class="text-muted small">
-                                    <i class="bi bi-people-fill text-primary me-1"></i> Up to @p.MaxGuests Guests
-                                </span>
-                                <span class="fw-bold fs-5 text-primary">
-                                    ₹@p.PricePerNight.ToString("N0") <small class="text-muted fs-6 fw-normal">/ night</small>
-                                </span>
+
+                    <!-- Card Body: Left Column (Name, Location, Guests) & Right Column (Amenities, Price) -->
+                    <div class="property-card-body">
+                        <div class="row g-2 align-items-start mb-3">
+                            <!-- Left: Name, Location, Guests -->
+                            <div class="col-7 pe-1">
+                                <h3 class="property-title text-truncate" title="@p.Title">
+                                    <a asp-controller="Properties" asp-action="Details" asp-route-id="@p.PropertyID">
+                                        @p.Title
+                                    </a>
+                                </h3>
+
+                                <div class="property-meta-row mb-2 text-truncate" title="@p.Location">
+                                    <i class="bi bi-geo-alt-fill text-danger property-meta-icon"></i>
+                                    <span class="text-truncate">@p.Location</span>
+                                </div>
+
+                                <div class="property-meta-row fw-medium text-truncate">
+                                    <i class="bi bi-people-fill text-primary property-meta-icon"></i>
+                                    <span>Up to @p.MaxGuests Guests</span>
+                                </div>
+                            </div>
+
+                            <!-- Right: Amenities (top) & Price (bottom) -->
+                            <div class="col-5 ps-1 text-end d-flex flex-column justify-content-between align-items-end" style="min-height: 82px;">
+                                <!-- Some Amenities (top-right) -->
+                                <div class="d-flex flex-wrap justify-content-end gap-1 mb-2">
+                                    @if (p.Amenities != null && p.Amenities.Any())
+                                    {
+                                        @foreach (var am in p.Amenities.Take(2))
+                                        {
+                                            <span class="property-amenity-pill" title="@am.AmenityName">
+                                                <i class="bi @am.IconClass text-primary"></i>
+                                                <span class="d-none d-sm-inline">@am.AmenityName</span>
+                                            </span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="property-amenity-pill" title="Private Pool">
+                                            <i class="bi bi-water text-primary"></i>
+                                            <span class="d-none d-sm-inline">Pool</span>
+                                        </span>
+                                        <span class="property-amenity-pill" title="WiFi">
+                                            <i class="bi bi-wifi text-secondary"></i>
+                                            <span class="d-none d-sm-inline">WiFi</span>
+                                        </span>
+                                    }
+                                </div>
+
+                                <!-- Price (bottom-right) -->
+                                <div class="text-end mt-auto">
+                                    <div class="property-price-tag">
+                                        ₹@p.PricePerNight.ToString("N0")
+                                    </div>
+                                    <div class="property-price-period">/ night</div>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="d-grid gap-2 mt-2">
-                            <a asp-controller="Properties" asp-action="Details" asp-route-id="@p.PropertyID" class="dash-btn dash-btn-outline justify-content-center">
-                                View Details &amp; Amenities
+                        <!-- Card Action Buttons -->
+                        <div class="property-card-footer">
+                            <a asp-controller="Properties" asp-action="Details" asp-route-id="@p.PropertyID" class="btn btn-sm btn-outline-secondary rounded-pill flex-fill fw-semibold">
+                                View Details
                             </a>
-                            <a asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@p.PropertyID" class="dash-btn dash-btn-accent justify-content-center">
-                                Book Flexible Slot
+                            <a asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@p.PropertyID" class="btn btn-sm btn-warning rounded-pill flex-fill fw-bold shadow-sm">
+                                <i class="bi bi-calendar-check me-1"></i> Book Slot
                             </a>
                         </div>
                     </div>

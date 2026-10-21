@@ -549,63 +549,88 @@
             @foreach (var p in Model)
             {
             <div class="col">
-                <!-- Luxury Villa Card: 16px rounded corners, 1px solid #E2E8F0, soft ambient shadow -->
-                <div class="luxe-card">
-                    <!-- Image Container: overflow hidden, 16px rounded top, smooth scale(1.03) hover micro-interaction -->
-                    <div class="luxe-img-container">
+                <div class="property-card h-100">
+                    <!-- Property Image with Type & Verified Badges -->
+                    <div class="property-card-img-wrap">
                         <img src="@p.PrimaryImageUrl" alt="@p.Title" loading="lazy" decoding="async" onerror="this.src='/images/placeholder.jpg';" />
                         
-                        <!-- Subtle Category Badge/Pill (Palm Green: #2E933C) -->
-                        <span class="luxe-card-badge">
-                            @p.PropertyTypeName
+                        <!-- Cottage / Type Badge (top-left) -->
+                        <span class="property-badge-type">
+                            @(string.IsNullOrWhiteSpace(p.PropertyTypeName) ? "Cottage" : p.PropertyTypeName)
                         </span>
 
-                        <!-- Rating Badge with Warm Gold (#F59E0B) Star -->
-                        <div class="luxe-card-rating">
-                            <i class="bi bi-star-fill" style="color: var(--brand-gold);"></i>
-                            <span>4.95</span>
-                        </div>
+                        <!-- 100% Verified Badge (top-right) -->
+                        <span class="property-badge-verified">
+                            <i class="bi bi-patch-check-fill text-success"></i> 100% Verified
+                        </span>
                     </div>
 
-                    <!-- Card Body: Generous padding, typography hierarchy -->
-                    <div class="luxe-card-body">
-                        <!-- Muted Secondary Location Metadata (#64748B) -->
-                        <div class="luxe-meta-location">
-                            <i class="bi bi-geo-alt-fill" style="color: var(--brand-sky);"></i>
-                            <span>@p.Location</span>
+                    <!-- Card Body: Left Column (Name, Location, Guests) & Right Column (Amenities, Price) -->
+                    <div class="property-card-body">
+                        <div class="row g-2 align-items-start mb-3">
+                            <!-- Left: Name, Location, Guests -->
+                            <div class="col-7 pe-1">
+                                <h3 class="property-title text-truncate" title="@p.Title">
+                                    <a asp-action="Details" asp-route-id="@p.PropertyID">
+                                        @p.Title
+                                    </a>
+                                </h3>
+
+                                <div class="property-meta-row mb-2 text-truncate" title="@p.Location">
+                                    <i class="bi bi-geo-alt-fill text-danger property-meta-icon"></i>
+                                    <span class="text-truncate">@p.Location</span>
+                                </div>
+
+                                <div class="property-meta-row fw-medium text-truncate">
+                                    <i class="bi bi-people-fill text-primary property-meta-icon"></i>
+                                    <span>Up to @p.MaxGuests Guests</span>
+                                </div>
+                            </div>
+
+                            <!-- Right: Amenities (top) & Price (bottom) -->
+                            <div class="col-5 ps-1 text-end d-flex flex-column justify-content-between align-items-end" style="min-height: 82px;">
+                                <!-- Some Amenities (top-right) -->
+                                <div class="d-flex flex-wrap justify-content-end gap-1 mb-2">
+                                    @if (p.Amenities != null && p.Amenities.Any())
+                                    {
+                                        @foreach (var am in p.Amenities.Take(2))
+                                        {
+                                            <span class="property-amenity-pill" title="@am.AmenityName">
+                                                <i class="bi @am.IconClass text-primary"></i>
+                                                <span class="d-none d-sm-inline">@am.AmenityName</span>
+                                            </span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="property-amenity-pill" title="Private Pool">
+                                            <i class="bi bi-water text-primary"></i>
+                                            <span class="d-none d-sm-inline">Pool</span>
+                                        </span>
+                                        <span class="property-amenity-pill" title="WiFi">
+                                            <i class="bi bi-wifi text-secondary"></i>
+                                            <span class="d-none d-sm-inline">WiFi</span>
+                                        </span>
+                                    }
+                                </div>
+
+                                <!-- Price (bottom-right) -->
+                                <div class="text-end mt-auto">
+                                    <div class="property-price-tag">
+                                        ₹@p.PricePerNight.ToString("N0")
+                                    </div>
+                                    <div class="property-price-period">/ night</div>
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- Bold Heading with Tight Letter-Spacing (-0.02em), Deep Navy (#0B4F6C) -->
-                        <h2 class="luxe-card-heading">
-                            @p.Title
-                        </h2>
-
-                        <!-- Muted Secondary Capacity / Amenities Metadata (#64748B) -->
-                        <div class="luxe-amenity-strip">
-                            <span class="luxe-amenity-item">
-                                <i class="bi bi-people"></i> Up to @p.MaxGuests Guests
-                            </span>
-                            <span class="luxe-amenity-item" style="color: var(--brand-green);">
-                                <i class="bi bi-patch-check-fill"></i> Verified Host
-                            </span>
-                        </div>
-
-                        <!-- Subtle Hairline Divider -->
-                        <hr class="luxe-hairline" />
-
-                        <!-- Pricing Section -->
-                        <div class="luxe-pricing-box">
-                            <span class="luxe-price-figure">₹@p.PricePerNight.ToString("N0")</span>
-                            <span class="luxe-price-period">/ night</span>
-                        </div>
-
-                        <!-- Actions: Deep Navy Primary Button, Subtle Outline Secondary -->
-                        <div class="luxe-card-actions">
-                            <a asp-action="Details" asp-route-id="@p.PropertyID" class="luxe-btn-secondary">
+                        <!-- Card Action Buttons -->
+                        <div class="property-card-footer">
+                            <a asp-action="Details" asp-route-id="@p.PropertyID" class="btn btn-sm btn-outline-secondary rounded-pill flex-fill fw-semibold">
                                 View Details
                             </a>
-                            <a asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@p.PropertyID" class="luxe-btn-primary">
-                                <i class="bi bi-calendar2-check"></i> Book Slot
+                            <a asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@p.PropertyID" class="btn btn-sm btn-warning rounded-pill flex-fill fw-bold shadow-sm">
+                                <i class="bi bi-calendar-check me-1"></i> Book Slot
                             </a>
                         </div>
                     </div>

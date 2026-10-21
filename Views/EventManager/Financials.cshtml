@@ -30,20 +30,29 @@
 <div class="dash-stat-grid mb-4">
     <div class="dash-stat-card">
         <div class="dash-stat-top">
-            <span class="dash-stat-label">Total Décor Revenue</span>
-            <span class="dash-stat-icon icon-emerald"><i class="bi bi-currency-rupee"></i></span>
+            <span class="dash-stat-label">Gross Décor Billing</span>
+            <span class="dash-stat-icon icon-blue"><i class="bi bi-currency-rupee"></i></span>
         </div>
-        <div class="dash-stat-val text-success">₹@Model.TotalGrossRevenue.ToString("N2")</div>
-        <div class="dash-stat-sub"><i class="bi bi-graph-up text-success me-1"></i>Cumulative value of confirmed setups</div>
+        <div class="dash-stat-val text-dark">₹@Model.TotalGrossRevenue.ToString("N2")</div>
+        <div class="dash-stat-sub"><i class="bi bi-graph-up text-primary me-1"></i>Cumulative value of confirmed setups</div>
+    </div>
+
+    <div class="dash-stat-card">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Platform Commission</span>
+            <span class="dash-stat-icon icon-rose"><i class="bi bi-percent"></i></span>
+        </div>
+        <div class="dash-stat-val text-danger">-₹@Model.TotalPlatformCommission.ToString("N2")</div>
+        <div class="dash-stat-sub"><i class="bi bi-shield-shaded text-danger me-1"></i>Platform standard / custom fee levied</div>
     </div>
 
     <div class="dash-stat-card">
         <div class="dash-stat-top">
             <span class="dash-stat-label">Settled &amp; Disbursed</span>
-            <span class="dash-stat-icon icon-blue"><i class="bi bi-check-circle-fill"></i></span>
+            <span class="dash-stat-icon icon-emerald"><i class="bi bi-check-circle-fill"></i></span>
         </div>
-        <div class="dash-stat-val text-primary">₹@Model.TotalSettledEarnings.ToString("N2")</div>
-        <div class="dash-stat-sub"><i class="bi bi-shield-check text-primary me-1"></i>Released for completed &amp; inspected jobs</div>
+        <div class="dash-stat-val text-success">₹@Model.TotalSettledEarnings.ToString("N2")</div>
+        <div class="dash-stat-sub"><i class="bi bi-shield-check text-success me-1"></i>Released for completed &amp; inspected jobs</div>
     </div>
 
     <div class="dash-stat-card">
@@ -53,15 +62,6 @@
         </div>
         <div class="dash-stat-val text-warning">₹@Model.TotalPendingEscrowEarnings.ToString("N2")</div>
         <div class="dash-stat-sub"><i class="bi bi-lock-fill text-warning me-1"></i>Guaranteed funds held in escrow</div>
-    </div>
-
-    <div class="dash-stat-card">
-        <div class="dash-stat-top">
-            <span class="dash-stat-label">Fulfillment Rate</span>
-            <span class="dash-stat-icon icon-emerald"><i class="bi bi-patch-check-fill"></i></span>
-        </div>
-        <div class="dash-stat-val">@Model.CompletedOrdersCount <span class="text-muted fs-6 fw-normal">/ @Model.TotalOrdersCount Setups</span></div>
-        <div class="dash-stat-sub"><i class="bi bi-stars text-warning me-1"></i>Active Staging Jobs: @Model.ActiveJobsCount</div>
     </div>
 </div>
 
@@ -133,8 +133,15 @@
                     {
                         var isSettled = b.SetupStatus == "Completed" || b.SetupStatus == "Inspected";
                         var eventPrice = b.EventPackagePriceSnapshot;
-                        var platformFee = 0.00m; // Platform absorbs fee for decor partners
-                        var netEarnings = eventPrice - platformFee;
+                        var platformFee = b.EventPlatformCommissionAmount > 0 
+                            ? b.EventPlatformCommissionAmount 
+                            : Math.Round((eventPrice * (b.EventCommissionRateSnapshot > 0 ? b.EventCommissionRateSnapshot : 10.0m)) / 100m, 2);
+                        var netEarnings = b.EventManagerPayoutAmount > 0 
+                            ? b.EventManagerPayoutAmount 
+                            : Math.Max(0, eventPrice - platformFee);
+                        var commRate = b.EventCommissionRateSnapshot > 0 
+                            ? b.EventCommissionRateSnapshot 
+                            : (eventPrice > 0 ? Math.Round((platformFee / eventPrice) * 100m, 1) : 0m);
 
                         <tr>
                             <td class="ps-4 fw-bold">
@@ -158,8 +165,15 @@
                             <td class="text-end fw-semibold text-dark">
                                 ₹@eventPrice.ToString("N2")
                             </td>
-                            <td class="text-end small text-muted">
-                                <span class="text-success">₹0.00 (0%)</span>
+                            <td class="text-end small">
+                                @if (platformFee > 0)
+                                {
+                                    <span class="text-danger fw-semibold">-₹@platformFee.ToString("N2") <small class="text-muted">(@commRate.ToString("0.#")%)</small></span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">₹0.00 (0%)</span>
+                                }
                             </td>
                             <td class="text-end fw-bold text-success">
                                 ₹@netEarnings.ToString("N2")
@@ -218,8 +232,8 @@
                         <tr class="fw-bold">
                             <td colspan="4" class="ps-4">Total Filtered Décor Earnings:</td>
                             <td class="text-end text-dark">₹@Model.EventBookings.Sum(s => s.EventPackagePriceSnapshot).ToString("N2")</td>
-                            <td class="text-end text-success">₹0.00</td>
-                            <td class="text-end text-success fs-6">₹@Model.EventBookings.Sum(s => s.EventPackagePriceSnapshot).ToString("N2")</td>
+                            <td class="text-end text-danger">-₹@Model.EventBookings.Sum(s => s.EventPlatformCommissionAmount > 0 ? s.EventPlatformCommissionAmount : Math.Round(s.EventPackagePriceSnapshot * (s.EventCommissionRateSnapshot > 0 ? s.EventCommissionRateSnapshot : 10.0m) / 100m, 2)).ToString("N2")</td>
+                            <td class="text-end text-success fs-6">₹@Model.EventBookings.Sum(s => s.EventManagerPayoutAmount > 0 ? s.EventManagerPayoutAmount : Math.Max(0, s.EventPackagePriceSnapshot - (s.EventPlatformCommissionAmount > 0 ? s.EventPlatformCommissionAmount : Math.Round(s.EventPackagePriceSnapshot * 0.10m, 2)))).ToString("N2")</td>
                             <td colspan="3"></td>
                         </tr>
                     </tfoot>

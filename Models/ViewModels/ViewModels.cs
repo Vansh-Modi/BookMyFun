@@ -84,6 +84,9 @@ namespace BookMyFun.Models.ViewModels
         [Range(0, 100)]
         public decimal? CommissionRate { get; set; }
 
+        [Range(0, 100)]
+        public decimal? EventCommissionRate { get; set; }
+
         public int FreeCancellationWindowHours { get; set; } = 48;
         public int CancellationCutoffHours { get; set; } = 24;
         public string CancellationFeeType { get; set; } = "percentage";
@@ -114,6 +117,8 @@ namespace BookMyFun.Models.ViewModels
         public List<AmenityMaster> AvailableAmenities { get; set; } = new();
         public List<PropertyMedia> ExistingMedia { get; set; } = new();
         public List<User> AvailableOwners { get; set; } = new();
+        public List<PropertyEventCommission> PropertyEventCommissions { get; set; } = new();
+        public List<EventPackage> AvailableEventPackages { get; set; } = new();
     }
 
     public class BookingCheckoutViewModel
@@ -146,6 +151,7 @@ namespace BookMyFun.Models.ViewModels
         public bool IsEventBooking { get; set; }
         public int? EventPackageID { get; set; }
         public string? CustomEventNotes { get; set; }
+        public bool IsEventServiceAvailable { get; set; }
 
         // Lookups
         public List<Occasion> AvailableOccasions { get; set; } = new();
@@ -167,6 +173,7 @@ namespace BookMyFun.Models.ViewModels
         public string Currency { get; set; } = "INR";
         public string OrderId { get; set; } = string.Empty;
         public string KeyId { get; set; } = string.Empty;
+        public bool IsSimulated { get; set; }
         public string ClientName { get; set; } = string.Empty;
         public string ClientEmail { get; set; } = string.Empty;
         public string? ClientPhone { get; set; }
@@ -176,6 +183,23 @@ namespace BookMyFun.Models.ViewModels
         public DateTime CheckOutDate { get; set; }
         public TimeSpan? CheckInTime { get; set; }
         public TimeSpan? CheckOutTime { get; set; }
+    }
+
+    public class SubscriptionPaymentViewModel
+    {
+        public int SubscriptionID { get; set; }
+        public int PlanID { get; set; }
+        public string PlanName { get; set; } = string.Empty;
+        public int DurationInDays { get; set; }
+        public int MaxListings { get; set; }
+        public decimal Amount { get; set; }
+        public string Currency { get; set; } = "INR";
+        public string OrderId { get; set; } = string.Empty;
+        public string KeyId { get; set; } = string.Empty;
+        public bool IsSimulated { get; set; }
+        public string OwnerName { get; set; } = string.Empty;
+        public string OwnerEmail { get; set; } = string.Empty;
+        public string? OwnerPhone { get; set; }
     }
 
     public class AdminDashboardViewModel
@@ -444,6 +468,9 @@ namespace BookMyFun.Models.ViewModels
 
         public string? IncludedItems { get; set; }
 
+        [Range(0, 100)]
+        public decimal? CommissionRate { get; set; }
+
         public bool IsActive { get; set; } = true;
     }
 
@@ -515,6 +542,8 @@ namespace BookMyFun.Models.ViewModels
     {
         public List<Booking> EventBookings { get; set; } = new();
         public decimal TotalGrossRevenue { get; set; }
+        public decimal TotalPlatformCommission { get; set; }
+        public decimal TotalNetEarnings { get; set; }
         public decimal TotalSettledEarnings { get; set; }
         public decimal TotalPendingEscrowEarnings { get; set; }
         public int TotalOrdersCount { get; set; }

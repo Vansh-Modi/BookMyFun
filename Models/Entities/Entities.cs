@@ -11,6 +11,7 @@ namespace BookMyFun.Models.Entities
         public bool IsActive { get; set; } = true;
         public decimal? CustomCommissionRate { get; set; }
         public string SubscriptionTier { get; set; } = "Free"; // 'Free', 'Featured', 'Managed'
+        public string? ServiceAreas { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 
@@ -86,6 +87,7 @@ namespace BookMyFun.Models.Entities
         public decimal PricePerNight { get; set; }
         public decimal SecurityDepositAmount { get; set; } = 0.00m;
         public decimal? CommissionRate { get; set; }
+        public decimal? EventCommissionRate { get; set; }
         public int FreeCancellationWindowHours { get; set; } = 48;
         public int CancellationCutoffHours { get; set; } = 24;
         public string CancellationFeeType { get; set; } = "percentage"; // 'percentage', 'fixed'
@@ -173,6 +175,9 @@ namespace BookMyFun.Models.Entities
         public string? SetupStatus { get; set; } = "Pending"; // 'Pending', 'Assigned', 'InProgress', 'Completed', 'Inspected'
         public string? SetupProofMediaUrls { get; set; } // JSON array or comma separated media links
         public decimal EventPackagePriceSnapshot { get; set; } = 0.00m;
+        public decimal EventCommissionRateSnapshot { get; set; } = 0.00m;
+        public decimal EventPlatformCommissionAmount { get; set; } = 0.00m;
+        public decimal EventManagerPayoutAmount { get; set; } = 0.00m;
 
         // Navigation helpers
         public string? PropertyTitle { get; set; }
@@ -364,10 +369,21 @@ namespace BookMyFun.Models.Entities
         public string? MediaUrl { get; set; }
         public string? IncludedItems { get; set; } // JSON array or comma separated items
         public bool IsActive { get; set; } = true;
+        public decimal? CommissionRate { get; set; }
         public int? CreatedByUserID { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Joined properties
         public string? CreatedByUserName { get; set; }
+    }
+
+    public class PropertyEventCommission
+    {
+        public int PropertyID { get; set; }
+        public int PackageID { get; set; }
+        public decimal CommissionRate { get; set; }
+        public string? PackageName { get; set; }
+        public decimal BasePrice { get; set; }
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     }
 }

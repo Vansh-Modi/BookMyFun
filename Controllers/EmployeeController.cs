@@ -22,6 +22,7 @@ namespace BookMyFun.Controllers
         private readonly IDamageClaimService _damageClaimService;
         private readonly IIdVerificationService _idVerificationService;
         private readonly IMediaStorageService _mediaStorage;
+        private readonly IEventPackageRepository _eventPackageRepo;
 
         public EmployeeController(
             IPropertyRepository propRepo,
@@ -34,7 +35,8 @@ namespace BookMyFun.Controllers
             IPartnerLeadService partnerLeadService,
             IDamageClaimService damageClaimService,
             IIdVerificationService idVerificationService,
-            IMediaStorageService mediaStorage)
+            IMediaStorageService mediaStorage,
+            IEventPackageRepository eventPackageRepo)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -47,6 +49,7 @@ namespace BookMyFun.Controllers
             _damageClaimService = damageClaimService;
             _idVerificationService = idVerificationService;
             _mediaStorage = mediaStorage;
+            _eventPackageRepo = eventPackageRepo;
         }
 
         public async Task<IActionResult> Index()
@@ -152,7 +155,8 @@ namespace BookMyFun.Controllers
                 AvailableTypes = await _propRepo.GetPropertyTypesAsync(),
                 AvailableOccasions = await _propRepo.GetOccasionsAsync(),
                 AvailableAmenities = await _propRepo.GetAllAmenitiesAsync(),
-                AvailableOwners = await _userRepo.GetUsersByRoleAsync("Owner")
+                AvailableOwners = await _userRepo.GetUsersByRoleAsync("Owner"),
+                AvailableEventPackages = await _eventPackageRepo.GetActivePackagesAsync()
             };
             return View(vm);
         }
@@ -174,6 +178,7 @@ namespace BookMyFun.Controllers
                 PricePerNight = vm.PricePerNight,
                 SecurityDepositAmount = vm.SecurityDepositAmount,
                 CommissionRate = vm.CommissionRate,
+                EventCommissionRate = vm.EventCommissionRate,
                 FreeCancellationWindowHours = vm.FreeCancellationWindowHours,
                 CancellationCutoffHours = vm.CancellationCutoffHours,
                 CancellationFeeType = vm.CancellationFeeType,
@@ -186,6 +191,21 @@ namespace BookMyFun.Controllers
             };
 
             var propId = await _propRepo.CreatePropertyAsync(prop);
+
+            // Persist per-package custom event commissions if set
+            if (propId > 0 && Request.Form.Keys.Any(k => k.StartsWith("pkgComm_")))
+            {
+                var commList = new List<(int packageId, decimal rate)>();
+                foreach (var key in Request.Form.Keys.Where(k => k.StartsWith("pkgComm_")))
+                {
+                    var pkgIdStr = key.Substring("pkgComm_".Length);
+                    if (int.TryParse(pkgIdStr, out int pkgId) && decimal.TryParse(Request.Form[key], out decimal rate) && rate >= 0)
+                    {
+                        commList.Add((pkgId, rate));
+                    }
+                }
+                await _propRepo.SetPropertyEventCommissionsAsync(propId, commList);
+            }
             if (!string.IsNullOrEmpty(vm.ImageUrlInput))
             {
                 await _propRepo.AddPropertyImageAsync(propId, vm.ImageUrlInput, true);
@@ -249,6 +269,7 @@ namespace BookMyFun.Controllers
                 PricePerNight = prop.PricePerNight,
                 SecurityDepositAmount = prop.SecurityDepositAmount,
                 CommissionRate = prop.CommissionRate,
+                EventCommissionRate = prop.EventCommissionRate,
                 FreeCancellationWindowHours = prop.FreeCancellationWindowHours,
                 CancellationCutoffHours = prop.CancellationCutoffHours,
                 CancellationFeeType = prop.CancellationFeeType,
@@ -263,7 +284,9 @@ namespace BookMyFun.Controllers
                 AvailableTypes = await _propRepo.GetPropertyTypesAsync(),
                 AvailableOccasions = await _propRepo.GetOccasionsAsync(),
                 AvailableAmenities = await _propRepo.GetAllAmenitiesAsync(),
-                AvailableOwners = await _userRepo.GetUsersByRoleAsync("Owner")
+                AvailableOwners = await _userRepo.GetUsersByRoleAsync("Owner"),
+                PropertyEventCommissions = await _propRepo.GetPropertyEventCommissionsAsync(id),
+                AvailableEventPackages = await _eventPackageRepo.GetActivePackagesAsync()
             };
             return View(vm);
         }
@@ -286,6 +309,7 @@ namespace BookMyFun.Controllers
                 PricePerNight = vm.PricePerNight,
                 SecurityDepositAmount = vm.SecurityDepositAmount,
                 CommissionRate = vm.CommissionRate,
+                EventCommissionRate = vm.EventCommissionRate,
                 FreeCancellationWindowHours = vm.FreeCancellationWindowHours,
                 CancellationCutoffHours = vm.CancellationCutoffHours,
                 CancellationFeeType = vm.CancellationFeeType,
@@ -297,6 +321,21 @@ namespace BookMyFun.Controllers
             };
 
             await _propRepo.UpdatePropertyAsync(prop);
+
+            // Persist per-package custom event commissions if set
+            if (Request.Form.Keys.Any(k => k.StartsWith("pkgComm_")))
+            {
+                var commList = new List<(int packageId, decimal rate)>();
+                foreach (var key in Request.Form.Keys.Where(k => k.StartsWith("pkgComm_")))
+                {
+                    var pkgIdStr = key.Substring("pkgComm_".Length);
+                    if (int.TryParse(pkgIdStr, out int pkgId) && decimal.TryParse(Request.Form[key], out decimal rate) && rate >= 0)
+                    {
+                        commList.Add((pkgId, rate));
+                    }
+                }
+                await _propRepo.SetPropertyEventCommissionsAsync(vm.PropertyID, commList);
+            }
 
             if (!string.IsNullOrEmpty(vm.ImageUrlInput))
             {

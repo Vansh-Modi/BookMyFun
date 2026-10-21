@@ -37,8 +37,8 @@
                     <form asp-action="Subscribe" method="post">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="planId" value="@plan.PlanID" />
-                        <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
-                            <i class="bi bi-credit-card"></i> Subscribe via Razorpay
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold shadow-sm">
+                            <i class="bi bi-credit-card-fill me-1"></i> Subscribe via Razorpay
                         </button>
                     </form>
                 </div>
@@ -46,3 +46,84 @@
         </div>
     }
 </div>
+
+@{
+    var history = ViewBag.History as List<BookMyFun.Models.Entities.OwnerSubscription>;
+}
+@if (history != null && history.Any())
+{
+    <div class="card shadow-sm border-0 rounded-4 mt-5">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0"><i class="bi bi-clock-history text-primary me-2"></i> Subscription &amp; Payment History</h5>
+            <span class="badge bg-light text-dark border">@history.Count Records</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Subscription Ref</th>
+                        <th>Plan Name</th>
+                        <th>Billing Cycle</th>
+                        <th>Payment Status</th>
+                        <th>Razorpay Ref</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in history)
+                    {
+                        <tr>
+                            <td class="fw-bold">#@item.SubscriptionID</td>
+                            <td>
+                                <span class="fw-semibold">@item.PlanName</span>
+                            </td>
+                            <td class="small text-muted">
+                                @item.StartDate.ToString("MMM dd, yyyy") &rarr; @item.EndDate.ToString("MMM dd, yyyy")
+                            </td>
+                            <td>
+                                @if (item.PaymentStatus == "Paid")
+                                {
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1 rounded-pill">
+                                        <i class="bi bi-check-circle-fill me-1"></i> Paid
+                                    </span>
+                                }
+                                else if (item.PaymentStatus == "Pending")
+                                {
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-1 rounded-pill">
+                                        <i class="bi bi-hourglass-split me-1"></i> Pending
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary px-3 py-1 rounded-pill">@item.PaymentStatus</span>
+                                }
+                            </td>
+                            <td class="small">
+                                @if (!string.IsNullOrWhiteSpace(item.GatewayTransactionID))
+                                {
+                                    <code>@item.GatewayTransactionID</code>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">&mdash;</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                @if (item.PaymentStatus == "Pending")
+                                {
+                                    <a asp-action="SubscriptionPayment" asp-route-id="@item.SubscriptionID" class="btn btn-sm btn-primary fw-bold">
+                                        <i class="bi bi-shield-check me-1"></i> Pay with Razorpay
+                                    </a>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small"><i class="bi bi-shield-lock-fill text-success"></i> Active</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

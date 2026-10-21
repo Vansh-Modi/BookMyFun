@@ -315,4 +315,321 @@ public class UnitTest1
         Assert.True(BookMyFun.Controllers.AccountController.VerifyPassword("Client@123", fetched.PasswordHash));
     }
 
+    [Fact]
+    public async Task Razorpay_OwnerSubscriptionPaymentWorkflow_TransitionsToPaid()
+    {
+        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
+        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
+        config["Razorpay:KeyId"] = "rzp_test_owner_sub";
+        config["Razorpay:KeySecret"] = "owner_secret_456_test";
+
+        var db = new BookMyFun.Data.DBHelper(config);
+        var subRepo = new BookMyFun.Repositories.SubscriptionRepository(db);
+        var configRepo = new BookMyFun.Repositories.ConfigRepository(db);
+        var userRepo = new BookMyFun.Repositories.UserRepository(db);
+        var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<BookMyFun.Services.RazorpayPaymentService>.Instance;
+        var rzpService = new BookMyFun.Services.RazorpayPaymentService(configRepo, config, logger);
+
+        // 1. Ensure test owner exists
+        string ownerEmail = $"test_sub_owner_{Guid.NewGuid():N}[..8]@bookmyfun.test";
+        var ownerUser = new BookMyFun.Models.Entities.User
+        {
+            FullName = "Test Subscription Owner",
+            Email = ownerEmail,
+            PasswordHash = BookMyFun.Controllers.AccountController.HashPassword("Owner@123"),
+            Role = "Owner",
+            IsActive = true
+        };
+        int ownerId = await userRepo.CreateUserAsync(ownerUser);
+        Assert.True(ownerId > 0);
+
+        // 2. Fetch or create plan
+        var plans = await subRepo.GetAllPlansAsync();
+        var plan = plans.FirstOrDefault();
+        if (plan == null)
+        {
+            int planId = await subRepo.CreatePlanAsync(new BookMyFun.Models.Entities.SubscriptionPlan
+            {
+                PlanName = "Starter Partner Plan",
+                Price = 2999m,
+                DurationInDays = 30,
+                MaxListings = 3,
+                IsActive = true
+            });
+            plan = await subRepo.GetPlanByIdAsync(planId);
+        }
+        Assert.NotNull(plan);
+
+        // 3. Initiate Pending Subscription
+        var sub = new BookMyFun.Models.Entities.OwnerSubscription
+        {
+            OwnerID = ownerId,
+            PlanID = plan.PlanID,
+            StartDate = DateTime.UtcNow,
+            EndDate = DateTime.UtcNow.AddDays(plan.DurationInDays),
+            PaymentStatus = "Pending",
+            GatewayTransactionID = null
+        };
+        int subId = await subRepo.SubscribeOwnerAsync(sub);
+        Assert.True(subId > 0);
+
+        // 4. Create Razorpay Order
+        var order = await rzpService.CreateOrderAsync(plan.Price, $"sub_{ownerId}_{plan.PlanID}_{subId}");
+        Assert.NotNull(order);
+        Assert.StartsWith("order_", order.OrderId);
+
+        // 5. Simulate Payment Verification
+        string paymentId = $"pay_test_{Guid.NewGuid():N}"[..18];
+        string payload = $"{order.OrderId}|{paymentId}";
+        using var hmac = new System.Security.Cryptography.HMACSHA256(System.Text.Encoding.UTF8.GetBytes("owner_secret_456_test"));
+        var hash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(payload));
+        var validSig = BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+
+        bool isValid = await rzpService.VerifyPaymentSignatureAsync(order.OrderId, paymentId, validSig);
+        Assert.True(isValid);
+
+        // 6. Update to Paid
+        bool updated = await subRepo.UpdateSubscriptionPaymentStatusAsync(subId, "Paid", $"RAZORPAY_{paymentId}");
+        Assert.True(updated);
+
+        var activeSub = await subRepo.GetSubscriptionByIdAsync(subId);
+        Assert.NotNull(activeSub);
+        Assert.Equal("Paid", activeSub.PaymentStatus);
+        Assert.Equal($"RAZORPAY_{paymentId}", activeSub.GatewayTransactionID);
+    }
+
+    [Fact]
+    public async Task EventManager_ServiceAreas_SaveAndCheckServicedArea()
+    {
+        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
+        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
+        var db = new BookMyFun.Data.DBHelper(config);
+
+        var eventRepo = new BookMyFun.Repositories.EventPackageRepository(db);
+        var userRepo = new BookMyFun.Repositories.UserRepository(db);
+
+        // 1. Ensure an EventManager user exists
+        var managers = await userRepo.GetUsersByRoleAsync("EventManager");
+        int managerId;
+        if (managers.Any())
+        {
+            managerId = managers.First().UserID;
+        }
+        else
+        {
+            managerId = await userRepo.CreateUserAsync(new BookMyFun.Models.Entities.User
+            {
+                FullName = "Test Event Manager",
+                Email = $"eventmgr_{Guid.NewGuid():N}@bookmyfun.com",
+                PasswordHash = "hashed_pass",
+                Role = "EventManager",
+                Phone = "9998887776",
+                IsActive = true
+            });
+        }
+
+        Assert.True(managerId > 0);
+
+        // 2. Fetch distinct property locations from DB
+        var locations = await eventRepo.GetAllDistinctPropertyLocationsAsync();
+        Assert.NotNull(locations);
+
+        // 3. Update service areas for this manager
+        string testAreas = "Lonavala, Maharashtra; Khandala, Maharashtra";
+        bool updated = await eventRepo.UpdateEventManagerServiceAreasAsync(managerId, testAreas);
+        Assert.True(updated);
+
+        // 4. Retrieve service areas
+        string retrieved = await eventRepo.GetEventManagerServiceAreasAsync(managerId);
+        Assert.Contains("Lonavala, Maharashtra", retrieved);
+
+        // 5. Test IsAreaServicedByAnyEventManagerAsync
+        bool isServicedLonavala = await eventRepo.IsAreaServicedByAnyEventManagerAsync("Lonavala, Maharashtra");
+        Assert.True(isServicedLonavala);
+
+        bool isServicedPartial = await eventRepo.IsAreaServicedByAnyEventManagerAsync("Lonavala");
+        Assert.True(isServicedPartial);
+
+        bool isServicedNonExistent = await eventRepo.IsAreaServicedByAnyEventManagerAsync("CompletelyUnknownCity9999");
+        Assert.False(isServicedNonExistent);
+    }
+
+    [Fact]
+    public async Task EventManager_CancelOrRemoveEventFromBooking_PreservesBooking()
+    {
+        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
+        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
+        var db = new BookMyFun.Data.DBHelper(config);
+
+        var eventRepo = new BookMyFun.Repositories.EventPackageRepository(db);
+        var bookingRepo = new BookMyFun.Repositories.BookingRepository(db);
+
+        // 1. Fetch an existing booking or check bookings table
+        var allBookings = await bookingRepo.GetAllBookingsAsync();
+        if (allBookings.Any())
+        {
+            var targetBooking = allBookings.First();
+
+            // Setup the booking with an event
+            await db.ExecuteNonQueryAsync(@"
+                UPDATE Bookings 
+                SET IsEventBooking = 1, 
+                    EventPackagePriceSnapshot = 4500, 
+                    SetupStatus = 'Pending' 
+                WHERE BookingID = @BookingID", 
+                new Microsoft.Data.SqlClient.SqlParameter("@BookingID", targetBooking.BookingID));
+
+            // Call delete / remove
+            bool removed = await eventRepo.CancelOrRemoveEventFromBookingAsync(targetBooking.BookingID);
+            Assert.True(removed);
+
+            // Fetch and verify booking stay is still present, but event details cleared
+            var updatedBooking = await bookingRepo.GetBookingByIdAsync(targetBooking.BookingID);
+            Assert.NotNull(updatedBooking);
+            Assert.False(updatedBooking.IsEventBooking);
+            Assert.Null(updatedBooking.EventPackageID);
+            Assert.Equal("Cancelled", updatedBooking.SetupStatus);
+        }
+    }
+
+    [Fact]
+    public async Task EventCommission_StandardAndCustomOverrides_PrecedenceHierarchy()
+    {
+        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
+        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
+        var db = new BookMyFun.Data.DBHelper(config);
+
+        var configRepo = new BookMyFun.Repositories.ConfigRepository(db);
+        var userRepo = new BookMyFun.Repositories.UserRepository(db);
+        var propRepo = new BookMyFun.Repositories.PropertyRepository(db);
+        var eventRepo = new BookMyFun.Repositories.EventPackageRepository(db);
+
+        var commissionService = new BookMyFun.Services.CommissionService(configRepo, userRepo, propRepo, eventRepo);
+
+        // 1. Standard Commission (Global default or set in config)
+        decimal packagePrice = 20000m;
+        var (rateStd, commStd, payoutStd) = await commissionService.CalculateEventCommissionAsync(
+            packagePrice, propertyId: 0, packageId: null, propertyEventCommissionOverride: null);
+
+        Assert.Equal(10.0m, rateStd);
+        Assert.Equal(2000.00m, commStd);
+        Assert.Equal(18000.00m, payoutStd);
+        Assert.Equal(packagePrice, commStd + payoutStd);
+
+        // 2. Property-level Event Commission Override (e.g. 15%)
+        var (rateProp, commProp, payoutProp) = await commissionService.CalculateEventCommissionAsync(
+            packagePrice, propertyId: 0, packageId: null, propertyEventCommissionOverride: 15.0m);
+
+        Assert.Equal(15.0m, rateProp);
+        Assert.Equal(3000.00m, commProp);
+        Assert.Equal(17000.00m, payoutProp);
+        Assert.Equal(packagePrice, commProp + payoutProp);
+
+        // 3. Property-specific Event Package Override in PropertyEventCommissions
+        var properties = await propRepo.GetAllPropertiesAsync();
+        var packages = await eventRepo.GetActivePackagesAsync();
+        if (properties.Any() && packages.Any())
+        {
+            var testProp = properties.First();
+            var testPkg = packages.First();
+
+            // Set custom 25% commission specifically for this package on this property
+            await propRepo.SetPropertyEventCommissionsAsync(testProp.PropertyID, new List<(int, decimal)>
+            {
+                (testPkg.PackageID, 25.0m)
+            });
+
+            // Calculate commission: should resolve to 25.0% even if property has a 12% default
+            var (rateCust, commCust, payoutCust) = await commissionService.CalculateEventCommissionAsync(
+                packagePrice, testProp.PropertyID, testPkg.PackageID, propertyEventCommissionOverride: 12.0m);
+
+            Assert.Equal(25.0m, rateCust);
+            Assert.Equal(5000.00m, commCust);
+            Assert.Equal(15000.00m, payoutCust);
+            Assert.Equal(packagePrice, commCust + payoutCust);
+
+            // Clean up custom commission
+            await propRepo.SetPropertyEventCommissionsAsync(testProp.PropertyID, new List<(int, decimal)>());
+        }
+    }
+
+    [Fact]
+    public async Task EventCommission_BookingCreation_AccurateSnapshotAndNetPayouts()
+    {
+        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
+        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
+        var db = new BookMyFun.Data.DBHelper(config);
+
+        var bookingRepo = new BookMyFun.Repositories.BookingRepository(db);
+        var propRepo = new BookMyFun.Repositories.PropertyRepository(db);
+        var userRepo = new BookMyFun.Repositories.UserRepository(db);
+        var eventRepo = new BookMyFun.Repositories.EventPackageRepository(db);
+
+        var properties = await propRepo.GetAllPropertiesAsync();
+        var clients = await userRepo.GetUsersByRoleAsync("Client");
+        var packages = await eventRepo.GetActivePackagesAsync();
+
+        if (properties.Any() && clients.Any() && packages.Any())
+        {
+            var prop = properties.First();
+            var client = clients.First();
+            var pkg = packages.First();
+
+            decimal propertyStay = 15000m;
+            decimal eventPrice = 10000m;
+            decimal totalAmount = propertyStay + eventPrice;
+
+            // Host: 10% stay commission (1500) -> 13500 payout
+            decimal stayCommRate = 10.0m;
+            decimal stayComm = 1500m;
+            decimal hostPayout = 13500m;
+
+            // Event: 12% event commission (1200) -> 8800 decorator payout
+            decimal eventCommRate = 12.0m;
+            decimal eventComm = 1200m;
+            decimal decoratorPayout = 8800m;
+
+            var booking = new BookMyFun.Models.Entities.Booking
+            {
+                PropertyID = prop.PropertyID,
+                ClientID = client.UserID,
+                CheckInDate = DateTime.Today.AddDays(10),
+                CheckOutDate = DateTime.Today.AddDays(12),
+                TotalAmount = totalAmount,
+                Status = "Pending",
+                BookingType = "FullDay",
+                CommissionRateSnapshot = stayCommRate,
+                PlatformCommissionAmount = stayComm,
+                OwnerPayoutAmount = hostPayout,
+                IsEventBooking = true,
+                EventPackageID = pkg.PackageID,
+                EventPackagePriceSnapshot = eventPrice,
+                EventCommissionRateSnapshot = eventCommRate,
+                EventPlatformCommissionAmount = eventComm,
+                EventManagerPayoutAmount = decoratorPayout,
+                SetupStatus = "Pending"
+            };
+
+            int bookingId = await bookingRepo.CreateBookingAsync(booking);
+            Assert.True(bookingId > 0);
+
+            var retrieved = await bookingRepo.GetBookingByIdAsync(bookingId);
+            Assert.NotNull(retrieved);
+            Assert.Equal(totalAmount, retrieved.TotalAmount);
+            Assert.Equal(stayCommRate, retrieved.CommissionRateSnapshot);
+            Assert.Equal(stayComm, retrieved.PlatformCommissionAmount);
+            Assert.Equal(hostPayout, retrieved.OwnerPayoutAmount);
+
+            Assert.True(retrieved.IsEventBooking);
+            Assert.Equal(eventPrice, retrieved.EventPackagePriceSnapshot);
+            Assert.Equal(eventCommRate, retrieved.EventCommissionRateSnapshot);
+            Assert.Equal(eventComm, retrieved.EventPlatformCommissionAmount);
+            Assert.Equal(decoratorPayout, retrieved.EventManagerPayoutAmount);
+
+            // Verify perfect monetary balance: Total = Host Payout + Stay Comm + Decorator Payout + Event Comm
+            decimal totalCalculated = retrieved.OwnerPayoutAmount + retrieved.PlatformCommissionAmount +
+                                      retrieved.EventManagerPayoutAmount + retrieved.EventPlatformCommissionAmount;
+            Assert.Equal(retrieved.TotalAmount, totalCalculated);
+        }
+    }
 }

@@ -6,11 +6,6 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddResponseCompression(options =>
-{
-    options.EnableForHttps = true;
-});
-
 builder.Services.AddControllersWithViews(options =>
 {
     options.Filters.Add<BookMyFun.Services.Filters.GlobalExceptionFilter>();
@@ -90,10 +85,9 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
+    app.UseHttpsRedirection();
 }
 
-app.UseResponseCompression();
-app.UseHttpsRedirection();
 app.UseRouting();
 
 app.UseAuthentication();

@@ -27,6 +27,9 @@ namespace BookMyFun.Repositories
         Task<bool> SetPropertyAmenitiesAsync(int propertyId, List<int> amenityIds);
         Task<List<PropertyType>> GetPropertyTypesAsync();
         Task<List<Occasion>> GetOccasionsAsync();
+        Task<List<PropertyEventCommission>> GetPropertyEventCommissionsAsync(int propertyId);
+        Task<decimal?> GetPropertyEventCommissionRateAsync(int propertyId, int packageId);
+        Task<bool> SetPropertyEventCommissionsAsync(int propertyId, List<(int packageId, decimal commissionRate)> commissions);
     }
 
     public class PropertyRepository : IPropertyRepository
@@ -81,7 +84,9 @@ namespace BookMyFun.Repositories
                 WHERE 1=1 " + (onlyApproved ? " AND p.IsApproved = 1 AND p.ListingStatus = 'Active'" : "") +
                 " ORDER BY p.CreatedAt DESC";
 
-            return await _db.ExecuteReaderListAsync(sql, MapProperty);
+            var properties = await _db.ExecuteReaderListAsync(sql, MapProperty);
+            await PopulateAmenitiesAsync(properties);
+            return properties;
         }
 
         public async Task<List<Property>> GetPropertiesByOwnerIdAsync(int ownerId)
@@ -95,7 +100,9 @@ namespace BookMyFun.Repositories
                 WHERE p.OwnerID = @OwnerID
                 ORDER BY p.CreatedAt DESC";
 
-            return await _db.ExecuteReaderListAsync(sql, MapProperty, new SqlParameter("@OwnerID", ownerId));
+            var properties = await _db.ExecuteReaderListAsync(sql, MapProperty, new SqlParameter("@OwnerID", ownerId));
+            await PopulateAmenitiesAsync(properties);
+            return properties;
         }
 
         public async Task<List<Property>> SearchPropertiesAsync(string? location, int? propertyTypeId, int? occasionId, decimal? minPrice, decimal? maxPrice, int? guests)
@@ -149,7 +156,9 @@ namespace BookMyFun.Repositories
 
             sql += " ORDER BY p.CreatedAt DESC";
 
-            return await _db.ExecuteReaderListAsync(sql, MapProperty, parameters.ToArray());
+            var properties = await _db.ExecuteReaderListAsync(sql, MapProperty, parameters.ToArray());
+            await PopulateAmenitiesAsync(properties);
+            return properties;
         }
 
         public async Task<int> CreatePropertyAsync(Property property)
@@ -157,12 +166,12 @@ namespace BookMyFun.Repositories
             const string sql = @"
                 INSERT INTO Properties 
                 (OwnerID, PropertyTypeID, Title, Description, Location, FormattedAddress, Latitude, Longitude,
-                 PricePerNight, SecurityDepositAmount, CommissionRate, FreeCancellationWindowHours, CancellationCutoffHours,
+                 PricePerNight, SecurityDepositAmount, CommissionRate, EventCommissionRate, FreeCancellationWindowHours, CancellationCutoffHours,
                  CancellationFeeType, CancellationFeeValue, MaxGuests, ListingStatus, IsApproved, IsFeatured, CreatedAt)
                 OUTPUT INSERTED.PropertyID
                 VALUES 
                 (@OwnerID, @PropertyTypeID, @Title, @Description, @Location, @FormattedAddress, @Latitude, @Longitude,
-                 @PricePerNight, @SecurityDepositAmount, @CommissionRate, @FreeCancellationWindowHours, @CancellationCutoffHours,
+                 @PricePerNight, @SecurityDepositAmount, @CommissionRate, @EventCommissionRate, @FreeCancellationWindowHours, @CancellationCutoffHours,
                  @CancellationFeeType, @CancellationFeeValue, @MaxGuests, @ListingStatus, @IsApproved, @IsFeatured, GETDATE())";
 
             var result = await _db.ExecuteScalarAsync(sql,
@@ -177,6 +186,7 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@PricePerNight", property.PricePerNight),
                 new SqlParameter("@SecurityDepositAmount", property.SecurityDepositAmount),
                 new SqlParameter("@CommissionRate", DBHelper.ToDbValue(property.CommissionRate)),
+                new SqlParameter("@EventCommissionRate", DBHelper.ToDbValue(property.EventCommissionRate)),
                 new SqlParameter("@FreeCancellationWindowHours", property.FreeCancellationWindowHours),
                 new SqlParameter("@CancellationCutoffHours", property.CancellationCutoffHours),
                 new SqlParameter("@CancellationFeeType", property.CancellationFeeType ?? "percentage"),
@@ -217,6 +227,7 @@ namespace BookMyFun.Repositories
                     PricePerNight = @PricePerNight,
                     SecurityDepositAmount = @SecurityDepositAmount,
                     CommissionRate = @CommissionRate,
+                    EventCommissionRate = @EventCommissionRate,
                     FreeCancellationWindowHours = @FreeCancellationWindowHours,
                     CancellationCutoffHours = @CancellationCutoffHours,
                     CancellationFeeType = @CancellationFeeType,
@@ -237,6 +248,7 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@PricePerNight", property.PricePerNight),
                 new SqlParameter("@SecurityDepositAmount", property.SecurityDepositAmount),
                 new SqlParameter("@CommissionRate", DBHelper.ToDbValue(property.CommissionRate)),
+                new SqlParameter("@EventCommissionRate", DBHelper.ToDbValue(property.EventCommissionRate)),
                 new SqlParameter("@FreeCancellationWindowHours", property.FreeCancellationWindowHours),
                 new SqlParameter("@CancellationCutoffHours", property.CancellationCutoffHours),
                 new SqlParameter("@CancellationFeeType", property.CancellationFeeType ?? "percentage"),
@@ -454,6 +466,48 @@ namespace BookMyFun.Repositories
             });
         }
 
+        private async Task PopulateAmenitiesAsync(List<Property> properties)
+        {
+            if (properties == null || !properties.Any()) return;
+            try
+            {
+                var ids = properties.Select(p => p.PropertyID).Distinct().ToList();
+                var idListStr = string.Join(",", ids);
+                var sql = $@"
+                    SELECT pam.PropertyID, a.AmenityID, a.AmenityName, a.IconClass, a.Category
+                    FROM AmenitiesMaster a
+                    JOIN PropertyAmenitiesMapping pam ON a.AmenityID = pam.AmenityID
+                    WHERE pam.PropertyID IN ({idListStr})
+                    ORDER BY a.AmenityID";
+
+                var list = await _db.ExecuteReaderListAsync(sql, r => new
+                {
+                    PropertyID = r.GetInt32(0),
+                    Amenity = new AmenityMaster
+                    {
+                        AmenityID = r.GetInt32(1),
+                        AmenityName = r.GetString(2),
+                        IconClass = r.GetString(3),
+                        Category = r.GetString(4)
+                    }
+                });
+
+                var lookup = list.GroupBy(x => x.PropertyID).ToDictionary(g => g.Key, g => g.Select(x => x.Amenity).ToList());
+                foreach (var p in properties)
+                {
+                    if (lookup.TryGetValue(p.PropertyID, out var ams))
+                    {
+                        p.Amenities = ams;
+                        p.AmenityIDs = ams.Select(a => a.AmenityID).ToList();
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback gracefully if mapping table has schema variances
+            }
+        }
+
         private static Property MapProperty(SqlDataReader reader)
         {
             var p = new Property
@@ -503,6 +557,13 @@ namespace BookMyFun.Repositories
             {
                 int commOrd = reader.GetOrdinal("CommissionRate");
                 if (!reader.IsDBNull(commOrd)) p.CommissionRate = reader.GetDecimal(commOrd);
+            }
+            catch { }
+
+            try
+            {
+                int eventCommOrd = reader.GetOrdinal("EventCommissionRate");
+                if (!reader.IsDBNull(eventCommOrd)) p.EventCommissionRate = reader.GetDecimal(eventCommOrd);
             }
             catch { }
 
@@ -561,6 +622,63 @@ namespace BookMyFun.Repositories
             catch { }
 
             return p;
+        }
+
+        public async Task<List<PropertyEventCommission>> GetPropertyEventCommissionsAsync(int propertyId)
+        {
+            const string sql = @"
+                SELECT pec.PropertyID, pec.PackageID, pec.CommissionRate, pec.UpdatedAt,
+                       ep.Name AS PackageName, ep.BasePrice
+                FROM PropertyEventCommissions pec
+                JOIN EventPackages ep ON pec.PackageID = ep.PackageID
+                WHERE pec.PropertyID = @PropertyID
+                ORDER BY ep.Name ASC";
+
+            return await _db.ExecuteReaderListAsync(sql, reader => new PropertyEventCommission
+            {
+                PropertyID = reader.GetInt32(reader.GetOrdinal("PropertyID")),
+                PackageID = reader.GetInt32(reader.GetOrdinal("PackageID")),
+                CommissionRate = reader.GetDecimal(reader.GetOrdinal("CommissionRate")),
+                PackageName = reader.GetString(reader.GetOrdinal("PackageName")),
+                BasePrice = reader.GetDecimal(reader.GetOrdinal("BasePrice")),
+                UpdatedAt = reader.GetDateTime(reader.GetOrdinal("UpdatedAt"))
+            }, new SqlParameter("@PropertyID", propertyId));
+        }
+
+        public async Task<decimal?> GetPropertyEventCommissionRateAsync(int propertyId, int packageId)
+        {
+            const string sql = @"
+                SELECT CommissionRate 
+                FROM PropertyEventCommissions 
+                WHERE PropertyID = @PropertyID AND PackageID = @PackageID";
+
+            var result = await _db.ExecuteScalarAsync(sql, 
+                new SqlParameter("@PropertyID", propertyId),
+                new SqlParameter("@PackageID", packageId));
+
+            return result != null && result != DBNull.Value ? Convert.ToDecimal(result) : null;
+        }
+
+        public async Task<bool> SetPropertyEventCommissionsAsync(int propertyId, List<(int packageId, decimal commissionRate)> commissions)
+        {
+            await _db.ExecuteNonQueryAsync("DELETE FROM PropertyEventCommissions WHERE PropertyID = @PropertyID", 
+                new SqlParameter("@PropertyID", propertyId));
+
+            if (commissions == null || !commissions.Any()) return true;
+
+            foreach (var (packageId, rate) in commissions)
+            {
+                const string sql = @"
+                    INSERT INTO PropertyEventCommissions (PropertyID, PackageID, CommissionRate, UpdatedAt)
+                    VALUES (@PropertyID, @PackageID, @CommissionRate, GETDATE())";
+
+                await _db.ExecuteNonQueryAsync(sql,
+                    new SqlParameter("@PropertyID", propertyId),
+                    new SqlParameter("@PackageID", packageId),
+                    new SqlParameter("@CommissionRate", rate));
+            }
+
+            return true;
         }
     }
 }

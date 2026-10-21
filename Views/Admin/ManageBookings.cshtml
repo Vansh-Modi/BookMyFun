@@ -104,9 +104,14 @@
                             </td>
                             <td>
                                 <div class="fw-bold fs-6 text-success">₹@b.TotalAmount.ToString("N2")</div>
-                                @if (b.PlatformCommissionAmount > 0)
+                                @if (b.PlatformCommissionAmount > 0 || b.EventPlatformCommissionAmount > 0)
                                 {
-                                    <div class="small text-muted">Platform Cut: ₹@b.PlatformCommissionAmount.ToString("N2")</div>
+                                    var totalPlatformCut = b.PlatformCommissionAmount + b.EventPlatformCommissionAmount;
+                                    <div class="small text-muted">Platform Cut: ₹@totalPlatformCut.ToString("N2")</div>
+                                    @if (b.EventPlatformCommissionAmount > 0)
+                                    {
+                                        <div class="text-muted" style="font-size: 0.72rem;">(Stay: ₹@b.PlatformCommissionAmount.ToString("N0") + Event: ₹@b.EventPlatformCommissionAmount.ToString("N0"))</div>
+                                    }
                                 }
                             </td>
                             <td>

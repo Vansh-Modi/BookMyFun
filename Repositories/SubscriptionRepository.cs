@@ -13,6 +13,7 @@ namespace BookMyFun.Repositories
         Task<int> SubscribeOwnerAsync(OwnerSubscription sub);
         Task<OwnerSubscription?> GetActiveSubscriptionByOwnerIdAsync(int ownerId);
         Task<List<OwnerSubscription>> GetSubscriptionHistoryByOwnerIdAsync(int ownerId);
+        Task<OwnerSubscription?> GetSubscriptionByIdAsync(int subscriptionId);
         Task<bool> UpdateSubscriptionPaymentStatusAsync(int subscriptionId, string paymentStatus, string? gatewayTransactionId);
         Task<int> GetActiveListingCountAsync(int ownerId);
         Task<bool> CanOwnerAddPropertyAsync(int ownerId);
@@ -138,6 +139,18 @@ namespace BookMyFun.Repositories
                 ORDER BY os.StartDate DESC";
 
             return await _db.ExecuteReaderListAsync(sql, MapOwnerSub, new SqlParameter("@OwnerID", ownerId));
+        }
+
+        public async Task<OwnerSubscription?> GetSubscriptionByIdAsync(int subscriptionId)
+        {
+            const string sql = @"
+                SELECT os.*, sp.PlanName, u.FullName AS OwnerName
+                FROM OwnerSubscriptions os
+                JOIN SubscriptionPlans sp ON os.PlanID = sp.PlanID
+                JOIN Users u ON os.OwnerID = u.UserID
+                WHERE os.SubscriptionID = @SubscriptionID";
+
+            return await _db.ExecuteReaderSingleAsync(sql, MapOwnerSub, new SqlParameter("@SubscriptionID", subscriptionId));
         }
 
         public async Task<bool> UpdateSubscriptionPaymentStatusAsync(int subscriptionId, string paymentStatus, string? gatewayTransactionId)

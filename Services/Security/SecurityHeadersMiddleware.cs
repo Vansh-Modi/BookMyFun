@@ -24,10 +24,10 @@ namespace BookMyFun.Services.Security
                 "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://maps.googleapis.com https://checkout.razorpay.com; " +
                 "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com; " +
                 "font-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.gstatic.com; " +
-                "img-src 'self' data: https: blob:; " +
+                "img-src 'self' data: https: blob: https://badges.razorpay.com; " +
                 "media-src 'self' https: blob:; " +
-                "connect-src 'self' https://api.razorpay.com https://maps.googleapis.com; " +
-                "frame-src 'self' https://api.razorpay.com https://www.youtube.com https://player.vimeo.com;");
+                "connect-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://lumberjack.razorpay.com https://maps.googleapis.com; " +
+                "frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com https://www.youtube.com https://player.vimeo.com;");
 
             await _next(context);
         }

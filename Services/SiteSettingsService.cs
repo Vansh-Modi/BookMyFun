@@ -22,6 +22,7 @@ namespace BookMyFun.Services
         public string InstagramUrl { get; set; } = "https://instagram.com";
         public string YouTubeUrl { get; set; } = "https://youtube.com";
         public decimal PlatformCommissionPercent { get; set; } = 10.0m;
+        public decimal EventPlatformCommissionPercent { get; set; } = 10.0m;
         public string CurrencySymbol { get; set; } = "₹";
     }
 
@@ -67,6 +68,10 @@ namespace BookMyFun.Services
             {
                 model.PlatformCommissionPercent = cVal;
             }
+            if (dict.TryGetValue("EventPlatformCommissionPercent", out var eComm) && decimal.TryParse(eComm, out var ecVal))
+            {
+                model.EventPlatformCommissionPercent = ecVal;
+            }
 
             lock (_lock)
             {
@@ -92,6 +97,7 @@ namespace BookMyFun.Services
             await _configRepo.SetSettingValueAsync("YouTubeUrl", model.YouTubeUrl ?? "");
             await _configRepo.SetSettingValueAsync("CurrencySymbol", model.CurrencySymbol ?? "₹");
             await _configRepo.SetSettingValueAsync("PlatformCommissionPercent", model.PlatformCommissionPercent.ToString("0.##"));
+            await _configRepo.SetSettingValueAsync("EventPlatformCommissionPercent", model.EventPlatformCommissionPercent.ToString("0.##"));
 
             // Immediately invalidate in-memory cache
             lock (_lock)

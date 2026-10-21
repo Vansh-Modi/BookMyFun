@@ -363,21 +363,96 @@ namespace BookMyFun.Controllers
             var plan = await _subRepo.GetPlanByIdAsync(planId);
             if (plan == null) return NotFound();
 
-            var order = await _paymentService.CreateOrderAsync(plan.Price, $"sub_{ownerId}_{planId}");
-
             var sub = new OwnerSubscription
             {
                 OwnerID = ownerId,
                 PlanID = planId,
                 StartDate = DateTime.UtcNow,
                 EndDate = DateTime.UtcNow.AddDays(plan.DurationInDays),
-                PaymentStatus = "Paid",
-                GatewayTransactionID = order.OrderId
+                PaymentStatus = "Pending",
+                GatewayTransactionID = null
             };
 
-            await _subRepo.SubscribeOwnerAsync(sub);
-            TempData["Success"] = $"Subscribed to {plan.PlanName} successfully!";
-            return RedirectToAction(nameof(Index));
+            var subscriptionId = await _subRepo.SubscribeOwnerAsync(sub);
+            return RedirectToAction(nameof(SubscriptionPayment), new { id = subscriptionId });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> SubscriptionPayment(int id)
+        {
+            var ownerId = GetCurrentUserId();
+            var sub = await _subRepo.GetSubscriptionByIdAsync(id);
+            if (sub == null || sub.OwnerID != ownerId)
+            {
+                return NotFound();
+            }
+
+            if (sub.PaymentStatus == "Paid")
+            {
+                TempData["Info"] = "This subscription has already been activated.";
+                return RedirectToAction(nameof(Subscriptions));
+            }
+
+            var plan = await _subRepo.GetPlanByIdAsync(sub.PlanID);
+            if (plan == null) return NotFound();
+
+            var owner = await _userRepo.GetByIdAsync(ownerId);
+            var order = await _paymentService.CreateOrderAsync(plan.Price, $"sub_{ownerId}_{plan.PlanID}_{sub.SubscriptionID}");
+
+            var vm = new SubscriptionPaymentViewModel
+            {
+                SubscriptionID = sub.SubscriptionID,
+                PlanID = plan.PlanID,
+                PlanName = plan.PlanName,
+                DurationInDays = plan.DurationInDays,
+                MaxListings = plan.MaxListings,
+                Amount = plan.Price,
+                Currency = order.Currency,
+                OrderId = order.OrderId,
+                KeyId = order.KeyId,
+                IsSimulated = order.IsSimulated,
+                OwnerName = owner?.FullName ?? "Property Owner",
+                OwnerEmail = owner?.Email ?? "",
+                OwnerPhone = owner?.Phone
+            };
+
+            return View(vm);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> VerifySubscriptionPayment(int subscriptionId, string razorpay_order_id, string razorpay_payment_id, string razorpay_signature)
+        {
+            var ownerId = GetCurrentUserId();
+            var sub = await _subRepo.GetSubscriptionByIdAsync(subscriptionId);
+            if (sub == null || sub.OwnerID != ownerId)
+            {
+                return NotFound();
+            }
+
+            bool isValid = await _paymentService.VerifyPaymentSignatureAsync(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+            if (!isValid)
+            {
+                TempData["Error"] = "Payment signature verification failed. Please try again or reach our 24/7 helpdesk.";
+                return RedirectToAction(nameof(SubscriptionPayment), new { id = subscriptionId });
+            }
+
+            await _subRepo.UpdateSubscriptionPaymentStatusAsync(subscriptionId, "Paid", $"RAZORPAY_{razorpay_payment_id}");
+            TempData["Success"] = $"Razorpay payment verified successfully! Your subscription to {sub.PlanName} is now active.";
+            return RedirectToAction(nameof(Subscriptions));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CancelSubscriptionOrder(int subscriptionId)
+        {
+            var ownerId = GetCurrentUserId();
+            var sub = await _subRepo.GetSubscriptionByIdAsync(subscriptionId);
+            if (sub != null && sub.OwnerID == ownerId && sub.PaymentStatus == "Pending")
+            {
+                await _subRepo.UpdateSubscriptionPaymentStatusAsync(subscriptionId, "Cancelled", null);
+            }
+            return RedirectToAction(nameof(Subscriptions));
         }
     }
 }

@@ -15,6 +15,11 @@ namespace BookMyFun.Repositories
         Task<List<Booking>> GetAllEventBookingsAsync();
         Task<bool> UpdateSetupStatusAsync(int bookingId, string setupStatus, string? setupProofMediaUrls, int? decoratorId);
         Task<bool> AssignDecoratorAsync(int bookingId, int decoratorUserId);
+        Task<bool> CancelOrRemoveEventFromBookingAsync(int bookingId);
         Task<List<User>> GetDecoratorsAsync();
+        Task<List<string>> GetAllDistinctPropertyLocationsAsync();
+        Task<string?> GetEventManagerServiceAreasAsync(int eventManagerUserId);
+        Task<bool> UpdateEventManagerServiceAreasAsync(int eventManagerUserId, string serviceAreas);
+        Task<bool> IsAreaServicedByAnyEventManagerAsync(string? propertyLocation);
     }
 }

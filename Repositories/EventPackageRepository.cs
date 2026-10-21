@@ -50,8 +50,8 @@ namespace BookMyFun.Repositories
         public async Task<int> CreatePackageAsync(EventPackage package)
         {
             var query = @"
-                INSERT INTO EventPackages (Name, Category, BasePrice, Description, MediaUrl, IncludedItems, IsActive, CreatedByUserID, CreatedAt)
-                VALUES (@Name, @Category, @BasePrice, @Description, @MediaUrl, @IncludedItems, @IsActive, @CreatedByUserID, GETDATE());
+                INSERT INTO EventPackages (Name, Category, BasePrice, Description, MediaUrl, IncludedItems, IsActive, CommissionRate, CreatedByUserID, CreatedAt)
+                VALUES (@Name, @Category, @BasePrice, @Description, @MediaUrl, @IncludedItems, @IsActive, @CommissionRate, @CreatedByUserID, GETDATE());
                 SELECT SCOPE_IDENTITY();";
 
             var result = await _db.ExecuteScalarAsync(query,
@@ -62,6 +62,7 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@MediaUrl", (object?)package.MediaUrl ?? DBNull.Value),
                 new SqlParameter("@IncludedItems", (object?)package.IncludedItems ?? DBNull.Value),
                 new SqlParameter("@IsActive", package.IsActive),
+                new SqlParameter("@CommissionRate", (object?)package.CommissionRate ?? DBNull.Value),
                 new SqlParameter("@CreatedByUserID", (object?)package.CreatedByUserID ?? DBNull.Value));
 
             return result != null ? Convert.ToInt32(result) : 0;
@@ -77,7 +78,8 @@ namespace BookMyFun.Repositories
                     Description = @Description,
                     MediaUrl = @MediaUrl,
                     IncludedItems = @IncludedItems,
-                    IsActive = @IsActive
+                    IsActive = @IsActive,
+                    CommissionRate = @CommissionRate
                 WHERE PackageID = @PackageID";
 
             var rows = await _db.ExecuteNonQueryAsync(query,
@@ -88,16 +90,28 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@Description", (object?)package.Description ?? DBNull.Value),
                 new SqlParameter("@MediaUrl", (object?)package.MediaUrl ?? DBNull.Value),
                 new SqlParameter("@IncludedItems", (object?)package.IncludedItems ?? DBNull.Value),
-                new SqlParameter("@IsActive", package.IsActive));
+                new SqlParameter("@IsActive", package.IsActive),
+                new SqlParameter("@CommissionRate", (object?)package.CommissionRate ?? DBNull.Value));
 
             return rows > 0;
         }
 
         public async Task<bool> DeletePackageAsync(int packageId)
         {
-            var query = "DELETE FROM EventPackages WHERE PackageID = @PackageID";
-            var rows = await _db.ExecuteNonQueryAsync(query, new SqlParameter("@PackageID", packageId));
-            return rows > 0;
+            try
+            {
+                var query = @"
+                    UPDATE Bookings SET EventPackageID = NULL WHERE EventPackageID = @PackageID;
+                    DELETE FROM EventPackages WHERE PackageID = @PackageID;";
+                var rows = await _db.ExecuteNonQueryAsync(query, new SqlParameter("@PackageID", packageId));
+                return rows > 0;
+            }
+            catch
+            {
+                var fallback = "UPDATE EventPackages SET IsActive = 0 WHERE PackageID = @PackageID";
+                var rows = await _db.ExecuteNonQueryAsync(fallback, new SqlParameter("@PackageID", packageId));
+                return rows > 0;
+            }
         }
 
         public async Task<List<Booking>> GetAssignedEventBookingsAsync(int decoratorUserId)
@@ -154,6 +168,19 @@ namespace BookMyFun.Repositories
             return rows > 0;
         }
 
+        public async Task<bool> CancelOrRemoveEventFromBookingAsync(int bookingId)
+        {
+            const string query = @"
+                UPDATE Bookings 
+                SET IsEventBooking = 0, 
+                    SetupStatus = 'Cancelled', 
+                    DecoratorAssignedID = NULL 
+                WHERE BookingID = @BookingID";
+
+            var rows = await _db.ExecuteNonQueryAsync(query, new SqlParameter("@BookingID", bookingId));
+            return rows > 0;
+        }
+
         public async Task<List<User>> GetDecoratorsAsync()
         {
             const string query = "SELECT * FROM Users WHERE Role = 'EventManager' AND IsActive = 1 ORDER BY FullName";
@@ -175,7 +202,7 @@ namespace BookMyFun.Repositories
 
         private static EventPackage MapPackage(SqlDataReader reader)
         {
-            return new EventPackage
+            var pkg = new EventPackage
             {
                 PackageID = reader.GetInt32(reader.GetOrdinal("PackageID")),
                 Name = reader.GetString(reader.GetOrdinal("Name")),
@@ -189,6 +216,15 @@ namespace BookMyFun.Repositories
                 CreatedAt = reader.GetDateTime(reader.GetOrdinal("CreatedAt")),
                 CreatedByUserName = reader.IsDBNull(reader.GetOrdinal("CreatedByUserName")) ? null : reader.GetString(reader.GetOrdinal("CreatedByUserName"))
             };
+
+            try
+            {
+                int commOrd = reader.GetOrdinal("CommissionRate");
+                if (!reader.IsDBNull(commOrd)) pkg.CommissionRate = reader.GetDecimal(commOrd);
+            }
+            catch { }
+
+            return pkg;
         }
 
         private static Booking MapEventBooking(SqlDataReader reader)
@@ -217,7 +253,92 @@ namespace BookMyFun.Repositories
                 EventPackageName = reader.IsDBNull(reader.GetOrdinal("EventPackageName")) ? null : reader.GetString(reader.GetOrdinal("EventPackageName")),
                 DecoratorName = reader.IsDBNull(reader.GetOrdinal("DecoratorName")) ? null : reader.GetString(reader.GetOrdinal("DecoratorName"))
             };
+
+            try
+            {
+                int eCommRateOrd = reader.GetOrdinal("EventCommissionRateSnapshot");
+                if (!reader.IsDBNull(eCommRateOrd)) b.EventCommissionRateSnapshot = reader.GetDecimal(eCommRateOrd);
+            }
+            catch { }
+
+            try
+            {
+                int eCommAmtOrd = reader.GetOrdinal("EventPlatformCommissionAmount");
+                if (!reader.IsDBNull(eCommAmtOrd)) b.EventPlatformCommissionAmount = reader.GetDecimal(eCommAmtOrd);
+            }
+            catch { }
+
+            try
+            {
+                int eMgrPayoutOrd = reader.GetOrdinal("EventManagerPayoutAmount");
+                if (!reader.IsDBNull(eMgrPayoutOrd)) b.EventManagerPayoutAmount = reader.GetDecimal(eMgrPayoutOrd);
+            }
+            catch { }
+
             return b;
+        }
+
+        public async Task<List<string>> GetAllDistinctPropertyLocationsAsync()
+        {
+            const string query = @"
+                SELECT DISTINCT Location 
+                FROM Properties 
+                WHERE Location IS NOT NULL 
+                  AND LTRIM(RTRIM(Location)) <> ''
+                ORDER BY Location ASC";
+
+            return await _db.ExecuteReaderListAsync(query, reader => reader.GetString(0));
+        }
+
+        public async Task<string?> GetEventManagerServiceAreasAsync(int eventManagerUserId)
+        {
+            const string query = "SELECT ServiceAreas FROM Users WHERE UserID = @UserID";
+            var result = await _db.ExecuteScalarAsync(query, new SqlParameter("@UserID", eventManagerUserId));
+            return result != null && result != DBNull.Value ? result.ToString() : null;
+        }
+
+        public async Task<bool> UpdateEventManagerServiceAreasAsync(int eventManagerUserId, string serviceAreas)
+        {
+            const string query = "UPDATE Users SET ServiceAreas = @ServiceAreas WHERE UserID = @UserID";
+            var rows = await _db.ExecuteNonQueryAsync(query,
+                new SqlParameter("@ServiceAreas", (object?)serviceAreas ?? DBNull.Value),
+                new SqlParameter("@UserID", eventManagerUserId));
+            return rows > 0;
+        }
+
+        public async Task<bool> IsAreaServicedByAnyEventManagerAsync(string? propertyLocation)
+        {
+            if (string.IsNullOrWhiteSpace(propertyLocation)) return false;
+
+            const string query = @"
+                SELECT ServiceAreas 
+                FROM Users 
+                WHERE Role = 'EventManager' 
+                  AND (IsActive = 1 OR IsActive IS NULL) 
+                  AND ServiceAreas IS NOT NULL 
+                  AND LTRIM(RTRIM(ServiceAreas)) <> ''";
+
+            var managers = await _db.ExecuteReaderListAsync(query, r => r.GetString(0));
+            if (!managers.Any()) return false;
+
+            var cleanPropLoc = propertyLocation.Trim().ToLowerInvariant();
+
+            foreach (var areaStr in managers)
+            {
+                if (string.IsNullOrWhiteSpace(areaStr)) continue;
+
+                var areas = areaStr.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                foreach (var a in areas)
+                {
+                    var cleanA = a.ToLowerInvariant();
+                    if (cleanA == cleanPropLoc || cleanPropLoc.Contains(cleanA) || cleanA.Contains(cleanPropLoc))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
     }
 }

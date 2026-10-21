@@ -58,8 +58,20 @@ namespace BookMyFun.Controllers
             ViewBag.InProgressJobs = setups.Count(s => s.SetupStatus == "InProgress");
             ViewBag.CompletedJobs = setups.Count(s => s.SetupStatus == "Completed" || s.SetupStatus == "Inspected");
             ViewBag.ActivePackagesCount = packages.Count(p => p.IsActive);
-            ViewBag.TotalEventRevenue = setups.Where(s => s.Status == "Confirmed").Sum(s => s.EventPackagePriceSnapshot);
+            var confirmedSetups = setups.Where(s => s.Status == "Confirmed").ToList();
+            ViewBag.TotalEventGross = confirmedSetups.Sum(s => s.EventPackagePriceSnapshot);
+            ViewBag.TotalEventCommission = confirmedSetups.Sum(s => s.EventPlatformCommissionAmount > 0 
+                ? s.EventPlatformCommissionAmount 
+                : Math.Round(s.EventPackagePriceSnapshot * (s.EventCommissionRateSnapshot > 0 ? s.EventCommissionRateSnapshot : 10.0m) / 100m, 2));
+            ViewBag.TotalEventRevenue = confirmedSetups.Sum(s => s.EventManagerPayoutAmount > 0 
+                ? s.EventManagerPayoutAmount 
+                : Math.Max(0, s.EventPackagePriceSnapshot - (s.EventPlatformCommissionAmount > 0 ? s.EventPlatformCommissionAmount : Math.Round(s.EventPackagePriceSnapshot * 0.10m, 2))));
             ViewBag.Packages = packages;
+
+            var distinctLocations = await _eventRepo.GetAllDistinctPropertyLocationsAsync();
+            var serviceAreas = await _eventRepo.GetEventManagerServiceAreasAsync(userId);
+            ViewBag.DistinctLocations = distinctLocations;
+            ViewBag.ServiceAreas = serviceAreas;
 
             return View(viewName, setups);
         }
@@ -95,6 +107,7 @@ namespace BookMyFun.Controllers
                 MediaUrl = model.MediaUrl,
                 IncludedItems = model.IncludedItems,
                 IsActive = model.IsActive,
+                CommissionRate = model.CommissionRate,
                 CreatedByUserID = userId,
                 CreatedAt = DateTime.UtcNow
             };
@@ -121,7 +134,8 @@ namespace BookMyFun.Controllers
                 Description = pkg.Description,
                 MediaUrl = pkg.MediaUrl,
                 IncludedItems = pkg.IncludedItems,
-                IsActive = pkg.IsActive
+                IsActive = pkg.IsActive,
+                CommissionRate = pkg.CommissionRate
             };
 
             return View(vm);
@@ -145,7 +159,8 @@ namespace BookMyFun.Controllers
                 Description = model.Description,
                 MediaUrl = model.MediaUrl,
                 IncludedItems = model.IncludedItems,
-                IsActive = model.IsActive
+                IsActive = model.IsActive,
+                CommissionRate = model.CommissionRate
             };
 
             bool updated = await _eventRepo.UpdatePackageAsync(pkg);
@@ -270,20 +285,73 @@ namespace BookMyFun.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeletePackage(int id)
+        public async Task<IActionResult> DeletePackage(int id, string? returnUrl = null)
         {
             var userId = GetCurrentUserId();
             bool deleted = await _eventRepo.DeletePackageAsync(id);
             if (deleted)
             {
                 await _configRepo.LogAuditAsync(userId, "DeleteEventPackage", "EventPackage", id, $"Deleted package #{id}");
-                TempData["Success"] = "Décor package deleted successfully.";
+                TempData["Success"] = "Décor event package deleted successfully.";
             }
             else
             {
                 TempData["Error"] = "Unable to delete package.";
             }
-            return RedirectToAction(nameof(Packages));
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+            {
+                return Redirect(returnUrl);
+            }
+            return RedirectToAction(nameof(Dashboard));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateServiceAreas(string[]? selectedAreas, string? returnUrl = null)
+        {
+            var userId = GetCurrentUserId();
+            string areasString = selectedAreas != null && selectedAreas.Length > 0
+                ? string.Join("; ", selectedAreas.Where(a => !string.IsNullOrWhiteSpace(a)))
+                : string.Empty;
+
+            bool updated = await _eventRepo.UpdateEventManagerServiceAreasAsync(userId, areasString);
+            if (updated)
+            {
+                await _configRepo.LogAuditAsync(userId, "UpdateServiceAreas", "User", userId, $"Updated service areas to: {areasString}");
+                TempData["Success"] = "Operational service areas updated successfully. Décor add-ons will now only appear for properties in these areas.";
+            }
+            else
+            {
+                TempData["Error"] = "Unable to update service areas. Please try again.";
+            }
+
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+            {
+                return Redirect(returnUrl);
+            }
+            return RedirectToAction(nameof(Dashboard));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteEventOrder(int bookingId, string? returnUrl = null)
+        {
+            var userId = GetCurrentUserId();
+            bool removed = await _eventRepo.CancelOrRemoveEventFromBookingAsync(bookingId);
+            if (removed)
+            {
+                await _configRepo.LogAuditAsync(userId, "DeleteEventOrder", "Booking", bookingId, $"Removed event décor setup from Booking #{bookingId}");
+                TempData["Success"] = $"Event setup for Booking #{bookingId} was successfully deleted/removed.";
+            }
+            else
+            {
+                TempData["Error"] = $"Unable to remove event setup for Booking #{bookingId}.";
+            }
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+            {
+                return Redirect(returnUrl);
+            }
+            return RedirectToAction(nameof(Dashboard));
         }
 
         [HttpGet]
@@ -327,14 +395,31 @@ namespace BookMyFun.Controllers
 
             var filteredList = query.OrderByDescending(s => s.EventDate ?? s.CheckInDate).ToList();
 
-            var totalGross = allSetups.Where(s => s.Status == "Confirmed").Sum(s => s.EventPackagePriceSnapshot);
-            var settled = allSetups.Where(s => s.Status == "Confirmed" && (s.SetupStatus == "Completed" || s.SetupStatus == "Inspected")).Sum(s => s.EventPackagePriceSnapshot);
-            var escrow = allSetups.Where(s => s.Status == "Confirmed" && s.SetupStatus != "Completed" && s.SetupStatus != "Inspected").Sum(s => s.EventPackagePriceSnapshot);
+            var confirmedSetups = allSetups.Where(s => s.Status == "Confirmed").ToList();
+            var totalGross = confirmedSetups.Sum(s => s.EventPackagePriceSnapshot);
+            var totalComm = confirmedSetups.Sum(s => s.EventPlatformCommissionAmount > 0 
+                ? s.EventPlatformCommissionAmount 
+                : Math.Round(s.EventPackagePriceSnapshot * (s.EventCommissionRateSnapshot > 0 ? s.EventCommissionRateSnapshot : 10.0m) / 100m, 2));
+            var totalNet = confirmedSetups.Sum(s => s.EventManagerPayoutAmount > 0 
+                ? s.EventManagerPayoutAmount 
+                : Math.Max(0, s.EventPackagePriceSnapshot - (s.EventPlatformCommissionAmount > 0 ? s.EventPlatformCommissionAmount : Math.Round(s.EventPackagePriceSnapshot * 0.10m, 2))));
+
+            var settled = confirmedSetups.Where(s => s.SetupStatus == "Completed" || s.SetupStatus == "Inspected")
+                .Sum(s => s.EventManagerPayoutAmount > 0 
+                    ? s.EventManagerPayoutAmount 
+                    : Math.Max(0, s.EventPackagePriceSnapshot - (s.EventPlatformCommissionAmount > 0 ? s.EventPlatformCommissionAmount : Math.Round(s.EventPackagePriceSnapshot * 0.10m, 2))));
+
+            var escrow = confirmedSetups.Where(s => s.SetupStatus != "Completed" && s.SetupStatus != "Inspected")
+                .Sum(s => s.EventManagerPayoutAmount > 0 
+                    ? s.EventManagerPayoutAmount 
+                    : Math.Max(0, s.EventPackagePriceSnapshot - (s.EventPlatformCommissionAmount > 0 ? s.EventPlatformCommissionAmount : Math.Round(s.EventPackagePriceSnapshot * 0.10m, 2))));
 
             var vm = new EventManagerFinancialsViewModel
             {
                 EventBookings = filteredList,
                 TotalGrossRevenue = totalGross,
+                TotalPlatformCommission = totalComm,
+                TotalNetEarnings = totalNet,
                 TotalSettledEarnings = settled,
                 TotalPendingEscrowEarnings = escrow,
                 TotalOrdersCount = allSetups.Count(s => s.Status == "Confirmed"),

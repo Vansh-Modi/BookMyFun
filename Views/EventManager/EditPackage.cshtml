@@ -56,6 +56,15 @@
                             <input asp-for="MediaUrl" class="form-control" />
                         </div>
 
+                        <div class="col-md-6">
+                            <label asp-for="CommissionRate" class="form-label fw-semibold small">Custom Commission Override (%)</label>
+                            <div class="input-group">
+                                <input asp-for="CommissionRate" class="form-control" type="number" step="0.1" min="0" max="100" placeholder="Default: Global Event Rate" />
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <span class="text-muted small" style="font-size: 0.75rem;">Leave empty to use property default or platform standard percentage.</span>
+                        </div>
+
                         <div class="col-12">
                             <label asp-for="Description" class="form-label fw-semibold small">Detailed Package Description</label>
                             <textarea asp-for="Description" class="form-control" rows="3"></textarea>

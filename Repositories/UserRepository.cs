@@ -181,6 +181,13 @@ namespace BookMyFun.Repositories
                 user.SubscriptionTier = reader.GetString(tierOrdinal);
             }
 
+            int areaOrdinal = -1;
+            try { areaOrdinal = reader.GetOrdinal("ServiceAreas"); } catch { }
+            if (areaOrdinal >= 0 && !reader.IsDBNull(areaOrdinal))
+            {
+                user.ServiceAreas = reader.GetString(areaOrdinal);
+            }
+
             return user;
         }
     }

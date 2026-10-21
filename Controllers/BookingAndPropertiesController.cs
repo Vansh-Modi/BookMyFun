@@ -103,6 +103,9 @@ namespace BookMyFun.Controllers
             int clientId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             bool isVerified = await _idVerificationService.IsClientVerifiedAsync(clientId);
 
+            bool isServiced = await _eventPackageRepo.IsAreaServicedByAnyEventManagerAsync(property.Location);
+            var activePackages = isServiced ? await _eventPackageRepo.GetActivePackagesAsync() : new List<EventPackage>();
+
             var vm = new BookingCheckoutViewModel
             {
                 PropertyID = property.PropertyID,
@@ -117,7 +120,8 @@ namespace BookMyFun.Controllers
                 CheckOutDate = bookingType == "FullDay" ? DateTime.Today.AddDays(daysOrHours) : DateTime.Today,
                 CalculatedAmount = calculatedAmount,
                 AvailableOccasions = await _propRepo.GetOccasionsAsync(),
-                AvailableEventPackages = await _eventPackageRepo.GetActivePackagesAsync(),
+                AvailableEventPackages = activePackages,
+                IsEventServiceAvailable = isServiced,
                 IsClientAlreadyVerified = isVerified
             };
 
@@ -132,12 +136,20 @@ namespace BookMyFun.Controllers
             var property = await _propRepo.GetByIdAsync(model.PropertyID);
             if (property == null) return NotFound();
 
+            bool isServiced = await _eventPackageRepo.IsAreaServicedByAnyEventManagerAsync(property.Location);
+            if (!isServiced)
+            {
+                model.IsEventBooking = false;
+                model.EventPackageID = null;
+                model.CustomEventNotes = null;
+            }
+
             int count = model.BookingType == "Hourly" ? (model.HourlyDuration ?? 1) : Math.Max(1, (model.CheckOutDate - model.CheckInDate).Days);
             decimal propertyStayAmount = _pricingService.CalculatePrice(property.PricePerNight, model.BookingType, model.SlotType, count);
 
             EventPackage? selectedPackage = null;
             decimal eventPackagePrice = 0m;
-            if (model.IsEventBooking && model.EventPackageID.HasValue)
+            if (isServiced && model.IsEventBooking && model.EventPackageID.HasValue)
             {
                 selectedPackage = await _eventPackageRepo.GetPackageByIdAsync(model.EventPackageID.Value);
                 if (selectedPackage != null && selectedPackage.IsActive)
@@ -154,7 +166,8 @@ namespace BookMyFun.Controllers
             {
                 ModelState.AddModelError("", "The selected dates/slots are already booked. Please pick another timeframe.");
                 model.AvailableOccasions = await _propRepo.GetOccasionsAsync();
-                model.AvailableEventPackages = await _eventPackageRepo.GetActivePackagesAsync();
+                model.IsEventServiceAvailable = isServiced;
+                model.AvailableEventPackages = isServiced ? await _eventPackageRepo.GetActivePackagesAsync() : new List<EventPackage>();
                 return View("Checkout", model);
             }
 
@@ -172,15 +185,29 @@ namespace BookMyFun.Controllers
                 {
                     ModelState.AddModelError("IdDocumentFile", $"Identity document upload error: {ex.Message}");
                     model.AvailableOccasions = await _propRepo.GetOccasionsAsync();
-                    model.AvailableEventPackages = await _eventPackageRepo.GetActivePackagesAsync();
+                    model.IsEventServiceAvailable = isServiced;
+                    model.AvailableEventPackages = isServiced ? await _eventPackageRepo.GetActivePackagesAsync() : new List<EventPackage>();
                     return View("Checkout", model);
                 }
             }
 
-            // Dynamic Commission calculation: Calculated on Property Stay Amount ONLY!
-            // Event decoration fees belong to the Event Manager and are strictly segregated.
+            // Dynamic Commission calculation: Calculated on Property Stay Amount
             var (rateSnapshot, platformCommission, ownerPayout) = await _commissionService.CalculateDynamicCommissionAsync(
                 propertyStayAmount, property.CommissionRate, property.OwnerID);
+
+            // Dynamic Event Commission calculation: Calculated on Event Package Price
+            decimal eventRateSnapshot = 0.00m;
+            decimal eventPlatformCommission = 0.00m;
+            decimal eventManagerPayout = 0.00m;
+
+            if (selectedPackage != null && eventPackagePrice > 0)
+            {
+                var eventComm = await _commissionService.CalculateEventCommissionAsync(
+                    eventPackagePrice, property.PropertyID, selectedPackage.PackageID, property.EventCommissionRate);
+                eventRateSnapshot = eventComm.rateSnapshot;
+                eventPlatformCommission = eventComm.commissionAmount;
+                eventManagerPayout = eventComm.managerPayout;
+            }
 
             var booking = new Booking
             {
@@ -207,6 +234,9 @@ namespace BookMyFun.Controllers
                 IsEventBooking = selectedPackage != null,
                 EventPackageID = selectedPackage?.PackageID,
                 EventPackagePriceSnapshot = eventPackagePrice,
+                EventCommissionRateSnapshot = eventRateSnapshot,
+                EventPlatformCommissionAmount = eventPlatformCommission,
+                EventManagerPayoutAmount = eventManagerPayout,
                 CustomEventNotes = selectedPackage != null ? model.CustomEventNotes : null,
                 EventDate = selectedPackage != null ? model.CheckInDate : null,
                 SetupStatus = selectedPackage != null ? "Pending" : null,
@@ -245,6 +275,7 @@ namespace BookMyFun.Controllers
                 Currency = order.Currency,
                 OrderId = order.OrderId,
                 KeyId = order.KeyId,
+                IsSimulated = order.IsSimulated,
                 ClientName = client?.FullName ?? "",
                 ClientEmail = client?.Email ?? "",
                 ClientPhone = client?.Phone,
@@ -436,7 +467,9 @@ namespace BookMyFun.Controllers
                                 <p style='margin: 4px 0;'><strong>Event Date:</strong> {booking.CheckInDate:dd MMM yyyy}</p>
                                 <p style='margin: 4px 0;'><strong>Venue Location:</strong> {property.Location}</p>
                                 <p style='margin: 4px 0;'><strong>Client Name:</strong> {client.FullName}</p>
-                                <p style='margin: 4px 0; font-size: 1.15em; font-weight: bold; color: #b45309;'><strong>Allocated Décor Revenue:</strong> ₹{booking.EventPackagePriceSnapshot:N2}</p>
+                                <p style='margin: 4px 0;'><strong>Gross Décor Revenue:</strong> ₹{booking.EventPackagePriceSnapshot:N2}</p>
+                                <p style='margin: 4px 0;'><strong>Platform Commission ({booking.EventCommissionRateSnapshot:0.#}%):</strong> -₹{booking.EventPlatformCommissionAmount:N2}</p>
+                                <p style='margin: 4px 0; font-size: 1.15em; font-weight: bold; color: #b45309;'><strong>Net Decorator Payout:</strong> ₹{booking.EventManagerPayoutAmount:N2}</p>
                             </div>
                             <p>Sign in to your Event Manager portal to accept this setup order and dispatch staging crew.</p>
                         </div>";

@@ -96,6 +96,95 @@
     </div>
 </div>
 
+<!-- Operational Service Areas Configuration (Dynamic from listed properties) -->
+@{
+    var distinctLocations = ViewBag.DistinctLocations as List<string> ?? new();
+    string rawAreas = ViewBag.ServiceAreas as string ?? "";
+    var currentAreas = rawAreas.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+}
+<div class="card border-0 shadow-sm rounded-4 mb-4 bg-card">
+    <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-center pt-3 px-4 gap-2">
+        <div>
+            <h5 class="fw-bold mb-0 text-heading">
+                <i class="bi bi-geo-alt-fill text-danger me-2"></i>My Operational Service Areas
+            </h5>
+            <span class="text-muted small">Select the listed property regions where you provide decoration services. Guests booking outside your areas will not see decoration add-ons.</span>
+        </div>
+        <div>
+            @if (currentAreas.Any())
+            {
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill">
+                    <i class="bi bi-check-circle-fill me-1"></i> Serving @currentAreas.Count Area@(currentAreas.Count > 1 ? "s" : "")
+                </span>
+            }
+            else
+            {
+                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 rounded-pill">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i> No Service Areas Selected (Décor hidden)
+                </span>
+            }
+        </div>
+    </div>
+    <div class="card-body px-4 pb-4">
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm d-flex align-items-center mb-3" role="alert">
+                <i class="bi bi-check-circle-fill fs-5 me-2"></i>
+                <div class="small">@TempData["Success"]</div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm d-flex align-items-center mb-3" role="alert">
+                <i class="bi bi-exclamation-triangle-fill fs-5 me-2"></i>
+                <div class="small">@TempData["Error"]</div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+
+        <form asp-action="UpdateServiceAreas" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+            <div class="row g-3 align-items-center">
+                <div class="col-lg-8">
+                    <label class="form-label small fw-semibold text-secondary mb-2">
+                        <i class="bi bi-building-check text-primary me-1"></i>Select Listed Property Locations to Serve:
+                    </label>
+                    <div class="d-flex flex-wrap gap-2 p-3 bg-light border rounded-3">
+                        @if (!distinctLocations.Any())
+                        {
+                            <span class="text-muted small">No property locations registered in the catalog yet.</span>
+                        }
+                        @foreach (var loc in distinctLocations)
+                        {
+                            bool isSelected = currentAreas.Any(a => string.Equals(a, loc, StringComparison.OrdinalIgnoreCase) || loc.Contains(a, StringComparison.OrdinalIgnoreCase) || a.Contains(loc, StringComparison.OrdinalIgnoreCase));
+                            <label class="btn btn-sm @(isSelected ? "btn-primary active" : "btn-outline-secondary") rounded-pill px-3 py-2 cursor-pointer d-flex align-items-center gap-2">
+                                <input type="checkbox" name="selectedAreas" value="@loc" @(isSelected ? "checked" : "") class="form-check-input mt-0" />
+                                <span><i class="bi bi-geo-alt me-1"></i>@loc</span>
+                            </label>
+                        }
+                    </div>
+                    <div class="form-text small mt-1">
+                        <i class="bi bi-info-circle me-1"></i>Locations dynamically populated from all verified properties in BookMyFun.
+                    </div>
+                </div>
+                <div class="col-lg-4 text-lg-end">
+                    <button type="submit" class="btn btn-warning fw-bold px-4 py-2 rounded-pill shadow-sm">
+                        <i class="bi bi-save2 me-1"></i> Save Service Areas
+                    </button>
+                    @if (currentAreas.Any())
+                    {
+                        <div class="small text-muted mt-2">
+                            Currently Active: <span class="fw-semibold text-dark">@string.Join(", ", currentAreas)</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Active Décor Packages Showcase -->
 <div class="card border-0 shadow-sm rounded-4 mb-4 bg-card">
     <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center pt-3 px-4">
@@ -121,7 +210,18 @@
                             </div>
                             <div class="d-flex justify-content-between align-items-center pt-2 border-top">
                                 <span class="fw-bold text-warning">₹@pkg.BasePrice.ToString("N0")</span>
-                                <a asp-action="EditPackage" asp-route-id="@pkg.PackageID" class="btn btn-sm btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;">Edit</a>
+                                <div class="d-flex align-items-center gap-1">
+                                    <a asp-action="EditPackage" asp-route-id="@pkg.PackageID" class="btn btn-sm btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;">
+                                        <i class="bi bi-pencil me-1"></i>Edit
+                                    </a>
+                                    <form asp-action="DeletePackage" asp-route-id="@pkg.PackageID" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete the event package \'@pkg.Name\'?');">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill" style="font-size: 0.75rem;">
+                                            <i class="bi bi-trash me-1"></i>Delete
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -209,7 +309,14 @@
                                 </span>
                                 @if (item.EventPackagePriceSnapshot > 0)
                                 {
-                                    <div class="small fw-semibold text-success">₹@item.EventPackagePriceSnapshot.ToString("N0")</div>
+                                    var netDecoratorPayout = item.EventManagerPayoutAmount > 0 
+                                        ? item.EventManagerPayoutAmount 
+                                        : Math.Max(0, item.EventPackagePriceSnapshot - (item.EventPlatformCommissionAmount > 0 ? item.EventPlatformCommissionAmount : Math.Round(item.EventPackagePriceSnapshot * 0.10m, 2)));
+                                    var eventFee = item.EventPlatformCommissionAmount > 0 
+                                        ? item.EventPlatformCommissionAmount 
+                                        : item.EventPackagePriceSnapshot - netDecoratorPayout;
+                                    <div class="small fw-semibold text-success">Net: ₹@netDecoratorPayout.ToString("N0")</div>
+                                    <div class="text-muted" style="font-size: 0.72rem;">Fee: -₹@eventFee.ToString("N0") (@(item.EventCommissionRateSnapshot > 0 ? item.EventCommissionRateSnapshot.ToString("0.#") : "10")%)</div>
                                 }
                             </td>
                             <td class="fw-semibold text-primary">
@@ -267,6 +374,11 @@
                                             </button>
                                         }
                                     }
+
+                                    <!-- Delete / Remove Event Order Action -->
+                                    <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2" data-bs-toggle="modal" data-bs-target="#deleteEventModal-@item.BookingID" title="Delete Event Setup">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -345,6 +457,43 @@
                                         <div class="modal-footer border-top">
                                             <button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Cancel</button>
                                             <button type="submit" class="btn btn-warning fw-bold px-4 rounded-pill">Save &amp; Submit Proof</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Delete Event Setup Modal -->
+                        <div class="modal fade" id="deleteEventModal-@item.BookingID" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content rounded-4 shadow border-0 bg-card">
+                                    <form asp-action="DeleteEventOrder" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="bookingId" value="@item.BookingID" />
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <div class="modal-header border-bottom bg-danger-subtle text-danger">
+                                            <h5 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle-fill me-2"></i>Delete Event Setup</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body p-4">
+                                            <p class="mb-2">Are you sure you want to remove the event décor setup for <strong>Booking #@item.BookingID</strong>?</p>
+                                            <div class="p-3 bg-light rounded-3 border small mb-3">
+                                                <div><strong>Property:</strong> @item.PropertyTitle</div>
+                                                <div><strong>Client:</strong> @item.ClientName (@item.ClientPhone)</div>
+                                                <div><strong>Event Package:</strong> @(string.IsNullOrEmpty(item.EventPackageName) ? "Custom Setup" : item.EventPackageName)</div>
+                                                <div><strong>Event Date:</strong> @(item.EventDate.HasValue ? item.EventDate.Value.ToString("dd MMM yyyy") : item.CheckInDate.ToString("dd MMM yyyy"))</div>
+                                                @if (item.EventPackagePriceSnapshot > 0)
+                                                {
+                                                    <div><strong>Décor Amount:</strong> ₹@item.EventPackagePriceSnapshot.ToString("N0")</div>
+                                                }
+                                            </div>
+                                            <p class="small text-muted mb-0">This will cancel and remove this event setup from the event manager queue while keeping the guest's farm stay intact.</p>
+                                        </div>
+                                        <div class="modal-footer border-top">
+                                            <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" class="btn btn-danger fw-bold rounded-pill px-4">
+                                                <i class="bi bi-trash-fill me-1"></i> Confirm Delete
+                                            </button>
                                         </div>
                                     </form>
                                 </div>
