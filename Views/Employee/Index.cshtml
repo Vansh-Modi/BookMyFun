@@ -42,23 +42,23 @@
 
 <!-- Stat Cards Grid -->
 <div class="dash-stat-grid">
-    <div class="dash-stat-card">
+    <a asp-action="ManageProperties" class="dash-stat-card text-decoration-none">
         <div class="dash-stat-top">
             <span class="dash-stat-label">Properties Monitored</span>
             <span class="dash-stat-icon icon-blue"><i class="bi bi-house-door-fill"></i></span>
         </div>
         <div class="dash-stat-val">@totalProps</div>
         <div class="dash-stat-sub"><i class="bi bi-check2-circle text-primary me-1"></i>Active listings on platform</div>
-    </div>
-    <div class="dash-stat-card">
+    </a>
+    <a asp-action="PartnerLeads" class="dash-stat-card text-decoration-none">
         <div class="dash-stat-top">
             <span class="dash-stat-label">Pending Partner Leads</span>
             <span class="dash-stat-icon icon-emerald"><i class="bi bi-handshake-fill"></i></span>
         </div>
         <div class="dash-stat-val">@pendingLeads</div>
         <div class="dash-stat-sub"><i class="bi bi-clock-history text-success me-1"></i>Awaiting onboarding review</div>
-    </div>
-    <div class="dash-stat-card">
+    </a>
+    <a asp-action="ManageBookings" asp-route-status="Pending" class="dash-stat-card text-decoration-none">
         <div class="dash-stat-top">
             <span class="dash-stat-label">Pending Bookings</span>
             <span class="dash-stat-icon icon-amber"><i class="bi bi-hourglass-split"></i></span>
@@ -74,7 +74,7 @@
                 <span class="text-muted">All bookings settled</span>
             }
         </div>
-    </div>
+    </a>
 </div>
 
 <!-- Property Inventory Card -->

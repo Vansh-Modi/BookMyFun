@@ -227,4 +227,19 @@
             </div>
         </div>
     </div>
+
+    <!-- Mobile Sticky Booking Bar (Visible on mobile/tablet screens < 992px) -->
+    <div class="mobile-booking-bottom-bar d-lg-none">
+        <div class="container d-flex align-items-center justify-content-between gap-3 px-1">
+            <div>
+                <div class="small text-muted" style="font-size: 0.72rem; line-height: 1.1;">Starting from</div>
+                <div class="fw-bold text-success" style="font-size: 1.25rem;">
+                    ₹@Model.PricePerNight.ToString("N0") <span class="text-muted fw-normal" style="font-size: 0.8rem;">/ night</span>
+                </div>
+            </div>
+            <a asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@Model.PropertyID" class="btn btn-warning fw-bold px-4 py-2 rounded-pill shadow-sm flex-shrink-0">
+                <i class="bi bi-calendar-check me-1"></i> Book Stay Now
+            </a>
+        </div>
+    </div>
 </div>

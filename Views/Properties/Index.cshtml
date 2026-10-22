@@ -526,7 +526,7 @@
     }
 
     <!-- Property Catalog Grid -->
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3 g-md-4">
         @if (Model == null || !Model.Any())
         {
             <div class="col-12">
@@ -549,7 +549,7 @@
             @foreach (var p in Model)
             {
             <div class="col">
-                <div class="property-card h-100">
+                <div class="property-card h-100 position-relative" data-card-url="@Url.Action("Details", "Properties", new { id = p.PropertyID })">
                     <!-- Property Image with Type & Verified Badges -->
                     <div class="property-card-img-wrap">
                         <img src="@p.PrimaryImageUrl" alt="@p.Title" loading="lazy" decoding="async" onerror="this.src='/images/placeholder.jpg';" />
@@ -571,7 +571,7 @@
                             <!-- Left: Name, Location, Guests -->
                             <div class="col-7 pe-1">
                                 <h3 class="property-title text-truncate" title="@p.Title">
-                                    <a asp-action="Details" asp-route-id="@p.PropertyID">
+                                    <a asp-action="Details" asp-route-id="@p.PropertyID" class="stretched-link text-decoration-none">
                                         @p.Title
                                     </a>
                                 </h3>
@@ -626,11 +626,8 @@
 
                         <!-- Card Action Buttons -->
                         <div class="property-card-footer">
-                            <a asp-action="Details" asp-route-id="@p.PropertyID" class="btn btn-sm btn-outline-secondary rounded-pill flex-fill fw-semibold">
-                                View Details
-                            </a>
-                            <a asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@p.PropertyID" class="btn btn-sm btn-warning rounded-pill flex-fill fw-bold shadow-sm">
-                                <i class="bi bi-calendar-check me-1"></i> Book Slot
+                            <a asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@p.PropertyID" class="btn btn-warning rounded-pill w-100 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-1 position-relative" style="z-index: 2;" onclick="event.stopPropagation();">
+                                <i class="bi bi-calendar-check"></i> Book Slot
                             </a>
                         </div>
                     </div>

@@ -9,6 +9,7 @@ namespace BookMyFun.Repositories
         Task<EventPackage?> GetPackageByIdAsync(int packageId);
         Task<int> CreatePackageAsync(EventPackage package);
         Task<bool> UpdatePackageAsync(EventPackage package);
+        Task<bool> UpdatePackageCommissionRateAsync(int packageId, decimal? commissionRate);
         Task<bool> DeletePackageAsync(int packageId);
 
         Task<List<Booking>> GetAssignedEventBookingsAsync(int decoratorUserId);

@@ -31,6 +31,9 @@ BEGIN
         IsActive BIT DEFAULT 1,
         CustomCommissionRate DECIMAL(5,2) NULL,
         SubscriptionTier NVARCHAR(30) DEFAULT 'Free',
+        AuthProvider NVARCHAR(50) DEFAULT 'Local',
+        AuthProviderKey NVARCHAR(255) NULL,
+        ProfilePictureUrl NVARCHAR(500) NULL,
         CreatedAt DATETIME2 DEFAULT GETDATE()
     );
 END
@@ -50,6 +53,21 @@ BEGIN
     IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'SubscriptionTier')
     BEGIN
         ALTER TABLE Users ADD SubscriptionTier NVARCHAR(30) DEFAULT 'Free';
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'AuthProvider')
+    BEGIN
+        ALTER TABLE Users ADD AuthProvider NVARCHAR(50) NOT NULL DEFAULT 'Local' WITH VALUES;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'AuthProviderKey')
+    BEGIN
+        ALTER TABLE Users ADD AuthProviderKey NVARCHAR(255) NULL;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'ProfilePictureUrl')
+    BEGIN
+        ALTER TABLE Users ADD ProfilePictureUrl NVARCHAR(500) NULL;
     END
 
     -- Ensure Role CHECK constraint supports all 5 roles (Admin, Employee, Owner, Client, EventManager)

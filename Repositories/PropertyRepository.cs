@@ -27,6 +27,8 @@ namespace BookMyFun.Repositories
         Task<bool> SetPropertyAmenitiesAsync(int propertyId, List<int> amenityIds);
         Task<List<PropertyType>> GetPropertyTypesAsync();
         Task<List<Occasion>> GetOccasionsAsync();
+        Task<int> GetOrCreateAmenityByNameAsync(string name);
+        Task<int> GetOrCreateOccasionByNameAsync(string name);
         Task<List<PropertyEventCommission>> GetPropertyEventCommissionsAsync(int propertyId);
         Task<decimal?> GetPropertyEventCommissionRateAsync(int propertyId, int packageId);
         Task<bool> SetPropertyEventCommissionsAsync(int propertyId, List<(int packageId, decimal commissionRate)> commissions);
@@ -464,6 +466,42 @@ namespace BookMyFun.Repositories
                 OccasionName = r.GetString(r.GetOrdinal("OccasionName")),
                 Description = r.IsDBNull(r.GetOrdinal("Description")) ? null : r.GetString(r.GetOrdinal("Description"))
             });
+        }
+
+        public async Task<int> GetOrCreateAmenityByNameAsync(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return 0;
+            name = name.Trim();
+            if (name.Length > 50) name = name.Substring(0, 50);
+
+            const string findSql = "SELECT AmenityID FROM AmenitiesMaster WHERE LOWER(AmenityName) = LOWER(@Name)";
+            var existing = await _db.ExecuteScalarAsync(findSql, new SqlParameter("@Name", name));
+            if (existing != null && existing != DBNull.Value)
+            {
+                return Convert.ToInt32(existing);
+            }
+
+            const string insertSql = "INSERT INTO AmenitiesMaster (AmenityName, IconClass, Category) VALUES (@Name, 'bi-check2-circle', 'Custom'); SELECT SCOPE_IDENTITY();";
+            var newId = await _db.ExecuteScalarAsync(insertSql, new SqlParameter("@Name", name));
+            return Convert.ToInt32(newId);
+        }
+
+        public async Task<int> GetOrCreateOccasionByNameAsync(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return 0;
+            name = name.Trim();
+            if (name.Length > 50) name = name.Substring(0, 50);
+
+            const string findSql = "SELECT OccasionID FROM Occasions WHERE LOWER(OccasionName) = LOWER(@Name)";
+            var existing = await _db.ExecuteScalarAsync(findSql, new SqlParameter("@Name", name));
+            if (existing != null && existing != DBNull.Value)
+            {
+                return Convert.ToInt32(existing);
+            }
+
+            const string insertSql = "INSERT INTO Occasions (OccasionName, Description) VALUES (@Name, 'Custom occasion added by host'); SELECT SCOPE_IDENTITY();";
+            var newId = await _db.ExecuteScalarAsync(insertSql, new SqlParameter("@Name", name));
+            return Convert.ToInt32(newId);
         }
 
         private async Task PopulateAmenitiesAsync(List<Property> properties)

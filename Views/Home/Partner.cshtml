@@ -132,7 +132,7 @@
                                 </div>
 
                                 <div class="col-12">
-                                    <label class="form-label fw-semibold small text-muted" id="lblEmail">@(isEventTab ? "Business Email Address (for event manager dashboard)" : "Email Address (for host dashboard activation)") <span class="text-danger">*</span></label>
+                                    <label class="form-label fw-semibold small text-muted" id="lblEmail">@(isEventTab ? "Business Email Address" : "Email Address") <span class="text-danger">*</span></label>
                                     <div class="input-group">
                                         <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope"></i></span>
                                         <input asp-for="Email" type="email" class="form-control border-start-0 ps-0" placeholder="name@domain.com" required />
@@ -160,10 +160,10 @@
                                 </div>
 
                                 <div class="col-12">
-                                    <label class="form-label fw-semibold small text-muted" id="lblAcreageOrType">@(isEventTab ? "Décor Specialization & Package Offerings" : "Acreage & Farm Type") <span class="text-danger">*</span></label>
+                                    <label class="form-label fw-semibold small text-muted" id="lblAcreageOrType">@(isEventTab ? "Décor Specialization & Package Offerings" : "Property Size & Type") <span class="text-danger">*</span></label>
                                     <div class="input-group">
                                         <span class="input-group-text bg-light border-end-0"><i id="iconAcreageOrType" class="bi @(isEventTab ? "bi-boxes" : "bi-aspect-ratio")"></i></span>
-                                        <input asp-for="AcreageOrType" id="inputAcreageOrType" class="form-control border-start-0 ps-0" placeholder="@(isEventTab ? "e.g. Weddings, Birthday Themes, Poolside Stages, Neon Lights, Floral Gazebos" : "e.g. 4 Acres with Swimming Pool & Gazebo, 5 BHK")" required />
+                                        <input asp-for="AcreageOrType" id="inputAcreageOrType" class="form-control border-start-0 ps-0" placeholder="@(isEventTab ? "e.g. Weddings, Birthday Themes, Poolside Stages, Neon Lights, Floral Gazebos" : "e.g. 4 Acres / 10,000 Sq. Ft with Pool & Gazebo, 5 BHK")" required />
                                     </div>
                                     <span asp-validation-for="AcreageOrType" class="text-danger small"></span>
                                 </div>
@@ -226,7 +226,7 @@
             document.getElementById('lblFullName').innerHTML = 'Lead Decorator / Planner Name <span class="text-danger">*</span>';
             document.getElementById('inputFullName').placeholder = 'e.g. Aarti Sharma';
 
-            document.getElementById('lblEmail').innerHTML = 'Business Email Address (for event manager dashboard) <span class="text-danger">*</span>';
+            document.getElementById('lblEmail').innerHTML = 'Business Email Address <span class="text-danger">*</span>';
             document.getElementById('lblEmailHelp').textContent = 'An automated invite with your Event Manager Dashboard login credentials will be dispatched to this email upon approval.';
 
             document.getElementById('lblPropertyName').innerHTML = 'Décor Studio / Agency / Brand Name <span class="text-danger">*</span>';
@@ -269,7 +269,7 @@
             document.getElementById('lblFullName').innerHTML = 'Owner Full Name <span class="text-danger">*</span>';
             document.getElementById('inputFullName').placeholder = 'e.g. Ramesh Patel';
 
-            document.getElementById('lblEmail').innerHTML = 'Email Address (for host dashboard activation) <span class="text-danger">*</span>';
+            document.getElementById('lblEmail').innerHTML = 'Email Address <span class="text-danger">*</span>';
             document.getElementById('lblEmailHelp').textContent = 'An automated invite with your Host Dashboard login credentials will be dispatched to this email upon approval.';
 
             document.getElementById('lblPropertyName').innerHTML = 'Farm / Villa Property Name <span class="text-danger">*</span>';
@@ -279,9 +279,9 @@
             document.getElementById('lblLocation').innerHTML = 'City / Region / Landmark <span class="text-danger">*</span>';
             document.getElementById('inputLocation').placeholder = 'e.g. Lonavala, Maharashtra';
 
-            document.getElementById('lblAcreageOrType').innerHTML = 'Acreage & Farm Type <span class="text-danger">*</span>';
+            document.getElementById('lblAcreageOrType').innerHTML = 'Property Size & Type <span class="text-danger">*</span>';
             document.getElementById('iconAcreageOrType').className = 'bi bi-aspect-ratio';
-            document.getElementById('inputAcreageOrType').placeholder = 'e.g. 4 Acres with Swimming Pool & Gazebo, 5 BHK';
+            document.getElementById('inputAcreageOrType').placeholder = 'e.g. 4 Acres / 10,000 Sq. Ft with Pool & Gazebo, 5 BHK';
 
             document.getElementById('lblMessage').textContent = 'Key Amenities & Caretaker Availability';
             document.getElementById('inputMessage').placeholder = 'Mention private pool, lawn capacity, music system, barbecue, caretaker availability, pricing expectations...';

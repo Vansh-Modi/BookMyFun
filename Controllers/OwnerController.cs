@@ -114,6 +114,53 @@ namespace BookMyFun.Controllers
                 return RedirectToAction(nameof(Subscriptions));
             }
 
+            // Process Custom Amenities
+            if (vm.CustomAmenities != null && vm.CustomAmenities.Any())
+            {
+                foreach (var customAm in vm.CustomAmenities.Where(s => !string.IsNullOrWhiteSpace(s)))
+                {
+                    var amId = await _propRepo.GetOrCreateAmenityByNameAsync(customAm);
+                    if (amId > 0 && !vm.SelectedAmenityIDs.Contains(amId))
+                    {
+                        vm.SelectedAmenityIDs.Add(amId);
+                    }
+                }
+            }
+
+            // Process Custom Occasions
+            if (vm.CustomOccasions != null && vm.CustomOccasions.Any())
+            {
+                foreach (var customOcc in vm.CustomOccasions.Where(s => !string.IsNullOrWhiteSpace(s)))
+                {
+                    var occId = await _propRepo.GetOrCreateOccasionByNameAsync(customOcc);
+                    if (occId > 0 && !vm.SelectedOccasionIDs.Contains(occId))
+                    {
+                        vm.SelectedOccasionIDs.Add(occId);
+                    }
+                }
+            }
+
+            vm.SelectedAmenityIDs = vm.SelectedAmenityIDs.Distinct().ToList();
+            vm.SelectedOccasionIDs = vm.SelectedOccasionIDs.Distinct().ToList();
+
+            if (vm.SelectedAmenityIDs.Count > 10)
+            {
+                ModelState.AddModelError("SelectedAmenityIDs", "You can select or add a maximum of 10 amenities.");
+            }
+
+            if (vm.SelectedOccasionIDs.Count > 5)
+            {
+                ModelState.AddModelError("SelectedOccasionIDs", "You can select or add a maximum of 5 occasions.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                vm.AvailableTypes = await _propRepo.GetPropertyTypesAsync();
+                vm.AvailableOccasions = await _propRepo.GetOccasionsAsync();
+                vm.AvailableAmenities = await _propRepo.GetAllAmenitiesAsync();
+                return View(vm);
+            }
+
             var prop = new Property
             {
                 OwnerID = ownerId,
@@ -238,6 +285,54 @@ namespace BookMyFun.Controllers
                 return Forbid();
             }
 
+            // Process Custom Amenities
+            if (vm.CustomAmenities != null && vm.CustomAmenities.Any())
+            {
+                foreach (var customAm in vm.CustomAmenities.Where(s => !string.IsNullOrWhiteSpace(s)))
+                {
+                    var amId = await _propRepo.GetOrCreateAmenityByNameAsync(customAm);
+                    if (amId > 0 && !vm.SelectedAmenityIDs.Contains(amId))
+                    {
+                        vm.SelectedAmenityIDs.Add(amId);
+                    }
+                }
+            }
+
+            // Process Custom Occasions
+            if (vm.CustomOccasions != null && vm.CustomOccasions.Any())
+            {
+                foreach (var customOcc in vm.CustomOccasions.Where(s => !string.IsNullOrWhiteSpace(s)))
+                {
+                    var occId = await _propRepo.GetOrCreateOccasionByNameAsync(customOcc);
+                    if (occId > 0 && !vm.SelectedOccasionIDs.Contains(occId))
+                    {
+                        vm.SelectedOccasionIDs.Add(occId);
+                    }
+                }
+            }
+
+            vm.SelectedAmenityIDs = vm.SelectedAmenityIDs.Distinct().ToList();
+            vm.SelectedOccasionIDs = vm.SelectedOccasionIDs.Distinct().ToList();
+
+            if (vm.SelectedAmenityIDs.Count > 10)
+            {
+                ModelState.AddModelError("SelectedAmenityIDs", "You can select or add a maximum of 10 amenities.");
+            }
+
+            if (vm.SelectedOccasionIDs.Count > 5)
+            {
+                ModelState.AddModelError("SelectedOccasionIDs", "You can select or add a maximum of 5 occasions.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                vm.AvailableTypes = await _propRepo.GetPropertyTypesAsync();
+                vm.AvailableOccasions = await _propRepo.GetOccasionsAsync();
+                vm.AvailableAmenities = await _propRepo.GetAllAmenitiesAsync();
+                vm.ExistingMedia = await _propRepo.GetPropertyMediaAsync(vm.PropertyID);
+                return View(vm);
+            }
+
             prop.PropertyTypeID = vm.PropertyTypeID;
             prop.Title = vm.Title;
             prop.Description = vm.Description;
@@ -326,7 +421,9 @@ namespace BookMyFun.Controllers
             var ownerId = GetCurrentUserId();
             if (!ModelState.IsValid)
             {
-                return View(model);
+                var errors = string.Join(" ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage));
+                TempData["Error"] = $"Unable to file claim: {errors}";
+                return RedirectToAction(nameof(DamageClaims));
             }
 
             try
@@ -337,8 +434,8 @@ namespace BookMyFun.Controllers
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", ex.Message);
-                return View(model);
+                TempData["Error"] = $"Claim submission failed: {ex.Message}";
+                return RedirectToAction(nameof(DamageClaims));
             }
         }
 

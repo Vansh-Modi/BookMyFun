@@ -21,6 +21,7 @@ namespace BookMyFun.Repositories
         Task<List<Payment>> GetPaymentsByBookingIdAsync(int bookingId);
         Task<List<CustomerReview>> GetReviewsByPropertyIdAsync(int propertyId);
         Task<int> AddReviewAsync(CustomerReview review);
+        Task<bool> UpdateBookingEventCommissionAsync(int bookingId, decimal newEventCommissionRate);
     }
 
     public class BookingRepository : IBookingRepository
@@ -291,6 +292,34 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@Comment", DBHelper.ToDbValue(review.Comment)));
 
             return result != null ? Convert.ToInt32(result) : 0;
+        }
+
+        public async Task<bool> UpdateBookingEventCommissionAsync(int bookingId, decimal newEventCommissionRate)
+        {
+            var booking = await GetByIdAsync(bookingId);
+            if (booking == null || !booking.IsEventBooking || booking.EventPackagePriceSnapshot <= 0)
+            {
+                return false;
+            }
+
+            decimal price = booking.EventPackagePriceSnapshot;
+            decimal newComm = Math.Round((price * newEventCommissionRate) / 100m, 2);
+            decimal newPayout = Math.Max(0, price - newComm);
+
+            const string sql = @"
+                UPDATE Bookings
+                SET EventCommissionRateSnapshot = @Rate,
+                    EventPlatformCommissionAmount = @Comm,
+                    EventManagerPayoutAmount = @Payout
+                WHERE BookingID = @BookingID";
+
+            var rows = await _db.ExecuteNonQueryAsync(sql,
+                new SqlParameter("@BookingID", bookingId),
+                new SqlParameter("@Rate", newEventCommissionRate),
+                new SqlParameter("@Comm", newComm),
+                new SqlParameter("@Payout", newPayout));
+
+            return rows > 0;
         }
 
         private static Booking MapBooking(SqlDataReader r)

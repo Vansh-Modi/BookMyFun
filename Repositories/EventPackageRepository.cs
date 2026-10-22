@@ -96,6 +96,20 @@ namespace BookMyFun.Repositories
             return rows > 0;
         }
 
+        public async Task<bool> UpdatePackageCommissionRateAsync(int packageId, decimal? commissionRate)
+        {
+            const string query = @"
+                UPDATE EventPackages
+                SET CommissionRate = @CommissionRate
+                WHERE PackageID = @PackageID";
+
+            var rows = await _db.ExecuteNonQueryAsync(query,
+                new SqlParameter("@PackageID", packageId),
+                new SqlParameter("@CommissionRate", (object?)commissionRate ?? DBNull.Value));
+
+            return rows > 0;
+        }
+
         public async Task<bool> DeletePackageAsync(int packageId)
         {
             try

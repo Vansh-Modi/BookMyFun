@@ -22,6 +22,7 @@ namespace BookMyFun.Controllers
         private readonly IBookingRepository _bookingRepo;
         private readonly IPropertyRepository _propRepo;
         private readonly IIdVerificationRepository _idRepo;
+        private readonly IAuthenticationSchemeProvider _schemeProvider;
         private readonly ILogger<AccountController> _logger;
 
         public AccountController(
@@ -34,6 +35,7 @@ namespace BookMyFun.Controllers
             IBookingRepository bookingRepo,
             IPropertyRepository propRepo,
             IIdVerificationRepository idRepo,
+            IAuthenticationSchemeProvider schemeProvider,
             ILogger<AccountController> logger)
         {
             _userRepo = userRepo;
@@ -45,6 +47,7 @@ namespace BookMyFun.Controllers
             _bookingRepo = bookingRepo;
             _propRepo = propRepo;
             _idRepo = idRepo;
+            _schemeProvider = schemeProvider;
             _logger = logger;
         }
 
@@ -57,6 +60,25 @@ namespace BookMyFun.Controllers
             }
 
             var contact = request.Contact.Trim();
+
+            // Validate purpose-specific constraints
+            if (string.Equals(request.Purpose, "Registration", StringComparison.OrdinalIgnoreCase))
+            {
+                var existingUser = await _userRepo.GetByEmailAsync(contact);
+                if (existingUser != null)
+                {
+                    return Json(new { success = false, message = "An account with this email already exists. Please login." });
+                }
+            }
+            else if (string.Equals(request.Purpose, "ForgotPassword", StringComparison.OrdinalIgnoreCase))
+            {
+                var existingUser = await _userRepo.GetByEmailAsync(contact);
+                if (existingUser == null)
+                {
+                    return Json(new { success = false, message = "No account registered with this email address." });
+                }
+            }
+
             // Generate secure 6-digit numeric OTP
             var otp = RandomNumberGenerator.GetInt32(100000, 999999).ToString();
             await _otpRepo.SaveOtpAsync(contact, otp, request.Purpose);
@@ -66,27 +88,36 @@ namespace BookMyFun.Controllers
             {
                 string subject = "Your BookMyFun Verification Code";
                 string body = $@"
-                    <div style='font-family: Arial, sans-serif; padding: 20px;'>
-                        <h2>Welcome to BookMyFun</h2>
-                        <p>Your one-time password (OTP) for account verification is:</p>
-                        <h1 style='color: #d97706; letter-spacing: 4px;'>{otp}</h1>
-                        <p>This code is valid for 10 minutes. Please do not share it with anyone.</p>
+                    <div style='font-family: Arial, sans-serif; padding: 25px; color: #1e293b; max-width: 520px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;'>
+                        <div style='text-align: center; margin-bottom: 20px;'>
+                            <h2 style='color: #0B4F6C; margin: 0; font-size: 24px; font-weight: 700;'>BookMyFun</h2>
+                            <p style='color: #64748B; font-size: 14px; margin-top: 4px;'>Account Verification Code</p>
+                        </div>
+                        <div style='border-top: 1px solid #e2e8f0; padding-top: 20px;'>
+                            <p style='font-size: 15px; margin-bottom: 12px;'>Hello,</p>
+                            <p style='font-size: 15px; line-height: 1.5; color: #334155;'>Your one-time verification code (OTP) is:</p>
+                            <div style='text-align: center; margin: 24px 0; padding: 18px; background: #FFFBEB; border: 1px dashed #F59E0B; border-radius: 8px;'>
+                                <span style='color: #D97706; font-size: 36px; font-weight: 800; letter-spacing: 8px;'>{otp}</span>
+                            </div>
+                            <p style='font-size: 14px; color: #64748B; line-height: 1.5;'>This verification code is valid for <strong>10 minutes</strong>. Please enter this code on the verification screen to proceed.</p>
+                            <p style='font-size: 13px; color: #94A3B8; margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 16px;'>If you did not request this code, please safely ignore this email.</p>
+                        </div>
                     </div>";
-                _ = _emailService.SendEmailAsync(contact, subject, body);
+                await _emailService.SendEmailAsync(contact, subject, body);
             }
             else
             {
                 string msg = $"Your BookMyFun verification code is: *{otp}*. Valid for 10 minutes. Do not share this code.";
-                _ = _whatsAppService.SendWhatsAppMessageAsync(contact, msg);
+                await _whatsAppService.SendWhatsAppMessageAsync(contact, msg);
             }
 
-            _logger.LogInformation("Sent OTP {Otp} to {Contact} for {Purpose}", otp, contact, request.Purpose);
+            _logger.LogInformation("Sent OTP to {Contact} for {Purpose}", contact, request.Purpose);
 
             return Json(new { 
                 success = true, 
-                message = "Verification code dispatched successfully!", 
-                // Return preview in development/test mode for immediate frictionless verification
-                previewOtp = otp 
+                message = contact.Contains("@") 
+                    ? "Verification code sent to your email! Please check your inbox and enter the 6-digit OTP below." 
+                    : "Verification code sent to your mobile number! Please enter the 6-digit OTP below."
             });
         }
 
@@ -138,11 +169,190 @@ namespace BookMyFun.Controllers
 
             return user.Role switch
             {
-                "Admin" => RedirectToAction("Index", "Admin"),
-                "Employee" => RedirectToAction("Index", "Employee"),
-                "Owner" => RedirectToAction("Index", "Owner"),
-                "EventManager" => RedirectToAction("Index", "EventManager"),
-                _ => RedirectToAction("Index", "Client")
+                "Admin" => new RedirectToActionResult("Index", "Admin", null),
+                "Employee" => new RedirectToActionResult("Index", "Employee", null),
+                "Owner" => new RedirectToActionResult("Index", "Owner", null),
+                "EventManager" => new RedirectToActionResult("Index", "EventManager", null),
+                _ => new RedirectToActionResult("Index", "Client", null)
+            };
+        }
+
+        [HttpGet]
+        [HttpPost]
+        public async Task<IActionResult> ExternalLogin(string provider = "Google", string? returnUrl = null)
+        {
+            var schemes = await _schemeProvider.GetAllSchemesAsync();
+            var isProviderAvailable = schemes.Any(s => string.Equals(s.Name, provider, StringComparison.OrdinalIgnoreCase));
+
+            if (isProviderAvailable)
+            {
+                var redirectUrl = Url.Action(nameof(ExternalLoginCallback), "Account", new { returnUrl });
+                var properties = new AuthenticationProperties { RedirectUri = redirectUrl };
+                return Challenge(properties, provider);
+            }
+
+            // Provider not configured in appsettings.json yet (e.g. initial setup)
+            // Display interactive direct Google sign-in/registration prompt
+            return View("ExternalLoginPrompt", new ExternalLoginPromptViewModel
+            {
+                Provider = provider,
+                ReturnUrl = returnUrl
+            });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ExternalLoginCallback(string? returnUrl = null, string? remoteError = null)
+        {
+            if (!string.IsNullOrEmpty(remoteError))
+            {
+                TempData["Error"] = $"Error from external authentication provider: {remoteError}";
+                return RedirectToAction(nameof(Login));
+            }
+
+            var authResult = await HttpContext.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            if (!authResult.Succeeded || authResult.Principal == null)
+            {
+                TempData["Error"] = "Unable to read profile information from external login provider.";
+                return RedirectToAction(nameof(Login));
+            }
+
+            var principal = authResult.Principal;
+            var email = principal.FindFirstValue(ClaimTypes.Email);
+            var name = principal.FindFirstValue(ClaimTypes.Name);
+            var providerKey = principal.FindFirstValue(ClaimTypes.NameIdentifier) ?? principal.FindFirstValue("sub");
+            var picture = principal.FindFirstValue("picture") ?? principal.FindFirst("urn:google:picture")?.Value;
+
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                TempData["Error"] = "External authentication did not return an email address.";
+                return RedirectToAction(nameof(Login));
+            }
+
+            return await ProcessExternalUserLoginAsync(email, name, "Google", providerKey ?? Guid.NewGuid().ToString("N"), picture, returnUrl);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DirectGoogleLogin(ExternalLoginPromptViewModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return View("ExternalLoginPrompt", model);
+            }
+
+            return await ProcessExternalUserLoginAsync(
+                model.Email, 
+                model.FullName, 
+                string.IsNullOrWhiteSpace(model.Provider) ? "Google" : model.Provider, 
+                "DIRECT_" + Guid.NewGuid().ToString("N")[..12], 
+                null, 
+                model.ReturnUrl);
+        }
+
+        private async Task<IActionResult> ProcessExternalUserLoginAsync(
+            string email, 
+            string? name, 
+            string provider, 
+            string providerKey, 
+            string? profilePic, 
+            string? returnUrl)
+        {
+            email = email.Trim().ToLowerInvariant();
+
+            // 1. Check if user already exists with this provider key
+            var user = await _userRepo.GetByAuthProviderKeyAsync(provider, providerKey);
+            if (user == null)
+            {
+                // 2. Check if user already exists with this email
+                user = await _userRepo.GetByEmailAsync(email);
+            }
+
+            if (user == null)
+            {
+                // 3. User does not exist -> Automatically register as Client (Guest)
+                var displayName = !string.IsNullOrWhiteSpace(name) ? name.Trim() : email.Split('@')[0];
+                var newUser = new User
+                {
+                    FullName = displayName,
+                    Email = email,
+                    PasswordHash = "OAUTH_" + provider.ToUpperInvariant() + "_" + Guid.NewGuid().ToString("N"),
+                    Role = "Client",
+                    IsActive = true,
+                    AuthProvider = provider,
+                    AuthProviderKey = providerKey,
+                    ProfilePictureUrl = profilePic,
+                    SubscriptionTier = "Free"
+                };
+
+                int newUserId = await _userRepo.CreateUserAsync(newUser);
+                if (newUserId <= 0)
+                {
+                    TempData["Error"] = "Unable to create your account via " + provider + ". Please try again or use standard registration.";
+                    return RedirectToAction(nameof(Login));
+                }
+
+                user = await _userRepo.GetByIdAsync(newUserId);
+            }
+            else
+            {
+                // User exists -> update provider linkage if needed
+                if (string.IsNullOrEmpty(user.AuthProviderKey) || user.AuthProvider != provider)
+                {
+                    await _userRepo.LinkAuthProviderAsync(user.UserID, provider, providerKey, profilePic);
+                }
+
+                if (!user.IsActive)
+                {
+                    TempData["Error"] = "This account is inactive or has been deactivated. Please contact customer support.";
+                    return RedirectToAction(nameof(Login));
+                }
+            }
+
+            // 4. Issue authenticated cookie session
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, user!.UserID.ToString()),
+                new Claim(ClaimTypes.Name, user.FullName),
+                new Claim(ClaimTypes.Email, user.Email),
+                new Claim(ClaimTypes.Role, user.Role),
+                new Claim("AuthProvider", provider)
+            };
+
+            if (!string.IsNullOrEmpty(user.ProfilePictureUrl))
+            {
+                claims.Add(new Claim("ProfilePicture", user.ProfilePictureUrl));
+            }
+
+            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+            var authProperties = new AuthenticationProperties
+            {
+                IsPersistent = true,
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(14)
+            };
+
+            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity), authProperties);
+
+            TempData["Success"] = $"Welcome {user.FullName}! You have signed in successfully with {provider}.";
+
+            if (!string.IsNullOrEmpty(returnUrl))
+            {
+                try
+                {
+                    if (Url != null && Url.IsLocalUrl(returnUrl))
+                    {
+                        return Redirect(returnUrl);
+                    }
+                }
+                catch { }
+            }
+
+            return user.Role switch
+            {
+                "Admin" => new RedirectToActionResult("Index", "Admin", null),
+                "Employee" => new RedirectToActionResult("Index", "Employee", null),
+                "Owner" => new RedirectToActionResult("Index", "Owner", null),
+                "EventManager" => new RedirectToActionResult("Index", "EventManager", null),
+                _ => new RedirectToActionResult("Index", "Client", null)
             };
         }
 

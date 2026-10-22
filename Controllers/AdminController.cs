@@ -71,6 +71,7 @@ namespace BookMyFun.Controllers
             var properties = await _propRepo.GetAllPropertiesAsync();
             var owners = await _userRepo.GetUsersByRoleAsync("Owner");
             var clients = await _userRepo.GetUsersByRoleAsync("Client");
+            var employees = await _userRepo.GetUsersByRoleAsync("Employee");
             var bookings = await _bookingRepo.GetAllBookingsAsync();
 
             decimal totalRevenue = bookings.Where(b => b.Status == "Confirmed").Sum(b => b.TotalAmount);
@@ -82,6 +83,7 @@ namespace BookMyFun.Controllers
                 PendingApprovals = properties.Count(p => !p.IsApproved),
                 TotalOwners = owners.Count,
                 TotalClients = clients.Count,
+                TotalEmployees = employees.Count,
                 TotalBookings = bookings.Count,
                 TotalRevenue = totalRevenue,
                 PlatformEarnings = platformEarnings,
@@ -150,6 +152,152 @@ namespace BookMyFun.Controllers
             await _configRepo.LogAuditAsync(currentUserId, "DeleteOwner", "User", id, $"Deleted owner #{id}");
 
             return RedirectToAction(nameof(ManageOwners));
+        }
+
+        // --- Full CRUD for Employees ---
+        public async Task<IActionResult> ManageEmployees()
+        {
+            var employees = await _userRepo.GetUsersByRoleAsync("Employee");
+            return View(employees);
+        }
+
+        [HttpGet]
+        public IActionResult CreateEmployee()
+        {
+            return View(new CreateEmployeeViewModel { IsActive = true });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateEmployee(CreateEmployeeViewModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }
+
+            var cleanEmail = model.Email.Trim().ToLowerInvariant();
+            var existingUser = await _userRepo.GetByEmailAsync(cleanEmail);
+            if (existingUser != null)
+            {
+                ModelState.AddModelError("Email", "An account with this email address already exists.");
+                return View(model);
+            }
+
+            string passwordToHash = string.IsNullOrWhiteSpace(model.Password) ? "Emp@123" : model.Password.Trim();
+
+            var newEmployee = new User
+            {
+                FullName = model.FullName.Trim(),
+                Email = cleanEmail,
+                Phone = string.IsNullOrWhiteSpace(model.Phone) ? null : model.Phone.Trim(),
+                PasswordHash = AccountController.HashPassword(passwordToHash),
+                Role = "Employee",
+                IsActive = model.IsActive,
+                SubscriptionTier = "Free",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var id = await _userRepo.CreateUserAsync(newEmployee);
+            if (id <= 0)
+            {
+                ModelState.AddModelError("", "Unable to create employee account. Please try again.");
+                return View(model);
+            }
+
+            var currentUserIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrEmpty(currentUserIdStr) && int.TryParse(currentUserIdStr, out int currentUserId))
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "CreateEmployee", "User", id, $"Created employee {newEmployee.FullName} ({newEmployee.Email})");
+            }
+
+            TempData["Success"] = $"Employee '{newEmployee.FullName}' (Account #{id}) was successfully added!";
+            return RedirectToAction(nameof(ManageEmployees));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> EditEmployee(int id)
+        {
+            var user = await _userRepo.GetByIdAsync(id);
+            if (user == null || !string.Equals(user.Role, "Employee", StringComparison.OrdinalIgnoreCase))
+            {
+                TempData["Error"] = "Employee not found.";
+                return RedirectToAction(nameof(ManageEmployees));
+            }
+
+            var vm = new EditEmployeeViewModel
+            {
+                UserID = user.UserID,
+                FullName = user.FullName,
+                Email = user.Email,
+                Phone = user.Phone,
+                IsActive = user.IsActive
+            };
+
+            return View(vm);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditEmployee(EditEmployeeViewModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }
+
+            var user = await _userRepo.GetByIdAsync(model.UserID);
+            if (user == null || !string.Equals(user.Role, "Employee", StringComparison.OrdinalIgnoreCase))
+            {
+                TempData["Error"] = "Employee not found.";
+                return RedirectToAction(nameof(ManageEmployees));
+            }
+
+            user.FullName = model.FullName.Trim();
+            user.Phone = string.IsNullOrWhiteSpace(model.Phone) ? null : model.Phone.Trim();
+            user.IsActive = model.IsActive;
+
+            if (!string.IsNullOrWhiteSpace(model.NewPassword))
+            {
+                user.PasswordHash = AccountController.HashPassword(model.NewPassword.Trim());
+                await _userRepo.ResetPasswordAsync(user.Email, user.PasswordHash);
+            }
+
+            await _userRepo.UpdateUserAsync(user);
+
+            var currentUserIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrEmpty(currentUserIdStr) && int.TryParse(currentUserIdStr, out int currentUserId))
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "EditEmployee", "User", user.UserID, $"Updated employee {user.FullName}");
+            }
+
+            TempData["Success"] = $"Employee '{user.FullName}' details updated successfully.";
+            return RedirectToAction(nameof(ManageEmployees));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteEmployee(int id)
+        {
+            var user = await _userRepo.GetByIdAsync(id);
+            if (user != null && string.Equals(user.Role, "Employee", StringComparison.OrdinalIgnoreCase))
+            {
+                await _userRepo.DeleteUserAsync(id);
+
+                var currentUserIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (!string.IsNullOrEmpty(currentUserIdStr) && int.TryParse(currentUserIdStr, out int currentUserId))
+                {
+                    await _configRepo.LogAuditAsync(currentUserId, "DeleteEmployee", "User", id, $"Deleted employee #{id} ({user.FullName})");
+                }
+
+                TempData["Success"] = $"Employee '{user.FullName}' (#{id}) was removed successfully.";
+            }
+            else
+            {
+                TempData["Error"] = "Employee not found.";
+            }
+
+            return RedirectToAction(nameof(ManageEmployees));
         }
 
         // --- Full CRUD for Properties on behalf of Owners ---
@@ -422,10 +570,12 @@ namespace BookMyFun.Controllers
             var configs = await _configRepo.GetAllConfigsAsync();
             var settings = await _configRepo.GetAllSettingsAsync();
             var branding = await _siteSettingsService.GetSettingsAsync();
+            var eventPackages = await _eventPackageRepo.GetAllPackagesAsync();
 
             ViewBag.Configs = configs;
             ViewBag.Settings = settings;
             ViewBag.Branding = branding;
+            ViewBag.EventPackages = eventPackages;
 
             return View(branding);
         }
@@ -464,8 +614,88 @@ namespace BookMyFun.Controllers
             }
 
             await _siteSettingsService.SaveSettingsAsync(model);
-            TempData["Success"] = "Site branding, logo, contact information, and platform parameters updated successfully!";
+
+            // Persist per-event specific commission overrides if submitted
+            if (Request.Form.Keys.Any(k => k.StartsWith("eventPkgComm_")))
+            {
+                foreach (var key in Request.Form.Keys.Where(k => k.StartsWith("eventPkgComm_")))
+                {
+                    var rawId = key.Replace("eventPkgComm_", "");
+                    if (int.TryParse(rawId, out int pkgId))
+                    {
+                        var rawVal = Request.Form[key].ToString().Trim();
+                        decimal? rate = null;
+                        if (!string.IsNullOrEmpty(rawVal) && decimal.TryParse(rawVal, out var parsedRate))
+                        {
+                            rate = parsedRate;
+                        }
+                        await _eventPackageRepo.UpdatePackageCommissionRateAsync(pkgId, rate);
+                    }
+                }
+            }
+
+            TempData["Success"] = "Site branding, standing commission, and specific event commissions updated successfully!";
             return RedirectToAction(nameof(Settings));
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> UpdateEventCommission([FromBody] UpdateEventCommissionRequest model)
+        {
+            if (model.PackageId <= 0)
+            {
+                return Json(new { success = false, message = "Invalid event package ID." });
+            }
+
+            var pkg = await _eventPackageRepo.GetPackageByIdAsync(model.PackageId);
+            if (pkg == null)
+            {
+                return Json(new { success = false, message = "Event package not found." });
+            }
+
+            bool updated = await _eventPackageRepo.UpdatePackageCommissionRateAsync(model.PackageId, model.CommissionRate);
+            if (updated)
+            {
+                var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                string desc = model.CommissionRate.HasValue 
+                    ? $"Set custom commission for event '{pkg.Name}' to {model.CommissionRate.Value}%" 
+                    : $"Reverted commission for event '{pkg.Name}' to standing default";
+                await _configRepo.LogAuditAsync(currentUserId, "UpdateEventCommission", "EventPackage", model.PackageId, desc);
+
+                return Json(new { 
+                    success = true, 
+                    message = $"Commission for '{pkg.Name}' updated successfully!",
+                    rate = model.CommissionRate
+                });
+            }
+
+            return Json(new { success = false, message = "Failed to update event commission." });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> UpdateBookingEventCommission([FromBody] UpdateBookingEventCommissionRequest model)
+        {
+            if (model.BookingId <= 0 || model.CommissionRate < 0 || model.CommissionRate > 100)
+            {
+                return Json(new { success = false, message = "Invalid booking ID or commission percentage." });
+            }
+
+            bool updated = await _bookingRepo.UpdateBookingEventCommissionAsync(model.BookingId, model.CommissionRate);
+            if (updated)
+            {
+                var booking = await _bookingRepo.GetByIdAsync(model.BookingId);
+                var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                await _configRepo.LogAuditAsync(currentUserId, "UpdateBookingEventCommission", "Booking", model.BookingId, 
+                    $"Adjusted event commission on booking #{model.BookingId} to {model.CommissionRate}% (Fee: ₹{booking?.EventPlatformCommissionAmount:N2}, Payout: ₹{booking?.EventManagerPayoutAmount:N2})");
+
+                return Json(new { 
+                    success = true, 
+                    message = $"Event commission for Booking #{model.BookingId} updated to {model.CommissionRate}%!",
+                    platformCommission = booking?.EventPlatformCommissionAmount ?? 0m,
+                    managerPayout = booking?.EventManagerPayoutAmount ?? 0m
+                });
+            }
+
+            return Json(new { success = false, message = "Failed to update event commission for this booking." });
         }
 
         // --- Analytics & Financial Reports ---

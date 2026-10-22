@@ -17,74 +17,12 @@
             }
         </div>
         <h1 class="dash-title">Traveler Dashboard</h1>
-        <p class="dash-subtitle">Welcome back, <strong>@Model.Client.FullName</strong> (@Model.Client.Email) · Review past stays, active bookings, and submit reviews.</p>
+        <p class="dash-subtitle">Welcome back, <strong>@Model.Client.FullName</strong> · Review past stays, active bookings, and submit reviews.</p>
     </div>
     <div class="dash-actions">
         <a asp-controller="Properties" asp-action="Index" class="dash-btn dash-btn-primary">
             <i class="bi bi-compass"></i> Book a New Stay
         </a>
-    </div>
-</div>
-
-<!-- Identity Verification & KYC Banner -->
-<div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden">
-    <div class="card-body p-4">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <div class="d-flex align-items-start gap-3">
-                    <div class="rounded-circle p-3 @(verification?.VerificationStatus == "Verified" ? "bg-success bg-opacity-10 text-success" : verification?.VerificationStatus == "PendingReview" ? "bg-warning bg-opacity-10 text-warning" : "bg-primary bg-opacity-10 text-primary")">
-                        <i class="bi @(verification?.VerificationStatus == "Verified" ? "bi-shield-fill-check fs-2" : "bi-person-badge fs-2")"></i>
-                    </div>
-                    <div>
-                        <h5 class="fw-bold mb-1">
-                            Identity Verification (KYC Governance)
-                            @if (verification?.VerificationStatus == "Verified")
-                            {
-                                <span class="badge bg-success ms-2"><i class="bi bi-check2"></i> Verified</span>
-                            }
-                            else if (verification?.VerificationStatus == "PendingReview")
-                            {
-                                <span class="badge bg-warning text-dark ms-2"><i class="bi bi-clock"></i> Under Review</span>
-                            }
-                            else
-                            {
-                                <span class="badge bg-secondary ms-2">Action Recommended</span>
-                            }
-                        </h5>
-                        <p class="text-muted small mb-0">
-                            Government ID proof is required strictly at the time of reservation during booking checkout. Prior upload is optional and not required to browse or use your account. All documents are encrypted and shielded from property hosts.
-                        </p>
-                        @if (verification != null)
-                        {
-                            <div class="small text-muted mt-2">
-                                <span><strong>Document:</strong> @verification.DocumentType</span>
-                                @if (!string.IsNullOrEmpty(verification.MaskedIdentifier))
-                                {
-                                    <span class="ms-3"><strong>Masked ID:</strong> <code>@verification.MaskedIdentifier</code></span>
-                                }
-                                <span class="ms-3"><strong>Submitted:</strong> @verification.CreatedAt.ToString("MMM dd, yyyy")</span>
-                            </div>
-                        }
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                @if (verification == null || verification.VerificationStatus == "Rejected")
-                {
-                    <button type="button" class="btn btn-outline-primary fw-semibold px-4 rounded-3" data-bs-toggle="modal" data-bs-target="#kycUploadModal">
-                        <i class="bi bi-upload me-1"></i> Upload Government ID
-                    </button>
-                }
-                else if (verification.VerificationStatus == "PendingReview")
-                {
-                    <span class="text-warning fw-semibold small"><i class="bi bi-hourglass-split"></i> Review in progress by operations team</span>
-                }
-                else
-                {
-                    <span class="text-success fw-bold small"><i class="bi bi-check-circle-fill"></i> ID Verified & Privacy Protected</span>
-                }
-            </div>
-        </div>
     </div>
 </div>
 
@@ -97,21 +35,19 @@
         <table class="table table-hover align-middle mb-0">
             <thead>
                 <tr>
-                    <th>Booking #</th>
-                    <th>Property</th>
-                    <th>Booking Type / Slot</th>
-                    <th>Dates</th>
-                    <th>Amount</th>
-                    <th>Security Deposit</th>
+                    <th class="ps-4">Property</th>
+                    <th>Booking Type</th>
+                    <th>Stay Dates</th>
+                    <th>Total Amount</th>
                     <th>Status</th>
-                    <th>Actions</th>
+                    <th class="text-end pe-4">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 @if (!Model.Bookings.Any())
                 {
                     <tr>
-                        <td colspan="8" class="text-center py-5 text-muted">
+                        <td colspan="6" class="text-center py-5 text-muted">
                             <i class="bi bi-calendar-x fs-1 d-block mb-2 text-muted opacity-50"></i>
                             You have no past or upcoming bookings.<br />
                             <a asp-controller="Properties" asp-action="Index" class="dash-btn dash-btn-primary mt-3">Explore Available Stays</a>
@@ -121,28 +57,26 @@
                 @foreach (var b in Model.Bookings)
                 {
                     <tr>
-                        <td><strong>#@b.BookingID</strong></td>
-                        <td class="fw-semibold">@b.PropertyTitle</td>
+                        <td class="ps-4">
+                            <a asp-controller="Properties" asp-action="Details" asp-route-id="@b.PropertyID" class="fw-bold text-decoration-none text-heading d-block">
+                                <i class="bi bi-house-door text-primary me-1"></i>@b.PropertyTitle
+                            </a>
+                        </td>
                         <td>
-                            <span class="badge bg-secondary">@b.BookingType</span>
+                            <span class="badge bg-secondary-subtle text-secondary border px-2 py-1 rounded-pill small">
+                                @b.BookingType
+                            </span>
                             @if (!string.IsNullOrEmpty(b.SlotType))
                             {
-                                <small class="d-block text-muted">@b.SlotType</small>
+                                <small class="d-block text-muted mt-1">@b.SlotType</small>
                             }
                         </td>
-                        <td><small class="text-muted">@b.CheckInDate.ToString("MMM dd") - @b.CheckOutDate.ToString("MMM dd, yyyy")</small></td>
-                        <td><strong class="text-success">₹@b.TotalAmount.ToString("N2")</strong></td>
                         <td>
-                            @if (b.SecurityDepositAmount > 0)
-                            {
-                                <span>₹@b.SecurityDepositAmount.ToString("N2")</span>
-                                <span class="badge bg-light text-dark border small ms-1">@b.SecurityDepositStatus</span>
-                            }
-                            else
-                            {
-                                <span class="text-muted small">None</span>
-                            }
+                            <div class="small fw-semibold text-dark">
+                                <i class="bi bi-calendar-event text-secondary me-1"></i>@b.CheckInDate.ToString("MMM dd") &ndash; @b.CheckOutDate.ToString("MMM dd, yyyy")
+                            </div>
                         </td>
+                        <td><strong class="text-success fs-6">₹@b.TotalAmount.ToString("N2")</strong></td>
                         <td>
                             @if (b.Status == "Confirmed")
                             {
@@ -157,24 +91,24 @@
                                 <span class="dash-badge dash-badge-warning"><i class="bi bi-clock-fill"></i> Pending</span>
                             }
                         </td>
-                        <td>
-                            <div class="d-flex flex-wrap gap-1">
-                                <button type="button" class="btn btn-sm btn-outline-info" onclick="viewPaymentDetails(@b.BookingID)" title="View Payment Gateway & Refund Transparency">
-                                    <i class="bi bi-receipt"></i> Receipts
+                        <td class="text-end pe-4">
+                            <div class="d-inline-flex flex-wrap gap-1 justify-content-end align-items-center">
+                                <button type="button" class="btn btn-sm btn-outline-info rounded-pill px-2.5 py-1" style="font-size: 0.775rem;" onclick="viewPaymentDetails(@b.BookingID)" title="View Payment Gateway & Refund Transparency">
+                                    <i class="bi bi-receipt me-1"></i>Receipts
                                 </button>
                                 @if (b.Status == "Confirmed")
                                 {
-                                    <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="modal" data-bs-target="#reviewModal_@b.BookingID">
-                                        <i class="bi bi-star"></i> Review
+                                    <button type="button" class="btn btn-sm btn-outline-warning text-dark rounded-pill px-2.5 py-1" style="font-size: 0.775rem;" data-bs-toggle="modal" data-bs-target="#reviewModal_@b.BookingID">
+                                        <i class="bi bi-star me-1"></i>Review
                                     </button>
-                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="openCancelModal(@b.BookingID)">
-                                        <i class="bi bi-x-circle"></i> Cancel
+                                    <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1" style="font-size: 0.775rem;" onclick="openCancelModal(@b.BookingID)">
+                                        <i class="bi bi-x-circle me-1"></i>Cancel
                                     </button>
                                 }
                                 else if (b.Status == "Pending")
                                 {
-                                    <a asp-controller="Booking" asp-action="Payment" asp-route-id="@b.BookingID" class="btn btn-sm btn-warning">
-                                        <i class="bi bi-credit-card"></i> Pay Now
+                                    <a asp-controller="Booking" asp-action="Payment" asp-route-id="@b.BookingID" class="btn btn-sm btn-warning rounded-pill px-3 py-1 fw-bold" style="font-size: 0.775rem;">
+                                        <i class="bi bi-credit-card me-1"></i>Pay Now
                                     </a>
                                 }
                             </div>
@@ -292,57 +226,6 @@
     </div>
 </div>
 
-<!-- Government ID Upload Modal -->
-<div class="modal fade" id="kycUploadModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
-            <div class="modal-header bg-light border-0 py-3">
-                <h5 class="modal-title fw-bold text-dark">
-                    <i class="bi bi-shield-lock text-success me-2"></i>Upload Government Identification
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-4">
-                <p class="text-muted small mb-3">
-                    Supported documents: Aadhaar Card, Passport, Driver's License. Max file size: 5MB (PDF, JPG, PNG). Files are stored privately and verified by staff.
-                </p>
-
-                <form id="kycUploadForm" enctype="multipart/form-data">
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold small">Document Type <span class="text-danger">*</span></label>
-                        <select name="documentType" class="form-select" required>
-                            <option value="Aadhaar">Aadhaar Card</option>
-                            <option value="Passport">Passport</option>
-                            <option value="DrivingLicense">Driver's License</option>
-                            <option value="VoterID">Voter ID</option>
-                        </select>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold small">Document Identification Number (Optional)</label>
-                        <input type="text" name="maskedIdentifier" class="form-control" placeholder="e.g. Last 4 digits only (e.g. 5432)" maxlength="20" />
-                        <small class="text-muted">Only the last 4 characters are retained for verification badges.</small>
-                    </div>
-
-                    <div class="mb-4">
-                        <label class="form-label fw-semibold small">Choose Document File <span class="text-danger">*</span></label>
-                        <input type="file" name="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png" required />
-                    </div>
-
-                    <div id="kycUploadStatus" class="mb-3" style="display: none;"></div>
-
-                    <div class="d-flex justify-content-end gap-2">
-                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" id="btnSubmitKyc" class="btn btn-success fw-bold px-4">
-                            <i class="bi bi-upload me-1"></i>Secure Upload
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
 @section Scripts {
 <script>
     async function openCancelModal(bookingId) {
@@ -384,44 +267,6 @@
             modal.hide();
         }
     }
-
-    document.getElementById('kycUploadForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const btn = document.getElementById('btnSubmitKyc');
-        const statusBox = document.getElementById('kycUploadStatus');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Uploading...';
-        statusBox.style.display = 'none';
-
-        const formData = new FormData(this);
-
-        try {
-            const resp = await fetch('/api/media/upload-id-document', {
-                method: 'POST',
-                body: formData
-            });
-
-            const data = await resp.json();
-            if (resp.ok && data.success) {
-                statusBox.className = 'alert alert-success py-2 small';
-                statusBox.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> ID uploaded securely! Operations will review it shortly.';
-                statusBox.style.display = 'block';
-                setTimeout(() => window.location.reload(), 1500);
-            } else {
-                statusBox.className = 'alert alert-danger py-2 small';
-                statusBox.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> ' + (data.error?.message || 'Upload failed.');
-                statusBox.style.display = 'block';
-                btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-upload me-1"></i>Secure Upload';
-            }
-        } catch (err) {
-            statusBox.className = 'alert alert-danger py-2 small';
-            statusBox.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> Network error during upload.';
-            statusBox.style.display = 'block';
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-upload me-1"></i>Secure Upload';
-        }
-    });
 
     async function viewPaymentDetails(bookingId) {
         const modal = new bootstrap.Modal(document.getElementById('paymentDetailsModal'));

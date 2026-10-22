@@ -41,6 +41,7 @@
                                 <th>Property</th>
                                 <th>Claim Amount</th>
                                 <th>Approved Amount</th>
+                                <th>Evidence Proof</th>
                                 <th>Status</th>
                                 <th>Date Filed</th>
                                 <th class="pe-4 text-end">Adjudication Notes</th>
@@ -66,6 +67,25 @@
                                     <td class="fw-bold text-danger">₹@c.ClaimAmount.ToString("N2")</td>
                                     <td class="fw-bold text-success">
                                         @(c.AdjudicatedAmount.HasValue ? $"₹{c.AdjudicatedAmount.Value:N2}" : "--")
+                                    </td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(c.EvidenceMediaUrls))
+                                        {
+                                            var links = c.EvidenceMediaUrls.Replace("[", "").Replace("]", "").Replace("\"", "").Split(new[] { '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+                                            <div class="d-flex flex-wrap gap-1">
+                                                @foreach (var link in links.Take(3))
+                                                {
+                                                    var clean = link.Trim();
+                                                    <a href="@clean" target="_blank" class="badge bg-light text-primary border text-decoration-none">
+                                                        <i class="bi bi-image me-1"></i> Proof
+                                                    </a>
+                                                }
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small">None</span>
+                                        }
                                     </td>
                                     <td>
                                         <span class="badge @badgeClass px-3 py-2 rounded-pill">@c.Status</span>
@@ -96,7 +116,7 @@
 <div class="modal fade" id="newClaimModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
-            <form asp-action="CreateClaim" method="post">
+            <form asp-action="CreateClaim" method="post" enctype="multipart/form-data">
                 @Html.AntiForgeryToken()
                 <div class="modal-header bg-danger text-white py-3">
                     <h5 class="modal-title fw-bold">
@@ -142,10 +162,17 @@
                         <textarea name="ItemizedDescription" class="form-control" rows="3" placeholder="Describe the damage specifically (e.g. Broken glass door in living room ₹2,500 + stained patio cushions dry cleaning ₹1,000)" required></textarea>
                     </div>
 
+                    <!-- Direct Damage Image / Video File Upload -->
                     <div class="mb-3">
-                        <label class="form-label fw-semibold small">Photo / Video Evidence Proof URLs</label>
-                        <textarea name="EvidenceUrlsInput" class="form-control" rows="2" placeholder="Paste media links (Cloudinary, Drive, Imgur, or direct URLs) separated by commas"></textarea>
-                        <div class="form-text small">Provide direct links to inspection photos or videos showing the damaged assets.</div>
+                        <label class="form-label fw-semibold small"><i class="bi bi-camera text-danger me-1"></i>Upload Damage Photos / Proof</label>
+                        <input type="file" name="EvidenceFiles" id="damageProofFiles" class="form-control" accept="image/*,video/*" multiple onchange="previewDamageProof(this)" />
+                        <div class="form-text small">Select photos or video files of the damaged items (JPG, PNG, WEBP, MP4).</div>
+                        <div id="damageProofPreview" class="d-flex flex-wrap gap-2 mt-2"></div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Optional: Additional External Evidence URLs</label>
+                        <textarea name="EvidenceUrlsInput" class="form-control" rows="2" placeholder="Paste links (Cloudinary, Drive, Imgur) separated by commas if not uploading files above"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer bg-light border-0 py-3">
@@ -155,6 +182,38 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function previewDamageProof(input) {
+        const container = document.getElementById('damageProofPreview');
+        container.innerHTML = '';
+        if (input.files) {
+            Array.from(input.files).forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.className = 'rounded border shadow-sm';
+                        img.style.width = '70px';
+                        img.style.height = '70px';
+                        img.style.objectFit = 'cover';
+                        container.appendChild(img);
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-secondary p-2 rounded';
+                    badge.textContent = file.name;
+                    container.appendChild(badge);
+                }
+            });
+        }
+    }
+</script>
         </div>
     </div>
 </div>

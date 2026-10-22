@@ -8,6 +8,7 @@ namespace BookMyFun.Repositories
     {
         Task<User?> GetByIdAsync(int userId);
         Task<User?> GetByEmailAsync(string email);
+        Task<User?> GetByAuthProviderKeyAsync(string provider, string providerKey);
         Task<List<User>> GetUsersByRoleAsync(string role);
         Task<List<User>> GetAllUsersAsync();
         Task<int> CreateUserAsync(User user);
@@ -15,6 +16,7 @@ namespace BookMyFun.Repositories
         Task<bool> DeleteUserAsync(int userId);
         Task<bool> ResetPasswordAsync(string email, string newPasswordHash);
         Task<bool> UpdateUserTierAndCommissionAsync(int userId, string subscriptionTier, decimal? customCommissionRate);
+        Task<bool> LinkAuthProviderAsync(int userId, string provider, string providerKey, string? profilePic = null);
     }
 
     public class UserRepository : IUserRepository
@@ -49,6 +51,14 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@AccountID", accountId));
         }
 
+        public async Task<User?> GetByAuthProviderKeyAsync(string provider, string providerKey)
+        {
+            const string sql = "SELECT * FROM Users WHERE AuthProvider = @Provider AND AuthProviderKey = @ProviderKey";
+            return await _db.ExecuteReaderSingleAsync(sql, MapUser,
+                new SqlParameter("@Provider", provider),
+                new SqlParameter("@ProviderKey", providerKey));
+        }
+
         public async Task<List<User>> GetUsersByRoleAsync(string role)
         {
             const string sql = "SELECT * FROM Users WHERE Role = @Role AND (IsActive = 1 OR IsActive IS NULL) ORDER BY CreatedAt DESC";
@@ -64,9 +74,9 @@ namespace BookMyFun.Repositories
         public async Task<int> CreateUserAsync(User user)
         {
             const string sql = @"
-                INSERT INTO Users (FullName, Email, PasswordHash, Phone, Role, IsActive, CustomCommissionRate, SubscriptionTier, CreatedAt)
+                INSERT INTO Users (FullName, Email, PasswordHash, Phone, Role, IsActive, CustomCommissionRate, SubscriptionTier, AuthProvider, AuthProviderKey, ProfilePictureUrl, CreatedAt)
                 OUTPUT INSERTED.UserID
-                VALUES (@FullName, @Email, @PasswordHash, @Phone, @Role, @IsActive, @CustomCommissionRate, @SubscriptionTier, GETDATE())";
+                VALUES (@FullName, @Email, @PasswordHash, @Phone, @Role, @IsActive, @CustomCommissionRate, @SubscriptionTier, @AuthProvider, @AuthProviderKey, @ProfilePictureUrl, GETDATE())";
 
             var result = await _db.ExecuteScalarAsync(sql,
                 new SqlParameter("@FullName", user.FullName),
@@ -76,7 +86,10 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@Role", user.Role),
                 new SqlParameter("@IsActive", user.IsActive),
                 new SqlParameter("@CustomCommissionRate", DBHelper.ToDbValue(user.CustomCommissionRate)),
-                new SqlParameter("@SubscriptionTier", user.SubscriptionTier ?? "Free"));
+                new SqlParameter("@SubscriptionTier", user.SubscriptionTier ?? "Free"),
+                new SqlParameter("@AuthProvider", user.AuthProvider ?? "Local"),
+                new SqlParameter("@AuthProviderKey", DBHelper.ToDbValue(user.AuthProviderKey)),
+                new SqlParameter("@ProfilePictureUrl", DBHelper.ToDbValue(user.ProfilePictureUrl)));
 
             return result != null ? Convert.ToInt32(result) : 0;
         }
@@ -147,6 +160,24 @@ namespace BookMyFun.Repositories
             return rows > 0;
         }
 
+        public async Task<bool> LinkAuthProviderAsync(int userId, string provider, string providerKey, string? profilePic = null)
+        {
+            const string sql = @"
+                UPDATE Users 
+                SET AuthProvider = @Provider,
+                    AuthProviderKey = @ProviderKey,
+                    ProfilePictureUrl = COALESCE(@ProfilePic, ProfilePictureUrl)
+                WHERE UserID = @UserID";
+
+            var rows = await _db.ExecuteNonQueryAsync(sql,
+                new SqlParameter("@Provider", provider),
+                new SqlParameter("@ProviderKey", providerKey),
+                new SqlParameter("@ProfilePic", DBHelper.ToDbValue(profilePic)),
+                new SqlParameter("@UserID", userId));
+
+            return rows > 0;
+        }
+
         private static User MapUser(SqlDataReader reader)
         {
             var user = new User
@@ -186,6 +217,27 @@ namespace BookMyFun.Repositories
             if (areaOrdinal >= 0 && !reader.IsDBNull(areaOrdinal))
             {
                 user.ServiceAreas = reader.GetString(areaOrdinal);
+            }
+
+            int providerOrdinal = -1;
+            try { providerOrdinal = reader.GetOrdinal("AuthProvider"); } catch { }
+            if (providerOrdinal >= 0 && !reader.IsDBNull(providerOrdinal))
+            {
+                user.AuthProvider = reader.GetString(providerOrdinal);
+            }
+
+            int keyOrdinal = -1;
+            try { keyOrdinal = reader.GetOrdinal("AuthProviderKey"); } catch { }
+            if (keyOrdinal >= 0 && !reader.IsDBNull(keyOrdinal))
+            {
+                user.AuthProviderKey = reader.GetString(keyOrdinal);
+            }
+
+            int picOrdinal = -1;
+            try { picOrdinal = reader.GetOrdinal("ProfilePictureUrl"); } catch { }
+            if (picOrdinal >= 0 && !reader.IsDBNull(picOrdinal))
+            {
+                user.ProfilePictureUrl = reader.GetString(picOrdinal);
             }
 
             return user;

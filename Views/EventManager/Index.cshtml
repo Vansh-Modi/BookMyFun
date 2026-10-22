@@ -15,6 +15,9 @@
         <p class="dash-subtitle">Manage themed décor packages, track on-ground farm venue setups, dispatch decorator crews, and verify setup proofs.</p>
     </div>
     <div class="dash-actions">
+        <a asp-action="ServiceAreas" class="dash-btn dash-btn-outline" style="border-color: #2563eb; color: #2563eb;">
+            <i class="bi bi-geo-alt-fill"></i> Service Areas
+        </a>
         <a asp-action="CreatePackage" class="dash-btn dash-btn-primary">
             <i class="bi bi-plus-circle"></i> Create Décor Package
         </a>
@@ -32,16 +35,16 @@
 
 <!-- KPI Metric Cards Grid -->
 <div class="dash-stat-grid mb-4">
-    <div class="dash-stat-card">
+    <a asp-action="AssignedSetups" class="dash-stat-card text-decoration-none">
         <div class="dash-stat-top">
             <span class="dash-stat-label">Total Event Setups</span>
             <span class="dash-stat-icon icon-blue"><i class="bi bi-calendar-event-fill"></i></span>
         </div>
         <div class="dash-stat-val">@ViewBag.TotalAssigned</div>
         <div class="dash-stat-sub"><i class="bi bi-check2-circle text-primary me-1"></i>Farm reservations with décor</div>
-    </div>
+    </a>
 
-    <div class="dash-stat-card">
+    <a asp-action="AssignedSetups" class="dash-stat-card text-decoration-none">
         <div class="dash-stat-top">
             <span class="dash-stat-label">Pending / Claimable</span>
             <span class="dash-stat-icon icon-amber"><i class="bi bi-hourglass-split"></i></span>
@@ -57,43 +60,43 @@
                 <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>All orders assigned</span>
             }
         </div>
-    </div>
+    </a>
 
-    <div class="dash-stat-card">
+    <a asp-action="AssignedSetups" class="dash-stat-card text-decoration-none">
         <div class="dash-stat-top">
             <span class="dash-stat-label">Active Staging</span>
             <span class="dash-stat-icon icon-blue"><i class="bi bi-tools"></i></span>
         </div>
         <div class="dash-stat-val text-info">@ViewBag.InProgressJobs</div>
         <div class="dash-stat-sub"><i class="bi bi-clock-history text-info me-1"></i>In-progress on-ground</div>
-    </div>
+    </a>
 
-    <div class="dash-stat-card">
+    <a asp-action="Financials" class="dash-stat-card text-decoration-none">
         <div class="dash-stat-top">
             <span class="dash-stat-label">Completed &amp; Verified</span>
             <span class="dash-stat-icon icon-emerald"><i class="bi bi-patch-check-fill"></i></span>
         </div>
         <div class="dash-stat-val text-success">@ViewBag.CompletedJobs</div>
         <div class="dash-stat-sub"><i class="bi bi-shield-check text-success me-1"></i>Proofs submitted &amp; inspected</div>
-    </div>
+    </a>
 
-    <div class="dash-stat-card">
+    <a asp-action="Packages" class="dash-stat-card text-decoration-none">
         <div class="dash-stat-top">
             <span class="dash-stat-label">Active Packages</span>
             <span class="dash-stat-icon icon-amber"><i class="bi bi-box-seam-fill"></i></span>
         </div>
         <div class="dash-stat-val">@ViewBag.ActivePackagesCount</div>
         <div class="dash-stat-sub"><i class="bi bi-tags-fill text-warning me-1"></i>Themed offerings in catalog</div>
-    </div>
+    </a>
 
-    <div class="dash-stat-card" style="cursor: pointer;" onclick="window.location='@Url.Action("Financials", "EventManager")'">
+    <a asp-action="Financials" class="dash-stat-card text-decoration-none">
         <div class="dash-stat-top">
-            <span class="dash-stat-label">Décor Revenue GMV</span>
+            <span class="dash-stat-label">Total Décor Earnings</span>
             <span class="dash-stat-icon icon-emerald"><i class="bi bi-currency-rupee"></i></span>
         </div>
         <div class="dash-stat-val text-success">₹@totalRevenue.ToString("N0")</div>
         <div class="dash-stat-sub"><i class="bi bi-arrow-right-circle text-success me-1"></i>View full financial ledger &rarr;</div>
-    </div>
+    </a>
 </div>
 
 <!-- Operational Service Areas Configuration (Dynamic from listed properties) -->
@@ -146,39 +149,52 @@
         <form asp-action="UpdateServiceAreas" method="post">
             @Html.AntiForgeryToken()
             <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
-            <div class="row g-3 align-items-center">
+            <div class="row g-3">
                 <div class="col-lg-8">
-                    <label class="form-label small fw-semibold text-secondary mb-2">
-                        <i class="bi bi-building-check text-primary me-1"></i>Select Listed Property Locations to Serve:
-                    </label>
-                    <div class="d-flex flex-wrap gap-2 p-3 bg-light border rounded-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label small fw-bold text-secondary mb-0">
+                            <i class="bi bi-menu-button-wide text-primary me-1"></i>Select Serviceable Property Areas (Dropdown):
+                        </label>
+                        <a asp-action="ServiceAreas" class="small text-primary fw-semibold text-decoration-none">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>Open Full Areas Manager
+                        </a>
+                    </div>
+                    <select name="selectedAreas" multiple class="form-select rounded-3 border-primary-subtle" style="min-height: 120px;" title="Hold Ctrl/Cmd to select multiple areas">
                         @if (!distinctLocations.Any())
                         {
-                            <span class="text-muted small">No property locations registered in the catalog yet.</span>
+                            <option disabled>No property locations registered in the catalog yet.</option>
                         }
                         @foreach (var loc in distinctLocations)
                         {
                             bool isSelected = currentAreas.Any(a => string.Equals(a, loc, StringComparison.OrdinalIgnoreCase) || loc.Contains(a, StringComparison.OrdinalIgnoreCase) || a.Contains(loc, StringComparison.OrdinalIgnoreCase));
-                            <label class="btn btn-sm @(isSelected ? "btn-primary active" : "btn-outline-secondary") rounded-pill px-3 py-2 cursor-pointer d-flex align-items-center gap-2">
-                                <input type="checkbox" name="selectedAreas" value="@loc" @(isSelected ? "checked" : "") class="form-check-input mt-0" />
-                                <span><i class="bi bi-geo-alt me-1"></i>@loc</span>
-                            </label>
+                            <option value="@loc" selected="@(isSelected ? "selected" : null)">
+                                📍 @loc @(isSelected ? "✓ (Active)" : "")
+                            </option>
                         }
-                    </div>
-                    <div class="form-text small mt-1">
-                        <i class="bi bi-info-circle me-1"></i>Locations dynamically populated from all verified properties in BookMyFun.
+                    </select>
+                    <div class="form-text small mt-1 text-muted">
+                        <i class="bi bi-info-circle me-1"></i>Hold <strong>Ctrl</strong> (or <strong>Cmd</strong> on Mac) to select multiple areas. Décor options appear to guests only for properties in these areas.
                     </div>
                 </div>
-                <div class="col-lg-4 text-lg-end">
-                    <button type="submit" class="btn btn-warning fw-bold px-4 py-2 rounded-pill shadow-sm">
-                        <i class="bi bi-save2 me-1"></i> Save Service Areas
-                    </button>
-                    @if (currentAreas.Any())
-                    {
-                        <div class="small text-muted mt-2">
-                            Currently Active: <span class="fw-semibold text-dark">@string.Join(", ", currentAreas)</span>
+                <div class="col-lg-4 d-flex flex-column justify-content-between">
+                    <div class="p-3 bg-light rounded-3 border mb-2">
+                        <div class="small fw-semibold text-dark mb-1"><i class="bi bi-shield-check text-success me-1"></i>Active Coverage:</div>
+                        <div class="small text-muted">
+                            @if (currentAreas.Any())
+                            {
+                                <span class="fw-semibold text-primary">@string.Join(", ", currentAreas)</span>
+                            }
+                            else
+                            {
+                                <span class="text-danger fw-semibold">No areas selected. Décor packages are hidden on guest checkout.</span>
+                            }
                         </div>
-                    }
+                    </div>
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-warning fw-bold px-4 py-2 rounded-pill shadow-sm w-100">
+                            <i class="bi bi-save2 me-1"></i> Save Service Areas
+                        </button>
+                    </div>
                 </div>
             </div>
         </form>
@@ -312,11 +328,7 @@
                                     var netDecoratorPayout = item.EventManagerPayoutAmount > 0 
                                         ? item.EventManagerPayoutAmount 
                                         : Math.Max(0, item.EventPackagePriceSnapshot - (item.EventPlatformCommissionAmount > 0 ? item.EventPlatformCommissionAmount : Math.Round(item.EventPackagePriceSnapshot * 0.10m, 2)));
-                                    var eventFee = item.EventPlatformCommissionAmount > 0 
-                                        ? item.EventPlatformCommissionAmount 
-                                        : item.EventPackagePriceSnapshot - netDecoratorPayout;
-                                    <div class="small fw-semibold text-success">Net: ₹@netDecoratorPayout.ToString("N0")</div>
-                                    <div class="text-muted" style="font-size: 0.72rem;">Fee: -₹@eventFee.ToString("N0") (@(item.EventCommissionRateSnapshot > 0 ? item.EventCommissionRateSnapshot.ToString("0.#") : "10")%)</div>
+                                    <div class="small fw-semibold text-success">Payout: ₹@netDecoratorPayout.ToString("N0")</div>
                                 }
                             </td>
                             <td class="fw-semibold text-primary">

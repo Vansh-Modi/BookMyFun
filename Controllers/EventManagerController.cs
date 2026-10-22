@@ -107,7 +107,7 @@ namespace BookMyFun.Controllers
                 MediaUrl = model.MediaUrl,
                 IncludedItems = model.IncludedItems,
                 IsActive = model.IsActive,
-                CommissionRate = model.CommissionRate,
+                CommissionRate = null, // Strictly controlled by Admin and Employee
                 CreatedByUserID = userId,
                 CreatedAt = DateTime.UtcNow
             };
@@ -150,6 +150,9 @@ namespace BookMyFun.Controllers
                 return View(model);
             }
 
+            var existing = await _eventRepo.GetPackageByIdAsync(model.PackageID);
+            if (existing == null) return NotFound();
+
             var pkg = new EventPackage
             {
                 PackageID = model.PackageID,
@@ -160,7 +163,9 @@ namespace BookMyFun.Controllers
                 MediaUrl = model.MediaUrl,
                 IncludedItems = model.IncludedItems,
                 IsActive = model.IsActive,
-                CommissionRate = model.CommissionRate
+                CommissionRate = existing.CommissionRate, // Strictly preserved from Admin/Employee configuration
+                CreatedByUserID = existing.CreatedByUserID,
+                CreatedAt = existing.CreatedAt
             };
 
             bool updated = await _eventRepo.UpdatePackageAsync(pkg);
@@ -305,6 +310,24 @@ namespace BookMyFun.Controllers
             return RedirectToAction(nameof(Dashboard));
         }
 
+        [HttpGet]
+        public async Task<IActionResult> ServiceAreas()
+        {
+            var userId = GetCurrentUserId();
+            var distinctLocations = await _eventRepo.GetAllDistinctPropertyLocationsAsync();
+            var serviceAreas = await _eventRepo.GetEventManagerServiceAreasAsync(userId) ?? string.Empty;
+            var currentAreas = serviceAreas.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+            var vm = new EventManagerServiceAreasViewModel
+            {
+                AvailableLocations = distinctLocations,
+                SelectedAreas = currentAreas,
+                RawServiceAreas = serviceAreas
+            };
+
+            return View(vm);
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateServiceAreas(string[]? selectedAreas, string? returnUrl = null)
@@ -329,7 +352,7 @@ namespace BookMyFun.Controllers
             {
                 return Redirect(returnUrl);
             }
-            return RedirectToAction(nameof(Dashboard));
+            return RedirectToAction(nameof(ServiceAreas));
         }
 
         [HttpPost]

@@ -19,30 +19,12 @@
         </a>
     </div>
 
-    @if (TempData["Success"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm d-flex align-items-center" role="alert">
-            <i class="bi bi-check-circle-fill fs-5 me-2"></i>
-            <div>@TempData["Success"]</div>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-    @if (TempData["Error"] != null)
-    {
-        <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm d-flex align-items-center" role="alert">
-            <i class="bi bi-exclamation-triangle-fill fs-5 me-2"></i>
-            <div>@TempData["Error"]</div>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-
     <div class="card border-0 shadow-sm rounded-4 bg-card overflow-hidden">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light text-secondary small text-uppercase">
                     <tr>
-                        <th class="ps-4">Booking #</th>
-                        <th>Farm Property</th>
+                        <th class="ps-4">Farm Property</th>
                         <th>Client Details</th>
                         <th>Event Package</th>
                         <th>Event Date</th>
@@ -56,7 +38,7 @@
                     @if (!Model.Any())
                     {
                         <tr>
-                            <td colspan="9" class="text-center py-5 text-muted">
+                            <td colspan="8" class="text-center py-5 text-muted">
                                 <i class="bi bi-calendar-x fs-1 d-block mb-2"></i>
                                 No event setup assignments found.
                             </td>
@@ -73,8 +55,7 @@
                         };
 
                         <tr>
-                            <td class="ps-4 fw-bold">#@b.BookingID</td>
-                            <td>
+                            <td class="ps-4">
                                 <div class="fw-semibold">@b.PropertyTitle</div>
                                 <span class="text-muted small">Stay: @b.CheckInDate.ToString("dd MMM") - @b.CheckOutDate.ToString("dd MMM yyyy")</span>
                             </td>
@@ -134,7 +115,7 @@
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="BookingID" value="@b.BookingID" />
                                         <div class="modal-header border-bottom">
-                                            <h5 class="modal-title fw-bold">Update Setup: Booking #@b.BookingID</h5>
+                                            <h5 class="modal-title fw-bold">Update Setup: @b.PropertyTitle</h5>
                                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                         </div>
                                         <div class="modal-body">
@@ -183,7 +164,7 @@
                                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                         </div>
                                         <div class="modal-body p-4">
-                                            <p class="mb-2">Are you sure you want to remove the event décor setup for <strong>Booking #@b.BookingID</strong>?</p>
+                                            <p class="mb-2">Are you sure you want to remove the event décor setup for <strong>@b.PropertyTitle</strong>?</p>
                                             <div class="p-3 bg-light rounded-3 border small mb-3">
                                                 <div><strong>Property:</strong> @b.PropertyTitle</div>
                                                 <div><strong>Client:</strong> @b.ClientName (@b.ClientPhone)</div>

@@ -165,19 +165,31 @@
 
                 <!-- SECTION 4: AMENITIES & OCCASIONS TAXONOMY -->
                 <div class="card border-0 shadow-sm rounded-4 mb-4">
-                    <div class="card-header bg-white py-3 border-bottom border-light-subtle">
-                        <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-grid-fill text-warning me-2"></i>4. Amenities & Suitable Occasions</h5>
+                    <div class="card-header bg-white py-3 border-bottom border-light-subtle d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-grid-fill text-warning me-2"></i>4. Amenities &amp; Suitable Occasions</h5>
+                        <div class="d-flex gap-2">
+                            <span id="amenityCountBadge" class="badge bg-primary rounded-pill px-3 py-1.5 small">
+                                Amenities: <span id="amenityCount">0</span>/10 Max
+                            </span>
+                            <span id="occasionCountBadge" class="badge bg-warning text-dark rounded-pill px-3 py-1.5 small">
+                                Occasions: <span id="occasionCount">0</span>/5 Max
+                            </span>
+                        </div>
                     </div>
                     <div class="card-body p-4">
-                        <h6 class="fw-bold mb-3 text-secondary">Farm & Villa Amenities</h6>
-                        <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3 mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="fw-bold text-secondary mb-0">Farm &amp; Villa Amenities (Maximum 10 Allowed)</h6>
+                        </div>
+                        <p class="text-muted small mb-3">Select from standard amenities below, or type your own custom amenities (e.g. Jacuzzi, Pizza Oven).</p>
+                        
+                        <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3 mb-3">
                             @foreach (var am in Model.AvailableAmenities)
                             {
                                 <div class="col">
                                     <div class="card h-100 border rounded-3 p-2 amenity-card">
                                         <div class="form-check d-flex align-items-center gap-2 mb-0">
-                                            <input class="form-check-input" type="checkbox" name="SelectedAmenityIDs" value="@am.AmenityID" id="am_@am.AmenityID" @(Model.SelectedAmenityIDs.Contains(am.AmenityID) ? "checked" : "")>
-                                            <label class="form-check-label w-100 cursor-pointer text-dark" for="am_@am.AmenityID">
+                                            <input class="form-check-input amenity-checkbox" type="checkbox" name="SelectedAmenityIDs" value="@am.AmenityID" id="am_@am.AmenityID" @(Model.SelectedAmenityIDs.Contains(am.AmenityID) ? "checked" : "") onchange="updateAmenityCount(this)">
+                                            <label class="form-check-label w-100 cursor-pointer text-dark small" for="am_@am.AmenityID">
                                                 <i class="bi @am.IconClass text-success me-1"></i> @am.AmenityName
                                             </label>
                                         </div>
@@ -186,15 +198,43 @@
                             }
                         </div>
 
-                        <h6 class="fw-bold mb-3 text-secondary">Ideal For Occasions</h6>
-                        <div class="d-flex flex-wrap gap-2">
+                        <!-- Add Custom Amenity Input -->
+                        <div class="p-3 bg-light rounded-3 border mb-4">
+                            <label class="form-label fw-semibold small text-muted mb-1"><i class="bi bi-plus-circle text-primary me-1"></i>Add Custom Amenity</label>
+                            <div class="input-group" style="max-width: 480px;">
+                                <input type="text" id="customAmenityInput" class="form-control form-control-sm" placeholder="e.g. Outdoor Jacuzzi, Wood-fired Pizza Oven..." maxlength="50" onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomAmenity();}" />
+                                <button type="button" class="btn btn-sm btn-primary px-3 fw-semibold" onclick="addCustomAmenity()">
+                                    <i class="bi bi-plus-lg me-1"></i>Add
+                                </button>
+                            </div>
+                            <div id="customAmenitiesContainer" class="d-flex flex-wrap gap-2 mt-2"></div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="fw-bold text-secondary mb-0">Ideal For Occasions (Maximum 5 Allowed)</h6>
+                        </div>
+                        <p class="text-muted small mb-3">Select the event types your stay welcomes (weddings, birthdays, pool parties, etc.).</p>
+
+                        <div class="d-flex flex-wrap gap-2 mb-3">
                             @foreach (var occ in Model.AvailableOccasions)
                             {
                                 <div class="form-check form-check-inline p-2 border rounded-pill px-3 bg-light">
-                                    <input class="form-check-input ms-0 me-2" type="checkbox" name="SelectedOccasionIDs" value="@occ.OccasionID" id="occ_@occ.OccasionID" @(Model.SelectedOccasionIDs.Contains(occ.OccasionID) ? "checked" : "")>
-                                    <label class="form-check-label fw-medium" for="occ_@occ.OccasionID">@occ.OccasionName</label>
+                                    <input class="form-check-input occasion-checkbox ms-0 me-2" type="checkbox" name="SelectedOccasionIDs" value="@occ.OccasionID" id="occ_@occ.OccasionID" @(Model.SelectedOccasionIDs.Contains(occ.OccasionID) ? "checked" : "") onchange="updateOccasionCount(this)">
+                                    <label class="form-check-label fw-medium small" for="occ_@occ.OccasionID">@occ.OccasionName</label>
                                 </div>
                             }
+                        </div>
+
+                        <!-- Add Custom Occasion Input -->
+                        <div class="p-3 bg-light rounded-3 border">
+                            <label class="form-label fw-semibold small text-muted mb-1"><i class="bi bi-plus-circle text-warning me-1"></i>Add Custom Occasion</label>
+                            <div class="input-group" style="max-width: 480px;">
+                                <input type="text" id="customOccasionInput" class="form-control form-control-sm" placeholder="e.g. Corporate Strategy Retreat, Alumni Reunion..." maxlength="50" onkeydown="if(event.key==='Enter'){event.preventDefault();addCustomOccasion();}" />
+                                <button type="button" class="btn btn-sm btn-warning text-dark px-3 fw-semibold" onclick="addCustomOccasion()">
+                                    <i class="bi bi-plus-lg me-1"></i>Add
+                                </button>
+                            </div>
+                            <div id="customOccasionsContainer" class="d-flex flex-wrap gap-2 mt-2"></div>
                         </div>
                     </div>
                 </div>
@@ -559,6 +599,17 @@
 
         // Form Submission check
         document.getElementById("propertyForm").addEventListener("submit", function (e) {
+            if (getAmenityTotal() > 10) {
+                alert("You can select or add a maximum of 10 amenities.");
+                e.preventDefault();
+                return;
+            }
+            if (getOccasionTotal() > 5) {
+                alert("You can select or add a maximum of 5 occasions.");
+                e.preventDefault();
+                return;
+            }
+
             let photos = mediaList.filter(m => m.mediaType === "photo").length;
             if (primaryInput.value && primaryInput.value.trim().length > 0) {
                 photos++;
@@ -570,6 +621,124 @@
                 }
             }
         });
+
+        // Initialize counters
+        updateAmenityCount();
+        updateOccasionCount();
     });
+
+    function getAmenityTotal() {
+        const checked = document.querySelectorAll('input.amenity-checkbox:checked').length;
+        const custom = document.querySelectorAll('input[name="CustomAmenities"]').length;
+        return checked + custom;
+    }
+
+    function updateAmenityCount(triggerCheckbox) {
+        const total = getAmenityTotal();
+        if (total > 10 && triggerCheckbox && triggerCheckbox.checked) {
+            triggerCheckbox.checked = false;
+            alert("Maximum 10 amenities allowed. Please uncheck another amenity before adding more.");
+            return;
+        }
+        const current = getAmenityTotal();
+        const countEl = document.getElementById('amenityCount');
+        const badgeEl = document.getElementById('amenityCountBadge');
+        if (countEl) countEl.textContent = current;
+        if (badgeEl) {
+            badgeEl.className = current >= 10 
+                ? 'badge bg-warning text-dark rounded-pill px-3 py-1.5 small' 
+                : 'badge bg-primary rounded-pill px-3 py-1.5 small';
+        }
+    }
+
+    function addCustomAmenity() {
+        const input = document.getElementById('customAmenityInput');
+        const name = input.value ? input.value.trim() : '';
+        if (!name) return;
+        
+        if (getAmenityTotal() >= 10) {
+            alert("Maximum 10 amenities allowed in total.");
+            return;
+        }
+        
+        const existing = Array.from(document.querySelectorAll('input[name="CustomAmenities"]')).map(el => el.value.toLowerCase());
+        if (existing.includes(name.toLowerCase())) {
+            alert("This custom amenity has already been added.");
+            return;
+        }
+
+        const container = document.getElementById('customAmenitiesContainer');
+        const chip = document.createElement('div');
+        chip.className = 'badge bg-success-subtle text-success border border-success-subtle p-2 rounded-pill d-inline-flex align-items-center gap-1 small fw-semibold';
+        chip.innerHTML = `<i class="bi bi-check2-circle"></i> <span>${escapeHtml(name)}</span>
+            <input type="hidden" name="CustomAmenities" value="${escapeHtml(name)}" />
+            <button type="button" class="btn-close btn-close-sm ms-1" style="font-size: 0.65rem;" onclick="removeCustomChip(this, 'amenity')"></button>`;
+        container.appendChild(chip);
+        input.value = '';
+        updateAmenityCount();
+    }
+
+    function getOccasionTotal() {
+        const checked = document.querySelectorAll('input.occasion-checkbox:checked').length;
+        const custom = document.querySelectorAll('input[name="CustomOccasions"]').length;
+        return checked + custom;
+    }
+
+    function updateOccasionCount(triggerCheckbox) {
+        const total = getOccasionTotal();
+        if (total > 5 && triggerCheckbox && triggerCheckbox.checked) {
+            triggerCheckbox.checked = false;
+            alert("Maximum 5 occasions allowed. Please uncheck another occasion before adding more.");
+            return;
+        }
+        const current = getOccasionTotal();
+        const countEl = document.getElementById('occasionCount');
+        const badgeEl = document.getElementById('occasionCountBadge');
+        if (countEl) countEl.textContent = current;
+        if (badgeEl) {
+            badgeEl.className = current >= 5 
+                ? 'badge bg-warning text-dark rounded-pill px-3 py-1.5 small' 
+                : 'badge bg-primary rounded-pill px-3 py-1.5 small';
+        }
+    }
+
+    function addCustomOccasion() {
+        const input = document.getElementById('customOccasionInput');
+        const name = input.value ? input.value.trim() : '';
+        if (!name) return;
+        
+        if (getOccasionTotal() >= 5) {
+            alert("Maximum 5 occasions allowed in total.");
+            return;
+        }
+
+        const existing = Array.from(document.querySelectorAll('input[name="CustomOccasions"]')).map(el => el.value.toLowerCase());
+        if (existing.includes(name.toLowerCase())) {
+            alert("This custom occasion has already been added.");
+            return;
+        }
+
+        const container = document.getElementById('customOccasionsContainer');
+        const chip = document.createElement('div');
+        chip.className = 'badge bg-warning-subtle text-dark border border-warning-subtle p-2 rounded-pill d-inline-flex align-items-center gap-1 small fw-semibold';
+        chip.innerHTML = `<i class="bi bi-star-fill text-warning"></i> <span>${escapeHtml(name)}</span>
+            <input type="hidden" name="CustomOccasions" value="${escapeHtml(name)}" />
+            <button type="button" class="btn-close btn-close-sm ms-1" style="font-size: 0.65rem;" onclick="removeCustomChip(this, 'occasion')"></button>`;
+        container.appendChild(chip);
+        input.value = '';
+        updateOccasionCount();
+    }
+
+    function removeCustomChip(btn, type) {
+        btn.closest('.badge').remove();
+        if (type === 'amenity') updateAmenityCount();
+        else updateOccasionCount();
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.innerText = text;
+        return div.innerHTML;
+    }
 </script>
 }

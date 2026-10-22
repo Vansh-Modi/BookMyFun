@@ -1,0 +1,271 @@
+@model BookMyFun.Models.ViewModels.EventManagerServiceAreasViewModel
+@{
+    ViewData["Title"] = "Serviceable Operational Areas";
+    var currentAreas = Model.SelectedAreas ?? new List<string>();
+    var allLocations = Model.AvailableLocations ?? new List<string>();
+}
+
+<!-- Page Header -->
+<div class="dash-page-header">
+    <div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="dash-eyebrow mb-0">Event Decorator Operations</span>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill small">
+                <i class="bi bi-geo-alt-fill me-1"></i>Area Targeting
+            </span>
+        </div>
+        <h1 class="dash-title">Serviceable Areas &amp; Coverage</h1>
+        <p class="dash-subtitle">
+            Configure the geographical regions where your decoration crew operates. Décor options are strictly shown to guests only for properties in your selected areas.
+        </p>
+    </div>
+    <div class="dash-actions">
+        <a asp-action="Index" class="dash-btn dash-btn-outline">
+            <i class="bi bi-arrow-left"></i> Dashboard
+        </a>
+        <a asp-action="Packages" class="dash-btn dash-btn-outline">
+            <i class="bi bi-box-seam"></i> Décor Packages
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Main Configuration Card -->
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold mb-0 text-dark">
+                    <i class="bi bi-pin-map-fill text-danger me-2"></i>Select Serviceable Property Areas
+                </h5>
+                <span class="badge bg-secondary-subtle text-secondary border px-2 py-1 rounded-pill small">
+                    @currentAreas.Count of @allLocations.Count Selected
+                </span>
+            </div>
+            <div class="card-body p-4">
+                <div class="alert alert-info border-0 rounded-3 d-flex align-items-start gap-3 mb-4 bg-info bg-opacity-10">
+                    <i class="bi bi-shield-check text-info fs-4 flex-shrink-0 mt-1"></i>
+                    <div class="small text-dark">
+                        <strong>Automatic Guest Filtering Rule:</strong> When travelers view or checkout properties in BookMyFun, celebration &amp; décor add-ons are displayed <em>strictly</em> if an active Event Manager services that property's area. If no manager serves an area, décor add-on sections remain completely hidden.
+                    </div>
+                </div>
+
+                <form asp-action="UpdateServiceAreas" method="post" id="serviceAreasForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+
+                    <!-- Quick Control Bar -->
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                        <div class="input-group input-group-sm" style="max-width: 320px;">
+                            <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                            <input type="text" id="areaFilterInput" class="form-control" placeholder="Search property locations..." />
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-primary" id="btnSelectAll">
+                                <i class="bi bi-check-all me-1"></i>Select All
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="btnClearAll">
+                                <i class="bi bi-x-lg me-1"></i>Clear All
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Prominent Multi-Select Dropdown -->
+                    <div class="mb-4">
+                        <label for="selectedAreasDropdown" class="form-label fw-bold text-dark small text-uppercase mb-2">
+                            <i class="bi bi-menu-button-wide text-primary me-1"></i>Property Location Selection Dropdown
+                        </label>
+                        <select name="selectedAreas" id="selectedAreasDropdown" multiple class="form-select form-select-lg rounded-3 shadow-none border-primary-subtle" style="min-height: 220px;">
+                            @if (!allLocations.Any())
+                            {
+                                <option disabled>No property locations currently listed in the catalog.</option>
+                            }
+                            @foreach (var loc in allLocations)
+                            {
+                                bool isSelected = currentAreas.Any(a => string.Equals(a, loc, StringComparison.OrdinalIgnoreCase) || loc.Contains(a, StringComparison.OrdinalIgnoreCase) || a.Contains(loc, StringComparison.OrdinalIgnoreCase));
+                                <option value="@loc" selected="@(isSelected ? "selected" : null)" data-name="@loc.ToLowerInvariant()">
+                                    📍 @loc
+                                </option>
+                            }
+                        </select>
+                        <div class="form-text small text-muted mt-2">
+                            <i class="bi bi-mouse me-1"></i>Hold <strong>Ctrl</strong> (or <strong>Cmd</strong> on Mac) to click and select/deselect multiple locations in the dropdown.
+                        </div>
+                    </div>
+
+                    <!-- Interactive Badges & Selected Chips -->
+                    <div class="p-3 bg-light rounded-3 border mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="small fw-bold text-uppercase text-secondary">
+                                <i class="bi bi-tags me-1"></i>Selected Service Coverage Preview
+                            </span>
+                            <span id="selectedCountText" class="badge bg-primary rounded-pill">@currentAreas.Count Active</span>
+                        </div>
+                        <div id="selectedChipsContainer" class="d-flex flex-wrap gap-2">
+                            @if (!currentAreas.Any())
+                            {
+                                <span class="text-muted small fst-italic" id="emptyNotice">No service areas currently selected. Décor packages are hidden from all guests until an area is enabled.</span>
+                            }
+                            @foreach (var area in currentAreas)
+                            {
+                                <span class="badge bg-white text-dark border shadow-sm py-2 px-3 rounded-pill d-flex align-items-center gap-2 chip-item" data-val="@area">
+                                    <i class="bi bi-geo-alt-fill text-danger"></i>
+                                    <span>@area</span>
+                                    <button type="button" class="btn-close btn-close-sm remove-chip" aria-label="Remove" data-val="@area" style="font-size: 0.65rem;"></button>
+                                </span>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Submit Actions -->
+                    <div class="d-flex align-items-center justify-content-between pt-3 border-top">
+                        <span class="small text-muted">
+                            <i class="bi bi-clock-history me-1"></i>Changes take effect immediately on guest checkout.
+                        </span>
+                        <button type="submit" class="btn btn-warning btn-lg fw-bold px-4 py-2 rounded-pill shadow-sm">
+                            <i class="bi bi-check2-circle me-1"></i> Save Service Areas
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Side Information & Help Column -->
+    <div class="col-lg-4">
+        <!-- Live Status Card -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-header bg-white py-3 border-bottom">
+                <h6 class="fw-bold mb-0 text-dark">
+                    <i class="bi bi-broadcast text-success me-2"></i>Operational Status
+                </h6>
+            </div>
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <div class="rounded-circle p-3 @(currentAreas.Any() ? "bg-success bg-opacity-10 text-success" : "bg-warning bg-opacity-10 text-warning")">
+                        <i class="bi @(currentAreas.Any() ? "bi-check-circle-fill" : "bi-exclamation-circle-fill") fs-3"></i>
+                    </div>
+                    <div>
+                        <h6 class="fw-bold mb-0">@(currentAreas.Any() ? "Actively Receiving Orders" : "No Areas Selected")</h6>
+                        <small class="text-muted">
+                            @(currentAreas.Any() ? $"Your packages appear in {currentAreas.Count} regions" : "Packages hidden until areas are selected")
+                        </small>
+                    </div>
+                </div>
+
+                <div class="p-3 bg-light rounded-3 border small">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Catalog Locations:</span>
+                        <strong class="text-dark">@allLocations.Count Areas</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Serviced by You:</span>
+                        <strong class="text-primary">@currentAreas.Count Areas</strong>
+                    </div>
+                    <div class="d-flex justify-content-between border-top pt-2">
+                        <span class="text-muted">Guest Visibility:</span>
+                        <strong class="@(currentAreas.Any() ? "text-success" : "text-danger")">
+                            @(currentAreas.Any() ? "Active for Serviced Areas" : "Completely Hidden")
+                        </strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Order Fulfillment Guide Card -->
+        <div class="card border-0 shadow-sm rounded-4 bg-light">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <i class="bi bi-clock-history text-primary fs-5"></i>
+                    <h6 class="fw-bold mb-0 text-dark">Order Dispatch &amp; Staging</h6>
+                </div>
+                <p class="small text-muted mb-3">
+                    When guests book celebration décor in your serviced areas, assignments appear immediately on your dashboard. Dispatch decorator crews and upload completion photos for verification.
+                </p>
+                <div class="d-flex align-items-center gap-2 small text-secondary">
+                    <i class="bi bi-check2-circle text-success"></i>
+                    <span>Order payouts are automatically disbursed upon completed and inspected setups.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const select = document.getElementById('selectedAreasDropdown');
+        const filterInput = document.getElementById('areaFilterInput');
+        const btnSelectAll = document.getElementById('btnSelectAll');
+        const btnClearAll = document.getElementById('btnClearAll');
+        const chipsContainer = document.getElementById('selectedChipsContainer');
+        const countText = document.getElementById('selectedCountText');
+
+        function updateChips() {
+            const selectedOptions = Array.from(select.selectedOptions);
+            countText.textContent = selectedOptions.length + ' Active';
+
+            chipsContainer.innerHTML = '';
+            if (selectedOptions.length === 0) {
+                chipsContainer.innerHTML = '<span class="text-muted small fst-italic" id="emptyNotice">No service areas currently selected. Décor packages are hidden from all guests until an area is enabled.</span>';
+                return;
+            }
+
+            selectedOptions.forEach(opt => {
+                const val = opt.value;
+                const chip = document.createElement('span');
+                chip.className = 'badge bg-white text-dark border shadow-sm py-2 px-3 rounded-pill d-flex align-items-center gap-2 chip-item';
+                chip.innerHTML = `
+                    <i class="bi bi-geo-alt-fill text-danger"></i>
+                    <span>${val}</span>
+                    <button type="button" class="btn-close btn-close-sm remove-chip" aria-label="Remove" data-val="${val}" style="font-size: 0.65rem;"></button>
+                `;
+                chipsContainer.appendChild(chip);
+            });
+        }
+
+        // Live filter in dropdown
+        filterInput.addEventListener('input', function () {
+            const term = this.value.trim().toLowerCase();
+            Array.from(select.options).forEach(opt => {
+                const name = opt.getAttribute('data-name') || opt.text.toLowerCase();
+                if (term === '' || name.includes(term)) {
+                    opt.style.display = '';
+                } else {
+                    opt.style.display = 'none';
+                }
+            });
+        });
+
+        // Select All visible
+        btnSelectAll.addEventListener('click', function () {
+            Array.from(select.options).forEach(opt => {
+                if (opt.style.display !== 'none' && !opt.disabled) {
+                    opt.selected = true;
+                }
+            });
+            updateChips();
+        });
+
+        // Clear All
+        btnClearAll.addEventListener('click', function () {
+            Array.from(select.options).forEach(opt => opt.selected = false);
+            updateChips();
+        });
+
+        // Selection change listener
+        select.addEventListener('change', updateChips);
+
+        // Remove chip click delegation
+        chipsContainer.addEventListener('click', function (e) {
+            const btn = e.target.closest('.remove-chip');
+            if (btn) {
+                const val = btn.getAttribute('data-val');
+                Array.from(select.options).forEach(opt => {
+                    if (opt.value === val) opt.selected = false;
+                });
+                updateChips();
+            }
+        });
+    });
+</script>
+}

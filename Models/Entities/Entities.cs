@@ -12,6 +12,9 @@ namespace BookMyFun.Models.Entities
         public decimal? CustomCommissionRate { get; set; }
         public string SubscriptionTier { get; set; } = "Free"; // 'Free', 'Featured', 'Managed'
         public string? ServiceAreas { get; set; }
+        public string AuthProvider { get; set; } = "Local"; // 'Local', 'Google', etc.
+        public string? AuthProviderKey { get; set; }
+        public string? ProfilePictureUrl { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 

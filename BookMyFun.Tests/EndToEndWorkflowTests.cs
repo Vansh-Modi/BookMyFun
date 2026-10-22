@@ -112,52 +112,61 @@ public class EndToEndWorkflowTests
         int bookingId = await bookingRepo.CreateBookingAsync(booking);
         Assert.True(bookingId > 0);
 
-        // 5. Razorpay Order Creation
-        var rzpOrder = await rzpService.CreateOrderAsync(totalAmount, $"b_{bookingId}", "INR");
-        Assert.NotNull(rzpOrder);
-        Assert.StartsWith("order_", rzpOrder.OrderId);
-
-        // 6. Cryptographic Signature Generation & Verification
-        string paymentId = $"pay_test_{Guid.NewGuid():N}".Substring(0, 18);
-        string payload = $"{rzpOrder.OrderId}|{paymentId}";
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes("rzp_secret_demo_12345"));
-        var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
-        string validSignature = BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
-
-        bool isSignatureValid = await rzpService.VerifyPaymentSignatureAsync(rzpOrder.OrderId, paymentId, validSignature);
-        Assert.True(isSignatureValid);
-
-        // 7. Advance Booking to Confirmed & Record Payment
-        await bookingRepo.UpdateBookingStatusAsync(bookingId, "Confirmed");
-        int paymentRecordId = await bookingRepo.RecordPaymentAsync(new Payment
+        try
         {
-            BookingID = bookingId,
-            Amount = totalAmount,
-            GatewayTransactionID = paymentId,
-            PaymentStatus = "Success"
-        });
-        Assert.True(paymentRecordId > 0);
+            // 5. Razorpay Order Creation
+            var rzpOrder = await rzpService.CreateOrderAsync(totalAmount, $"b_{bookingId}", "INR");
+            Assert.NotNull(rzpOrder);
+            Assert.StartsWith("order_", rzpOrder.OrderId);
 
-        // 8. Multi-Stakeholder WhatsApp & Email Alerts
-        bool clientAlert = await commsService.SendBookingConfirmationAsync(client.Phone ?? "9876543210", client.FullName, targetProp.Title, bookingId.ToString(), totalAmount);
-        bool ownerAlert = await commsService.SendOwnerBookingAlertAsync(targetProp.OwnerID.ToString(), "Host Partner", targetProp.Title, bookingId.ToString(), propertyStayGross, ownerPayout, client.FullName, booking.CheckInDate, booking.CheckOutDate, true, decorPrice);
-        Assert.True(clientAlert);
-        Assert.True(ownerAlert);
+            // 6. Cryptographic Signature Generation & Verification
+            string paymentId = $"pay_test_{Guid.NewGuid():N}".Substring(0, 18);
+            string payload = $"{rzpOrder.OrderId}|{paymentId}";
+            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes("rzp_secret_demo_12345"));
+            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
+            string validSignature = BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
 
-        // 9. Cancellation Quote & Refund Engine
-        var confirmedBooking = await bookingRepo.GetBookingByIdAsync(bookingId);
-        Assert.NotNull(confirmedBooking);
-        var quote = refundEngine.CalculateCancellationQuote(confirmedBooking, DateTime.UtcNow);
-        Assert.NotNull(quote);
-        Assert.True(quote.NetRefundAmount > 0);
+            bool isSignatureValid = await rzpService.VerifyPaymentSignatureAsync(rzpOrder.OrderId, paymentId, validSignature);
+            Assert.True(isSignatureValid);
 
-        // 10. Process Cancellation
-        var refundResult = await refundEngine.ProcessCancellationAndRefundAsync(bookingId, client.UserID, "Client", "E2E Test Cancellation", forceOverride: true);
-        Assert.NotNull(refundResult);
-        Assert.Equal("Completed", refundResult.Status);
+            // 7. Advance Booking to Confirmed & Record Payment
+            await bookingRepo.UpdateBookingStatusAsync(bookingId, "Confirmed");
+            int paymentRecordId = await bookingRepo.RecordPaymentAsync(new Payment
+            {
+                BookingID = bookingId,
+                Amount = totalAmount,
+                GatewayTransactionID = paymentId,
+                PaymentStatus = "Success"
+            });
+            Assert.True(paymentRecordId > 0);
 
-        var cancelledBooking = await bookingRepo.GetBookingByIdAsync(bookingId);
-        Assert.Equal("Cancelled", cancelledBooking!.Status);
+            // 8. Multi-Stakeholder WhatsApp & Email Alerts
+            bool clientAlert = await commsService.SendBookingConfirmationAsync(client.Phone ?? "9876543210", client.FullName, targetProp.Title, bookingId.ToString(), totalAmount);
+            bool ownerAlert = await commsService.SendOwnerBookingAlertAsync(targetProp.OwnerID.ToString(), "Host Partner", targetProp.Title, bookingId.ToString(), propertyStayGross, ownerPayout, client.FullName, booking.CheckInDate, booking.CheckOutDate, true, decorPrice);
+            Assert.True(clientAlert);
+            Assert.True(ownerAlert);
+
+            // 9. Cancellation Quote & Refund Engine
+            var confirmedBooking = await bookingRepo.GetBookingByIdAsync(bookingId);
+            Assert.NotNull(confirmedBooking);
+            var quote = refundEngine.CalculateCancellationQuote(confirmedBooking, DateTime.UtcNow);
+            Assert.NotNull(quote);
+            Assert.True(quote.NetRefundAmount > 0);
+
+            // 10. Process Cancellation
+            var refundResult = await refundEngine.ProcessCancellationAndRefundAsync(bookingId, client.UserID, "Client", "E2E Test Cancellation", forceOverride: true);
+            Assert.NotNull(refundResult);
+            Assert.Equal("Completed", refundResult.Status);
+
+            var cancelledBooking = await bookingRepo.GetBookingByIdAsync(bookingId);
+            Assert.Equal("Cancelled", cancelledBooking!.Status);
+        }
+        finally
+        {
+            await _db.ExecuteNonQueryAsync($"DELETE FROM BookingRefunds WHERE BookingID = {bookingId}");
+            await _db.ExecuteNonQueryAsync($"DELETE FROM Payments WHERE BookingID = {bookingId}");
+            await _db.ExecuteNonQueryAsync($"DELETE FROM Bookings WHERE BookingID = {bookingId}");
+        }
     }
 
     [Fact]
@@ -186,28 +195,35 @@ public class EndToEndWorkflowTests
         int packageId = await eventRepo.CreatePackageAsync(package);
         Assert.True(packageId > 0);
 
-        // 2. Fetch and Verify
-        var fetchedPkg = await eventRepo.GetPackageByIdAsync(packageId);
-        Assert.NotNull(fetchedPkg);
-        Assert.Equal(packageName, fetchedPkg.Name);
-
-        // 3. Update Package
-        fetchedPkg.BasePrice = 16500.00m;
-        bool updated = await eventRepo.UpdatePackageAsync(fetchedPkg);
-        Assert.True(updated);
-
-        // 4. Milestone Progression
-        var allEventBookings = await eventRepo.GetAllEventBookingsAsync();
-        if (allEventBookings.Any())
+        try
         {
-            var targetBooking = allEventBookings.First();
-            // Advance to InProgress
-            bool advanced1 = await eventRepo.UpdateSetupStatusAsync(targetBooking.BookingID, "InProgress", "https://example.com/setup-prep.jpg", eventManager.UserID);
-            Assert.True(advanced1);
+            // 2. Fetch and Verify
+            var fetchedPkg = await eventRepo.GetPackageByIdAsync(packageId);
+            Assert.NotNull(fetchedPkg);
+            Assert.Equal(packageName, fetchedPkg.Name);
 
-            // Advance to Completed
-            bool advanced2 = await eventRepo.UpdateSetupStatusAsync(targetBooking.BookingID, "Completed", "https://example.com/setup-finished.jpg", eventManager.UserID);
-            Assert.True(advanced2);
+            // 3. Update Package
+            fetchedPkg.BasePrice = 16500.00m;
+            bool updated = await eventRepo.UpdatePackageAsync(fetchedPkg);
+            Assert.True(updated);
+
+            // 4. Milestone Progression
+            var allEventBookings = await eventRepo.GetAllEventBookingsAsync();
+            if (allEventBookings.Any())
+            {
+                var targetBooking = allEventBookings.First();
+                // Advance to InProgress
+                bool advanced1 = await eventRepo.UpdateSetupStatusAsync(targetBooking.BookingID, "InProgress", "https://example.com/setup-prep.jpg", eventManager.UserID);
+                Assert.True(advanced1);
+
+                // Advance to Completed
+                bool advanced2 = await eventRepo.UpdateSetupStatusAsync(targetBooking.BookingID, "Completed", "https://example.com/setup-finished.jpg", eventManager.UserID);
+                Assert.True(advanced2);
+            }
+        }
+        finally
+        {
+            await eventRepo.DeletePackageAsync(packageId);
         }
     }
 
@@ -238,21 +254,28 @@ public class EndToEndWorkflowTests
         int claimId = await claimService.CreateClaimAsync(createModel, admin!.UserID, isStaff: true);
         Assert.True(claimId > 0);
 
-        // 2. Staff reviews and adjudicates claim
-        var adjudicateModel = new DamageClaimAdjudicateViewModel
+        try
         {
-            ClaimID = claimId,
-            ApprovedAmount = 1200.00m,
-            Action = "Approved",
-            AdjudicationNotes = "Inspected contractor quote and approved replacement."
-        };
+            // 2. Staff reviews and adjudicates claim
+            var adjudicateModel = new DamageClaimAdjudicateViewModel
+            {
+                ClaimID = claimId,
+                ApprovedAmount = 1200.00m,
+                Action = "Approved",
+                AdjudicationNotes = "Inspected contractor quote and approved replacement."
+            };
 
-        bool adjudicated = await claimService.AdjudicateClaimAsync(adjudicateModel, admin.UserID);
-        Assert.True(adjudicated);
+            bool adjudicated = await claimService.AdjudicateClaimAsync(adjudicateModel, admin.UserID);
+            Assert.True(adjudicated);
 
-        var claim = await claimService.GetClaimByIdAsync(claimId);
-        Assert.Equal("Approved", claim.Status);
-        Assert.Equal(1500.00m, claim.AdjudicatedAmount);
+            var claim = await claimService.GetClaimByIdAsync(claimId);
+            Assert.Equal("Approved", claim.Status);
+            Assert.Equal(1500.00m, claim.AdjudicatedAmount);
+        }
+        finally
+        {
+            await _db.ExecuteNonQueryAsync($"DELETE FROM DamageClaims WHERE ClaimID = {claimId}");
+        }
     }
 
     [Fact]
@@ -275,23 +298,30 @@ public class EndToEndWorkflowTests
         int ticketId = await contactRepo.CreateContactAsync(inquiry);
         Assert.True(ticketId > 0);
 
-        // 2. Staff resolves ticket
-        bool resolved = await contactRepo.UpdateStatusAsync(
-            ticketId,
-            "Responded",
-            respondedByUserId: admin!.UserID,
-            responseNotes: "Contacted customer on WhatsApp and shared customized estate cluster quotation.");
+        try
+        {
+            // 2. Staff resolves ticket
+            bool resolved = await contactRepo.UpdateStatusAsync(
+                ticketId,
+                "Responded",
+                respondedByUserId: admin!.UserID,
+                responseNotes: "Contacted customer on WhatsApp and shared customized estate cluster quotation.");
 
-        Assert.True(resolved);
+            Assert.True(resolved);
 
-        // 3. Verify accountability fields
-        var allContacts = await contactRepo.GetAllContactsAsync();
-        var ticket = allContacts.FirstOrDefault(c => c.ContactID == ticketId);
-        Assert.NotNull(ticket);
-        Assert.Equal("Responded", ticket.Status);
-        Assert.Equal(admin.UserID, ticket.RespondedByUserID);
-        Assert.Equal(admin.FullName, ticket.RespondedByUserName);
-        Assert.NotNull(ticket.ResponseNotes);
+            // 3. Verify accountability fields
+            var allContacts = await contactRepo.GetAllContactsAsync();
+            var ticket = allContacts.FirstOrDefault(c => c.ContactID == ticketId);
+            Assert.NotNull(ticket);
+            Assert.Equal("Responded", ticket.Status);
+            Assert.Equal(admin.UserID, ticket.RespondedByUserID);
+            Assert.Equal(admin.FullName, ticket.RespondedByUserName);
+            Assert.NotNull(ticket.ResponseNotes);
+        }
+        finally
+        {
+            await _db.ExecuteNonQueryAsync($"DELETE FROM ContactUs WHERE ContactID = {ticketId}");
+        }
     }
 
     [Fact]
@@ -309,12 +339,19 @@ public class EndToEndWorkflowTests
         int verificationId = await idService.SubmitVerificationAsync(client!.UserID, "Aadhaar", storageKey, "XXXX-XXXX-1234");
         Assert.True(verificationId > 0);
 
-        // 2. Staff approves KYC
-        bool reviewed = await idService.ReviewVerificationAsync(verificationId, "Verify", admin!.UserID);
-        Assert.True(reviewed);
+        try
+        {
+            // 2. Staff approves KYC
+            bool reviewed = await idService.ReviewVerificationAsync(verificationId, "Verify", admin!.UserID);
+            Assert.True(reviewed);
 
-        // 3. Verify user is now verified
-        bool isVerified = await idService.IsClientVerifiedAsync(client.UserID);
-        Assert.True(isVerified);
+            // 3. Verify user is now verified
+            bool isVerified = await idService.IsClientVerifiedAsync(client.UserID);
+            Assert.True(isVerified);
+        }
+        finally
+        {
+            await _db.ExecuteNonQueryAsync($"DELETE FROM ClientIdVerifications WHERE VerificationID = {verificationId}");
+        }
     }
 }

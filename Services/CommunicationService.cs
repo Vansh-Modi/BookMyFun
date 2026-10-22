@@ -91,9 +91,10 @@ namespace BookMyFun.Services
                     UseDefaultCredentials = false
                 };
 
+                string sender = !string.IsNullOrWhiteSpace(fromEmail) && fromEmail.Contains("@") ? fromEmail : apiKey;
                 var mail = new MailMessage
                 {
-                    From = new MailAddress(fromEmail ?? apiKey, "BookMyFun Rentals"),
+                    From = new MailAddress(sender, "BookMyFun Rentals"),
                     Subject = subject,
                     Body = bodyHtml,
                     IsBodyHtml = true

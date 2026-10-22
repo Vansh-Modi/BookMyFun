@@ -1,0 +1,113 @@
+@model BookMyFun.Models.ViewModels.ExternalLoginPromptViewModel
+@{
+    ViewData["Title"] = "Sign in with " + Model.Provider;
+}
+
+<div class="row justify-content-center my-4 my-md-5">
+    <div class="col-11 col-sm-9 col-md-6 col-lg-5 col-xl-4">
+        <div class="card shadow-lg border-0 rounded-4 p-4 p-md-5 bg-card">
+            <!-- Provider Brand Header -->
+            <div class="text-center mb-4">
+                <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3 shadow-sm p-3" style="background: rgba(66, 133, 244, 0.1);">
+                    <svg width="36" height="36" viewBox="0 0 48 48">
+                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                        <path fill="none" d="M0 0h48v48H0z"/>
+                    </svg>
+                </div>
+                <h3 class="fw-bold mb-1 text-heading">Google Account Direct Sign-In</h3>
+                <p class="text-muted small mb-0">Sign in or register instantly with your Google account without a password or OTP</p>
+            </div>
+
+            @if (!ViewData.ModelState.IsValid)
+            {
+                <div class="alert alert-danger py-2 px-3 rounded-3 small mb-3">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    @Html.ValidationSummary(true, "")
+                </div>
+            }
+
+            <!-- Quick Direct Login Form -->
+            <form asp-action="DirectGoogleLogin" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="Provider" />
+                <input type="hidden" asp-for="ReturnUrl" />
+
+                <div class="mb-3">
+                    <label asp-for="Email" class="form-label fw-semibold small text-muted">Google Email Address</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope text-muted"></i></span>
+                        <input asp-for="Email" id="googleEmail" class="form-control border-start-0 ps-0" placeholder="e.g. name@gmail.com" required autofocus />
+                    </div>
+                    <span asp-validation-for="Email" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-4">
+                    <label asp-for="FullName" class="form-label fw-semibold small text-muted">Your Full Name</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-person text-muted"></i></span>
+                        <input asp-for="FullName" id="googleName" class="form-control border-start-0 ps-0" placeholder="e.g. John Doe" required />
+                    </div>
+                    <span asp-validation-for="FullName" class="text-danger small"></span>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="d-grid mb-3">
+                    <button type="submit" class="btn btn-warning btn-lg fw-bold rounded-3 shadow-sm py-2">
+                        <i class="bi bi-box-arrow-in-right me-1"></i> Continue with Google ID
+                    </button>
+                </div>
+
+                <!-- One-click Demo Button -->
+                <div class="d-grid mb-3">
+                    <button type="button" class="btn btn-outline-secondary btn-sm py-2 rounded-3" onclick="fillDemoGoogle()">
+                        <i class="bi bi-lightning-charge-fill text-warning me-1"></i> One-Click Demo Google Account
+                    </button>
+                </div>
+            </form>
+
+            <!-- Admin Setup Guide Accordion/Card -->
+            <div class="border rounded-3 p-3 bg-light mt-3 small">
+                <div class="d-flex align-items-center justify-content-between cursor-pointer" data-bs-toggle="collapse" data-bs-target="#oauthConfigGuide" aria-expanded="false" style="cursor: pointer;">
+                    <span class="fw-semibold text-heading"><i class="bi bi-gear-fill text-primary me-2"></i>Google OAuth Setup Guide</span>
+                    <i class="bi bi-chevron-down text-muted"></i>
+                </div>
+                <div class="collapse mt-2 pt-2 border-top" id="oauthConfigGuide">
+                    <p class="text-muted mb-2">
+                        To enable live Google OAuth redirect across your domain, create an OAuth 2.0 Web Client in <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-primary text-decoration-none fw-semibold">Google Cloud Console</a>:
+                    </p>
+                    <ol class="ps-3 mb-2 text-muted">
+                        <li>Set Authorized redirect URI to: <code class="text-warning">/signin-google</code></li>
+                        <li>Add your Client ID &amp; Secret into <code class="text-info">appsettings.json</code> under <code class="text-info">Authentication:Google</code></li>
+                    </ol>
+                    <div class="p-2 rounded bg-dark text-white font-monospace small" style="font-size: 0.78rem;">
+                        "Authentication": {<br />
+                        &nbsp;&nbsp;"Google": {<br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;"ClientId": "YOUR_GOOGLE_CLIENT_ID",<br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;"ClientSecret": "YOUR_GOOGLE_CLIENT_SECRET"<br />
+                        &nbsp;&nbsp;}<br />
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Back to standard login -->
+            <div class="text-center mt-4">
+                <a asp-action="Login" class="text-decoration-none text-muted small">
+                    <i class="bi bi-arrow-left me-1"></i> Back to Standard Login
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    function fillDemoGoogle() {
+        document.getElementById('googleEmail').value = 'demo.google@bookmyfun.in';
+        document.getElementById('googleName').value = 'Demo Google User';
+    }
+</script>
+}

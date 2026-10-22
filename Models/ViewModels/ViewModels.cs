@@ -108,6 +108,8 @@ namespace BookMyFun.Models.ViewModels
 
         public List<int> SelectedOccasionIDs { get; set; } = new();
         public List<int> SelectedAmenityIDs { get; set; } = new();
+        public List<string> CustomAmenities { get; set; } = new();
+        public List<string> CustomOccasions { get; set; } = new();
         public string? ImageUrlInput { get; set; }
         public string? AdditionalMediaJson { get; set; }
 
@@ -208,6 +210,7 @@ namespace BookMyFun.Models.ViewModels
         public int PendingApprovals { get; set; }
         public int TotalOwners { get; set; }
         public int TotalClients { get; set; }
+        public int TotalEmployees { get; set; }
         public int TotalBookings { get; set; }
         public decimal TotalRevenue { get; set; }
         public decimal PlatformEarnings { get; set; }
@@ -552,5 +555,94 @@ namespace BookMyFun.Models.ViewModels
         public string? SelectedStatus { get; set; }
         public DateTime? FromDate { get; set; }
         public DateTime? ToDate { get; set; }
+    }
+
+    public class EventManagerServiceAreasViewModel
+    {
+        public List<string> AvailableLocations { get; set; } = new();
+        public List<string> SelectedAreas { get; set; } = new();
+        public string? RawServiceAreas { get; set; }
+    }
+
+    public class UpdateEventCommissionRequest
+    {
+        public int PackageId { get; set; }
+        public decimal? CommissionRate { get; set; }
+    }
+
+    public class UpdateBookingEventCommissionRequest
+    {
+        public int BookingId { get; set; }
+        public decimal CommissionRate { get; set; }
+    }
+
+    public class CreateEmployeeViewModel
+    {
+        [Required(ErrorMessage = "Full Name is required.")]
+        [StringLength(100, ErrorMessage = "Full Name cannot exceed 100 characters.")]
+        [Display(Name = "Full Name")]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Email Address is required.")]
+        [EmailAddress(ErrorMessage = "Invalid email address format.")]
+        [StringLength(100, ErrorMessage = "Email cannot exceed 100 characters.")]
+        [Display(Name = "Email Address")]
+        public string Email { get; set; } = string.Empty;
+
+        [Phone(ErrorMessage = "Invalid phone number format.")]
+        [StringLength(20, ErrorMessage = "Phone number cannot exceed 20 characters.")]
+        [Display(Name = "Phone Number")]
+        public string? Phone { get; set; }
+
+        [DataType(DataType.Password)]
+        [StringLength(100, MinimumLength = 6, ErrorMessage = "Password must be at least 6 characters.")]
+        [Display(Name = "Initial Password (Optional)")]
+        public string? Password { get; set; }
+
+        [Display(Name = "Active Account")]
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class EditEmployeeViewModel
+    {
+        public int UserID { get; set; }
+
+        [Required(ErrorMessage = "Full Name is required.")]
+        [StringLength(100, ErrorMessage = "Full Name cannot exceed 100 characters.")]
+        [Display(Name = "Full Name")]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Email Address is required.")]
+        [EmailAddress(ErrorMessage = "Invalid email address format.")]
+        [Display(Name = "Email Address")]
+        public string Email { get; set; } = string.Empty;
+
+        [Phone(ErrorMessage = "Invalid phone number format.")]
+        [StringLength(20, ErrorMessage = "Phone number cannot exceed 20 characters.")]
+        [Display(Name = "Phone Number")]
+        public string? Phone { get; set; }
+
+        [DataType(DataType.Password)]
+        [StringLength(100, MinimumLength = 6, ErrorMessage = "New password must be at least 6 characters.")]
+        [Display(Name = "Reset Password (Optional)")]
+        public string? NewPassword { get; set; }
+
+        [Display(Name = "Active Account")]
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class ExternalLoginPromptViewModel
+    {
+        public string Provider { get; set; } = "Google";
+        public string? ReturnUrl { get; set; }
+
+        [Required(ErrorMessage = "Google Email is required.")]
+        [EmailAddress(ErrorMessage = "Please provide a valid Google email.")]
+        [Display(Name = "Google Email")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Full Name is required.")]
+        [Display(Name = "Full Name")]
+        public string FullName { get; set; } = string.Empty;
     }
 }

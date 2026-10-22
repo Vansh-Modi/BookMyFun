@@ -7,6 +7,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0f172a" id="metaThemeColor" />
     <title>@ViewData["Title"] - @site.SiteName | @site.SiteTagline</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,11 +15,23 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <!-- Anti-FOUC: restore theme before first paint -->
+    <!-- Anti-FOUC: restore theme before first paint (zero flash across all devices & webviews) -->
     <script>
         (function () {
-            var saved = localStorage.getItem('bmf-theme') || 'light';
-            document.documentElement.setAttribute('data-theme', saved);
+            try {
+                var saved = localStorage.getItem('bmf-theme');
+                if (!saved) {
+                    saved = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+                }
+                document.documentElement.setAttribute('data-theme', saved);
+            } catch (e) {
+                try {
+                    var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+                } catch (_) {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                }
+            }
         })();
     </script>
 </head>
@@ -64,9 +77,15 @@
                     }
                     <span>@site.SiteName</span>
                 </a>
-                <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
+                <!-- Mobile Controls: Theme Toggle & Hamburger -->
+                <div class="d-flex align-items-center gap-2 d-lg-none">
+                    <button type="button" class="theme-switch-btn btn btn-sm btn-outline-light border-0 rounded-circle" title="Toggle dark / light mode" aria-label="Toggle dark/light mode" style="width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.12);">
+                        <i class="bi bi-moon-stars-fill theme-icon"></i>
+                    </button>
+                    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain" aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation" style="width: 40px; height: 40px; padding: 0; display: inline-flex; align-items: center; justify-content: center;">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                </div>
                 <div class="collapse navbar-collapse" id="navbarMain">
                     <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-4">
                         <li class="nav-item">
@@ -95,135 +114,204 @@
                             </a>
                         </li>
                     </ul>
-                    <ul class="navbar-nav ms-auto align-items-center">
+                    <ul class="navbar-nav ms-auto align-items-center gap-2">
                         @if (User.Identity != null && User.Identity.IsAuthenticated)
                         {
                             var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
                             if (role == "Admin")
                             {
-                                <li class="nav-item dropdown me-2">
-                                    <a class="btn btn-warning text-dark fw-bold px-3 dropdown-toggle shadow-sm" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <li class="nav-item dropdown">
+                                    <a class="btn btn-warning text-dark fw-bold px-3 py-1.5 dropdown-toggle shadow-sm rounded-pill" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                         <i class="bi bi-shield-lock-fill me-1"></i> Admin Console
                                     </a>
-                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
+                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-4 py-2 mt-2">
                                         <li><a class="dropdown-item fw-semibold" asp-controller="Admin" asp-action="Index"><i class="bi bi-speedometer2 text-primary me-2"></i>Dashboard</a></li>
-                                        <li><a class="dropdown-item fw-semibold text-success" asp-controller="Admin" asp-action="DynamicAnalytics"><i class="bi bi-graph-up-arrow text-success me-2"></i>Dynamic Analytics & Reports</a></li>
+                                        <li><a class="dropdown-item fw-semibold text-success" asp-controller="Admin" asp-action="DynamicAnalytics"><i class="bi bi-graph-up-arrow text-success me-2"></i>Dynamic Analytics &amp; Reports</a></li>
                                         <li><a class="dropdown-item fw-semibold text-warning" asp-controller="EventManager" asp-action="Index"><i class="bi bi-palette2 text-warning me-2"></i>Event Manager Dashboard</a></li>
-                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item text-secondary" asp-controller="EventManager" asp-action="ServiceAreas"><i class="bi bi-geo-alt text-info me-2"></i>Event Service Areas</a></li>
+                                        <li><hr class="dropdown-divider my-1"></li>
                                         <li><h6 class="dropdown-header text-uppercase small text-muted">Operations Queues</h6></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="RefundsQueue"><i class="bi bi-arrow-counterclockwise text-info me-2"></i>Refunds Operations</a></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="PartnerLeads"><i class="bi bi-people text-success me-2"></i>Partner Onboarding Leads</a></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="DamageClaims"><i class="bi bi-shield-shaded text-danger me-2"></i>Damage Claims Adjudication</a></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="IdVerifications"><i class="bi bi-person-vcard text-primary me-2"></i>Guest KYC Verifications</a></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="SupportQueries"><i class="bi bi-headset text-secondary me-2"></i>Customer Inquiries</a></li>
-                                        <li><hr class="dropdown-divider"></li>
+                                        <li><hr class="dropdown-divider my-1"></li>
                                         <li><h6 class="dropdown-header text-uppercase small text-muted">Platform Management</h6></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageProperties"><i class="bi bi-houses me-2"></i>Manage Properties</a></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageBookings"><i class="bi bi-calendar-check me-2"></i>Manage Bookings</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageOwners"><i class="bi bi-person-badge me-2"></i>Manage Hosts & Tiers</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageOwners"><i class="bi bi-person-badge me-2"></i>Manage Hosts &amp; Tiers</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageEmployees"><i class="bi bi-people-fill text-primary me-2"></i>Manage Employees</a></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="Settings"><i class="bi bi-gear me-2"></i>System Settings</a></li>
-                                        <li><hr class="dropdown-divider"></li>
+                                        <li><hr class="dropdown-divider my-1"></li>
                                         <li><a class="dropdown-item fw-semibold" asp-controller="Account" asp-action="Profile"><i class="bi bi-person-circle text-primary me-2"></i>My Profile</a></li>
+                                        <li><hr class="dropdown-divider my-1"></li>
+                                        <li>
+                                            <form asp-controller="Account" asp-action="Logout" method="post" class="px-2 py-1">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="dropdown-item text-danger rounded-2 d-flex align-items-center py-1.5 fw-semibold">
+                                                    <i class="bi bi-box-arrow-right me-2"></i> Log Out
+                                                </button>
+                                            </form>
+                                        </li>
                                     </ul>
                                 </li>
                             }
                             else if (role == "Employee")
                             {
-                                <li class="nav-item dropdown me-2">
-                                    <a class="btn btn-info text-dark fw-bold px-3 dropdown-toggle shadow-sm" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <li class="nav-item dropdown">
+                                    <a class="btn btn-info text-dark fw-bold px-3 py-1.5 dropdown-toggle shadow-sm rounded-pill" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                         <i class="bi bi-headset me-1"></i> Operations Staff
                                     </a>
-                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
+                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-4 py-2 mt-2">
                                         <li><a class="dropdown-item fw-semibold" asp-controller="Employee" asp-action="Index"><i class="bi bi-speedometer2 text-primary me-2"></i>Dashboard</a></li>
                                         <li><a class="dropdown-item fw-semibold text-warning" asp-controller="EventManager" asp-action="Index"><i class="bi bi-palette2 text-warning me-2"></i>Event Manager Dashboard</a></li>
-                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item text-secondary" asp-controller="EventManager" asp-action="ServiceAreas"><i class="bi bi-geo-alt text-info me-2"></i>Event Service Areas</a></li>
+                                        <li><hr class="dropdown-divider my-1"></li>
                                         <li><h6 class="dropdown-header text-uppercase small text-muted">Operational Queues</h6></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="RefundsQueue"><i class="bi bi-arrow-counterclockwise text-info me-2"></i>Refunds Operations</a></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="PartnerLeads"><i class="bi bi-people text-success me-2"></i>Partner Onboarding Leads</a></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="DamageClaims"><i class="bi bi-shield-shaded text-danger me-2"></i>Damage Claims</a></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="IdVerifications"><i class="bi bi-person-vcard text-primary me-2"></i>Guest KYC Verifications</a></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="SupportQueries"><i class="bi bi-headset text-secondary me-2"></i>Customer Inquiries</a></li>
-                                        <li><hr class="dropdown-divider"></li>
+                                        <li><hr class="dropdown-divider my-1"></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="ManageProperties"><i class="bi bi-houses me-2"></i>Manage Properties</a></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="ManageBookings"><i class="bi bi-calendar-check me-2"></i>Manage Bookings</a></li>
-                                        <li><hr class="dropdown-divider"></li>
+                                        <li><hr class="dropdown-divider my-1"></li>
                                         <li><a class="dropdown-item fw-semibold" asp-controller="Account" asp-action="Profile"><i class="bi bi-person-circle text-primary me-2"></i>My Profile</a></li>
+                                        <li><hr class="dropdown-divider my-1"></li>
+                                        <li>
+                                            <form asp-controller="Account" asp-action="Logout" method="post" class="px-2 py-1">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="dropdown-item text-danger rounded-2 d-flex align-items-center py-1.5 fw-semibold">
+                                                    <i class="bi bi-box-arrow-right me-2"></i> Log Out
+                                                </button>
+                                            </form>
+                                        </li>
                                     </ul>
                                 </li>
                             }
                             else if (role == "Owner")
                             {
-                                <li class="nav-item dropdown me-2">
-                                    <a class="btn btn-outline-warning text-warning px-3 dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <li class="nav-item dropdown">
+                                    <a class="btn btn-outline-warning text-warning px-3 py-1.5 dropdown-toggle rounded-pill shadow-sm" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                         <i class="bi bi-speedometer2 me-1"></i> Host Dashboard
                                     </a>
-                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
+                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-4 py-2 mt-2">
                                         <li><a class="dropdown-item fw-semibold" asp-controller="Owner" asp-action="Index"><i class="bi bi-grid-fill text-warning me-2"></i>Host Dashboard</a></li>
                                         <li><a class="dropdown-item text-success fw-semibold" asp-controller="Owner" asp-action="CreateProperty"><i class="bi bi-plus-circle-fill text-success me-2"></i>List New Farm</a></li>
                                         <li><a class="dropdown-item text-danger" asp-controller="Owner" asp-action="DamageClaims"><i class="bi bi-shield-exclamation text-danger me-2"></i>Security Deposit Claims</a></li>
                                         <li><a class="dropdown-item" asp-controller="Owner" asp-action="Subscriptions"><i class="bi bi-award text-primary me-2"></i>Subscription Plans</a></li>
-                                        <li><hr class="dropdown-divider"></li>
+                                        <li><hr class="dropdown-divider my-1"></li>
                                         <li><a class="dropdown-item fw-semibold" asp-controller="Account" asp-action="Profile"><i class="bi bi-person-circle text-primary me-2"></i>My Profile</a></li>
+                                        <li><hr class="dropdown-divider my-1"></li>
+                                        <li>
+                                            <form asp-controller="Account" asp-action="Logout" method="post" class="px-2 py-1">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="dropdown-item text-danger rounded-2 d-flex align-items-center py-1.5 fw-semibold">
+                                                    <i class="bi bi-box-arrow-right me-2"></i> Log Out
+                                                </button>
+                                            </form>
+                                        </li>
                                     </ul>
                                 </li>
                             }
                             else if (role == "EventManager")
                             {
-                                <li class="nav-item dropdown me-2">
-                                    <a class="btn btn-outline-warning text-warning px-3 dropdown-toggle shadow-sm" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <li class="nav-item dropdown">
+                                    <a class="btn btn-outline-warning text-warning px-3 py-1.5 dropdown-toggle shadow-sm rounded-pill" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                         <i class="bi bi-palette2 me-1"></i> Event Manager
                                     </a>
-                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
+                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-4 py-2 mt-2">
                                         <li><a class="dropdown-item fw-semibold" asp-controller="EventManager" asp-action="Index"><i class="bi bi-speedometer2 text-primary me-2"></i>Event Manager Dashboard</a></li>
+                                        <li><a class="dropdown-item fw-semibold text-primary" asp-controller="EventManager" asp-action="ServiceAreas"><i class="bi bi-geo-alt-fill text-primary me-2"></i>Serviceable Areas</a></li>
                                         <li><a class="dropdown-item fw-semibold text-success" asp-controller="EventManager" asp-action="Packages"><i class="bi bi-box-seam text-success me-2"></i>Décor Packages</a></li>
                                         <li><a class="dropdown-item fw-semibold text-warning" asp-controller="EventManager" asp-action="AssignedSetups"><i class="bi bi-calendar-event text-warning me-2"></i>Assigned Setups</a></li>
                                         <li><a class="dropdown-item fw-semibold text-info" asp-controller="EventManager" asp-action="Financials"><i class="bi bi-wallet2 text-info me-2"></i>Earnings &amp; Financials</a></li>
-                                        <li><hr class="dropdown-divider"></li>
+                                        <li><hr class="dropdown-divider my-1"></li>
                                         <li><a class="dropdown-item fw-semibold" asp-controller="Account" asp-action="Profile"><i class="bi bi-person-circle text-primary me-2"></i>My Profile</a></li>
+                                        <li><hr class="dropdown-divider my-1"></li>
+                                        <li>
+                                            <form asp-controller="Account" asp-action="Logout" method="post" class="px-2 py-1">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="dropdown-item text-danger rounded-2 d-flex align-items-center py-1.5 fw-semibold">
+                                                    <i class="bi bi-box-arrow-right me-2"></i> Log Out
+                                                </button>
+                                            </form>
+                                        </li>
                                     </ul>
                                 </li>
                             }
                             else
                             {
-                                <li class="nav-item me-2">
-                                    <a class="btn btn-outline-warning text-warning px-3" asp-controller="Client" asp-action="Index">
-                                        <i class="bi bi-calendar-check me-1"></i> My Bookings & KYC
+                                <li class="nav-item">
+                                    <a class="nav-link text-white fw-semibold px-2" asp-controller="Client" asp-action="Index">
+                                        <i class="bi bi-calendar-check text-warning me-1"></i> My Trips
                                     </a>
                                 </li>
-                                <li class="nav-item me-2">
-                                    <a class="btn btn-outline-light text-white px-3" asp-controller="Account" asp-action="Profile">
-                                        <i class="bi bi-person-circle me-1"></i> Profile
+                                <li class="nav-item dropdown">
+                                    <a class="btn btn-outline-light rounded-pill px-3 py-1.5 dropdown-toggle d-flex align-items-center gap-2 shadow-sm" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" style="background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2);">
+                                        <i class="bi bi-person-circle text-warning"></i>
+                                        <span class="small fw-semibold">@(User.Identity?.Name ?? "Account")</span>
                                     </a>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-4 py-2 mt-2" style="min-width: 220px;">
+                                        <li class="px-3 py-2 border-bottom">
+                                            <div class="fw-bold text-dark text-truncate">@(User.Identity?.Name ?? "User")</div>
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill small">Traveler</span>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item py-2 fw-medium" asp-controller="Client" asp-action="Index">
+                                                <i class="bi bi-calendar-check text-primary me-2"></i> My Trips &amp; Bookings
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item py-2 fw-medium" asp-controller="Account" asp-action="Profile">
+                                                <i class="bi bi-person text-secondary me-2"></i> My Profile &amp; Settings
+                                            </a>
+                                        </li>
+                                        <li><hr class="dropdown-divider my-1"></li>
+                                        <li>
+                                            <form asp-controller="Account" asp-action="Logout" method="post" class="px-2 py-1">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="dropdown-item text-danger rounded-2 d-flex align-items-center py-1.5 fw-semibold">
+                                                    <i class="bi bi-box-arrow-right me-2"></i> Log Out
+                                                </button>
+                                            </form>
+                                        </li>
+                                    </ul>
                                 </li>
                             }
-                            <li class="nav-item">
-                                <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
-                                    <button type="submit" class="btn btn-sm btn-outline-light rounded-pill px-3">Logout</button>
-                                </form>
-                            </li>
                         }
                         else
                         {
-                            <li class="nav-item me-2">
+                            <li class="nav-item">
                                 <a class="nav-link text-warning fw-medium" asp-controller="Home" asp-action="Partner">
                                     <i class="bi bi-handshake me-1"></i> Partner With Us
                                 </a>
                             </li>
-                            <li class="nav-item me-2">
+                            <li class="nav-item">
                                 <a class="nav-link text-light fw-medium" asp-controller="Account" asp-action="Login">
                                     <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="btn btn-warning fw-bold px-3 shadow-sm rounded-pill" asp-controller="Account" asp-action="Register">
+                                <a class="btn btn-warning fw-bold px-3 py-1.5 shadow-sm rounded-pill" asp-controller="Account" asp-action="Register">
                                     Sign Up
                                 </a>
                             </li>
                         }
                     </ul>
-                    <!-- Dark / Light Mode Toggle -->
-                    <button id="themeSwitchBtn" class="ms-3" title="Toggle dark / light mode" aria-label="Toggle dark/light mode">
-                        <i class="bi bi-moon-stars-fill" id="themeIcon"></i>
+                    <!-- Mobile Drawer Theme Switcher Row -->
+                    <div class="d-lg-none pt-3 mt-3 border-top border-secondary border-opacity-25 d-flex align-items-center justify-content-between">
+                        <span class="text-white-50 small"><i class="bi bi-palette me-2"></i>Display Theme</span>
+                        <button type="button" class="theme-switch-btn btn btn-sm btn-outline-light d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2);">
+                            <i class="bi bi-moon-stars-fill theme-icon"></i>
+                            <span class="theme-mode-label small fw-semibold">Toggle Mode</span>
+                        </button>
+                    </div>
+                    <!-- Dark / Light Mode Toggle (Desktop) -->
+                    <button id="themeSwitchBtn" class="theme-switch-btn ms-3 d-none d-lg-inline-flex" title="Toggle dark / light mode" aria-label="Toggle dark/light mode">
+                        <i class="bi bi-moon-stars-fill theme-icon" id="themeIcon"></i>
                     </button>
                 </div>
             </div>
@@ -350,6 +438,70 @@
             </div>
         </div>
     </footer>
+
+    <!-- Native-like Mobile Bottom Navigation Bar (Visible on mobile screens < 768px) -->
+    <nav class="mobile-bottom-bar d-md-none" aria-label="Mobile Navigation">
+        <div class="mobile-bottom-bar-inner">
+            <a asp-controller="Home" asp-action="Index" class="mobile-nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" && ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")">
+                <i class="bi bi-house-door"></i>
+                <span>Home</span>
+            </a>
+            <a asp-controller="Properties" asp-action="Index" class="mobile-nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Properties" ? "active" : "")">
+                <i class="bi bi-compass"></i>
+                <span>Explore</span>
+            </a>
+            <a asp-controller="Home" asp-action="Contact" class="mobile-nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Home" && ViewContext.RouteData.Values["action"]?.ToString() == "Contact" ? "active" : "")">
+                <i class="bi bi-headset"></i>
+                <span>Support</span>
+            </a>
+            @if (User.Identity != null && User.Identity.IsAuthenticated)
+            {
+                var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+                if (role == "Admin")
+                {
+                    <a asp-controller="Admin" asp-action="Index" class="mobile-nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Admin" ? "active" : "")">
+                        <i class="bi bi-shield-lock"></i>
+                        <span>Admin</span>
+                    </a>
+                }
+                else if (role == "Employee")
+                {
+                    <a asp-controller="Employee" asp-action="Index" class="mobile-nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Employee" ? "active" : "")">
+                        <i class="bi bi-person-workspace"></i>
+                        <span>Staff</span>
+                    </a>
+                }
+                else if (role == "Owner")
+                {
+                    <a asp-controller="Owner" asp-action="Index" class="mobile-nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Owner" ? "active" : "")">
+                        <i class="bi bi-speedometer2"></i>
+                        <span>Host</span>
+                    </a>
+                }
+                else if (role == "EventManager")
+                {
+                    <a asp-controller="EventManager" asp-action="Index" class="mobile-nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "EventManager" ? "active" : "")">
+                        <i class="bi bi-palette2"></i>
+                        <span>Events</span>
+                    </a>
+                }
+                else
+                {
+                    <a asp-controller="Client" asp-action="Index" class="mobile-nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Client" ? "active" : "")">
+                        <i class="bi bi-calendar-check"></i>
+                        <span>Trips</span>
+                    </a>
+                }
+            }
+            else
+            {
+                <a asp-controller="Account" asp-action="Login" class="mobile-nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Account" && ViewContext.RouteData.Values["action"]?.ToString() == "Login" ? "active" : "")">
+                    <i class="bi bi-person-circle"></i>
+                    <span>Sign In</span>
+                </a>
+            }
+        </div>
+    </nav>
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>

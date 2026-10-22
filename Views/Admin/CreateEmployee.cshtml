@@ -1,0 +1,101 @@
+@model BookMyFun.Models.ViewModels.CreateEmployeeViewModel
+@{
+    ViewData["Title"] = "Add New Employee - Admin Console";
+}
+
+<div class="row justify-content-center py-4">
+    <div class="col-lg-7 col-md-9">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-3 small">
+                <li class="breadcrumb-item"><a asp-controller="Admin" asp-action="Index">Dashboard</a></li>
+                <li class="breadcrumb-item"><a asp-controller="Admin" asp-action="ManageEmployees">Staff Management</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Add Employee</li>
+            </ol>
+        </nav>
+
+        <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+            <div class="card-header bg-primary text-white py-3 px-4">
+                <div class="d-flex align-items-center">
+                    <div class="bg-white bg-opacity-25 rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 44px; height: 44px;">
+                        <i class="bi bi-person-plus-fill fs-5"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0 fw-bold">Onboard Operations Employee</h5>
+                        <p class="mb-0 small text-white-50">Create credentials and staff portal access for a new employee.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body p-4">
+                <form asp-action="CreateEmployee" method="post" autocomplete="off">
+                    @Html.AntiForgeryToken()
+
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger rounded-3 mb-4" role="alert"></div>
+
+                    <div class="mb-3">
+                        <label asp-for="FullName" class="form-label fw-semibold text-dark">
+                            Full Name <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-person text-muted"></i></span>
+                            <input asp-for="FullName" class="form-control border-start-0 ps-0" placeholder="e.g. Ramesh Patel" required />
+                        </div>
+                        <span asp-validation-for="FullName" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Email" class="form-label fw-semibold text-dark">
+                            Email Address (Login Username) <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope text-muted"></i></span>
+                            <input asp-for="Email" type="email" class="form-control border-start-0 ps-0" placeholder="e.g. staff.ramesh@bookmyfun.com" required />
+                        </div>
+                        <div class="form-text small text-muted">This email address will be used by the employee to log into the Operations portal.</div>
+                        <span asp-validation-for="Email" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Phone" class="form-label fw-semibold text-dark">Contact Phone Number</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-telephone text-muted"></i></span>
+                            <input asp-for="Phone" type="tel" class="form-control border-start-0 ps-0" placeholder="+91 98765 43210" />
+                        </div>
+                        <span asp-validation-for="Phone" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Password" class="form-label fw-semibold text-dark">Initial Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-key text-muted"></i></span>
+                            <input asp-for="Password" type="password" class="form-control border-start-0 ps-0" placeholder="Default if blank: Emp@123" />
+                        </div>
+                        <div class="form-text small text-muted">Leave empty to assign default password <code>Emp@123</code>. The employee can change it upon logging in.</div>
+                        <span asp-validation-for="Password" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-4 form-check form-switch ps-5">
+                        <input class="form-check-input ms-n5" type="checkbox" asp-for="IsActive" id="isActiveSwitch" checked />
+                        <label class="form-check-label fw-semibold text-dark" for="isActiveSwitch">
+                            Activate account immediately
+                        </label>
+                        <div class="form-text small text-muted">When enabled, the employee can log in right away with their credentials.</div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                        <a asp-action="ManageEmployees" class="btn btn-outline-secondary rounded-3 px-4">
+                            <i class="bi bi-arrow-left me-1"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary rounded-3 px-4 fw-semibold shadow-sm">
+                            <i class="bi bi-person-check-fill me-1"></i> Create Employee Account
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
