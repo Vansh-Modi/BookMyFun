@@ -69,18 +69,33 @@ namespace BookMyFun.Services.Filters
             }
             else
             {
-                // For standard Razor MVC pages
-                var viewResult = new ViewResult
+                if (_env.IsDevelopment())
                 {
-                    ViewName = "~/Views/Shared/Error.cshtml",
-                    StatusCode = statusCode
+                    // Allow ASP.NET Core Developer Exception Page to render root exception in Development mode
+                    return;
+                }
+
+                // For standard Razor MVC pages
+                var modelMetadataProvider = context.HttpContext.RequestServices.GetService(typeof(Microsoft.AspNetCore.Mvc.ModelBinding.IModelMetadataProvider)) as Microsoft.AspNetCore.Mvc.ModelBinding.IModelMetadataProvider
+                    ?? new Microsoft.AspNetCore.Mvc.ModelBinding.EmptyModelMetadataProvider();
+
+                var viewData = new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(modelMetadataProvider, context.ModelState)
+                {
+                    Model = new BookMyFun.Models.ErrorViewModel
+                    {
+                        RequestId = System.Diagnostics.Activity.Current?.Id ?? context.HttpContext.TraceIdentifier
+                    },
+                    ["ErrorMessage"] = message,
+                    ["ErrorCode"] = errorCode,
+                    ["StatusCode"] = statusCode
                 };
 
-                viewResult.ViewData["ErrorMessage"] = message;
-                viewResult.ViewData["ErrorCode"] = errorCode;
-                viewResult.ViewData["StatusCode"] = statusCode;
-
-                context.Result = viewResult;
+                context.Result = new ViewResult
+                {
+                    ViewName = "~/Views/Shared/Error.cshtml",
+                    ViewData = viewData,
+                    StatusCode = statusCode
+                };
             }
 
             context.ExceptionHandled = true;
