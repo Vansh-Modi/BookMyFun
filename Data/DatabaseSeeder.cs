@@ -96,6 +96,22 @@ namespace BookMyFun.Data
                     END";
                 await db.ExecuteNonQueryAsync(seedPropSql);
             }
+
+            // 6. Seed sample confirmed booking
+            var bookingCount = await db.ExecuteScalarAsync("SELECT COUNT(*) FROM Bookings");
+            if (Convert.ToInt32(bookingCount) == 0)
+            {
+                var seedBookingSql = @"
+                    DECLARE @PropId INT = (SELECT TOP 1 PropertyID FROM Properties WHERE ListingStatus = 'Active');
+                    DECLARE @ClientId INT = (SELECT TOP 1 UserID FROM Users WHERE Role = 'Client');
+
+                    IF @PropId IS NOT NULL AND @ClientId IS NOT NULL
+                    BEGIN
+                        INSERT INTO Bookings (PropertyID, ClientID, CheckInDate, CheckOutDate, BookingType, TotalAmount, Status, SecurityDepositAmount, SecurityDepositStatus)
+                        VALUES (@PropId, @ClientId, DATEADD(day, 2, GETDATE()), DATEADD(day, 4, GETDATE()), 'FullDay', 12500.00, 'Confirmed', 5000.00, 'Held');
+                    END";
+                await db.ExecuteNonQueryAsync(seedBookingSql);
+            }
         }
     }
 }

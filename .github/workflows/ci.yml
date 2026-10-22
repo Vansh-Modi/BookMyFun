@@ -41,7 +41,7 @@ jobs:
       run: dotnet build --no-restore
 
     - name: Run All Tests
-      run: dotnet test --no-build --verbosity normal
+      run: dotnet test --no-build --verbosity normal --logger "console;verbosity=detailed"
       env:
         ConnectionStrings__DefaultConnection: "Server=127.0.0.1,1433;Database=master;User Id=sa;Password=Password@12345!;TrustServerCertificate=True;"
         TEST_CONNECTION_STRING: "Server=127.0.0.1,1433;Database=master;User Id=sa;Password=Password@12345!;TrustServerCertificate=True;"

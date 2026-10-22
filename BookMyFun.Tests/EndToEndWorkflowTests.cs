@@ -236,6 +236,26 @@ public class EndToEndWorkflowTests
         var admin = await userRepo.GetByEmailAsync("admin@bookmyfun.com");
         var bookings = await bookingRepo.GetAllBookingsAsync();
         var targetBooking = bookings.FirstOrDefault();
+        int createdTestBookingId = 0;
+        if (targetBooking == null)
+        {
+            var properties = await propRepo.GetAllPropertiesAsync(onlyApproved: true);
+            var prop = properties.FirstOrDefault()!;
+            var client = await userRepo.GetByEmailAsync("client@bookmyfun.com");
+            createdTestBookingId = await bookingRepo.CreateBookingAsync(new Booking
+            {
+                PropertyID = prop.PropertyID,
+                ClientID = client!.UserID,
+                CheckInDate = DateTime.Today.AddDays(1),
+                CheckOutDate = DateTime.Today.AddDays(3),
+                BookingType = "FullDay",
+                TotalAmount = 5000.00m,
+                Status = "Confirmed",
+                SecurityDepositAmount = 1000.00m,
+                SecurityDepositStatus = "Held"
+            });
+            targetBooking = await bookingRepo.GetByIdAsync(createdTestBookingId);
+        }
         Assert.NotNull(targetBooking);
 
         // 1. Owner files damage claim
@@ -271,6 +291,10 @@ public class EndToEndWorkflowTests
         finally
         {
             await _db.ExecuteNonQueryAsync($"DELETE FROM DamageClaims WHERE ClaimID = {claimId}");
+            if (createdTestBookingId > 0)
+            {
+                await _db.ExecuteNonQueryAsync($"DELETE FROM Bookings WHERE BookingID = {createdTestBookingId}");
+            }
         }
     }
 
