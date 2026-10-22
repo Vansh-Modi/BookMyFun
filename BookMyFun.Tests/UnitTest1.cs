@@ -8,9 +8,8 @@ public class UnitTest1
     [Fact]
     public async Task AdminLogin_CredentialsAndRole_AreValid()
     {
-        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-        var db = new BookMyFun.Data.DBHelper(config);
+        var config = TestHelper.GetTestConfig();
+        var db = TestHelper.GetTestDb();
         var userRepo = new BookMyFun.Repositories.UserRepository(db);
 
         var admin = await userRepo.GetByEmailAsync("admin@bookmyfun.com");
@@ -23,9 +22,8 @@ public class UnitTest1
     [Fact]
     public async Task AdminDashboard_Queries_SucceedWithoutErrors()
     {
-        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-        var db = new BookMyFun.Data.DBHelper(config);
+        var config = TestHelper.GetTestConfig();
+        var db = TestHelper.GetTestDb();
 
         var propRepo = new BookMyFun.Repositories.PropertyRepository(db);
         var userRepo = new BookMyFun.Repositories.UserRepository(db);
@@ -45,9 +43,8 @@ public class UnitTest1
     [Fact]
     public async Task PartnerLead_Approve_GeneratesCredentialsAndDispatches()
     {
-        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-        var db = new BookMyFun.Data.DBHelper(config);
+        var config = TestHelper.GetTestConfig();
+        var db = TestHelper.GetTestDb();
 
         var leadRepo = new BookMyFun.Repositories.PartnerLeadRepository(db);
         var userRepo = new BookMyFun.Repositories.UserRepository(db);
@@ -119,9 +116,8 @@ public class UnitTest1
     [Fact]
     public async Task OwnerRequest_Approve_GeneratesCredentialsAndDispatches()
     {
-        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-        var db = new BookMyFun.Data.DBHelper(config);
+        var config = TestHelper.GetTestConfig();
+        var db = TestHelper.GetTestDb();
 
         var leadRepo = new BookMyFun.Repositories.PartnerLeadRepository(db);
         var userRepo = new BookMyFun.Repositories.UserRepository(db);
@@ -185,12 +181,11 @@ public class UnitTest1
     [Fact]
     public async Task RazorpayPaymentGateway_CreateOrderAndVerifySignature_WorkCorrectly()
     {
-        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
+        var config = TestHelper.GetTestConfig();
         config["Razorpay:KeyId"] = "rzp_test_sample123";
         config["Razorpay:KeySecret"] = "sample_secret_xyz_789";
 
-        var db = new BookMyFun.Data.DBHelper(config);
+        var db = TestHelper.GetTestDb();
         var configRepo = new BookMyFun.Repositories.ConfigRepository(db);
         var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<BookMyFun.Services.RazorpayPaymentService>.Instance;
 
@@ -223,10 +218,8 @@ public class UnitTest1
     [Fact]
     public async Task FinancialSplit_PropertyStayAndEventDecor_AreStrictlySegregated()
     {
-        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-
-        var db = new BookMyFun.Data.DBHelper(config);
+        var config = TestHelper.GetTestConfig();
+        var db = TestHelper.GetTestDb();
         var configRepo = new BookMyFun.Repositories.ConfigRepository(db);
         var userRepo = new BookMyFun.Repositories.UserRepository(db);
 
@@ -260,10 +253,8 @@ public class UnitTest1
     [Fact]
     public async Task WhatsAppService_DispatchesMultiStakeholderAlerts_Cleanly()
     {
-        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-
-        var db = new BookMyFun.Data.DBHelper(config);
+        var config = TestHelper.GetTestConfig();
+        var db = TestHelper.GetTestDb();
         var configRepo = new BookMyFun.Repositories.ConfigRepository(db);
         var commsLogger = Microsoft.Extensions.Logging.Abstractions.NullLogger<BookMyFun.Services.CommunicationService>.Instance;
 
@@ -289,10 +280,8 @@ public class UnitTest1
     [Fact]
     public async Task RealEmailOtp_GenerationDispatchAndRegistration_SucceedsWithoutTestingBypass()
     {
-        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-
-        var db = new BookMyFun.Data.DBHelper(config);
+        var config = TestHelper.GetTestConfig();
+        var db = TestHelper.GetTestDb();
         var configRepo = new BookMyFun.Repositories.ConfigRepository(db);
         var otpRepo = new BookMyFun.Repositories.OtpRepository(db);
         var userRepo = new BookMyFun.Repositories.UserRepository(db);
@@ -361,12 +350,11 @@ public class UnitTest1
     [Fact]
     public async Task Razorpay_OwnerSubscriptionPaymentWorkflow_TransitionsToPaid()
     {
-        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
+        var config = TestHelper.GetTestConfig();
         config["Razorpay:KeyId"] = "rzp_test_owner_sub";
         config["Razorpay:KeySecret"] = "owner_secret_456_test";
 
-        var db = new BookMyFun.Data.DBHelper(config);
+        var db = TestHelper.GetTestDb();
         var subRepo = new BookMyFun.Repositories.SubscriptionRepository(db);
         var configRepo = new BookMyFun.Repositories.ConfigRepository(db);
         var userRepo = new BookMyFun.Repositories.UserRepository(db);
@@ -459,9 +447,8 @@ public class UnitTest1
     [Fact]
     public async Task EventManager_ServiceAreas_SaveAndCheckServicedArea()
     {
-        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-        var db = new BookMyFun.Data.DBHelper(config);
+        var config = TestHelper.GetTestConfig();
+        var db = TestHelper.GetTestDb();
 
         var eventRepo = new BookMyFun.Repositories.EventPackageRepository(db);
         var userRepo = new BookMyFun.Repositories.UserRepository(db);
@@ -516,9 +503,8 @@ public class UnitTest1
     [Fact]
     public async Task EventManager_CancelOrRemoveEventFromBooking_PreservesBooking()
     {
-        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-        var db = new BookMyFun.Data.DBHelper(config);
+        var config = TestHelper.GetTestConfig();
+        var db = TestHelper.GetTestDb();
 
         var eventRepo = new BookMyFun.Repositories.EventPackageRepository(db);
         var bookingRepo = new BookMyFun.Repositories.BookingRepository(db);
@@ -554,9 +540,8 @@ public class UnitTest1
     [Fact]
     public async Task EventCommission_StandardAndCustomOverrides_PrecedenceHierarchy()
     {
-        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-        var db = new BookMyFun.Data.DBHelper(config);
+        var config = TestHelper.GetTestConfig();
+        var db = TestHelper.GetTestDb();
 
         var configRepo = new BookMyFun.Repositories.ConfigRepository(db);
         var userRepo = new BookMyFun.Repositories.UserRepository(db);
@@ -615,9 +600,8 @@ public class UnitTest1
     [Fact]
     public async Task EventCommission_BookingCreation_AccurateSnapshotAndNetPayouts()
     {
-        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-        var db = new BookMyFun.Data.DBHelper(config);
+        var config = TestHelper.GetTestConfig();
+        var db = TestHelper.GetTestDb();
 
         var bookingRepo = new BookMyFun.Repositories.BookingRepository(db);
         var propRepo = new BookMyFun.Repositories.PropertyRepository(db);
@@ -702,10 +686,8 @@ public class UnitTest1
     [Fact]
     public async Task SpecificEventCommission_AdminOverrideAndReversionToStanding_WorksAccurately()
     {
-        var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-        config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-
-        var db = new BookMyFun.Data.DBHelper(config);
+        var config = TestHelper.GetTestConfig();
+        var db = TestHelper.GetTestDb();
         var configRepo = new BookMyFun.Repositories.ConfigRepository(db);
         var userRepo = new BookMyFun.Repositories.UserRepository(db);
         var propRepo = new BookMyFun.Repositories.PropertyRepository(db);
@@ -758,9 +740,8 @@ public class UnitTest1
     [Fact]
     public async Task Admin_CreateEmployee_Workflow_CreatesAndAuthenticatesEmployee()
         {
-            var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-            config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-            var db = new BookMyFun.Data.DBHelper(config);
+            var config = TestHelper.GetTestConfig();
+            var db = TestHelper.GetTestDb();
             var userRepo = new BookMyFun.Repositories.UserRepository(db);
 
             string testEmail = $"ops.test.{Guid.NewGuid().ToString("N").Substring(0, 8)}@bookmyfun.com";
@@ -829,9 +810,8 @@ public class UnitTest1
         [Fact]
         public async Task Admin_CreateEmployee_DuplicateEmail_DetectionWorks()
         {
-            var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-            config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-            var db = new BookMyFun.Data.DBHelper(config);
+            var config = TestHelper.GetTestConfig();
+            var db = TestHelper.GetTestDb();
             var userRepo = new BookMyFun.Repositories.UserRepository(db);
 
             // Fetch an existing user (e.g. admin)
@@ -853,9 +833,8 @@ public class UnitTest1
         [Fact]
         public async Task AdminController_CreateEmployeeAction_SucceedsAndRedirects()
         {
-            var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-            config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-            var db = new BookMyFun.Data.DBHelper(config);
+            var config = TestHelper.GetTestConfig();
+            var db = TestHelper.GetTestDb();
 
             var userRepo = new BookMyFun.Repositories.UserRepository(db);
             var configRepo = new BookMyFun.Repositories.ConfigRepository(db);
@@ -931,9 +910,8 @@ public class UnitTest1
         [Fact]
         public async Task GoogleLogin_NewUser_AutomaticallyRegistersAndSignsIn()
         {
-            var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-            config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-            var db = new BookMyFun.Data.DBHelper(config);
+            var config = TestHelper.GetTestConfig();
+            var db = TestHelper.GetTestDb();
             var userRepo = new BookMyFun.Repositories.UserRepository(db);
             var otpRepo = new BookMyFun.Repositories.OtpRepository(db);
             var ownerReqRepo = new BookMyFun.Repositories.OwnerRequestRepository(db);
@@ -1007,9 +985,8 @@ public class UnitTest1
         [Fact]
         public async Task GoogleLogin_ExistingUser_LinksProviderAndLogsIn()
         {
-            var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-            config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-            var db = new BookMyFun.Data.DBHelper(config);
+            var config = TestHelper.GetTestConfig();
+            var db = TestHelper.GetTestDb();
             var userRepo = new BookMyFun.Repositories.UserRepository(db);
             var otpRepo = new BookMyFun.Repositories.OtpRepository(db);
             var ownerReqRepo = new BookMyFun.Repositories.OwnerRequestRepository(db);
@@ -1087,9 +1064,8 @@ public class UnitTest1
         [Fact]
         public async Task Owner_AmenitiesAndOccasions_CustomCreationAndLimitRules()
         {
-            var config = new Microsoft.Extensions.Configuration.ConfigurationManager();
-            config["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-            var db = new BookMyFun.Data.DBHelper(config);
+            var config = TestHelper.GetTestConfig();
+            var db = TestHelper.GetTestDb();
             var propRepo = new BookMyFun.Repositories.PropertyRepository(db);
 
             // Test custom amenity creation

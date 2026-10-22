@@ -20,12 +20,8 @@ public class EndToEndWorkflowTests
 
     public EndToEndWorkflowTests()
     {
-        var configManager = new ConfigurationManager();
-        configManager["ConnectionStrings:DefaultConnection"] = "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
-        configManager["Razorpay:KeyId"] = "rzp_test_bookmyfun_demo";
-        configManager["Razorpay:KeySecret"] = "rzp_secret_demo_12345";
-        _config = configManager;
-        _db = new DBHelper(_config);
+        _config = TestHelper.GetTestConfig();
+        _db = TestHelper.GetTestDb();
     }
 
     private class StubMediaStorageService : IMediaStorageService

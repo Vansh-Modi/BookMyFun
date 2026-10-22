@@ -31,6 +31,7 @@ BEGIN
         IsActive BIT DEFAULT 1,
         CustomCommissionRate DECIMAL(5,2) NULL,
         SubscriptionTier NVARCHAR(30) DEFAULT 'Free',
+        ServiceAreas NVARCHAR(MAX) NULL,
         AuthProvider NVARCHAR(50) DEFAULT 'Local',
         AuthProviderKey NVARCHAR(255) NULL,
         ProfilePictureUrl NVARCHAR(500) NULL,
@@ -53,6 +54,11 @@ BEGIN
     IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'SubscriptionTier')
     BEGIN
         ALTER TABLE Users ADD SubscriptionTier NVARCHAR(30) DEFAULT 'Free';
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'ServiceAreas')
+    BEGIN
+        ALTER TABLE Users ADD ServiceAreas NVARCHAR(MAX) NULL;
     END
 
     IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'AuthProvider')
@@ -207,6 +213,7 @@ BEGIN
         ALTER TABLE Properties ADD CancellationFeeValue DECIMAL(18,2) DEFAULT 10.00;
         ALTER TABLE Properties ADD SecurityDepositAmount DECIMAL(18,2) DEFAULT 0.00;
         ALTER TABLE Properties ADD CommissionRate DECIMAL(5,2) NULL;
+        ALTER TABLE Properties ADD EventCommissionRate DECIMAL(5,2) NULL;
         ALTER TABLE Properties ADD FormattedAddress NVARCHAR(500) NULL;
         ALTER TABLE Properties ADD Latitude DECIMAL(9,6) NULL;
         ALTER TABLE Properties ADD Longitude DECIMAL(9,6) NULL;
@@ -322,6 +329,13 @@ BEGIN
     ('Neon DJ & Acoustic Sound Night', 'Birthday', 25000.00, 'High-intensity neon laser lighting, strobe rigs, dual subwoofer JBL sound system, DJ console, and glowing photo booth.', 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30', 'JBL Dual Subwoofers, DJ Deck, Moving Head Lasers, Neon Photo Wall, LED Strobes', 1),
     ('Boho Chic Birthday Lawn Setup', 'Birthday', 18000.00, 'Aesthetic low-seating bohemian floor tables, macrame backdrop, teepee tent, warm fairy lights, and pastel balloon garlands.', 'https://images.unsplash.com/photo-1530103862676-de8c9debad1d', 'Teepee Photo Booth, Low Floor Tables, Boho Rugs & Cushions, Pastel Balloon Arch, Warm Fairy Lights', 1),
     ('Corporate Gala & Cocktail Lounge', 'Corporate', 35000.00, 'Sophisticated cocktail high-top tables, illuminated bar counter, sleek black trussing, spotlighting, and podium setup.', 'https://images.unsplash.com/photo-1511578314322-379afb476865', 'Illuminated Bar Counter, 8 Cocktail Tables, Truss Spotlights, Audio Podium, Cordless Microphones', 1);
+END
+ELSE
+BEGIN
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('EventPackages') AND name = 'CommissionRate')
+    BEGIN
+        ALTER TABLE EventPackages ADD CommissionRate DECIMAL(5,2) NULL;
+    END
 END
 
 -- 16. Bookings Table (With Policy, Commission Snapshots & Event Integration)
