@@ -524,7 +524,10 @@ namespace BookMyFun.Controllers
                 var bookings = await _bookingRepo.GetByClientIdAsync(userId);
                 vm.TotalBookingsCount = bookings.Count;
                 var kyc = await _idRepo.GetVerificationByClientIdAsync(userId);
-                vm.KycStatus = kyc?.VerificationStatus ?? "Unverified";
+                vm.KycStatus = kyc?.VerificationStatus;
+                vm.KycRejectionReason = kyc?.RejectionReason;
+                vm.KycDocumentType = kyc?.DocumentType;
+                vm.KycVerifiedAt = kyc?.VerifiedAt;
             }
             else if (user.Role == "Owner")
             {

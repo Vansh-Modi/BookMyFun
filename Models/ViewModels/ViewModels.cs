@@ -559,6 +559,9 @@ namespace BookMyFun.Models.ViewModels
         public int TotalBookingsCount { get; set; }
         public int TotalPropertiesCount { get; set; }
         public string? KycStatus { get; set; }
+        public string? KycRejectionReason { get; set; }
+        public string? KycDocumentType { get; set; }
+        public DateTime? KycVerifiedAt { get; set; }
     }
 
     public class ChangePasswordViewModel

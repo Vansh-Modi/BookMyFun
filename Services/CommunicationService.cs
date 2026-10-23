@@ -15,6 +15,7 @@ namespace BookMyFun.Services
         Task EnqueueEmailAsync(string toEmail, string subject, string bodyHtml, string messageType = "Notification");
         Task<bool> SendBookingReceiptEmailAsync(string toEmail, string clientName, BookingReceiptViewModel receipt, string receiptUrl) => Task.FromResult(true);
         Task<bool> SendOwnerSettlementReceiptEmailAsync(string toEmail, string ownerName, BookingReceiptViewModel receipt, string settlementReceiptUrl) => Task.FromResult(true);
+        Task<bool> SendKycRejectionNotificationAsync(string toEmail, string clientName, string? rejectionReason, int clientId, string? documentType = null) => Task.FromResult(true);
     }
 
     public interface IWhatsAppService
@@ -767,6 +768,95 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
                        $"Sign in to your Event Manager portal at https://bookmyfun.in/EventManager/Dashboard to accept and coordinate setup crew.";
 
             await EnqueueWhatsAppAsync(phoneNumber, text, "WhatsAppNotification");
+            return true;
+        }
+
+        public async Task<bool> SendKycRejectionNotificationAsync(
+            string toEmail, 
+            string clientName, 
+            string? rejectionReason, 
+            int clientId, 
+            string? documentType = null)
+        {
+            if (string.IsNullOrWhiteSpace(toEmail)) return false;
+
+            string docName = !string.IsNullOrWhiteSpace(documentType) ? documentType : "Government ID";
+            string reason = !string.IsNullOrWhiteSpace(rejectionReason)
+                ? rejectionReason
+                : "The submitted identification document was unreadable, expired, or did not match registered traveler profile name.";
+
+            // 1. Dispatch in-app notification via EmailQueueService
+            _emailQueue.AddInAppNotification(
+                clientId,
+                "Identity Verification (KYC) Rejected",
+                $"Your {docName} could not be verified: {reason}. Please check the instructions on your profile and resubmit.",
+                "KycRejection",
+                "/Account/Profile");
+
+            await _emailQueue.EnqueueAsync(new EmailQueueMessage
+            {
+                Channel = "InApp",
+                ToEmail = toEmail.Trim(),
+                Subject = "Identity Verification Rejected",
+                BodyHtml = $"Your {docName} was rejected: {reason}",
+                MessageType = "KycRejection",
+                QueuedAtUtc = DateTime.UtcNow
+            });
+
+            // 2. Dispatch transactional notification email via EmailQueueService
+            string subject = "Identity Verification Update: Action Required - BookMyFun";
+            string bodyHtml = $@"
+<div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
+    <div style=""border-bottom: 2px solid #ef4444; padding-bottom: 16px; margin-bottom: 20px;"">
+        <h2 style=""color: #dc2626; margin: 0 0 6px 0; font-size: 20px;"">Identity Verification (KYC) Update</h2>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">BookMyFun Guest Identity & Trust Compliance</p>
+    </div>
+
+    <p style=""font-size: 15px; line-height: 1.6;"">Dear <strong>{WebUtility.HtmlEncode(clientName)}</strong>,</p>
+
+    <p style=""font-size: 14px; line-height: 1.6; color: #334155;"">
+        Our verification team has reviewed your submitted <strong>{WebUtility.HtmlEncode(docName)}</strong> for your BookMyFun account. Unfortunately, your verification could not be approved at this time.
+    </p>
+
+    <div style=""background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 20px 0;"">
+        <div style=""font-weight: 700; color: #991b1b; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;"">
+            Status &amp; Rejection Reason
+        </div>
+        <div style=""font-size: 15px; color: #b91c1c; font-weight: 600; margin-bottom: 8px;"">
+            Status: Rejected
+        </div>
+        <div style=""font-size: 14px; color: #7f1d1d; line-height: 1.5;"">
+            {WebUtility.HtmlEncode(reason)}
+        </div>
+    </div>
+
+    <div style=""margin: 24px 0;"">
+        <h4 style=""margin: 0 0 10px 0; color: #0f172a; font-size: 15px;"">How to Resubmit Your Verification:</h4>
+        <ol style=""margin: 0; padding-left: 20px; font-size: 14px; color: #475569; line-height: 1.7;"">
+            <li>Ensure the image or PDF is crisp, clear, unblurred, and has all four corners visible.</li>
+            <li>Verify that the document is non-expired and that the name exactly matches your account name (<strong>{WebUtility.HtmlEncode(clientName)}</strong>).</li>
+            <li>Accepted documents: Government-issued Aadhaar Card, Passport, or Driving License.</li>
+            <li>You can resubmit immediately from your <a href=""https://bookmyfun.com/Account/Profile"" style=""color: #2563eb; text-decoration: underline;"">Account Profile</a> or during your next reservation checkout.</li>
+        </ol>
+    </div>
+
+    <div style=""border-top: 1px solid #e2e8f0; padding-top: 16px; margin-top: 24px; font-size: 12px; color: #94a3b8; text-align: center;"">
+        BookMyFun Hospitality Marketplace · Private Document Vault Security<br/>
+        If you have questions, reply directly to this notification or contact our support team.
+    </div>
+</div>";
+
+            await _emailQueue.EnqueueAsync(new EmailQueueMessage
+            {
+                Channel = "Email",
+                ToEmail = toEmail.Trim(),
+                Subject = subject,
+                BodyHtml = bodyHtml,
+                MessageType = "KycRejection",
+                QueuedAtUtc = DateTime.UtcNow
+            });
+
+            _logger.LogInformation("KYC rejection email and in-app notification enqueued for Client #{ClientId} ({Email})", clientId, toEmail);
             return true;
         }
     }

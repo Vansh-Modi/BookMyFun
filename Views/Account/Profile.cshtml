@@ -77,6 +77,72 @@
         </div>
     }
 
+    @if (Model.Role == "Client" && Model.KycStatus == "Rejected")
+    {
+        <!-- In-App Notification: Identity Verification (KYC) Rejection Notice -->
+        <div class="alert alert-danger border-0 shadow-sm rounded-4 p-4 mb-4" role="alert">
+            <div class="d-flex align-items-start gap-3">
+                <div class="rounded-circle bg-danger text-white p-2 d-flex align-items-center justify-content-center flex-shrink-0" style="width: 44px; height: 44px;">
+                    <i class="bi bi-shield-x fs-4"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                        <h5 class="fw-bold text-danger mb-0"><i class="bi bi-bell-fill me-1"></i>Identity Verification Notice: Rejected</h5>
+                        <span class="badge bg-danger text-white px-3 py-1 rounded-pill">Status: Rejected</span>
+                    </div>
+                    <p class="text-dark small mb-2">
+                        Your submitted identity verification document was reviewed by compliance staff and could not be verified.
+                    </p>
+                    <div class="bg-white border border-danger-subtle rounded-3 p-3 mb-3">
+                        <div class="small text-muted mb-1 fw-semibold text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">Rejection Reason</div>
+                        <div class="text-danger fw-semibold">
+                            @(string.IsNullOrWhiteSpace(Model.KycRejectionReason) ? "Submitted identification document was unclear, expired, or did not match registered traveler profile name." : Model.KycRejectionReason)
+                        </div>
+                    </div>
+                    <div class="small text-muted mb-3">
+                        <strong class="text-dark"><i class="bi bi-info-circle-fill me-1 text-primary"></i>Instructions to Resubmit:</strong>
+                        <ol class="mb-2 ps-3 mt-1 text-dark">
+                            <li>Ensure the document image is sharp, clear, and completely legible with all text and borders visible.</li>
+                            <li>Verify that the document is non-expired and that the name matches your profile name (<strong>@Model.FullName</strong>).</li>
+                            <li>Accepted government documents: Aadhaar Card, Passport, or Driver's License.</li>
+                            <li>Resubmit your document using the panel below, or re-upload during your next reservation checkout.</li>
+                        </ol>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-danger rounded-pill px-3 fw-semibold" data-bs-toggle="collapse" data-bs-target="#kycResubmitCollapse" aria-expanded="false">
+                        <i class="bi bi-upload me-1"></i> Resubmit Identity Document Now
+                    </button>
+                    <div class="collapse mt-3" id="kycResubmitCollapse">
+                        <div class="card card-body border border-danger-subtle rounded-3 bg-white">
+                            <form id="profileKycResubmitForm" enctype="multipart/form-data">
+                                @Html.AntiForgeryToken()
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-md-4">
+                                        <label class="form-label small fw-semibold">Document Type</label>
+                                        <select name="documentType" id="profileDocType" class="form-select form-select-sm" required>
+                                            <option value="Aadhaar">Aadhaar Card</option>
+                                            <option value="Passport">Passport</option>
+                                            <option value="DrivingLicense">Driving License</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-5">
+                                        <label class="form-label small fw-semibold">New ID File (PDF, PNG, JPG - max 6MB)</label>
+                                        <input type="file" name="file" id="profileDocFile" class="form-control form-control-sm" accept=".pdf,.png,.jpg,.jpeg" required />
+                                    </div>
+                                    <div class="col-md-3">
+                                        <button type="button" class="btn btn-sm btn-primary w-100 fw-semibold" onclick="resubmitKycDocument()">
+                                            <i class="bi bi-cloud-arrow-up me-1"></i> Upload &amp; Resubmit
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="profileKycResubmitAlert" class="mt-2 small" style="display: none;"></div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
     <div class="row g-4">
         <!-- Left Column: Personal Information & Account Overview -->
         <div class="col-lg-6">
@@ -142,21 +208,22 @@
                             <span class="text-muted">Reservations Made:</span>
                             <span class="badge bg-primary rounded-pill">@Model.TotalBookingsCount</span>
                         </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
-                            <span class="text-muted">Identity (KYC) Status:</span>
-                            @if (Model.KycStatus == "Verified")
-                            {
-                                <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-patch-check-fill me-1"></i>Verified</span>
-                            }
-                            else if (Model.KycStatus == "PendingReview")
-                            {
-                                <span class="badge bg-warning-subtle text-warning border border-warning-subtle"><i class="bi bi-clock-fill me-1"></i>Under Review</span>
-                            }
-                            else
-                            {
-                                <span class="badge bg-secondary-subtle text-secondary border">Optional at Checkout</span>
-                            }
-                        </li>
+                        @if (Model.KycStatus == "Rejected")
+                        {
+                            <li class="list-group-item px-0 py-2">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="text-muted">Identity (KYC) Status:</span>
+                                    <span class="badge bg-danger px-3 py-1 rounded-pill"><i class="bi bi-x-circle-fill me-1"></i>Rejected</span>
+                                </div>
+                                <div class="p-2 rounded-3 bg-danger-subtle border border-danger-subtle mt-1 small">
+                                    <div class="fw-semibold text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>Rejection Reason:</div>
+                                    <div class="text-dark mb-1">@(string.IsNullOrWhiteSpace(Model.KycRejectionReason) ? "Document could not be verified by compliance staff." : Model.KycRejectionReason)</div>
+                                    <div class="text-muted" style="font-size: 0.8rem;">
+                                        <strong>Instructions to resubmit:</strong> Upload a clear, valid government ID matching your profile name during checkout or via the resubmit panel above.
+                                    </div>
+                                </div>
+                            </li>
+                        }
                     }
                     else if (Model.Role == "Owner")
                     {
@@ -284,3 +351,48 @@
         </div>
     </div>
 </div>
+
+@section Scripts {
+<script>
+    async function resubmitKycDocument() {
+        const fileInput = document.getElementById('profileDocFile');
+        const docTypeSelect = document.getElementById('profileDocType');
+        const alertDiv = document.getElementById('profileKycResubmitAlert');
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            alertDiv.className = 'mt-2 alert alert-warning py-1 px-2';
+            alertDiv.textContent = 'Please choose an identification file to upload.';
+            alertDiv.style.display = 'block';
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        formData.append('documentType', docTypeSelect.value);
+
+        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+        alertDiv.className = 'mt-2 alert alert-info py-1 px-2';
+        alertDiv.textContent = 'Uploading and submitting document securely...';
+        alertDiv.style.display = 'block';
+
+        try {
+            const resp = await fetch('/Media/upload-id-document', {
+                method: 'POST',
+                headers: { 'RequestVerificationToken': token },
+                body: formData
+            });
+            const data = await resp.json();
+            if (data.success) {
+                alertDiv.className = 'mt-2 alert alert-success py-1 px-2';
+                alertDiv.textContent = 'Document successfully resubmitted. Refreshing page...';
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                alertDiv.className = 'mt-2 alert alert-danger py-1 px-2';
+                alertDiv.textContent = data.message || 'Failed to submit document. Please try again.';
+            }
+        } catch (err) {
+            alertDiv.className = 'mt-2 alert alert-danger py-1 px-2';
+            alertDiv.textContent = 'Network error while submitting document. Please try again.';
+        }
+    }
+</script>
+}

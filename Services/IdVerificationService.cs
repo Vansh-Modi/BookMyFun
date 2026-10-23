@@ -19,15 +19,18 @@ namespace BookMyFun.Services
         private readonly IIdVerificationRepository _idRepo;
         private readonly IUserRepository _userRepo;
         private readonly ILogger<IdVerificationService> _logger;
+        private readonly IEmailService? _emailService;
 
         public IdVerificationService(
             IIdVerificationRepository idRepo,
             IUserRepository userRepo,
-            ILogger<IdVerificationService> logger)
+            ILogger<IdVerificationService> logger,
+            IEmailService? emailService = null)
         {
             _idRepo = idRepo;
             _userRepo = userRepo;
             _logger = logger;
+            _emailService = emailService;
         }
 
         public async Task<int> SubmitVerificationAsync(int clientId, string documentType, string storageKey, string? maskedIdentifier)
@@ -89,6 +92,38 @@ namespace BookMyFun.Services
                 ? "Verified" 
                 : "Rejected";
             bool updated = await _idRepo.ReviewVerificationAsync(verificationId, status, staffUserId, rejectionReason);
+
+            if (updated && status == "Rejected" && _emailService != null)
+            {
+                try
+                {
+                    string clientEmail = verification.ClientEmail ?? string.Empty;
+                    string clientName = verification.ClientName ?? "Traveler";
+                    if (string.IsNullOrWhiteSpace(clientEmail))
+                    {
+                        var user = await _userRepo.GetByIdAsync(verification.ClientID);
+                        if (user != null)
+                        {
+                            clientEmail = user.Email;
+                            clientName = user.FullName;
+                        }
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(clientEmail))
+                    {
+                        await _emailService.SendKycRejectionNotificationAsync(
+                            clientEmail,
+                            clientName,
+                            rejectionReason,
+                            verification.ClientID,
+                            verification.DocumentType);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to dispatch KYC rejection notification for Verification #{VerificationId}, Client #{ClientId}", verificationId, verification.ClientID);
+                }
+            }
 
             _logger.LogInformation("ID verification #{VerificationId} reviewed by Staff #{StaffId}: {Status}", verificationId, staffUserId, status);
             return updated;
