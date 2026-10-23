@@ -3,7 +3,24 @@
     ViewData["Title"] = Model.Title + " - Property Details";
     var reviews = ViewBag.Reviews as List<BookMyFun.Models.Entities.CustomerReview> ?? new();
     double avgRating = reviews.Any() ? reviews.Average(r => r.Rating) : 5.0;
-    var photos = Model.MediaList?.Where(m => m.MediaType == "photo").ToList() ?? new();
+
+    var photoUrls = Model.MediaList?.Where(m => m.MediaType == "photo").Select(m => m.StorageUrl).ToList() ?? new List<string>();
+    if (!photoUrls.Any() && Model.ImageUrls != null && Model.ImageUrls.Any())
+    {
+        photoUrls.AddRange(Model.ImageUrls);
+    }
+    if (!string.IsNullOrWhiteSpace(Model.PrimaryImageUrl))
+    {
+        if (photoUrls.Contains(Model.PrimaryImageUrl))
+        {
+            photoUrls.Remove(Model.PrimaryImageUrl);
+        }
+        photoUrls.Insert(0, Model.PrimaryImageUrl);
+    }
+    if (!photoUrls.Any())
+    {
+        photoUrls.Add("/images/property-placeholder.jpg");
+    }
     var videos = Model.MediaList?.Where(m => m.MediaType == "video").ToList() ?? new();
 }
 
@@ -20,21 +37,55 @@
     <div class="row g-4">
         <!-- Main Content -->
         <div class="col-lg-8">
-            <!-- Hero / Primary Image & Media Gallery -->
-            <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
-                <img src="@Model.PrimaryImageUrl" class="img-fluid w-100 object-fit-cover" style="max-height: 480px; width: 100%;" alt="@Model.Title" onerror="this.src='/images/property-placeholder.jpg';" />
+            <!-- Flipkart-Style Interactive Gallery -->
+            <div class="flipkart-gallery shadow-sm" id="propertyGallery" tabindex="0" aria-label="Property Image Gallery">
+                <!-- Large Active Image -->
+                <div class="gallery-main-stage" id="galleryStage">
+                    <img id="galleryMainImg" 
+                         src="@photoUrls[0]" 
+                         alt="@Model.Title" 
+                         width="800" 
+                         height="480" 
+                         class="gallery-main-img" 
+                         onerror="this.src='/images/property-placeholder.jpg';" />
 
-                @if (photos.Count > 1 || videos.Any())
+                    @if (photoUrls.Count > 1)
+                    {
+                        <button type="button" class="gallery-nav-btn prev" id="galleryPrevBtn" aria-label="Previous photo">
+                            <i class="bi bi-chevron-left"></i>
+                        </button>
+                        <button type="button" class="gallery-nav-btn next" id="galleryNextBtn" aria-label="Next photo">
+                            <i class="bi bi-chevron-right"></i>
+                        </button>
+                        <div class="gallery-counter" id="galleryCounter">1 / @photoUrls.Count</div>
+                    }
+                </div>
+
+                <!-- Horizontal Scrollable Row of Thumbnails Below Active Image -->
+                @if (photoUrls.Count > 1 || videos.Any())
                 {
-                    <div class="p-3 bg-light border-top">
-                        <div class="d-flex gap-2 overflow-x-auto pb-2" style="scrollbar-width: thin;">
-                            @foreach (var photo in photos)
+                    <div class="gallery-thumbnails-wrap">
+                        <div class="gallery-thumbnails" id="galleryThumbnails">
+                            @for (int i = 0; i < photoUrls.Count; i++)
                             {
-                                <img src="@photo.StorageUrl" class="rounded-3 border object-fit-cover cursor-pointer flex-shrink-0" style="width: 80px; height: 60px;" alt="Photo" onclick="window.open('@photo.StorageUrl', '_blank')" />
+                                var pUrl = photoUrls[i];
+                                <button type="button" 
+                                        class="gallery-thumb-item @(i == 0 ? "active" : "")" 
+                                        data-index="@i" 
+                                        data-src="@pUrl" 
+                                        aria-label="View photo @(i + 1) of @photoUrls.Count">
+                                    <img src="@pUrl" 
+                                         alt="Thumbnail @(i + 1)" 
+                                         width="96" 
+                                         height="64" 
+                                         loading="lazy" 
+                                         class="gallery-thumb-img" 
+                                         onerror="this.src='/images/property-placeholder.jpg';" />
+                                </button>
                             }
                             @foreach (var vid in videos)
                             {
-                                <a href="@vid.StorageUrl" target="_blank" class="rounded-3 border bg-dark text-white d-flex flex-column align-items-center justify-content-center text-decoration-none flex-shrink-0" style="width: 100px; height: 60px;">
+                                <a href="@vid.StorageUrl" target="_blank" rel="noopener noreferrer" class="rounded-3 border bg-dark text-white d-flex flex-column align-items-center justify-content-center text-decoration-none flex-shrink-0" style="width: 96px; height: 64px;">
                                     <i class="bi bi-play-circle-fill text-danger fs-5"></i>
                                     <span style="font-size: 10px;">Video Tour</span>
                                 </a>
@@ -42,7 +93,10 @@
                         </div>
                     </div>
                 }
+            </div>
 
+            <!-- Property Details Card -->
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
                 <div class="card-body p-4">
                     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
                         <div>
@@ -50,11 +104,14 @@
                             <h2 class="fw-bold mb-1 text-dark">@Model.Title</h2>
                             <p class="text-muted mb-0"><i class="bi bi-geo-alt-fill text-danger me-1"></i> @Model.Location</p>
                         </div>
-                        <div class="text-end">
-                            <div class="badge bg-warning text-dark fs-6 px-3 py-2 rounded-pill shadow-sm">
-                                ⭐ @avgRating.ToString("0.0") (@reviews.Count reviews)
+                        @if (reviews.Any())
+                        {
+                            <div class="text-end">
+                                <div class="badge bg-warning text-dark fs-6 px-3 py-2 rounded-pill shadow-sm">
+                                    ⭐ @avgRating.ToString("0.0") (@reviews.Count reviews)
+                                </div>
                             </div>
-                        </div>
+                        }
                     </div>
 
                     <!-- Highlight Badges -->
@@ -160,21 +217,15 @@
                         </div>
                     </div>
 
-                    <!-- Reviews Section -->
-                    <hr class="my-4" />
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h4 class="fw-bold mb-0 text-dark">Guest Reviews (@reviews.Count)</h4>
-                        <span class="text-warning fs-5">⭐ @avgRating.ToString("0.0") / 5.0</span>
-                    </div>
-
-                    @if (!reviews.Any())
+                    @if (reviews.Any())
                     {
-                        <div class="p-4 bg-light rounded-4 text-center text-muted">
-                            No reviews yet for this property. Be the first guest to review after your stay!
+                        <!-- Reviews Section -->
+                        <hr class="my-4" />
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h4 class="fw-bold mb-0 text-dark">Guest Reviews (@reviews.Count)</h4>
+                            <span class="text-warning fs-5">⭐ @avgRating.ToString("0.0") / 5.0</span>
                         </div>
-                    }
-                    else
-                    {
+
                         <div class="list-group list-group-flush">
                             @foreach (var r in reviews)
                             {
@@ -246,3 +297,131 @@
         </div>
     </div>
 </div>
+
+@section Scripts {
+<script>
+    (function () {
+        const gallery = document.getElementById('propertyGallery');
+        const mainImg = document.getElementById('galleryMainImg');
+        const prevBtn = document.getElementById('galleryPrevBtn');
+        const nextBtn = document.getElementById('galleryNextBtn');
+        const counter = document.getElementById('galleryCounter');
+        const thumbBtns = document.querySelectorAll('.gallery-thumb-item');
+
+        if (!gallery || !mainImg || thumbBtns.length <= 1) return;
+
+        let currentIndex = 0;
+        const total = thumbBtns.length;
+
+        function goToImage(index) {
+            if (index < 0) index = total - 1;
+            if (index >= total) index = 0;
+            currentIndex = index;
+
+            const targetBtn = thumbBtns[currentIndex];
+            if (!targetBtn) return;
+            const newSrc = targetBtn.getAttribute('data-src');
+
+            mainImg.style.opacity = '0.35';
+            setTimeout(() => {
+                mainImg.src = newSrc;
+                mainImg.style.opacity = '1';
+            }, 70);
+
+            thumbBtns.forEach((btn, idx) => {
+                if (idx === currentIndex) {
+                    btn.classList.add('active');
+                    btn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+
+            if (counter) {
+                counter.textContent = `${currentIndex + 1} / ${total}`;
+            }
+        }
+
+        // Clicking or Hovering a thumbnail changes the big image (Flipkart style)
+        thumbBtns.forEach((btn, idx) => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                goToImage(idx);
+            });
+            btn.addEventListener('mouseenter', () => {
+                goToImage(idx);
+            });
+        });
+
+        // Left & Right Arrow Navigation
+        if (prevBtn) {
+            prevBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                goToImage(currentIndex - 1);
+            });
+        }
+        if (nextBtn) {
+            nextBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                goToImage(currentIndex + 1);
+            });
+        }
+
+        // Keyboard Navigation (ArrowLeft / ArrowRight)
+        gallery.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                goToImage(currentIndex - 1);
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                goToImage(currentIndex + 1);
+            }
+        });
+
+        let isHovered = false;
+        gallery.addEventListener('mouseenter', () => isHovered = true);
+        gallery.addEventListener('mouseleave', () => isHovered = false);
+
+        window.addEventListener('keydown', (e) => {
+            if (!isHovered) return;
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                goToImage(currentIndex - 1);
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                goToImage(currentIndex + 1);
+            }
+        });
+
+        // Touch Swipe on Mobile
+        const stage = document.getElementById('galleryStage') || gallery;
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        stage.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+            }
+        }, { passive: true });
+
+        stage.addEventListener('touchend', (e) => {
+            if (e.changedTouches.length === 1) {
+                const touchEndX = e.changedTouches[0].clientX;
+                const touchEndY = e.changedTouches[0].clientY;
+                const deltaX = touchEndX - touchStartX;
+                const deltaY = touchEndY - touchStartY;
+
+                // Trigger if horizontal swipe > 40px and dominant over vertical scroll
+                if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY)) {
+                    if (deltaX < 0) {
+                        goToImage(currentIndex + 1); // Swiped Left -> Next
+                    } else {
+                        goToImage(currentIndex - 1); // Swiped Right -> Prev
+                    }
+                }
+            }
+        }, { passive: true });
+    })();
+</script>
+}

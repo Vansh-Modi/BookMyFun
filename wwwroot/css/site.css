@@ -513,6 +513,141 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ============================================================
+   FLIPKART-STYLE PROPERTY DETAILS GALLERY
+   ============================================================ */
+.flipkart-gallery {
+    position: relative;
+    border-radius: 18px;
+    overflow: hidden;
+    background: var(--bg-card);
+    border: 1px solid var(--card-border);
+    outline: none;
+    margin-bottom: 1.5rem;
+}
+
+.gallery-main-stage {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    max-height: 480px;
+    background: #0b1120;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    user-select: none;
+    touch-action: pan-y;
+}
+
+.gallery-main-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: opacity 0.18s ease-in-out;
+}
+
+.gallery-nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    cursor: pointer;
+    z-index: 5;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+    padding: 0;
+}
+
+.gallery-nav-btn:hover {
+    background: rgba(15, 23, 42, 0.92);
+    transform: translateY(-50%) scale(1.08);
+    color: #ffffff;
+}
+
+.gallery-nav-btn:active {
+    transform: translateY(-50%) scale(0.95);
+}
+
+.gallery-nav-btn.prev {
+    left: 14px;
+}
+
+.gallery-nav-btn.next {
+    right: 14px;
+}
+
+.gallery-counter {
+    position: absolute;
+    bottom: 12px;
+    right: 14px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.35rem 0.75rem;
+    border-radius: 9999px;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(4px);
+    color: #ffffff;
+    z-index: 4;
+}
+
+.gallery-thumbnails-wrap {
+    padding: 12px 14px;
+    background: var(--bg-table-head);
+    border-top: 1px solid var(--card-border);
+}
+
+.gallery-thumbnails {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    padding-bottom: 4px;
+}
+
+.gallery-thumb-item {
+    background: transparent;
+    border: 2px solid transparent;
+    padding: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    outline: none;
+    display: flex;
+}
+
+.gallery-thumb-item:hover,
+.gallery-thumb-item:focus-visible {
+    border-color: rgba(37, 99, 235, 0.6);
+    transform: translateY(-2px);
+}
+
+.gallery-thumb-item.active {
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+    transform: translateY(-2px);
+}
+
+.gallery-thumb-img {
+    width: 96px;
+    height: 64px;
+    object-fit: cover;
+    display: block;
+    border-radius: 8px;
+}
+
+/* ============================================================
    HERO SECTION
    ============================================================ */
 .hero-banner {
