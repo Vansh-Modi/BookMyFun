@@ -5,6 +5,7 @@ using BookMyFun.Repositories;
 using BookMyFun.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace BookMyFun.Controllers
 {
@@ -19,16 +20,25 @@ namespace BookMyFun.Controllers
             _bookingRepo = bookingRepo;
         }
 
-        public async Task<IActionResult> Index(string? location, int? typeId, int? occasionId, decimal? minPrice, decimal? maxPrice, int? guests)
+        public async Task<IActionResult> Index(string? location, int? typeId, int? occasionId, decimal? minPrice, decimal? maxPrice, int? guests, int page = 1, int pageSize = 12)
         {
-            var properties = await _propRepo.SearchPropertiesAsync(location, typeId, occasionId, minPrice, maxPrice, guests);
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var (properties, totalCount) = await _propRepo.SearchPropertiesPagedAsync(location, typeId, occasionId, minPrice, maxPrice, guests, page, pageSize);
 
             ViewBag.PropertyTypes = await _propRepo.GetPropertyTypesAsync();
             ViewBag.Occasions = await _propRepo.GetOccasionsAsync();
             ViewBag.SelectedLocation = location;
             ViewBag.SelectedTypeId = typeId;
             ViewBag.SelectedOccasionId = occasionId;
+            ViewBag.SelectedMinPrice = minPrice;
+            ViewBag.SelectedMaxPrice = maxPrice;
             ViewBag.SelectedGuests = guests;
+            ViewBag.CurrentPage = page;
+            ViewBag.PageSize = pageSize;
+            ViewBag.TotalCount = totalCount;
+            ViewBag.TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
 
             return View(properties);
         }
@@ -61,6 +71,7 @@ namespace BookMyFun.Controllers
         private readonly IIdVerificationService _idVerificationService;
         private readonly IMediaStorageService _mediaStorage;
         private readonly IConfigRepository? _configRepo;
+        private readonly ILogger<BookingController>? _logger;
 
         public BookingController(
             IPropertyRepository propRepo,
@@ -76,7 +87,8 @@ namespace BookMyFun.Controllers
             IUserRepository userRepo,
             IIdVerificationService idVerificationService,
             IMediaStorageService mediaStorage,
-            IConfigRepository? configRepo = null)
+            IConfigRepository? configRepo = null,
+            ILogger<BookingController>? logger = null)
         {
             _propRepo = propRepo;
             _bookingRepo = bookingRepo;
@@ -92,19 +104,34 @@ namespace BookMyFun.Controllers
             _idVerificationService = idVerificationService;
             _mediaStorage = mediaStorage;
             _configRepo = configRepo;
+            _logger = logger;
         }
 
         [Authorize]
         [HttpGet]
         public async Task<IActionResult> Checkout(int propertyId, string bookingType = "FullDay", string? slotType = null, int daysOrHours = 1)
         {
+            if (propertyId <= 0)
+            {
+                TempData["Error"] = "Invalid property selected. Please choose a valid property.";
+                return RedirectToAction("Index", "Properties");
+            }
+
             var property = await _propRepo.GetByIdAsync(propertyId);
-            if (property == null) return NotFound();
+            if (property == null)
+            {
+                TempData["Error"] = "The requested property could not be found. Please browse available stays.";
+                return RedirectToAction("Index", "Properties");
+            }
 
             decimal calculatedAmount = _pricingService.CalculatePrice(property.PricePerNight, bookingType, slotType, daysOrHours);
 
-            int clientId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            bool isVerified = await _idVerificationService.IsClientVerifiedAsync(clientId);
+            var clientIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            bool isVerified = false;
+            if (int.TryParse(clientIdStr, out int clientId))
+            {
+                isVerified = await _idVerificationService.IsClientVerifiedAsync(clientId);
+            }
 
             bool isServiced = await _eventPackageRepo.IsAreaServicedByAnyEventManagerAsync(property.Location);
             var activePackages = isServiced ? await _eventPackageRepo.GetActivePackagesAsync() : new List<EventPackage>();
@@ -131,166 +158,301 @@ namespace BookMyFun.Controllers
             return View(vm);
         }
 
+        private async Task PopulateCheckoutViewModelAsync(BookingCheckoutViewModel model, Property property)
+        {
+            bool isServiced = await _eventPackageRepo.IsAreaServicedByAnyEventManagerAsync(property.Location);
+            model.PropertyTitle = property.Title;
+            model.Location = property.Location;
+            model.PricePerNight = property.PricePerNight;
+            model.ImageUrl = property.PrimaryImageUrl;
+            model.AvailableOccasions = await _propRepo.GetOccasionsAsync();
+            model.IsEventServiceAvailable = isServiced;
+            model.AvailableEventPackages = isServiced ? await _eventPackageRepo.GetActivePackagesAsync() : new List<EventPackage>();
+
+            var clientIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (int.TryParse(clientIdStr, out int clientId))
+            {
+                model.IsClientAlreadyVerified = await _idVerificationService.IsClientVerifiedAsync(clientId);
+            }
+        }
+
         [Authorize]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ConfirmBooking(BookingCheckoutViewModel model)
         {
-            var property = await _propRepo.GetByIdAsync(model.PropertyID);
-            if (property == null) return NotFound();
-
-            bool isServiced = await _eventPackageRepo.IsAreaServicedByAnyEventManagerAsync(property.Location);
-            if (!isServiced)
+            try
             {
-                model.IsEventBooking = false;
-                model.EventPackageID = null;
-                model.CustomEventNotes = null;
-            }
-
-            int count = model.BookingType == "Hourly" ? (model.HourlyDuration ?? 1) : Math.Max(1, (model.CheckOutDate - model.CheckInDate).Days);
-            decimal propertyStayAmount = _pricingService.CalculatePrice(property.PricePerNight, model.BookingType, model.SlotType, count);
-
-            EventPackage? selectedPackage = null;
-            decimal eventPackagePrice = 0m;
-            if (isServiced && model.IsEventBooking && model.EventPackageID.HasValue)
-            {
-                selectedPackage = await _eventPackageRepo.GetPackageByIdAsync(model.EventPackageID.Value);
-                if (selectedPackage != null && selectedPackage.IsActive)
+                if (model.PropertyID <= 0)
                 {
-                    eventPackagePrice = selectedPackage.BasePrice;
+                    TempData["Error"] = "Invalid property selected. Please choose a valid property.";
+                    return RedirectToAction("Index", "Properties");
                 }
-            }
 
-            decimal totalAmount = propertyStayAmount + eventPackagePrice;
-
-            // Availability verification
-            bool isAvailable = await _bookingRepo.IsSlotAvailableAsync(model.PropertyID, model.CheckInDate, model.CheckOutDate, model.BookingType, model.SlotType);
-            if (!isAvailable)
-            {
-                ModelState.AddModelError("", "The selected dates/slots are already booked. Please pick another timeframe.");
-                model.AvailableOccasions = await _propRepo.GetOccasionsAsync();
-                model.IsEventServiceAvailable = isServiced;
-                model.AvailableEventPackages = isServiced ? await _eventPackageRepo.GetActivePackagesAsync() : new List<EventPackage>();
-                return View("Checkout", model);
-            }
-
-            int clientId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-
-            // If guest uploaded government ID at booking checkout, securely save into private vault
-            if (model.IdDocumentFile != null && model.IdDocumentFile.Length > 0)
-            {
-                try
+                var property = await _propRepo.GetByIdAsync(model.PropertyID);
+                if (property == null)
                 {
-                    string docKey = await _mediaStorage.SavePrivateDocumentAsync(model.IdDocumentFile, clientId);
-                    await _idVerificationService.SubmitVerificationAsync(clientId, model.DocumentType ?? "Aadhaar", docKey, model.IdDocumentNumber);
+                    TempData["Error"] = "The requested property could not be found. Please browse available stays.";
+                    return RedirectToAction("Index", "Properties");
                 }
-                catch (Exception ex)
+
+                var clientIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(clientIdStr) || !int.TryParse(clientIdStr, out int clientId))
                 {
-                    ModelState.AddModelError("IdDocumentFile", $"Identity document upload error: {ex.Message}");
-                    model.AvailableOccasions = await _propRepo.GetOccasionsAsync();
-                    model.IsEventServiceAvailable = isServiced;
-                    model.AvailableEventPackages = isServiced ? await _eventPackageRepo.GetActivePackagesAsync() : new List<EventPackage>();
+                    return Challenge();
+                }
+
+                // Date and input validations
+                if (model.CheckInDate.Date < DateTime.Today)
+                {
+                    ModelState.AddModelError("CheckInDate", "Check-in date cannot be in the past. Please select today or a future date.");
+                }
+
+                if (model.CheckOutDate.Date < model.CheckInDate.Date)
+                {
+                    ModelState.AddModelError("CheckOutDate", "Check-out date cannot be earlier than check-in date. Please choose valid dates.");
+                }
+
+                if (model.BookingType == "Hourly" && (!model.HourlyDuration.HasValue || model.HourlyDuration.Value <= 0))
+                {
+                    ModelState.AddModelError("HourlyDuration", "Please select a valid hourly booking duration.");
+                }
+
+                bool isServiced = await _eventPackageRepo.IsAreaServicedByAnyEventManagerAsync(property.Location);
+                if (!isServiced)
+                {
+                    model.IsEventBooking = false;
+                    model.EventPackageID = null;
+                    model.CustomEventNotes = null;
+                }
+
+                // Server-side availability check before proceeding
+                if (ModelState.IsValid)
+                {
+                    bool isAvailable = await _bookingRepo.IsSlotAvailableAsync(model.PropertyID, model.CheckInDate, model.CheckOutDate, model.BookingType, model.SlotType);
+                    if (!isAvailable)
+                    {
+                        const string unavailableMsg = "These dates are no longer available. Please choose different dates.";
+                        ModelState.AddModelError("", unavailableMsg);
+                        TempData["Error"] = unavailableMsg;
+                    }
+                }
+
+                if (!ModelState.IsValid)
+                {
+                    await PopulateCheckoutViewModelAsync(model, property);
                     return View("Checkout", model);
                 }
+
+                int count = model.BookingType == "Hourly" ? (model.HourlyDuration ?? 1) : Math.Max(1, (model.CheckOutDate - model.CheckInDate).Days);
+                decimal propertyStayAmount = _pricingService.CalculatePrice(property.PricePerNight, model.BookingType, model.SlotType, count);
+
+                EventPackage? selectedPackage = null;
+                decimal eventPackagePrice = 0m;
+                if (isServiced && model.IsEventBooking && model.EventPackageID.HasValue)
+                {
+                    selectedPackage = await _eventPackageRepo.GetPackageByIdAsync(model.EventPackageID.Value);
+                    if (selectedPackage != null && selectedPackage.IsActive)
+                    {
+                        eventPackagePrice = selectedPackage.BasePrice;
+                    }
+                }
+
+                decimal totalAmount = propertyStayAmount + eventPackagePrice;
+
+                // If guest uploaded government ID at booking checkout, securely save into private vault
+                if (model.IdDocumentFile != null && model.IdDocumentFile.Length > 0)
+                {
+                    try
+                    {
+                        string docKey = await _mediaStorage.SavePrivateDocumentAsync(model.IdDocumentFile, clientId);
+                        await _idVerificationService.SubmitVerificationAsync(clientId, model.DocumentType ?? "Aadhaar", docKey, model.IdDocumentNumber);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "Failed to upload or verify identity document for client {ClientId}", clientId);
+                        ModelState.AddModelError("IdDocumentFile", "We could not process your identity document. Please ensure it is a valid file (under 5MB) and try again.");
+                        await PopulateCheckoutViewModelAsync(model, property);
+                        return View("Checkout", model);
+                    }
+                }
+
+                // Dynamic Commission calculation: Calculated on Property Stay Amount
+                var (rateSnapshot, platformCommission, ownerPayout) = await _commissionService.CalculateDynamicCommissionAsync(
+                    propertyStayAmount, property.CommissionRate, property.OwnerID);
+
+                // Dynamic Event Commission calculation: Calculated on Event Package Price
+                decimal eventRateSnapshot = 0.00m;
+                decimal eventPlatformCommission = 0.00m;
+                decimal eventManagerPayout = 0.00m;
+
+                if (selectedPackage != null && eventPackagePrice > 0)
+                {
+                    var eventComm = await _commissionService.CalculateEventCommissionAsync(
+                        eventPackagePrice, property.PropertyID, selectedPackage.PackageID, property.EventCommissionRate);
+                    eventRateSnapshot = eventComm.rateSnapshot;
+                    eventPlatformCommission = eventComm.commissionAmount;
+                    eventManagerPayout = eventComm.managerPayout;
+                }
+
+                var booking = new Booking
+                {
+                    PropertyID = model.PropertyID,
+                    ClientID = clientId,
+                    OccasionID = model.OccasionID,
+                    CheckInDate = model.CheckInDate,
+                    CheckOutDate = model.CheckOutDate,
+                    TotalAmount = totalAmount,
+                    Status = "Pending", // Pending payment
+                    BookingType = model.BookingType,
+                    SlotType = model.SlotType,
+                    SlotStartTime = model.CheckInTime,
+                    SlotEndTime = model.CheckOutTime,
+                    FreeCancellationWindowHoursSnapshot = property.FreeCancellationWindowHours,
+                    CancellationCutoffHoursSnapshot = property.CancellationCutoffHours,
+                    CancellationFeeTypeSnapshot = property.CancellationFeeType,
+                    CancellationFeeValueSnapshot = property.CancellationFeeValue,
+                    CommissionRateSnapshot = rateSnapshot,
+                    PlatformCommissionAmount = platformCommission,
+                    OwnerPayoutAmount = ownerPayout,
+                    SecurityDepositAmount = property.SecurityDepositAmount,
+                    SecurityDepositStatus = property.SecurityDepositAmount > 0 ? "Held" : "Released",
+                    IsEventBooking = selectedPackage != null,
+                    EventPackageID = selectedPackage?.PackageID,
+                    EventPackagePriceSnapshot = eventPackagePrice,
+                    EventCommissionRateSnapshot = eventRateSnapshot,
+                    EventPlatformCommissionAmount = eventPlatformCommission,
+                    EventManagerPayoutAmount = eventManagerPayout,
+                    CustomEventNotes = selectedPackage != null ? model.CustomEventNotes : null,
+                    EventDate = selectedPackage != null ? model.CheckInDate : null,
+                    SetupStatus = selectedPackage != null ? "Pending" : null,
+                    IdempotencyKey = Guid.NewGuid().ToString("N")
+                };
+
+                int bookingId = await _bookingRepo.CreateBookingAsync(booking);
+
+                // Redirect to Dedicated Payment Page
+                return RedirectToAction("Payment", new { id = bookingId });
             }
-
-            // Dynamic Commission calculation: Calculated on Property Stay Amount
-            var (rateSnapshot, platformCommission, ownerPayout) = await _commissionService.CalculateDynamicCommissionAsync(
-                propertyStayAmount, property.CommissionRate, property.OwnerID);
-
-            // Dynamic Event Commission calculation: Calculated on Event Package Price
-            decimal eventRateSnapshot = 0.00m;
-            decimal eventPlatformCommission = 0.00m;
-            decimal eventManagerPayout = 0.00m;
-
-            if (selectedPackage != null && eventPackagePrice > 0)
+            catch (Exception ex)
             {
-                var eventComm = await _commissionService.CalculateEventCommissionAsync(
-                    eventPackagePrice, property.PropertyID, selectedPackage.PackageID, property.EventCommissionRate);
-                eventRateSnapshot = eventComm.rateSnapshot;
-                eventPlatformCommission = eventComm.commissionAmount;
-                eventManagerPayout = eventComm.managerPayout;
+                _logger?.LogError(ex, "Unexpected error in ConfirmBooking for PropertyId {PropertyId}", model.PropertyID);
+                TempData["Error"] = "An unexpected error occurred while processing your booking. Please try again or contact support if the problem persists.";
+                var property = await _propRepo.GetByIdAsync(model.PropertyID);
+                if (property != null)
+                {
+                    await PopulateCheckoutViewModelAsync(model, property);
+                    return View("Checkout", model);
+                }
+                return RedirectToAction("Index", "Properties");
             }
-
-            var booking = new Booking
-            {
-                PropertyID = model.PropertyID,
-                ClientID = clientId,
-                OccasionID = model.OccasionID,
-                CheckInDate = model.CheckInDate,
-                CheckOutDate = model.CheckOutDate,
-                TotalAmount = totalAmount,
-                Status = "Pending", // Pending payment
-                BookingType = model.BookingType,
-                SlotType = model.SlotType,
-                SlotStartTime = model.CheckInTime,
-                SlotEndTime = model.CheckOutTime,
-                FreeCancellationWindowHoursSnapshot = property.FreeCancellationWindowHours,
-                CancellationCutoffHoursSnapshot = property.CancellationCutoffHours,
-                CancellationFeeTypeSnapshot = property.CancellationFeeType,
-                CancellationFeeValueSnapshot = property.CancellationFeeValue,
-                CommissionRateSnapshot = rateSnapshot,
-                PlatformCommissionAmount = platformCommission,
-                OwnerPayoutAmount = ownerPayout,
-                SecurityDepositAmount = property.SecurityDepositAmount,
-                SecurityDepositStatus = property.SecurityDepositAmount > 0 ? "Held" : "Released",
-                IsEventBooking = selectedPackage != null,
-                EventPackageID = selectedPackage?.PackageID,
-                EventPackagePriceSnapshot = eventPackagePrice,
-                EventCommissionRateSnapshot = eventRateSnapshot,
-                EventPlatformCommissionAmount = eventPlatformCommission,
-                EventManagerPayoutAmount = eventManagerPayout,
-                CustomEventNotes = selectedPackage != null ? model.CustomEventNotes : null,
-                EventDate = selectedPackage != null ? model.CheckInDate : null,
-                SetupStatus = selectedPackage != null ? "Pending" : null,
-                IdempotencyKey = Guid.NewGuid().ToString("N")
-            };
-
-            int bookingId = await _bookingRepo.CreateBookingAsync(booking);
-
-            // Redirect to Dedicated Payment Page
-            return RedirectToAction("Payment", new { id = bookingId });
         }
 
         [Authorize]
         [HttpGet]
         public async Task<IActionResult> Payment(int id)
         {
-            var booking = await _bookingRepo.GetByIdAsync(id);
-            if (booking == null) return NotFound();
-
-            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            if (booking.ClientID != currentUserId && !User.IsInRole("Admin"))
+            try
             {
-                return Forbid();
+                if (id <= 0)
+                {
+                    TempData["Error"] = "Invalid booking reference provided.";
+                    return RedirectToAction("Index", "Properties");
+                }
+
+                var booking = await _bookingRepo.GetByIdAsync(id);
+                if (booking == null)
+                {
+                    TempData["Error"] = "The requested booking could not be found or has expired. Please start a new booking.";
+                    return RedirectToAction("Index", "Properties");
+                }
+
+                var currentUserIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(currentUserIdStr) || !int.TryParse(currentUserIdStr, out int currentUserId))
+                {
+                    return Challenge();
+                }
+
+                if (booking.ClientID != currentUserId && !User.IsInRole("Admin"))
+                {
+                    _logger?.LogWarning("Unauthorized payment access attempt: User {UserId} attempted to access booking {BookingId} belonging to user {OwnerId}",
+                        currentUserId, booking.BookingID, booking.ClientID);
+                    return Forbid();
+                }
+
+                if (booking.Status == "Confirmed")
+                {
+                    return RedirectToAction("Confirmation", new { id = booking.BookingID });
+                }
+
+                var property = await _propRepo.GetByIdAsync(booking.PropertyID);
+                if (property == null)
+                {
+                    TempData["Error"] = "The property associated with this booking is no longer available.";
+                    return RedirectToAction("Index", "Properties");
+                }
+
+                // Check availability AGAIN right before starting payment to prevent double bookings
+                bool isAvailable = await _bookingRepo.IsSlotAvailableAsync(
+                    booking.PropertyID,
+                    booking.CheckInDate,
+                    booking.CheckOutDate,
+                    booking.BookingType,
+                    booking.SlotType,
+                    excludeBookingId: booking.BookingID);
+
+                if (!isAvailable)
+                {
+                    _logger?.LogWarning("Slot conflict detected at payment initialization for Booking {BookingId}, Property {PropertyId} ({CheckIn} to {CheckOut})",
+                        booking.BookingID, booking.PropertyID, booking.CheckInDate, booking.CheckOutDate);
+
+                    TempData["Error"] = "These dates are no longer available. Please choose different dates.";
+                    return RedirectToAction("Checkout", new { propertyId = booking.PropertyID, bookingType = booking.BookingType, slotType = booking.SlotType });
+                }
+
+                PaymentOrderResponse order;
+                try
+                {
+                    order = await _paymentService.CreateOrderAsync(booking.TotalAmount, $"booking_{booking.BookingID}");
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Payment setup failure for booking {BookingId} with amount {Amount}", booking.BookingID, booking.TotalAmount);
+                    TempData["Error"] = "We were unable to set up the payment gateway at this moment. Please try again shortly or contact our 24/7 support team.";
+                    return RedirectToAction("Checkout", new { propertyId = booking.PropertyID, bookingType = booking.BookingType, slotType = booking.SlotType });
+                }
+
+                var client = await _userRepo.GetByIdAsync(booking.ClientID);
+
+                var vm = new PaymentPageViewModel
+                {
+                    BookingID = booking.BookingID,
+                    PropertyTitle = property?.Title ?? "Property Stay",
+                    Location = property?.Location ?? "",
+                    Amount = booking.TotalAmount,
+                    Currency = order.Currency,
+                    OrderId = order.OrderId,
+                    KeyId = order.KeyId,
+                    IsSimulated = order.IsSimulated,
+                    ClientName = client?.FullName ?? "",
+                    ClientEmail = client?.Email ?? "",
+                    ClientPhone = client?.Phone,
+                    BookingType = booking.BookingType,
+                    SlotType = booking.SlotType,
+                    CheckInDate = booking.CheckInDate,
+                    CheckOutDate = booking.CheckOutDate,
+                    CheckInTime = booking.SlotStartTime,
+                    CheckOutTime = booking.SlotEndTime
+                };
+
+                return View(vm);
             }
-
-            var property = await _propRepo.GetByIdAsync(booking.PropertyID);
-            var client = await _userRepo.GetByIdAsync(booking.ClientID);
-            var order = await _paymentService.CreateOrderAsync(booking.TotalAmount, $"booking_{booking.BookingID}");
-
-            var vm = new PaymentPageViewModel
+            catch (Exception ex)
             {
-                BookingID = booking.BookingID,
-                PropertyTitle = property?.Title ?? "Property Stay",
-                Location = property?.Location ?? "",
-                Amount = booking.TotalAmount,
-                Currency = order.Currency,
-                OrderId = order.OrderId,
-                KeyId = order.KeyId,
-                IsSimulated = order.IsSimulated,
-                ClientName = client?.FullName ?? "",
-                ClientEmail = client?.Email ?? "",
-                ClientPhone = client?.Phone,
-                BookingType = booking.BookingType,
-                SlotType = booking.SlotType,
-                CheckInDate = booking.CheckInDate,
-                CheckOutDate = booking.CheckOutDate,
-                CheckInTime = booking.SlotStartTime,
-                CheckOutTime = booking.SlotEndTime
-            };
-
-            return View(vm);
+                _logger?.LogError(ex, "Unexpected error occurred during payment processing for booking {BookingId}", id);
+                TempData["Error"] = "An unexpected error occurred while preparing your payment. Please try again or contact support if the problem persists.";
+                return RedirectToAction("Index", "Properties");
+            }
         }
 
         [Authorize]
@@ -298,36 +460,64 @@ namespace BookMyFun.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> VerifyPayment(int bookingId, string razorpay_order_id, string razorpay_payment_id, string razorpay_signature)
         {
-            var booking = await _bookingRepo.GetByIdAsync(bookingId);
-            if (booking == null) return NotFound();
-
-            var currentUserIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(currentUserIdStr) || !int.TryParse(currentUserIdStr, out var currentUserId))
+            try
             {
-                return Challenge();
-            }
+                if (bookingId <= 0)
+                {
+                    TempData["Error"] = "Invalid booking reference.";
+                    return RedirectToAction("Index", "Properties");
+                }
 
-            if (booking.ClientID != currentUserId && !User.IsInRole("Admin"))
-            {
-                return Forbid();
-            }
+                var booking = await _bookingRepo.GetByIdAsync(bookingId);
+                if (booking == null)
+                {
+                    TempData["Error"] = "The requested booking could not be found or has expired.";
+                    return RedirectToAction("Index", "Properties");
+                }
 
-            if (booking.Status == "Confirmed")
-            {
+                var currentUserIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(currentUserIdStr) || !int.TryParse(currentUserIdStr, out var currentUserId))
+                {
+                    return Challenge();
+                }
+
+                if (booking.ClientID != currentUserId && !User.IsInRole("Admin"))
+                {
+                    _logger?.LogWarning("Unauthorized payment verification attempt: User {UserId} for booking {BookingId}", currentUserId, bookingId);
+                    return Forbid();
+                }
+
+                if (booking.Status == "Confirmed")
+                {
+                    return RedirectToAction("Confirmation", new { id = bookingId });
+                }
+
+                if (string.IsNullOrWhiteSpace(razorpay_order_id) || string.IsNullOrWhiteSpace(razorpay_payment_id) || string.IsNullOrWhiteSpace(razorpay_signature))
+                {
+                    TempData["Error"] = "Incomplete payment verification payload received. Please retry payment or contact support.";
+                    return RedirectToAction("Payment", new { id = bookingId });
+                }
+
+                bool isValid = await _paymentService.VerifyPaymentSignatureAsync(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+                if (!isValid)
+                {
+                    _logger?.LogWarning("Payment signature verification failed for booking {BookingId}, Order {OrderId}, Payment {PaymentId}",
+                        bookingId, razorpay_order_id, razorpay_payment_id);
+                    TempData["Error"] = "Payment signature verification failed. Please try again or reach our 24/7 helpdesk.";
+                    return RedirectToAction("Payment", new { id = bookingId });
+                }
+
+                // Payment signature verified on client return.
+                // Booking and payment status updates are handled exclusively via verified Razorpay webhook events.
+                TempData["Success"] = "Payment verified! Your booking confirmation is being finalized via our secure webhook.";
                 return RedirectToAction("Confirmation", new { id = bookingId });
             }
-
-            bool isValid = await _paymentService.VerifyPaymentSignatureAsync(razorpay_order_id, razorpay_payment_id, razorpay_signature);
-            if (!isValid)
+            catch (Exception ex)
             {
-                TempData["Error"] = "Payment signature verification failed. Please try again or reach our 24/7 helpdesk.";
+                _logger?.LogError(ex, "Unexpected error in VerifyPayment for booking {BookingId}", bookingId);
+                TempData["Error"] = "An unexpected error occurred while verifying your payment. Please contact our support team.";
                 return RedirectToAction("Payment", new { id = bookingId });
             }
-
-            // Payment signature verified on client return.
-            // Booking and payment status updates are handled exclusively via verified Razorpay webhook events.
-            TempData["Success"] = "Payment verified! Your booking confirmation is being finalized via our secure webhook.";
-            return RedirectToAction("Confirmation", new { id = bookingId });
         }
 
         private async Task DispatchConfirmedBookingAlertsAsync(Booking booking, Property property, User client, string transactionId, string paymentMethod)

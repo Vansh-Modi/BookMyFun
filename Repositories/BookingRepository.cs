@@ -17,6 +17,8 @@ namespace BookMyFun.Repositories
         Task<bool> CancelBookingAsync(int bookingId);
         Task<bool> UpdateSecurityDepositStatusAsync(int bookingId, string status);
         Task<bool> IsSlotAvailableAsync(int propertyId, DateTime checkInDate, DateTime checkOutDate, string bookingType, string? slotType);
+        Task<bool> IsSlotAvailableAsync(int propertyId, DateTime checkInDate, DateTime checkOutDate, string bookingType, string? slotType, int? excludeBookingId)
+            => IsSlotAvailableAsync(propertyId, checkInDate, checkOutDate, bookingType, slotType);
         Task<int> RecordPaymentAsync(Payment payment);
         Task<List<Payment>> GetPaymentsByBookingIdAsync(int bookingId);
         Task<List<CustomerReview>> GetReviewsByPropertyIdAsync(int propertyId);
@@ -197,12 +199,19 @@ namespace BookMyFun.Repositories
             return rows > 0;
         }
 
-        public async Task<bool> IsSlotAvailableAsync(int propertyId, DateTime checkInDate, DateTime checkOutDate, string bookingType, string? slotType)
+        public Task<bool> IsSlotAvailableAsync(int propertyId, DateTime checkInDate, DateTime checkOutDate, string bookingType, string? slotType)
+            => IsSlotAvailableAsync(propertyId, checkInDate, checkOutDate, bookingType, slotType, null);
+
+        public async Task<bool> IsSlotAvailableAsync(int propertyId, DateTime checkInDate, DateTime checkOutDate, string bookingType, string? slotType, int? excludeBookingId)
         {
             const string sql = @"
                 SELECT COUNT(*) FROM Bookings
                 WHERE PropertyID = @PropertyID
-                  AND Status IN ('Confirmed', 'Pending')
+                  AND (@ExcludeBookingID IS NULL OR BookingID <> @ExcludeBookingID)
+                  AND (
+                        Status = 'Confirmed'
+                        OR (Status = 'Pending' AND CreatedAt >= DATEADD(MINUTE, -15, GETDATE()))
+                      )
                   AND (
                         (CheckInDate <= @CheckOutDate AND CheckOutDate >= @CheckInDate)
                       )
@@ -219,7 +228,8 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@CheckInDate", checkInDate.Date),
                 new SqlParameter("@CheckOutDate", checkOutDate.Date),
                 new SqlParameter("@BookingType", bookingType),
-                new SqlParameter("@SlotType", DBHelper.ToDbValue(slotType)));
+                new SqlParameter("@SlotType", DBHelper.ToDbValue(slotType)),
+                new SqlParameter("@ExcludeBookingID", DBHelper.ToDbValue(excludeBookingId)));
 
             int count = result != null ? Convert.ToInt32(result) : 0;
             return count == 0;
