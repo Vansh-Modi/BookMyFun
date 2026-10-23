@@ -90,7 +90,7 @@ namespace BookMyFun.Controllers
 
             foreach (var staff in staffList)
             {
-                _ = _emailService.SendEmailAsync(staff.Email, subject, body);
+                await _emailService.EnqueueEmailAsync(staff.Email, subject, body, "StaffPartnerNotification");
             }
 
             TempData["Success"] = isEventManager
@@ -136,7 +136,7 @@ namespace BookMyFun.Controllers
 
             foreach (var staff in staffList)
             {
-                _ = _emailService.SendEmailAsync(staff.Email, subject, body);
+                await _emailService.EnqueueEmailAsync(staff.Email, subject, body, "StaffPartnerNotification");
             }
 
             TempData["Success"] = "Thank you for reaching out! A dedicated customer support executive has received your query and will contact you shortly.";

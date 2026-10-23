@@ -23,6 +23,7 @@ namespace BookMyFun.Controllers
         private readonly IIdVerificationService _idVerificationService;
         private readonly IMediaStorageService _mediaStorage;
         private readonly IEventPackageRepository _eventPackageRepo;
+        private readonly ISiteSettingsService _siteSettingsService;
 
         public EmployeeController(
             IPropertyRepository propRepo,
@@ -36,7 +37,8 @@ namespace BookMyFun.Controllers
             IDamageClaimService damageClaimService,
             IIdVerificationService idVerificationService,
             IMediaStorageService mediaStorage,
-            IEventPackageRepository eventPackageRepo)
+            IEventPackageRepository eventPackageRepo,
+            ISiteSettingsService siteSettingsService)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -50,6 +52,7 @@ namespace BookMyFun.Controllers
             _idVerificationService = idVerificationService;
             _mediaStorage = mediaStorage;
             _eventPackageRepo = eventPackageRepo;
+            _siteSettingsService = siteSettingsService;
         }
 
         public async Task<IActionResult> Index()
@@ -60,6 +63,7 @@ namespace BookMyFun.Controllers
             var pendingVerifications = await _idVerificationService.GetAllVerificationsAsync("PendingReview");
 
             ViewBag.TotalProperties = properties.Count;
+            ViewBag.PendingPropertyApprovals = properties.Count(p => !p.IsApproved && p.ListingStatus != "Rejected" && p.ListingStatus != "Deactivated");
             ViewBag.TotalBookings = bookings.Count;
             ViewBag.PendingBookings = bookings.Count(b => b.Status == "Pending");
             ViewBag.PendingLeads = leads.Count;
@@ -370,12 +374,80 @@ namespace BookMyFun.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteProperty(int id)
+        public async Task<IActionResult> ApproveProperty(int id, bool approve, string? status = null, string? returnUrl = null)
         {
-            await _propRepo.DeletePropertyAsync(id);
+            var prop = await _propRepo.GetByIdAsync(id);
+            if (prop == null)
+            {
+                return NotFound();
+            }
 
+            var targetStatus = approve ? (status ?? "Active") : (status ?? "Rejected");
+            var success = await _propRepo.ApprovePropertyAsync(id, approve, targetStatus);
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            await _configRepo.LogAuditAsync(currentUserId, "EmployeeDeleteProperty", "Property", id, $"Employee deleted property #{id}");
+            if (success)
+            {
+                var actionName = approve ? "EmployeeApproveProperty" : (targetStatus == "Draft" ? "EmployeeRevokeProperty" : "EmployeeRejectProperty");
+                await _configRepo.LogAuditAsync(currentUserId, actionName, "Property", id, $"Employee approval set to {approve} with status '{targetStatus}' for property '{prop.Title}'");
+                TempData["Success"] = $"Property #{id} ({prop.Title}) has been {(approve ? "approved and made live" : (targetStatus == "Rejected" ? "rejected" : "revoked / set to draft"))}.";
+            }
+            else
+            {
+                TempData["Error"] = $"Unable to update approval status for property #{id}.";
+            }
+
+            if (!string.IsNullOrWhiteSpace(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
+            {
+                return Redirect(returnUrl);
+            }
+
+            return RedirectToAction(nameof(ManageProperties));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeactivateProperty(int id, bool deactivate = true, string? returnUrl = null)
+        {
+            var success = await _propRepo.DeactivatePropertyAsync(id, deactivate);
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            if (success)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, deactivate ? "EmployeeDeactivateProperty" : "EmployeeActivateProperty", "Property", id, $"Employee {(deactivate ? "deactivated" : "activated")} property #{id}");
+                TempData["Success"] = $"Property #{id} has been {(deactivate ? "deactivated" : "activated")} successfully.";
+            }
+            else
+            {
+                TempData["Error"] = $"Unable to update status for property #{id}.";
+            }
+
+            if (!string.IsNullOrWhiteSpace(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
+            {
+                return Redirect(returnUrl);
+            }
+
+            return RedirectToAction(nameof(ManageProperties));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteProperty(int id, string? returnUrl = null)
+        {
+            var success = await _propRepo.PermanentlyDeletePropertyAsync(id);
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            if (success)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "EmployeePermanentlyDeleteProperty", "Property", id, $"Employee permanently deleted property #{id}");
+                TempData["Success"] = $"Property #{id} has been permanently deleted successfully.";
+            }
+            else
+            {
+                TempData["Error"] = $"Unable to permanently delete property #{id}.";
+            }
+
+            if (!string.IsNullOrWhiteSpace(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
+            {
+                return Redirect(returnUrl);
+            }
 
             return RedirectToAction(nameof(ManageProperties));
         }
@@ -568,6 +640,150 @@ namespace BookMyFun.Controllers
             string url = $"/api/media/view-id-document?key={Uri.EscapeDataString(storageKey)}&token={Uri.EscapeDataString(token)}";
 
             return Json(new { success = true, url });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> EventCommissions()
+        {
+            var settings = await _siteSettingsService.GetSettingsAsync();
+            var eventManagers = await _userRepo.GetUsersByRoleAsync("EventManager");
+            var eventPackages = await _eventPackageRepo.GetAllPackagesAsync();
+
+            var vm = new EventCommissionsManagementViewModel
+            {
+                GlobalStandingEventCommission = settings.EventPlatformCommissionPercent,
+                GlobalHostCommission = settings.PlatformCommissionPercent,
+                EventManagers = eventManagers,
+                EventPackages = eventPackages
+            };
+
+            return View("~/Views/Admin/EventCommissions.cshtml", vm);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> UpdateGlobalEventCommission([FromBody] UpdateGlobalEventCommissionRequest model)
+        {
+            if (model.CommissionRate < 0 || model.CommissionRate > 100)
+            {
+                return Json(new { success = false, message = "Commission rate must be between 0% and 100%." });
+            }
+
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var settings = await _siteSettingsService.GetSettingsAsync();
+            settings.EventPlatformCommissionPercent = model.CommissionRate;
+            await _siteSettingsService.SaveSettingsAsync(settings);
+
+            await _configRepo.LogAuditAsync(currentUserId, "UpdateGlobalEventCommission", "SiteSetting", null,
+                $"Employee #{currentUserId} updated default global event manager commission rate to {model.CommissionRate:0.##}%");
+
+            return Json(new
+            {
+                success = true,
+                message = $"Default global event manager commission rate updated to {model.CommissionRate:0.##}%!",
+                rate = model.CommissionRate
+            });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> UpdateEventManagerCommission([FromBody] UpdateEventManagerCommissionRequest model)
+        {
+            if (model.UserId <= 0)
+            {
+                return Json(new { success = false, message = "Invalid event manager user ID." });
+            }
+
+            if (model.CommissionRate.HasValue && (model.CommissionRate.Value < 0 || model.CommissionRate.Value > 100))
+            {
+                return Json(new { success = false, message = "Commission rate must be between 0% and 100%." });
+            }
+
+            var user = await _userRepo.GetByIdAsync(model.UserId);
+            if (user == null || user.Role != "EventManager")
+            {
+                return Json(new { success = false, message = "Event Manager not found." });
+            }
+
+            bool updated = await _userRepo.UpdateUserCommissionRateAsync(model.UserId, model.CommissionRate);
+            if (updated)
+            {
+                var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                string desc = model.CommissionRate.HasValue
+                    ? $"Employee #{currentUserId} set custom commission for event manager '{user.FullName}' (#{user.UserID}) to {model.CommissionRate.Value:0.##}%"
+                    : $"Employee #{currentUserId} reverted commission for event manager '{user.FullName}' (#{user.UserID}) to default standing rate";
+
+                await _configRepo.LogAuditAsync(currentUserId, "UpdateEventManagerCommission", "User", model.UserId, desc);
+
+                return Json(new
+                {
+                    success = true,
+                    message = $"Commission rate for '{user.FullName}' updated successfully!",
+                    rate = model.CommissionRate
+                });
+            }
+
+            return Json(new { success = false, message = "Failed to update event manager commission rate." });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> UpdateEventCommission([FromBody] UpdateEventCommissionRequest model)
+        {
+            if (model.PackageId <= 0)
+            {
+                return Json(new { success = false, message = "Invalid event package ID." });
+            }
+
+            var pkg = await _eventPackageRepo.GetPackageByIdAsync(model.PackageId);
+            if (pkg == null)
+            {
+                return Json(new { success = false, message = "Event package not found." });
+            }
+
+            bool updated = await _eventPackageRepo.UpdatePackageCommissionRateAsync(model.PackageId, model.CommissionRate);
+            if (updated)
+            {
+                var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                string desc = model.CommissionRate.HasValue
+                    ? $"Employee #{currentUserId} set custom commission for event '{pkg.Name}' to {model.CommissionRate.Value}%"
+                    : $"Employee #{currentUserId} reverted commission for event '{pkg.Name}' to standing default";
+                await _configRepo.LogAuditAsync(currentUserId, "UpdateEventCommission", "EventPackage", model.PackageId, desc);
+
+                return Json(new
+                {
+                    success = true,
+                    message = $"Commission for '{pkg.Name}' updated successfully!",
+                    rate = model.CommissionRate
+                });
+            }
+
+            return Json(new { success = false, message = "Failed to update event commission." });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> UpdateBookingEventCommission([FromBody] UpdateBookingEventCommissionRequest model)
+        {
+            if (model.BookingId <= 0 || model.CommissionRate < 0 || model.CommissionRate > 100)
+            {
+                return Json(new { success = false, message = "Invalid booking ID or commission percentage." });
+            }
+
+            bool updated = await _bookingRepo.UpdateBookingEventCommissionAsync(model.BookingId, model.CommissionRate);
+            if (updated)
+            {
+                var booking = await _bookingRepo.GetByIdAsync(model.BookingId);
+                var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                await _configRepo.LogAuditAsync(currentUserId, "UpdateBookingEventCommission", "Booking", model.BookingId,
+                    $"Employee #{currentUserId} adjusted event commission on booking #{model.BookingId} to {model.CommissionRate}% (Fee: ₹{booking?.EventPlatformCommissionAmount:N2}, Payout: ₹{booking?.EventManagerPayoutAmount:N2})");
+
+                return Json(new
+                {
+                    success = true,
+                    message = $"Event commission for Booking #{model.BookingId} updated to {model.CommissionRate}%!",
+                    platformCommission = booking?.EventPlatformCommissionAmount ?? 0m,
+                    managerPayout = booking?.EventManagerPayoutAmount ?? 0m
+                });
+            }
+
+            return Json(new { success = false, message = "Failed to update event commission for this booking." });
         }
     }
 }

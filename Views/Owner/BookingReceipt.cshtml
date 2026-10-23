@@ -1,0 +1,269 @@
+@model BookMyFun.Models.ViewModels.BookingReceiptViewModel
+@{
+    ViewData["Title"] = $"Host Settlement Receipt - Booking #{Model.Booking.BookingID}";
+}
+
+<div class="receipt-container">
+    <!-- Top Action Bar (Hidden in Print) -->
+    <div class="receipt-action-bar no-print">
+        <div class="d-flex align-items-center gap-2">
+            <a asp-action="Index" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1.5">
+                <i class="bi bi-arrow-left me-1"></i>Host Dashboard
+            </a>
+            <a asp-action="DamageClaims" class="btn btn-sm btn-outline-danger rounded-pill px-3 py-1.5">
+                <i class="bi bi-shield-exclamation me-1"></i>Damage Claims
+            </a>
+            @if (Model.IsAdminOrStaffView)
+            {
+                <a asp-controller="Booking" asp-action="Receipt" asp-route-id="@Model.Booking.BookingID" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1.5">
+                    <i class="bi bi-file-earmark-text me-1"></i>View Guest Receipt
+                </a>
+            }
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            @if (!string.IsNullOrEmpty(Model.Property?.MapUrl))
+            {
+                <a href="@Model.Property.MapUrl" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-success rounded-pill px-3 py-1.5">
+                    <i class="bi bi-geo-alt-fill me-1"></i>Map Location
+                </a>
+            }
+            <form asp-controller="Owner" asp-action="ResendBookingReceipt" method="post" class="d-inline">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="bookingId" value="@Model.Booking.BookingID" />
+                <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                <button type="submit" class="btn btn-sm btn-outline-success rounded-pill px-3 py-1.5 fw-semibold" id="btnHostReceiptResendDelivery">
+                    <i class="bi bi-send-check me-1"></i>Send to Email &amp; WhatsApp
+                </button>
+            </form>
+            <button type="button" onclick="window.print()" class="btn btn-sm btn-success rounded-pill px-3 py-1.5 fw-bold shadow-sm">
+                <i class="bi bi-printer-fill me-1"></i>Print Settlement Voucher
+            </button>
+        </div>
+    </div>
+
+    <!-- Official Host Settlement Voucher Card -->
+    <div class="receipt-card">
+        <!-- Header Banner (Emerald/Navy Theme) -->
+        <div class="receipt-header receipt-header-host">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+                <div>
+                    <h1 class="receipt-brand-title">
+                        <i class="bi bi-patch-check-fill text-warning"></i> BOOKMYFUN HOST NETWORK
+                    </h1>
+                    <div class="receipt-brand-subtitle">Official Host Settlement Receipt &amp; Earnings Ledger</div>
+                </div>
+                <div class="text-end">
+                    <span class="receipt-badge-verified">
+                        <i class="bi bi-check-circle-fill"></i> CONFIRMED BOOKING
+                    </span>
+                    <div class="text-light-subtle small mt-1 font-monospace" style="font-size: 0.78rem;">
+                        @Model.HostReceiptNumber
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-2 mt-3 pt-3 border-top border-white border-opacity-10 small">
+                <div class="col-sm-4">
+                    <span class="text-white-50">Settlement Ref:</span>
+                    <strong class="text-white ms-1 font-monospace">@Model.HostReceiptNumber</strong>
+                </div>
+                <div class="col-sm-4 text-sm-center">
+                    <span class="text-white-50">Booking Ref:</span>
+                    <strong class="text-white ms-1">#@Model.Booking.BookingID</strong>
+                </div>
+                <div class="col-sm-4 text-sm-end">
+                    <span class="text-white-50">Issued:</span>
+                    <strong class="text-white ms-1">@Model.IssuedAt.ToString("MMM dd, yyyy - hh:mm tt")</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Body Content -->
+        <div class="receipt-body">
+            <!-- 2-Column Overview Cards -->
+            <div class="row g-3 mb-4">
+                <!-- Left: Property & Host Partner Information -->
+                <div class="col-md-6">
+                    <div class="receipt-info-card">
+                        <div class="receipt-section-title">
+                            <i class="bi bi-house-door-fill text-success"></i> Property &amp; Host Account
+                        </div>
+                        <h5 class="fw-bold text-dark mb-1">
+                            @(Model.Property?.Title ?? Model.Booking.PropertyTitle)
+                        </h5>
+                        <div class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 rounded-pill small mb-2">
+                            @(Model.Property?.PropertyTypeName ?? "Luxury Villa / Farmhouse")
+                        </div>
+                        <div class="small text-muted mb-2">
+                            <i class="bi bi-geo-alt me-1 text-danger"></i>
+                            @(Model.Property?.FormattedAddress ?? Model.Property?.Location ?? "Property Location")
+                        </div>
+                        @if (!string.IsNullOrEmpty(Model.Property?.MapUrl))
+                        {
+                            <div class="small mb-2">
+                                <a href="@Model.Property.MapUrl" target="_blank" rel="noopener noreferrer" class="text-success text-decoration-none fw-semibold">
+                                    <i class="bi bi-pin-map-fill me-1"></i>View Location Link &rarr;
+                                </a>
+                            </div>
+                        }
+                        <div class="small text-muted pt-2 border-top">
+                            <span>Host Partner:</span>
+                            <strong class="text-dark ms-1">@(Model.Host?.FullName ?? "Certified Partner")</strong>
+                            <span class="text-muted ms-1">(#@(Model.Host?.UserID ?? Model.Property?.OwnerID))</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Guest Reservation Details -->
+                <div class="col-md-6">
+                    <div class="receipt-info-card">
+                        <div class="receipt-section-title">
+                            <i class="bi bi-person-fill text-success"></i> Guest Reservation Details
+                        </div>
+                        <h5 class="fw-bold text-dark mb-1">
+                            @(Model.Client?.FullName ?? Model.Booking.ClientName)
+                        </h5>
+                        <div class="small text-muted mb-1">
+                            <i class="bi bi-envelope me-1"></i>@(Model.Client?.Email ?? Model.Booking.ClientEmail)
+                        </div>
+                        @if (!string.IsNullOrEmpty(Model.Client?.Phone ?? Model.Booking.ClientPhone))
+                        {
+                            <div class="small text-muted mb-2">
+                                <i class="bi bi-telephone me-1"></i>@(Model.Client?.Phone ?? Model.Booking.ClientPhone)
+                            </div>
+                        }
+                        <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5 rounded-pill small">
+                                <i class="bi bi-shield-check me-1"></i>Verified Guest
+                            </span>
+                            <span class="badge bg-light text-dark border px-2 py-0.5 rounded-pill small">
+                                <i class="bi bi-people me-1"></i>Max @(Model.Property?.MaxGuests ?? 10) Guests
+                            </span>
+                        </div>
+                        <div class="small text-muted pt-2 border-top">
+                            <span>Occasion:</span>
+                            <strong class="text-dark ms-1">@(Model.Booking.OccasionName ?? "Private Stay")</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Schedule Highlights Box -->
+            <div class="p-3 bg-light rounded-3 border mb-4">
+                <div class="row g-2 text-center">
+                    <div class="col-4 border-end">
+                        <div class="text-uppercase text-muted small fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Guest Check-In</div>
+                        <div class="fw-bold text-dark fs-6 mt-1">@Model.Booking.CheckInDate.ToString("ddd, MMM dd, yyyy")</div>
+                        <div class="text-muted small" style="font-size: 0.75rem;">From 02:00 PM</div>
+                    </div>
+                    <div class="col-4 border-end">
+                        <div class="text-uppercase text-muted small fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Guest Check-Out</div>
+                        <div class="fw-bold text-dark fs-6 mt-1">@Model.Booking.CheckOutDate.ToString("ddd, MMM dd, yyyy")</div>
+                        <div class="text-muted small" style="font-size: 0.75rem;">Until 11:00 AM</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-uppercase text-muted small fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Booking Type</div>
+                        <div class="fw-bold text-success fs-6 mt-1">@Model.Booking.BookingType</div>
+                        <div class="text-muted small" style="font-size: 0.75rem;">@(Model.Booking.SlotType ?? "Standard Stay")</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transparent Financial Settlement Statement -->
+            <div class="receipt-section-title">
+                <i class="bi bi-cash-stack text-success"></i> Host Financial Settlement Statement
+            </div>
+            <div class="table-responsive">
+                <table class="receipt-table">
+                    <thead>
+                        <tr>
+                            <th>Settlement Component</th>
+                            <th>Rate / Basis</th>
+                            <th class="text-end">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <div class="fw-bold text-dark">Stay Subtotal (Host Gross)</div>
+                                <div class="text-muted small">Gross rental revenue for property stay accommodation</div>
+                            </td>
+                            <td><span class="badge bg-light text-dark border">Gross Revenue</span></td>
+                            <td class="text-end fw-semibold">₹@Model.PropertyStayGross.ToString("N2")</td>
+                        </tr>
+
+                        <tr>
+                            <td>
+                                <div class="fw-bold text-danger">Platform Commission Deduction</div>
+                                <div class="text-muted small">Platform facilitation, marketing, and verified payment processing</div>
+                            </td>
+                            <td><span class="badge bg-danger-subtle text-danger border border-danger-subtle">@Model.CommissionRate.ToString("0.#")% Commission</span></td>
+                            <td class="text-end fw-semibold text-danger">-₹@Model.PlatformCommission.ToString("N2")</td>
+                        </tr>
+
+                        <!-- Net Host Payout Row -->
+                        <tr class="receipt-total-row">
+                            <td colspan="2" class="text-uppercase fw-bold text-dark fs-6">
+                                <i class="bi bi-check2-circle text-success me-1"></i> Net Host Payout (Disbursement Amount)
+                            </td>
+                            <td class="text-end fs-4 fw-bold text-success">
+                                ₹@Model.HostNetPayout.ToString("N2")
+                            </td>
+                        </tr>
+
+                        @if (Model.SecurityDeposit > 0)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="fw-bold text-dark">Guest Security Deposit (Escrow Protection)</div>
+                                    <div class="text-muted small">Held by BookMyFun in escrow; eligible for host damage claims within 24 hours of checkout</div>
+                                </td>
+                                <td><span class="badge bg-secondary-subtle text-secondary border">@Model.Booking.SecurityDepositStatus</span></td>
+                                <td class="text-end fw-semibold">₹@Model.SecurityDeposit.ToString("N2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Décor Fee Segregation Notice (ADR-21 Compliance) -->
+            @if (Model.Booking.IsEventBooking && Model.EventPackagePrice > 0)
+            {
+                <div class="p-3 bg-light rounded-3 border mb-4">
+                    <div class="d-flex align-items-start gap-3">
+                        <i class="bi bi-palette2 text-primary fs-3 mt-1"></i>
+                        <div>
+                            <div class="fw-bold text-primary">Guest Décor Add-on: ₹@Model.EventPackagePrice.ToString("N2")</div>
+                            <div class="small text-muted" style="line-height: 1.5;">
+                                The guest added celebration package <strong>@(Model.Booking.EventPackageName ?? "Curated Décor")</strong>. This payment is routed <strong>100% to the Event Decorator Studio</strong> and is <strong>not deducted</strong> from your host revenue or net payout.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Host Compliance & Hosting Guidelines -->
+            <div class="p-3 rounded-3 border bg-light-subtle mb-4">
+                <div class="fw-bold text-dark small mb-2">
+                    <i class="bi bi-shield-check text-success me-1"></i> Host Partner Guidelines &amp; Policies
+                </div>
+                <ul class="small text-muted ps-3 mb-0" style="line-height: 1.6;">
+                    <li><strong>Arrival Verification:</strong> Always verify original government photo ID cards of the primary guest upon property check-in.</li>
+                    <li><strong>24-Hour Damage Claim Policy:</strong> Inspect your property thoroughly upon guest checkout. Any damage claims against the security deposit must be submitted with photographic evidence within <strong>24 hours of departure</strong>.</li>
+                    <li><strong>Disbursement Timeline:</strong> Net payout is processed to your registered host bank account within 24&ndash;48 hours of successful check-in.</li>
+                    <li><strong>Host Support Helpline:</strong> For host partner assistance or on-site resolution, contact BookMyFun Partner Support at <strong>partner@bookmyfun.in</strong>.</li>
+                </ul>
+            </div>
+
+            <!-- Digital Seal & Verification Footer -->
+            <div class="pt-3 border-top text-center text-muted small">
+                <div class="fw-bold text-secondary text-uppercase" style="letter-spacing: 0.05em; font-size: 0.75rem;">
+                    BookMyFun Host Partner Network &bull; Certified Host Settlement Voucher
+                </div>
+                <div style="font-size: 0.72rem;">
+                    This document is an authorized record of booking financial settlement. Generated electronically by BookMyFun.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

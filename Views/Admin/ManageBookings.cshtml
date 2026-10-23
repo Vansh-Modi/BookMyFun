@@ -132,10 +132,16 @@
                             </td>
                             <td class="text-end pe-4">
                                 <div class="btn-group btn-group-sm">
+                                    <a asp-controller="Booking" asp-action="Receipt" asp-route-id="@b.BookingID" target="_blank" class="btn btn-outline-secondary" title="View Official Guest Receipt">
+                                        <i class="bi bi-file-earmark-text"></i>
+                                    </a>
+                                    <a asp-controller="Owner" asp-action="BookingReceipt" asp-route-id="@b.BookingID" target="_blank" class="btn btn-outline-success" title="View Host Settlement Receipt">
+                                        <i class="bi bi-receipt"></i>
+                                    </a>
                                     <a asp-controller="@controllerName" asp-action="DamageClaims" asp-route-status="All" class="btn btn-outline-danger" title="Damage Claim Operations">
                                         <i class="bi bi-shield-exclamation"></i>
                                     </a>
-                                    @if (b.IsEventBooking && User.IsInRole("Admin"))
+                                    @if (b.IsEventBooking && (User.IsInRole("Admin") || User.IsInRole("Employee")))
                                     {
                                         <button type="button" class="btn btn-outline-warning" title="Adjust Event Commission for Booking #@b.BookingID" 
                                                 onclick="openBookingEventCommissionModal(@b.BookingID, '@(b.PropertyTitle?.Replace("'", "\\'"))', @b.EventPackagePriceSnapshot, @b.EventCommissionRateSnapshot)">
@@ -269,7 +275,8 @@
             return;
         }
         try {
-            const resp = await fetch(`/Admin/UpdateBookingEventCommission`, {
+            const controller = '@(ViewContext.RouteData.Values["controller"]?.ToString() ?? "Admin")';
+            const resp = await fetch(`/${controller}/UpdateBookingEventCommission`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ bookingId: bookingId, commissionRate: rate })

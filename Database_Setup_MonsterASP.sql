@@ -36,6 +36,19 @@ BEGIN
     );
 END;
 
+-- Seed default global event platform commission rate if not configured
+IF NOT EXISTS (SELECT 1 FROM SiteSettings WHERE SettingKey = 'EventPlatformCommissionPercent')
+BEGIN
+    INSERT INTO SiteSettings (SettingKey, SettingValue, IsEncrypted, UpdatedAt)
+    VALUES ('EventPlatformCommissionPercent', '10.0', 0, GETDATE());
+END;
+
+IF NOT EXISTS (SELECT 1 FROM SiteSettings WHERE SettingKey = 'PlatformCommissionPercent')
+BEGIN
+    INSERT INTO SiteSettings (SettingKey, SettingValue, IsEncrypted, UpdatedAt)
+    VALUES ('PlatformCommissionPercent', '10.0', 0, GETDATE());
+END;
+
 -- 3. ApiConfigurations Table
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ApiConfigurations')
 BEGIN
@@ -113,6 +126,7 @@ BEGIN
         FormattedAddress NVARCHAR(500) NULL,
         Latitude DECIMAL(9,6) NULL,
         Longitude DECIMAL(9,6) NULL,
+        MapUrl NVARCHAR(1000) NULL,
         PricePerNight DECIMAL(18,2) NOT NULL,
         SecurityDepositAmount DECIMAL(18,2) DEFAULT 0.00,
         CommissionRate DECIMAL(5,2) NULL,
@@ -127,6 +141,11 @@ BEGIN
         IsApproved BIT DEFAULT 0,
         CreatedAt DATETIME2 DEFAULT GETDATE()
     );
+END;
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Properties') AND name = 'MapUrl')
+BEGIN
+    ALTER TABLE Properties ADD MapUrl NVARCHAR(1000) NULL;
 END;
 
 -- 9. OwnerSubscriptions Table

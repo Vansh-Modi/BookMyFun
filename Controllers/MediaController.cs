@@ -31,7 +31,7 @@ namespace BookMyFun.Controllers
         }
 
         [HttpPost("upload-file")]
-        [Authorize(Roles = "Owner,Admin,Employee")]
+        [Authorize(Roles = "Owner,Admin,Employee,EventManager")]
         [RequestSizeLimit(105 * 1024 * 1024)] // 105MB limit for videos
         public async Task<IActionResult> UploadMediaFile([FromForm] IFormFile file, [FromForm] string mediaType, [FromForm] int? propertyId, [FromForm] bool isPrimary = false)
         {
@@ -84,7 +84,7 @@ namespace BookMyFun.Controllers
         }
 
         [HttpPost("verify-url")]
-        [Authorize(Roles = "Owner,Admin,Employee")]
+        [Authorize(Roles = "Owner,Admin,Employee,EventManager")]
         public async Task<IActionResult> VerifyExternalUrl([FromBody] ExternalUrlVerifyRequest request)
         {
             if (request == null || string.IsNullOrWhiteSpace(request.Url))
@@ -135,7 +135,7 @@ namespace BookMyFun.Controllers
         }
 
         [HttpDelete("delete/{mediaId}")]
-        [Authorize(Roles = "Owner,Admin,Employee")]
+        [Authorize(Roles = "Owner,Admin,Employee,EventManager")]
         public async Task<IActionResult> DeleteMedia(int mediaId)
         {
             bool deleted = await _propertyRepo.DeletePropertyMediaAsync(mediaId);

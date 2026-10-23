@@ -20,13 +20,19 @@ namespace BookMyFun.Services
         private readonly IWebHostEnvironment _env;
         private readonly IConfiguration _config;
         private readonly ILogger<MediaStorageService> _logger;
+        private readonly IImageOptimizationService _imageOptimizer;
         private readonly byte[] _tokenSigningKey;
 
-        public MediaStorageService(IWebHostEnvironment env, IConfiguration config, ILogger<MediaStorageService> logger)
+        public MediaStorageService(
+            IWebHostEnvironment env,
+            IConfiguration config,
+            ILogger<MediaStorageService> logger,
+            IImageOptimizationService imageOptimizer)
         {
             _env = env;
             _config = config;
             _logger = logger;
+            _imageOptimizer = imageOptimizer;
 
             string secret = _config["Security:TokenSecret"] ?? "BookMyFun_Default_Secure_Secret_Key_For_Tokens_2026";
             _tokenSigningKey = Encoding.UTF8.GetBytes(secret);
@@ -66,9 +72,29 @@ namespace BookMyFun.Services
 
             string fullPhysicalPath = Path.Combine(uploadsFolder, safeFileName);
 
-            using (var stream = new FileStream(fullPhysicalPath, FileMode.Create))
+            // 4. Server-Side Optimization for Image Files
+            if (mediaType.Equals("photo", StringComparison.OrdinalIgnoreCase) && _imageOptimizer.IsImageExtension(safeExtension))
             {
-                await file.CopyToAsync(stream);
+                using var readStream = file.OpenReadStream();
+                var (optimizedBytes, optimizedExt, _) = await _imageOptimizer.OptimizeImageAsync(
+                    readStream,
+                    safeExtension,
+                    maxWidth: 1920,
+                    maxHeight: 1080,
+                    quality: 82L);
+
+                safeExtension = optimizedExt;
+                safeFileName = $"{publicId}{safeExtension}";
+                fullPhysicalPath = Path.Combine(uploadsFolder, safeFileName);
+
+                await File.WriteAllBytesAsync(fullPhysicalPath, optimizedBytes);
+            }
+            else
+            {
+                using (var stream = new FileStream(fullPhysicalPath, FileMode.Create))
+                {
+                    await file.CopyToAsync(stream);
+                }
             }
 
             string publicUrl = $"/uploads/{subFolder}/{safeFileName}";
@@ -95,9 +121,30 @@ namespace BookMyFun.Services
             }
 
             string fullPhysicalPath = Path.Combine(privateRoot, safeFileName);
-            using (var stream = new FileStream(fullPhysicalPath, FileMode.Create))
+
+            // Server-Side Optimization for raster ID documents (PNG/JPG) to minimize private storage footprint
+            if ((safeExtension == ".jpg" || safeExtension == ".png") && _imageOptimizer.IsImageExtension(safeExtension))
             {
-                await file.CopyToAsync(stream);
+                using var readStream = file.OpenReadStream();
+                var (optimizedBytes, optimizedExt, _) = await _imageOptimizer.OptimizeImageAsync(
+                    readStream,
+                    safeExtension,
+                    maxWidth: 1600,
+                    maxHeight: 1200,
+                    quality: 85L);
+
+                safeExtension = optimizedExt;
+                safeFileName = $"doc_client_{clientId}_{documentId}{safeExtension}";
+                fullPhysicalPath = Path.Combine(privateRoot, safeFileName);
+
+                await File.WriteAllBytesAsync(fullPhysicalPath, optimizedBytes);
+            }
+            else
+            {
+                using (var stream = new FileStream(fullPhysicalPath, FileMode.Create))
+                {
+                    await file.CopyToAsync(stream);
+                }
             }
 
             return safeFileName;
@@ -245,9 +292,10 @@ namespace BookMyFun.Services
         private static async Task<string> ValidateMagicBytesAndGetExtensionAsync(IFormFile file, string mediaType)
         {
             byte[] header = new byte[16];
+            int read;
             using (var stream = file.OpenReadStream())
             {
-                int read = await stream.ReadAsync(header, 0, header.Length);
+                read = await stream.ReadAsync(header, 0, header.Length);
                 if (read < 4) throw new ValidationException("file", "File is corrupt or too small to inspect.");
             }
 
@@ -260,10 +308,17 @@ namespace BookMyFun.Services
                 if (header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47) return ".png";
 
                 // WEBP: 'RIFF' .... 'WEBP'
-                if (header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46 &&
+                if (read >= 12 &&
+                    header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46 &&
                     header[8] == 0x57 && header[9] == 0x45 && header[10] == 0x42 && header[11] == 0x50) return ".webp";
 
-                throw new ValidationException("file", "Invalid image format. Allowed formats: JPG, PNG, WEBP with verified binary headers.");
+                // AVIF: ....ftypavif or ....ftypavis
+                if (read >= 12 &&
+                    header[4] == 0x66 && header[5] == 0x74 && header[6] == 0x79 && header[7] == 0x70 &&
+                    ((header[8] == 0x61 && header[9] == 0x76 && header[10] == 0x69 && header[11] == 0x66) ||
+                     (header[8] == 0x61 && header[9] == 0x76 && header[10] == 0x69 && header[11] == 0x73))) return ".avif";
+
+                throw new ValidationException("file", "Invalid image format. Allowed formats: JPG, PNG, WEBP, AVIF with verified binary headers.");
             }
             else if (mediaType.Equals("video", StringComparison.OrdinalIgnoreCase))
             {
@@ -286,9 +341,10 @@ namespace BookMyFun.Services
         private static async Task<string> ValidateDocumentMagicBytesAsync(IFormFile file)
         {
             byte[] header = new byte[16];
+            int read;
             using (var stream = file.OpenReadStream())
             {
-                int read = await stream.ReadAsync(header, 0, header.Length);
+                read = await stream.ReadAsync(header, 0, header.Length);
                 if (read < 4) throw new ValidationException("file", "Document file is too small or corrupt.");
             }
 
@@ -301,7 +357,18 @@ namespace BookMyFun.Services
             // PNG: 89 50 4E 47
             if (header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47) return ".png";
 
-            throw new ValidationException("file", "Invalid identity document format. Allowed formats: PDF, JPG, PNG with verified binary headers.");
+            // WEBP: 'RIFF' .... 'WEBP'
+            if (read >= 12 &&
+                header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46 &&
+                header[8] == 0x57 && header[9] == 0x45 && header[10] == 0x42 && header[11] == 0x50) return ".webp";
+
+            // AVIF: ....ftypavif or ....ftypavis
+            if (read >= 12 &&
+                header[4] == 0x66 && header[5] == 0x74 && header[6] == 0x79 && header[7] == 0x70 &&
+                ((header[8] == 0x61 && header[9] == 0x76 && header[10] == 0x69 && header[11] == 0x66) ||
+                 (header[8] == 0x61 && header[9] == 0x76 && header[10] == 0x69 && header[11] == 0x73))) return ".avif";
+
+            throw new ValidationException("file", "Invalid identity document format. Allowed formats: PDF, JPG, PNG, WEBP, AVIF with verified binary headers.");
         }
     }
 }

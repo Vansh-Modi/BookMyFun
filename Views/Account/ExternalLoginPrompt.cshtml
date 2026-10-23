@@ -1,6 +1,7 @@
 @model BookMyFun.Models.ViewModels.ExternalLoginPromptViewModel
 @{
     ViewData["Title"] = "Sign in with " + Model.Provider;
+    var activeEmail = !string.IsNullOrWhiteSpace(Model.ActiveProjectEmail) ? Model.ActiveProjectEmail : "showsgarage@gmail.com";
 }
 
 <div class="row justify-content-center my-4 my-md-5">
@@ -21,6 +22,21 @@
                 <p class="text-muted small mb-0">Sign in or register instantly with your Google account without a password or OTP</p>
             </div>
 
+            <!-- Active Project Google Credentials Status Pill -->
+            <div class="alert alert-light border d-flex align-items-center justify-content-between py-2 px-3 rounded-3 small mb-3">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-shield-check text-success fs-5"></i>
+                    <div>
+                        <div class="text-muted" style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Active Project Account</div>
+                        <strong class="text-dark">@activeEmail</strong>
+                    </div>
+                </div>
+                @if (Model.IsConfiguredInDatabase)
+                {
+                    <span class="badge bg-success-subtle text-success border border-success-subtle">Configured</span>
+                }
+            </div>
+
             @if (!ViewData.ModelState.IsValid)
             {
                 <div class="alert alert-danger py-2 px-3 rounded-3 small mb-3">
@@ -34,12 +50,13 @@
                 @Html.AntiForgeryToken()
                 <input type="hidden" asp-for="Provider" />
                 <input type="hidden" asp-for="ReturnUrl" />
+                <input type="hidden" asp-for="ActiveProjectEmail" />
 
                 <div class="mb-3">
                     <label asp-for="Email" class="form-label fw-semibold small text-muted">Google Email Address</label>
                     <div class="input-group">
                         <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope text-muted"></i></span>
-                        <input asp-for="Email" id="googleEmail" class="form-control border-start-0 ps-0" placeholder="e.g. name@gmail.com" required autofocus />
+                        <input asp-for="Email" id="googleEmail" class="form-control border-start-0 ps-0" placeholder="e.g. @activeEmail" required autofocus />
                     </div>
                     <span asp-validation-for="Email" class="text-danger small"></span>
                 </div>
@@ -48,7 +65,7 @@
                     <label asp-for="FullName" class="form-label fw-semibold small text-muted">Your Full Name</label>
                     <div class="input-group">
                         <span class="input-group-text bg-light border-end-0"><i class="bi bi-person text-muted"></i></span>
-                        <input asp-for="FullName" id="googleName" class="form-control border-start-0 ps-0" placeholder="e.g. John Doe" required />
+                        <input asp-for="FullName" id="googleName" class="form-control border-start-0 ps-0" placeholder="e.g. BookMyFun Project Admin" required />
                     </div>
                     <span asp-validation-for="FullName" class="text-danger small"></span>
                 </div>
@@ -56,14 +73,14 @@
                 <!-- Submit Button -->
                 <div class="d-grid mb-3">
                     <button type="submit" class="btn btn-warning btn-lg fw-bold rounded-3 shadow-sm py-2">
-                        <i class="bi bi-box-arrow-in-right me-1"></i> Continue with Google ID
+                        <i class="bi bi-box-arrow-in-right me-1"></i> Continue with Google
                     </button>
                 </div>
 
-                <!-- One-click Demo Button -->
+                <!-- One-click Active Project Account Button -->
                 <div class="d-grid mb-3">
-                    <button type="button" class="btn btn-outline-secondary btn-sm py-2 rounded-3" onclick="fillDemoGoogle()">
-                        <i class="bi bi-lightning-charge-fill text-warning me-1"></i> One-Click Demo Google Account
+                    <button type="button" class="btn btn-outline-dark btn-sm py-2 rounded-3 fw-semibold" onclick="fillProjectGoogle()">
+                        <i class="bi bi-google text-danger me-1"></i> Use Active Project Account (@activeEmail)
                     </button>
                 </div>
             </form>
@@ -76,17 +93,18 @@
                 </div>
                 <div class="collapse mt-2 pt-2 border-top" id="oauthConfigGuide">
                     <p class="text-muted mb-2">
-                        To enable live Google OAuth redirect across your domain, create an OAuth 2.0 Web Client in <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-primary text-decoration-none fw-semibold">Google Cloud Console</a>:
+                        To enable live Google OAuth redirect across your domain, create an OAuth 2.0 Web Client in <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-primary text-decoration-none fw-semibold">Google Cloud Console</a> using active project email <strong class="text-dark">@activeEmail</strong>:
                     </p>
                     <ol class="ps-3 mb-2 text-muted">
                         <li>Set Authorized redirect URI to: <code class="text-warning">/signin-google</code></li>
-                        <li>Add your Client ID &amp; Secret into <code class="text-info">appsettings.json</code> under <code class="text-info">Authentication:Google</code></li>
+                        <li>Add your Client ID &amp; Secret into <strong class="text-dark">Admin &rarr; Settings &rarr; Google OAuth</strong> or <code class="text-info">appsettings.json</code></li>
                     </ol>
                     <div class="p-2 rounded bg-dark text-white font-monospace small" style="font-size: 0.78rem;">
                         "Authentication": {<br />
                         &nbsp;&nbsp;"Google": {<br />
                         &nbsp;&nbsp;&nbsp;&nbsp;"ClientId": "YOUR_GOOGLE_CLIENT_ID",<br />
-                        &nbsp;&nbsp;&nbsp;&nbsp;"ClientSecret": "YOUR_GOOGLE_CLIENT_SECRET"<br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;"ClientSecret": "YOUR_GOOGLE_CLIENT_SECRET",<br />
+                        &nbsp;&nbsp;&nbsp;&nbsp;"ProjectEmail": "@activeEmail"<br />
                         &nbsp;&nbsp;}<br />
                         }
                     </div>
@@ -105,9 +123,12 @@
 
 @section Scripts {
 <script>
+    function fillProjectGoogle() {
+        document.getElementById('googleEmail').value = '@activeEmail';
+        document.getElementById('googleName').value = 'BookMyFun Project Admin';
+    }
     function fillDemoGoogle() {
-        document.getElementById('googleEmail').value = 'demo.google@bookmyfun.in';
-        document.getElementById('googleName').value = 'Demo Google User';
+        fillProjectGoogle();
     }
 </script>
 }

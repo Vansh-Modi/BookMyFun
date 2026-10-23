@@ -1,0 +1,291 @@
+@model BookMyFun.Models.ViewModels.BookingReceiptViewModel
+@{
+    ViewData["Title"] = $"Booking Receipt - #{Model.Booking.BookingID}";
+}
+
+<div class="receipt-container">
+    <!-- Top Action Bar (Hidden in Print) -->
+    <div class="receipt-action-bar no-print">
+        <div class="d-flex align-items-center gap-2">
+            <a asp-controller="Client" asp-action="Index" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1.5">
+                <i class="bi bi-arrow-left me-1"></i>My Bookings
+            </a>
+            @if (Model.IsAdminOrStaffView)
+            {
+                <a asp-controller="Owner" asp-action="BookingReceipt" asp-route-id="@Model.Booking.BookingID" target="_blank" class="btn btn-sm btn-outline-success rounded-pill px-3 py-1.5">
+                    <i class="bi bi-receipt me-1"></i>View Host Settlement
+                </a>
+            }
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            @if (!string.IsNullOrEmpty(Model.Property?.MapUrl))
+            {
+                <a href="@Model.Property.MapUrl" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1.5">
+                    <i class="bi bi-geo-alt-fill me-1"></i>Driving Directions
+                </a>
+            }
+            <form asp-controller="Booking" asp-action="ResendReceipt" method="post" class="d-inline">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="bookingId" value="@Model.Booking.BookingID" />
+                <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                <button type="submit" class="btn btn-sm btn-outline-success rounded-pill px-3 py-1.5 fw-semibold" id="btnReceiptResendDelivery">
+                    <i class="bi bi-send-check me-1"></i>Send to Email &amp; WhatsApp
+                </button>
+            </form>
+            <button type="button" onclick="window.print()" class="btn btn-sm btn-primary rounded-pill px-3 py-1.5 fw-bold shadow-sm">
+                <i class="bi bi-printer-fill me-1"></i>Print / Save PDF
+            </button>
+        </div>
+    </div>
+
+    <!-- Official Receipt Document -->
+    <div class="receipt-card">
+        <!-- Header Banner -->
+        <div class="receipt-header">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+                <div>
+                    <h1 class="receipt-brand-title">
+                        <i class="bi bi-shield-fill-check text-warning"></i> BOOKMYFUN
+                    </h1>
+                    <div class="receipt-brand-subtitle">Official Reservation Voucher &amp; Tax Receipt</div>
+                </div>
+                <div class="text-end">
+                    <span class="receipt-badge-verified">
+                        <i class="bi bi-check-circle-fill"></i> @(Model.Booking.Status.ToUpperInvariant() == "CONFIRMED" ? "CONFIRMED & PAID" : Model.Booking.Status.ToUpperInvariant())
+                    </span>
+                    <div class="text-light-subtle small mt-1 font-monospace" style="font-size: 0.78rem;">
+                        @Model.ReceiptNumber
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-2 mt-3 pt-3 border-top border-white border-opacity-10 small">
+                <div class="col-sm-4">
+                    <span class="text-white-50">Tax Invoice:</span>
+                    <strong class="text-white ms-1 font-monospace">@Model.TaxInvoiceNumber</strong>
+                </div>
+                <div class="col-sm-4 text-sm-center">
+                    <span class="text-white-50">Booking Ref:</span>
+                    <strong class="text-white ms-1">#@Model.Booking.BookingID</strong>
+                </div>
+                <div class="col-sm-4 text-sm-end">
+                    <span class="text-white-50">Issued:</span>
+                    <strong class="text-white ms-1">@Model.IssuedAt.ToString("MMM dd, yyyy - hh:mm tt")</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Body Content -->
+        <div class="receipt-body">
+            <!-- 2-Column Overview Cards -->
+            <div class="row g-3 mb-4">
+                <!-- Left: Property Details -->
+                <div class="col-md-6">
+                    <div class="receipt-info-card">
+                        <div class="receipt-section-title">
+                            <i class="bi bi-house-door-fill text-primary"></i> Property &amp; Destination
+                        </div>
+                        <h5 class="fw-bold text-dark mb-1">
+                            @(Model.Property?.Title ?? Model.Booking.PropertyTitle)
+                        </h5>
+                        <div class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 rounded-pill small mb-2">
+                            @(Model.Property?.PropertyTypeName ?? "Luxury Farmhouse / Villa")
+                        </div>
+                        <div class="small text-muted mb-2">
+                            <i class="bi bi-geo-alt me-1 text-danger"></i>
+                            @(Model.Property?.FormattedAddress ?? Model.Property?.Location ?? "Private Venue Location")
+                        </div>
+                        @if (!string.IsNullOrEmpty(Model.Property?.MapUrl))
+                        {
+                            <div class="small mb-2">
+                                <a href="@Model.Property.MapUrl" target="_blank" rel="noopener noreferrer" class="text-primary text-decoration-none fw-semibold">
+                                    <i class="bi bi-pin-map-fill me-1"></i>View on Google Maps &rarr;
+                                </a>
+                            </div>
+                        }
+                        <div class="small text-muted pt-2 border-top">
+                            <span>Host Partner:</span>
+                            <strong class="text-dark ms-1">@(Model.Host?.FullName ?? Model.Property?.OwnerName ?? "Certified Host")</strong>
+                            @if (!string.IsNullOrEmpty(Model.Host?.Phone))
+                            {
+                                <span class="ms-1 text-muted">(@Model.Host.Phone)</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Guest Information -->
+                <div class="col-md-6">
+                    <div class="receipt-info-card">
+                        <div class="receipt-section-title">
+                            <i class="bi bi-person-fill text-primary"></i> Primary Traveler / Guest
+                        </div>
+                        <h5 class="fw-bold text-dark mb-1">
+                            @(Model.Client?.FullName ?? Model.Booking.ClientName)
+                        </h5>
+                        <div class="small text-muted mb-1">
+                            <i class="bi bi-envelope me-1"></i>@(Model.Client?.Email ?? Model.Booking.ClientEmail)
+                        </div>
+                        @if (!string.IsNullOrEmpty(Model.Client?.Phone ?? Model.Booking.ClientPhone))
+                        {
+                            <div class="small text-muted mb-2">
+                                <i class="bi bi-telephone me-1"></i>@(Model.Client?.Phone ?? Model.Booking.ClientPhone)
+                            </div>
+                        }
+                        <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5 rounded-pill small">
+                                <i class="bi bi-shield-check me-1"></i>Verified Guest
+                            </span>
+                            <span class="badge bg-light text-dark border px-2 py-0.5 rounded-pill small">
+                                <i class="bi bi-people me-1"></i>Up to @(Model.Property?.MaxGuests ?? 10) Guests
+                            </span>
+                        </div>
+                        <div class="small text-muted pt-2 border-top">
+                            <span>Occasion:</span>
+                            <strong class="text-dark ms-1">@(Model.Booking.OccasionName ?? "Private Getaway / Leisure")</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Schedule Highlights Box -->
+            <div class="p-3 bg-light rounded-3 border mb-4">
+                <div class="row g-2 text-center">
+                    <div class="col-4 border-end">
+                        <div class="text-uppercase text-muted small fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Check-In</div>
+                        <div class="fw-bold text-dark fs-6 mt-1">@Model.Booking.CheckInDate.ToString("ddd, MMM dd, yyyy")</div>
+                        <div class="text-muted small" style="font-size: 0.75rem;">From 02:00 PM</div>
+                    </div>
+                    <div class="col-4 border-end">
+                        <div class="col text-uppercase text-muted small fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Check-Out</div>
+                        <div class="fw-bold text-dark fs-6 mt-1">@Model.Booking.CheckOutDate.ToString("ddd, MMM dd, yyyy")</div>
+                        <div class="text-muted small" style="font-size: 0.75rem;">Until 11:00 AM</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-uppercase text-muted small fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Booking Type</div>
+                        <div class="fw-bold text-primary fs-6 mt-1">@Model.Booking.BookingType</div>
+                        <div class="text-muted small" style="font-size: 0.75rem;">@(Model.Booking.SlotType ?? "Standard Stay")</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Itemized Billing Statement Table -->
+            <div class="receipt-section-title">
+                <i class="bi bi-receipt-cutoff text-primary"></i> Itemized Billing Statement
+            </div>
+            <div class="table-responsive">
+                <table class="receipt-table">
+                    <thead>
+                        <tr>
+                            <th>Item Description</th>
+                            <th>Category</th>
+                            <th class="text-end">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <div class="fw-bold text-dark">@(Model.Property?.Title ?? Model.Booking.PropertyTitle) Accommodation</div>
+                                <div class="text-muted small">Stay period: @Model.Booking.CheckInDate.ToString("MMM dd") &ndash; @Model.Booking.CheckOutDate.ToString("MMM dd, yyyy") (@Model.Booking.BookingType)</div>
+                            </td>
+                            <td><span class="badge bg-light text-dark border">Stay</span></td>
+                            <td class="text-end fw-semibold">₹@Model.PropertyStayGross.ToString("N2")</td>
+                        </tr>
+
+                        @if (Model.Booking.IsEventBooking && Model.EventPackagePrice > 0)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="fw-bold text-primary">
+                                        <i class="bi bi-palette2 me-1"></i>Celebration Décor: @(Model.Booking.EventPackageName ?? "Curated Décor Package")
+                                    </div>
+                                    <div class="text-muted small">Executed by Verified BookMyFun Event Decorator Studio</div>
+                                </td>
+                                <td><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">Décor Add-on</span></td>
+                                <td class="text-end fw-semibold text-primary">₹@Model.EventPackagePrice.ToString("N2")</td>
+                            </tr>
+                        }
+
+                        @if (Model.SecurityDeposit > 0)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="fw-bold text-dark">Security Deposit (Refundable)</div>
+                                    <div class="text-muted small">Held safely in BookMyFun escrow; released automatically post-checkout inspection</div>
+                                </td>
+                                <td><span class="badge bg-secondary-subtle text-secondary border">Escrow Deposit</span></td>
+                                <td class="text-end fw-semibold">₹@Model.SecurityDeposit.ToString("N2")</td>
+                            </tr>
+                        }
+
+                        <tr>
+                            <td>
+                                <div class="text-muted">Platform Facilitation &amp; GST</div>
+                                <div class="text-muted small">Standard Indian GST and platform insurance protection included</div>
+                            </td>
+                            <td><span class="badge bg-light text-muted border">Taxes &amp; Fees</span></td>
+                            <td class="text-end text-muted">₹0.00</td>
+                        </tr>
+
+                        <!-- Total Paid Row -->
+                        <tr class="receipt-total-row">
+                            <td colspan="2" class="text-uppercase fw-bold text-dark fs-6">
+                                Total Amount Paid in Full
+                            </td>
+                            <td class="text-end fs-5 fw-bold text-success">
+                                ₹@Model.TotalPaid.ToString("N2")
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Payment Transaction Proof -->
+            <div class="p-3 bg-light rounded-3 border mb-4">
+                <div class="row g-2 align-items-center">
+                    <div class="col-md-4">
+                        <div class="small text-muted">Payment Gateway</div>
+                        <div class="fw-bold text-dark">
+                            <i class="bi bi-credit-card-2-front text-primary me-1"></i>Razorpay Gateway (UPI / NetBanking / Cards)
+                        </div>
+                    </div>
+                    <div class="col-md-5">
+                        <div class="small text-muted">Transaction ID</div>
+                        <div class="fw-monospace text-dark small">
+                            @(Model.PrimaryPayment?.GatewayTransactionID ?? "RAZORPAY_TOKEN_" + Model.Booking.BookingID)
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-md-end">
+                        <div class="small text-muted">Status</div>
+                        <span class="badge bg-success px-2.5 py-1 rounded-pill fw-bold">
+                            <i class="bi bi-check-circle-fill me-1"></i>PAID &amp; SETTLED
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Important Guest Stay Policies -->
+            <div class="p-3 rounded-3 border bg-light-subtle mb-4">
+                <div class="fw-bold text-dark small mb-2">
+                    <i class="bi bi-info-circle-fill text-primary me-1"></i> Important Guest Check-In &amp; Stay Guidelines
+                </div>
+                <ul class="small text-muted ps-3 mb-0" style="line-height: 1.6;">
+                    <li><strong>Mandatory Identification:</strong> Government photo ID (Aadhaar, Passport, or Driving License) is required at the gate for all adult guests.</li>
+                    <li><strong>Cancellation Policy Snapshot:</strong> Free cancellation up to <strong>@Model.Booking.FreeCancellationWindowHoursSnapshot hours</strong> before check-in. Standard policy cutoff is @Model.Booking.CancellationCutoffHoursSnapshot hours.</li>
+                    <li><strong>Quiet Hours &amp; Decorum:</strong> Please respect community quiet hours from 10:00 PM onwards. Strictly no indoor smoking.</li>
+                    <li><strong>24/7 Guest Care:</strong> For route assistance or check-in support, contact BookMyFun Concierge at <strong>support@bookmyfun.in</strong> or <strong>+91 98765 43210</strong>.</li>
+                </ul>
+            </div>
+
+            <!-- Digital Seal & Verification Footer -->
+            <div class="pt-3 border-top text-center text-muted small">
+                <div class="fw-bold text-secondary text-uppercase" style="letter-spacing: 0.05em; font-size: 0.75rem;">
+                    BookMyFun Luxury Farmhouse, Villa &amp; Resort Network
+                </div>
+                <div style="font-size: 0.72rem;">
+                    This is an authorized system-generated confirmation voucher and tax receipt. No physical signature is required.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

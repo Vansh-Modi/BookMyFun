@@ -133,7 +133,15 @@
                                 <td><span class="text-muted">@p.OwnerName</span></td>
                                 <td><strong>₹@p.PricePerNight.ToString("N0")</strong></td>
                                 <td>
-                                    @if (p.IsApproved)
+                                    @if (p.ListingStatus == "Deactivated")
+                                    {
+                                        <span class="dash-badge dash-badge-secondary"><i class="bi bi-pause-circle-fill"></i> Deactivated</span>
+                                    }
+                                    else if (p.ListingStatus == "Rejected")
+                                    {
+                                        <span class="dash-badge dash-badge-danger text-danger"><i class="bi bi-x-circle-fill"></i> Rejected</span>
+                                    }
+                                    else if (p.IsApproved && p.ListingStatus == "Active")
                                     {
                                         <span class="dash-badge dash-badge-success"><i class="bi bi-check-circle-fill"></i> Approved</span>
                                     }
@@ -143,9 +151,55 @@
                                     }
                                 </td>
                                 <td class="text-end">
+                                    @if (!p.IsApproved || p.ListingStatus != "Active")
+                                    {
+                                        <form asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="true" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-outline-success" style="border-radius: 8px; padding: .25rem .55rem; font-size: .78rem;" title="Approve & Publish Listing">
+                                                <i class="bi bi-check-circle me-1"></i>Approve
+                                            </button>
+                                        </form>
+                                        @if (p.ListingStatus != "Rejected")
+                                        {
+                                            <form asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="false" asp-route-status="Rejected" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1" onsubmit="return confirm('Reject listing for property #@p.PropertyID?');">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" style="border-radius: 8px; padding: .25rem .55rem; font-size: .78rem;" title="Reject Listing">
+                                                    <i class="bi bi-x-circle me-1"></i>Reject
+                                                </button>
+                                            </form>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <form asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="false" asp-route-status="Draft" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1" onsubmit="return confirm('Revoke approval for property #@p.PropertyID?');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-outline-warning" style="border-radius: 8px; padding: .25rem .55rem; font-size: .78rem;" title="Revoke Approval">
+                                                <i class="bi bi-arrow-counterclockwise me-1"></i>Revoke
+                                            </button>
+                                        </form>
+                                    }
+
+                                    @if (p.ListingStatus == "Deactivated")
+                                    {
+                                        <form asp-action="DeactivateProperty" asp-route-id="@p.PropertyID" asp-route-deactivate="false" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-outline-success" style="border-radius: 8px; padding: .25rem .55rem; font-size: .78rem;" title="Activate">Activate</button>
+                                        </form>
+                                    }
+                                    else
+                                    {
+                                        <form asp-action="DeactivateProperty" asp-route-id="@p.PropertyID" asp-route-deactivate="true" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1" onsubmit="return confirm('Deactivate property #@p.PropertyID?');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-outline-secondary" style="border-radius: 8px; padding: .25rem .55rem; font-size: .78rem;" title="Deactivate">Deactivate</button>
+                                        </form>
+                                    }
                                     <a asp-action="EditProperty" asp-route-id="@p.PropertyID" class="dash-btn dash-btn-outline" style="padding: .25rem .65rem; font-size: .78rem;">
                                         Edit
                                     </a>
+                                    <form asp-action="DeleteProperty" asp-route-id="@p.PropertyID" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline" onsubmit="return confirm('Permanently delete property #@p.PropertyID?');">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" style="border-radius: 8px; padding: .25rem .55rem; font-size: .78rem;">Delete</button>
+                                    </form>
                                 </td>
                             </tr>
                         }

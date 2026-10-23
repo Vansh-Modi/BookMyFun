@@ -249,8 +249,8 @@
 
                     <div class="mb-3">
                         <label class="form-label fw-semibold small">Direct Upload Evidence Photos / Videos</label>
-                        <input type="file" name="EvidenceFiles" class="form-control" accept=".jpg,.jpeg,.png,.webp,.mp4,.mov" multiple />
-                        <small class="text-muted">Directly select photos or videos to upload as proof.</small>
+                        <input type="file" name="EvidenceFiles" class="form-control" accept=".jpg,.jpeg,.png,.webp,.mp4,.mov" multiple onchange="if(window.ImageOptimizer && this.files) { const inp = this; ImageOptimizer.optimizeFiles(this.files, { maxWidth: 1600, maxHeight: 1200 }).then(files => { const dt = new DataTransfer(); files.forEach(f => dt.items.add(f)); inp.files = dt.files; }); }" />
+                        <small class="text-muted">Directly select photos or videos to upload as proof (auto-optimized to modern WebP).</small>
                     </div>
 
                     <div class="mb-3">

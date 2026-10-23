@@ -16,6 +16,7 @@ namespace BookMyFun.Repositories
         Task<bool> DeleteUserAsync(int userId);
         Task<bool> ResetPasswordAsync(string email, string newPasswordHash);
         Task<bool> UpdateUserTierAndCommissionAsync(int userId, string subscriptionTier, decimal? customCommissionRate);
+        Task<bool> UpdateUserCommissionRateAsync(int userId, decimal? customCommissionRate);
         Task<bool> LinkAuthProviderAsync(int userId, string provider, string providerKey, string? profilePic = null);
     }
 
@@ -128,6 +129,20 @@ namespace BookMyFun.Repositories
 
             var rows = await _db.ExecuteNonQueryAsync(sql,
                 new SqlParameter("@SubscriptionTier", subscriptionTier),
+                new SqlParameter("@CustomCommissionRate", DBHelper.ToDbValue(customCommissionRate)),
+                new SqlParameter("@UserID", userId));
+
+            return rows > 0;
+        }
+
+        public async Task<bool> UpdateUserCommissionRateAsync(int userId, decimal? customCommissionRate)
+        {
+            const string sql = @"
+                UPDATE Users
+                SET CustomCommissionRate = @CustomCommissionRate
+                WHERE UserID = @UserID";
+
+            var rows = await _db.ExecuteNonQueryAsync(sql,
                 new SqlParameter("@CustomCommissionRate", DBHelper.ToDbValue(customCommissionRate)),
                 new SqlParameter("@UserID", userId));
 

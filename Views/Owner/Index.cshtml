@@ -198,6 +198,9 @@
                         @if (b.Status == "Confirmed")
                         {
                             <div class="d-flex justify-content-end gap-2 pt-2 mt-2 border-top">
+                                <a asp-action="BookingReceipt" asp-route-id="@b.BookingID" target="_blank" class="btn btn-sm btn-outline-success rounded-pill px-3 py-1" style="font-size: 0.78rem;" title="View Host Settlement Receipt">
+                                    <i class="bi bi-receipt me-1"></i>Host Receipt
+                                </a>
                                 <a asp-action="DamageClaims" class="btn btn-sm btn-outline-danger rounded-pill px-3 py-1" style="font-size: 0.78rem;">
                                     <i class="bi bi-shield-exclamation me-1"></i> File Damage Claim
                                 </a>
@@ -225,10 +228,13 @@
                     All (@Model.Properties.Count)
                 </button>
                 <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-0 filter-owner-prop-btn text-success" style="font-size: .75rem;" onclick="filterOwnerProps('approved', this)">
-                    Live (@Model.Properties.Count(p => p.IsApproved))
+                    Live (@Model.Properties.Count(p => p.IsApproved && p.ListingStatus == "Active"))
+                </button>
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-0 filter-owner-prop-btn text-secondary" style="font-size: .75rem;" onclick="filterOwnerProps('deactivated', this)">
+                    Unpublished (@Model.Properties.Count(p => p.ListingStatus == "Deactivated"))
                 </button>
                 <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-0 filter-owner-prop-btn text-warning" style="font-size: .75rem;" onclick="filterOwnerProps('waiting', this)">
-                    Review (@Model.Properties.Count(p => !p.IsApproved && p.ListingStatus != "Rejected"))
+                    Review (@Model.Properties.Count(p => !p.IsApproved && p.ListingStatus != "Rejected" && p.ListingStatus != "Deactivated"))
                 </button>
                 <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-0 filter-owner-prop-btn text-danger" style="font-size: .75rem;" onclick="filterOwnerProps('rejected', this)">
                     Rejected (@Model.Properties.Count(p => p.ListingStatus == "Rejected"))
@@ -246,16 +252,60 @@
                 }
                 @foreach (var p in Model.Properties)
                 {
-                    var propStatus = p.ListingStatus == "Rejected" ? "rejected" : (p.IsApproved ? "approved" : "waiting");
+                    var isDeactivated = p.ListingStatus == "Deactivated";
+                    var propStatus = p.ListingStatus == "Rejected" ? "rejected" : (isDeactivated ? "deactivated" : (p.IsApproved && p.ListingStatus == "Active" ? "approved" : "waiting"));
                     <div class="list-group-item p-3 owner-prop-row" data-status="@propStatus">
                         <div class="d-flex justify-content-between align-items-start mb-1">
-                            <h6 class="fw-bold mb-0 text-heading text-dark text-truncate" style="max-width: 190px;">@p.Title</h6>
-                            <a asp-action="EditProperty" asp-route-id="@p.PropertyID" class="btn btn-sm btn-outline-primary rounded-pill py-0.5 px-2.5" style="font-size: 0.75rem;">
-                                <i class="bi bi-pencil me-1"></i>Edit
-                            </a>
+                            <h6 class="fw-bold mb-0 text-heading text-dark text-truncate" style="max-width: 170px;">@p.Title</h6>
+                            <div class="d-flex align-items-center gap-1">
+                                <a asp-action="EditProperty" asp-route-id="@p.PropertyID" class="btn btn-sm btn-outline-primary rounded-pill py-0.5 px-2" style="font-size: 0.75rem;">
+                                    <i class="bi bi-pencil me-1"></i>Edit
+                                </a>
+                                @if (p.ListingStatus == "Active")
+                                {
+                                    <form asp-action="DeactivateProperty" asp-route-id="@p.PropertyID" asp-route-deactivate="true" method="post" class="d-inline" onsubmit="return confirm('Unpublish @p.Title? It will be temporarily hidden from travelers and searches.');">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-outline-warning rounded-pill py-0.5 px-2" style="font-size: 0.75rem;" title="Deactivate / Unpublish">
+                                            <i class="bi bi-pause-circle me-1"></i>Unpublish
+                                        </button>
+                                    </form>
+                                }
+                                else if (p.ListingStatus == "Deactivated")
+                                {
+                                    <form asp-action="DeactivateProperty" asp-route-id="@p.PropertyID" asp-route-deactivate="false" method="post" class="d-inline" onsubmit="return confirm('Publish and reactivate @p.Title?');">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-outline-success rounded-pill py-0.5 px-2" style="font-size: 0.75rem;" title="Activate / Publish">
+                                            <i class="bi bi-play-circle me-1"></i>Publish
+                                        </button>
+                                    </form>
+                                }
+                            </div>
                         </div>
-                        <div class="small text-muted mb-2">
-                            <i class="bi bi-geo-alt-fill text-danger me-1"></i>@p.Location
+                        <div class="small text-muted mb-2 d-flex flex-wrap align-items-center gap-2">
+                            <span><i class="bi bi-geo-alt-fill text-danger me-1"></i>@p.Location</span>
+                            @if (!string.IsNullOrWhiteSpace(p.MapUrl))
+                            {
+                                <a href="@p.MapUrl" target="_blank" class="badge bg-success-subtle text-success border border-success-subtle text-decoration-none py-1 px-2" title="Open verified Google Maps location in new tab">
+                                    <i class="bi bi-map-fill me-1"></i>Map Link
+                                </a>
+                            }
+                            else
+                            {
+                                <span class="badge bg-light text-muted border py-1 px-2">
+                                    <i class="bi bi-geo me-1"></i>No Map URL
+                                </span>
+                            }
+                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill py-0 px-2" style="font-size: 0.70rem;" data-bs-toggle="modal" data-bs-target="#modalUpdateMap_@p.PropertyID">
+                                <i class="bi bi-pin-map me-1"></i>@(string.IsNullOrWhiteSpace(p.MapUrl) ? "Add Map Link" : "Update Map Link")
+                            </button>
+                        </div>
+                        <div class="small text-muted mb-2 d-flex flex-wrap align-items-center gap-2">
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-1 px-2" title="Property Category">
+                                <i class="bi bi-tag-fill me-1"></i>@(string.IsNullOrWhiteSpace(p.PropertyTypeName) ? "Uncategorized" : p.PropertyTypeName)
+                            </span>
+                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill py-0 px-2" style="font-size: 0.70rem;" data-bs-toggle="modal" data-bs-target="#modalAssignCategory_@p.PropertyID">
+                                <i class="bi bi-tag me-1"></i>Assign Category
+                            </button>
                         </div>
                         <div class="d-flex justify-content-between align-items-center">
                             <strong class="text-success small">₹@p.PricePerNight.ToString("N0") <span class="text-muted fw-normal">/ night</span></strong>
@@ -264,7 +314,11 @@
                                 {
                                     <span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Rejected</span>
                                 }
-                                else if (p.IsApproved)
+                                else if (p.ListingStatus == "Deactivated")
+                                {
+                                    <span class="badge bg-secondary"><i class="bi bi-pause-circle-fill me-1"></i>Unpublished</span>
+                                }
+                                else if (p.IsApproved && p.ListingStatus == "Active")
                                 {
                                     <span class="dash-badge dash-badge-success"><i class="bi bi-check-circle-fill"></i> Live</span>
                                 }
@@ -272,6 +326,112 @@
                                 {
                                     <span class="dash-badge dash-badge-warning"><i class="bi bi-clock-fill"></i> Review</span>
                                 }
+                            </div>
+                        </div>
+
+                        <!-- Modal: Update Map URL for @p.Title -->
+                        <div class="modal fade" id="modalUpdateMap_@p.PropertyID" tabindex="-1" aria-labelledby="modalLabel_@p.PropertyID" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content border-0 shadow-lg rounded-4">
+                                    <div class="modal-header border-bottom py-3">
+                                        <h6 class="modal-title fw-bold text-dark" id="modalLabel_@p.PropertyID">
+                                            <i class="bi bi-pin-map-fill text-danger me-2"></i>Map Location Link — @p.Title
+                                        </h6>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <form asp-action="UpdateLocationUrl" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="propertyId" value="@p.PropertyID" />
+                                        <input type="hidden" name="returnUrl" value="/Owner/Index" />
+                                        <div class="modal-body p-4">
+                                            <p class="text-muted small mb-3">
+                                                Submit or update your listing's exact Google Maps location link (e.g. share pin, directions URL). Confirmed guests receive this direct navigation link.
+                                            </p>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold small text-secondary">City / Region</label>
+                                                <input type="text" class="form-control form-control-sm bg-light" value="@p.Location" readonly />
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold small">Direct Google Maps / Location URL</label>
+                                                <div class="input-group">
+                                                    <span class="input-group-text bg-light"><i class="bi bi-link-45deg text-primary"></i></span>
+                                                    <input type="url" name="mapUrl" class="form-control" placeholder="https://maps.app.goo.gl/... or https://goo.gl/maps/..." value="@p.MapUrl" />
+                                                </div>
+                                                <small class="form-text text-muted">Leave empty to remove the direct map link.</small>
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(p.MapUrl))
+                                            {
+                                                <div class="alert alert-light border d-flex align-items-center justify-content-between p-2 mb-0">
+                                                    <span class="small text-truncate" style="max-width: 280px;"><i class="bi bi-check-circle-fill text-success me-1"></i>Current: @p.MapUrl</span>
+                                                    <a href="@p.MapUrl" target="_blank" class="btn btn-sm btn-outline-success py-0.5 px-2" style="font-size: 0.75rem;">
+                                                        <i class="bi bi-box-arrow-up-right me-1"></i>Open
+                                                    </a>
+                                                </div>
+                                            }
+                                        </div>
+                                        <div class="modal-footer border-top py-2 px-4 d-flex justify-content-between">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3">
+                                                <i class="bi bi-save me-1"></i>Save Map Location Link
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Modal: Assign Category for @p.Title -->
+                        <div class="modal fade" id="modalAssignCategory_@p.PropertyID" tabindex="-1" aria-labelledby="modalCatLabel_@p.PropertyID" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content border-0 shadow-lg rounded-4">
+                                    <div class="modal-header border-bottom py-3">
+                                        <h6 class="modal-title fw-bold text-dark" id="modalCatLabel_@p.PropertyID">
+                                            <i class="bi bi-tag-fill text-primary me-2"></i>Assign Category — @p.Title
+                                        </h6>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <form asp-action="AssignCategory" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="propertyId" value="@p.PropertyID" />
+                                        <input type="hidden" name="returnUrl" value="/Owner/Index" />
+                                        <div class="modal-body p-4">
+                                            <p class="text-muted small mb-3">
+                                                Assign a standard category or create a custom category for your listing to increase discoverability on BookMyFun.
+                                            </p>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold small text-secondary">Current Category</label>
+                                                <input type="text" class="form-control form-control-sm bg-light" value="@(string.IsNullOrWhiteSpace(p.PropertyTypeName) ? "Uncategorized" : p.PropertyTypeName)" readonly />
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold small">Select Existing Category</label>
+                                                <select name="propertyTypeId" class="form-select form-select-sm">
+                                                    <option value="">-- Choose Category --</option>
+                                                    @if (Model.AvailableCategories != null)
+                                                    {
+                                                        foreach (var cat in Model.AvailableCategories)
+                                                        {
+                                                            <option value="@cat.PropertyTypeID" selected="@(cat.PropertyTypeID == p.PropertyTypeID ? "selected" : null)">@cat.TypeName</option>
+                                                        }
+                                                    }
+                                                </select>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold small">Or Enter a Custom Category</label>
+                                                <div class="input-group input-group-sm">
+                                                    <span class="input-group-text bg-light"><i class="bi bi-plus-circle text-primary"></i></span>
+                                                    <input type="text" name="customCategory" class="form-control" placeholder="e.g. Glamping, Treehouse, Eco-Stay, Beach House" maxlength="50" />
+                                                </div>
+                                                <small class="form-text text-muted">If specified, this new category will be created and assigned automatically.</small>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer border-top py-2 px-4 d-flex justify-content-between">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3">
+                                                <i class="bi bi-check2-circle me-1"></i>Save Category
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
                             </div>
                         </div>
                     </div>

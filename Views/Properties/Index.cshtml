@@ -6,31 +6,7 @@
 }
 
 <style>
-    :root {
-        /* 60% Dominant - Clean, airy backgrounds */
-        --bg-primary: #F8FAFC;       /* Crisp Alabaster White */
-        --bg-card: #FFFFFF;          /* Pure White for Villa Cards */
-        --bg-glass: rgba(255, 255, 255, 0.85); /* For sticky navbars */
-
-        /* 30% Structural - Deep trust & typography */
-        --brand-navy: #0B4F6C;       /* Deep Oceanic Blue (from 'Book' & 'Fun') */
-        --brand-navy-dark: #083c53;  /* Hover state */
-        --brand-sky: #01BAEF;        /* Vibrant Pool Blue (links & active states) */
-        --text-main: #0F172A;        /* Deep Slate (easier on the eyes than #000000) */
-        --text-muted: #64748B;       /* Soft Grey for property sub-details */
-        --border-subtle: #E2E8F0;    /* Hairline card borders */
-
-        /* 10% Accents - Eco tags & high-conversion buttons */
-        --brand-green: #2E933C;      /* Palm Green (from 'My' - use for 'Verified' or category pills) */
-        --brand-green-subtle: rgba(46, 147, 60, 0.12);
-        --brand-gold: #F59E0B;       /* Sunburst Gold (for ratings & urgent 'Hot Deal' badges) */
-        --brand-gold-subtle: rgba(245, 158, 11, 0.15);
-
-        /* Soft ambient luxury elevation */
-        --shadow-ambient: 0 10px 30px -5px rgba(11, 79, 108, 0.05);
-        --shadow-hover: 0 20px 35px -5px rgba(11, 79, 108, 0.12);
-    }
-
+    /* Scoped Luxe Catalog Styles (Tokens inherited from site.css) */
     .luxe-catalog-wrap {
         background-color: var(--bg-primary);
         font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -430,6 +406,105 @@
         font-size: 2.2rem;
         color: var(--brand-navy);
         margin-bottom: 1.5rem;
+    }
+
+    /* Dark Mode Overrides for Luxe Catalog */
+    [data-theme="dark"] .luxe-control,
+    [data-bs-theme="dark"] .luxe-control {
+        background: #0f172a;
+        border-color: var(--border-subtle);
+        color: var(--text-main);
+    }
+    [data-theme="dark"] .luxe-control:focus,
+    [data-bs-theme="dark"] .luxe-control:focus {
+        background: #1e293b;
+        color: #f1f5f9;
+        border-color: var(--brand-sky);
+    }
+    [data-theme="dark"] .luxe-category-pill,
+    [data-bs-theme="dark"] .luxe-category-pill {
+        background: var(--bg-card);
+        color: var(--text-muted);
+        border-color: var(--border-subtle);
+    }
+    [data-theme="dark"] .luxe-category-pill:hover,
+    [data-bs-theme="dark"] .luxe-category-pill:hover {
+        background: #273549;
+        color: var(--brand-navy);
+        border-color: rgba(56, 189, 248, 0.4);
+    }
+    [data-theme="dark"] .luxe-category-pill.active,
+    [data-bs-theme="dark"] .luxe-category-pill.active {
+        background: var(--brand-green);
+        color: #ffffff;
+        border-color: var(--brand-green);
+    }
+    [data-theme="dark"] .luxe-img-container,
+    [data-bs-theme="dark"] .luxe-img-container {
+        background: #0f172a;
+    }
+    [data-theme="dark"] .luxe-card-rating,
+    [data-bs-theme="dark"] .luxe-card-rating {
+        background: rgba(15, 23, 42, 0.92);
+        border-color: rgba(51, 65, 85, 0.8);
+        color: var(--text-main);
+    }
+    [data-theme="dark"] .luxe-card-heading,
+    [data-bs-theme="dark"] .luxe-card-heading {
+        color: #f1f5f9;
+    }
+    [data-theme="dark"] .luxe-price-figure,
+    [data-bs-theme="dark"] .luxe-price-figure {
+        color: #f1f5f9;
+    }
+    [data-theme="dark"] .luxe-btn-secondary,
+    [data-bs-theme="dark"] .luxe-btn-secondary {
+        background: var(--bg-card);
+        color: var(--brand-navy);
+        border-color: var(--border-subtle);
+    }
+    [data-theme="dark"] .luxe-btn-secondary:hover,
+    [data-bs-theme="dark"] .luxe-btn-secondary:hover {
+        background: #273549;
+        color: #7dd3fc;
+        border-color: rgba(56, 189, 248, 0.4);
+    }
+    [data-theme="dark"] .luxe-empty-icon,
+    [data-bs-theme="dark"] .luxe-empty-icon {
+        background: #0f172a;
+        border-color: var(--border-subtle);
+        color: var(--brand-navy);
+    }
+
+    /* Responsive Breakpoints for Luxe Catalog (Task 17) */
+    @@media (max-width: 767.98px) {
+        .luxe-search-card {
+            padding: 1.25rem 1rem;
+            border-radius: 16px;
+        }
+        .luxe-title {
+            font-size: clamp(1.5rem, 5vw, 1.85rem);
+        }
+        .luxe-category-bar {
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.25rem;
+        }
+        .luxe-img-container {
+            height: 200px;
+        }
+    }
+
+    @@media (max-width: 480px) {
+        .luxe-card-actions {
+            grid-template-columns: 1fr;
+            gap: 0.5rem;
+        }
+        .luxe-btn-secondary,
+        .luxe-btn-primary {
+            width: 100%;
+            padding: 0.65rem 1rem;
+            min-height: 42px;
+        }
     }
 </style>
 

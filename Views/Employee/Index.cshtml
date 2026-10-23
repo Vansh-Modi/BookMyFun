@@ -1,7 +1,8 @@
 @model IEnumerable<BookMyFun.Models.Entities.Property>
 @{
     ViewData["Title"] = "Employee Operations Console";
-    var totalProps = ViewBag.TotalProperties ?? 0;
+    var totalProps = ViewBag.TotalProperties ?? Model?.Count() ?? 0;
+    var pendingPropertyApprovals = ViewBag.PendingPropertyApprovals ?? Model?.Count(p => !p.IsApproved && p.ListingStatus != "Rejected" && p.ListingStatus != "Deactivated") ?? 0;
     var totalBookings = ViewBag.TotalBookings ?? 0;
     var pendingBookings = ViewBag.PendingBookings ?? 0;
     var pendingLeads = ViewBag.PendingLeads ?? 0;
@@ -50,6 +51,23 @@
         <div class="dash-stat-val">@totalProps</div>
         <div class="dash-stat-sub"><i class="bi bi-check2-circle text-primary me-1"></i>Active listings on platform</div>
     </a>
+    <a href="javascript:void(0)" onclick="filterEmployeeProps('waiting', document.querySelector('[data-filter=waiting]'))" class="dash-stat-card text-decoration-none">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Pending Property Approvals</span>
+            <span class="dash-stat-icon icon-amber"><i class="bi bi-patch-check-fill"></i></span>
+        </div>
+        <div class="dash-stat-val">@pendingPropertyApprovals</div>
+        <div class="dash-stat-sub">
+            @if (pendingPropertyApprovals > 0)
+            {
+                <span class="text-warning fw-semibold"><i class="bi bi-clock-history me-1"></i>Awaiting verification &amp; review</span>
+            }
+            else
+            {
+                <span class="text-muted"><i class="bi bi-check2-all me-1"></i>All properties reviewed</span>
+            }
+        </div>
+    </a>
     <a asp-action="PartnerLeads" class="dash-stat-card text-decoration-none">
         <div class="dash-stat-top">
             <span class="dash-stat-label">Pending Partner Leads</span>
@@ -79,14 +97,34 @@
 
 <!-- Property Inventory Card -->
 <div class="dash-card">
-    <div class="dash-card-header">
-        <h3 class="dash-card-title"><i class="bi bi-building me-2 text-primary"></i>Active Property Inventory</h3>
+    <div class="dash-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <h3 class="dash-card-title mb-0"><i class="bi bi-building me-2 text-primary"></i>Property Inventory &amp; Verifications</h3>
         <a asp-action="ManageProperties" class="dash-btn dash-btn-outline" style="padding: .35rem .85rem; font-size: .8rem;">
             <i class="bi bi-list-check"></i> Manage All Properties
         </a>
     </div>
+
+    <!-- Quick Filter Pills -->
+    <div class="d-flex flex-wrap gap-2 px-3 pt-3 pb-2 border-bottom">
+        <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 filter-prop-btn active" data-filter="all" onclick="filterEmployeeProps('all', this)">
+            All (@(Model?.Count() ?? 0))
+        </button>
+        <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-prop-btn text-warning" data-filter="waiting" onclick="filterEmployeeProps('waiting', this)">
+            <i class="bi bi-clock-fill me-1"></i>Pending Review (@(Model?.Count(p => !p.IsApproved && p.ListingStatus != "Rejected" && p.ListingStatus != "Deactivated") ?? 0))
+        </button>
+        <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-prop-btn text-success" data-filter="approved" onclick="filterEmployeeProps('approved', this)">
+            <i class="bi bi-check-circle-fill me-1"></i>Approved &amp; Live (@(Model?.Count(p => p.IsApproved && p.ListingStatus == "Active") ?? 0))
+        </button>
+        <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-prop-btn text-danger" data-filter="rejected" onclick="filterEmployeeProps('rejected', this)">
+            <i class="bi bi-x-circle-fill me-1"></i>Rejected (@(Model?.Count(p => p.ListingStatus == "Rejected") ?? 0))
+        </button>
+        <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-prop-btn text-secondary" data-filter="deactivated" onclick="filterEmployeeProps('deactivated', this)">
+            <i class="bi bi-pause-circle-fill me-1"></i>Deactivated (@(Model?.Count(p => p.ListingStatus == "Deactivated") ?? 0))
+        </button>
+    </div>
+
     <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-hover align-middle mb-0" id="employeePropertiesTable">
             <thead>
                 <tr>
                     <th>Property Title</th>
@@ -99,48 +137,126 @@
                 </tr>
             </thead>
             <tbody>
-                @if (!Model.Any())
+                @if (Model == null || !Model.Any())
                 {
                     <tr>
                         <td colspan="7" class="text-center py-4 text-muted">No properties found.</td>
                     </tr>
                 }
-                @foreach (var p in Model)
+                else
                 {
-                    <tr>
-                        <td>
-                            <div class="d-flex align-items-center">
-                                <img src="@p.PrimaryImageUrl" class="rounded me-2" style="width: 44px; height: 44px; object-fit: cover;" onerror="this.src='/images/placeholder.jpg';" />
-                                <div>
-                                    <div class="fw-semibold">@p.Title</div>
-                                    <small class="text-muted"><i class="bi bi-people me-1"></i>Max @p.MaxGuests Guests</small>
+                    @foreach (var p in Model)
+                    {
+                        var statusCategory = p.ListingStatus == "Deactivated" ? "deactivated" : (p.ListingStatus == "Rejected" ? "rejected" : (p.IsApproved && p.ListingStatus == "Active" ? "approved" : "waiting"));
+                        <tr class="prop-row" data-status="@statusCategory">
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <img src="@p.PrimaryImageUrl" class="rounded me-2" style="width: 44px; height: 44px; object-fit: cover;" onerror="this.src='/images/placeholder.jpg';" />
+                                    <div>
+                                        <div class="fw-semibold">@p.Title</div>
+                                        <small class="text-muted"><i class="bi bi-people me-1"></i>Max @p.MaxGuests Guests</small>
+                                    </div>
                                 </div>
-                            </div>
-                        </td>
-                        <td><span class="badge bg-secondary">@p.PropertyTypeName</span></td>
-                        <td><span class="text-muted">@p.OwnerName</span></td>
-                        <td><small><i class="bi bi-geo-alt-fill text-danger me-1"></i>@p.Location</small></td>
-                        <td><strong>₹@p.PricePerNight.ToString("N0")</strong></td>
-                        <td>
-                            @if (p.IsApproved)
-                            {
-                                <span class="dash-badge dash-badge-success"><i class="bi bi-check-circle-fill"></i> Approved</span>
-                            }
-                            else
-                            {
-                                <span class="dash-badge dash-badge-warning"><i class="bi bi-clock-fill"></i> Pending</span>
-                            }
-                        </td>
-                        <td class="text-end">
-                            <a asp-action="EditProperty" asp-route-id="@p.PropertyID" class="dash-btn dash-btn-outline" style="padding: .25rem .6rem; font-size: .78rem;">Edit</a>
-                            <form asp-action="DeleteProperty" asp-route-id="@p.PropertyID" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this property?');">
-                                <button type="submit" class="btn btn-sm btn-outline-danger" style="border-radius: 8px; padding: .25rem .55rem; font-size: .78rem;">Delete</button>
-                            </form>
-                        </td>
-                    </tr>
+                            </td>
+                            <td><span class="badge bg-secondary">@p.PropertyTypeName</span></td>
+                            <td><span class="text-muted">@p.OwnerName</span></td>
+                            <td><small><i class="bi bi-geo-alt-fill text-danger me-1"></i>@p.Location</small></td>
+                            <td><strong>₹@p.PricePerNight.ToString("N0")</strong></td>
+                            <td>
+                                @if (p.ListingStatus == "Deactivated")
+                                {
+                                    <span class="dash-badge dash-badge-secondary"><i class="bi bi-pause-circle-fill"></i> Deactivated</span>
+                                }
+                                else if (p.ListingStatus == "Rejected")
+                                {
+                                    <span class="dash-badge dash-badge-danger text-danger"><i class="bi bi-x-circle-fill"></i> Rejected</span>
+                                }
+                                else if (p.IsApproved && p.ListingStatus == "Active")
+                                {
+                                    <span class="dash-badge dash-badge-success"><i class="bi bi-check-circle-fill"></i> Approved</span>
+                                }
+                                else
+                                {
+                                    <span class="dash-badge dash-badge-warning"><i class="bi bi-clock-fill"></i> Pending Review</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <!-- Approve / Reject / Revoke Buttons -->
+                                @if (!p.IsApproved || p.ListingStatus != "Active")
+                                {
+                                    <form asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="true" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-outline-success" style="border-radius: 8px; padding: .25rem .55rem; font-size: .78rem;" title="Approve & Publish Listing">
+                                            <i class="bi bi-check-circle me-1"></i>Approve
+                                        </button>
+                                    </form>
+                                    @if (p.ListingStatus != "Rejected")
+                                    {
+                                        <form asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="false" asp-route-status="Rejected" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1" onsubmit="return confirm('Reject listing for property #@p.PropertyID (@p.Title)?');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" style="border-radius: 8px; padding: .25rem .55rem; font-size: .78rem;" title="Reject Listing">
+                                                <i class="bi bi-x-circle me-1"></i>Reject
+                                            </button>
+                                        </form>
+                                    }
+                                }
+                                else
+                                {
+                                    <form asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="false" asp-route-status="Draft" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1" onsubmit="return confirm('Revoke approval for property #@p.PropertyID? This will move it back to draft.');">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-outline-warning" style="border-radius: 8px; padding: .25rem .55rem; font-size: .78rem;" title="Revoke Approval">
+                                            <i class="bi bi-arrow-counterclockwise me-1"></i>Revoke
+                                        </button>
+                                    </form>
+                                }
+
+                                @if (p.ListingStatus == "Deactivated")
+                                {
+                                    <form asp-action="DeactivateProperty" asp-route-id="@p.PropertyID" asp-route-deactivate="false" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-outline-success" style="border-radius: 8px; padding: .25rem .55rem; font-size: .78rem;" title="Activate">Activate</button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <form asp-action="DeactivateProperty" asp-route-id="@p.PropertyID" asp-route-deactivate="true" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1" onsubmit="return confirm('Deactivate property #@p.PropertyID?');">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary" style="border-radius: 8px; padding: .25rem .55rem; font-size: .78rem;" title="Deactivate">Deactivate</button>
+                                    </form>
+                                }
+                                <a asp-action="EditProperty" asp-route-id="@p.PropertyID" class="dash-btn dash-btn-outline" style="padding: .25rem .6rem; font-size: .78rem;">Edit</a>
+                                <form asp-action="DeleteProperty" asp-route-id="@p.PropertyID" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline" onsubmit="return confirm('Permanently delete property #@p.PropertyID?');">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" style="border-radius: 8px; padding: .25rem .55rem; font-size: .78rem;">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>
     </div>
 </div>
+
+<script>
+    function filterEmployeeProps(status, btn) {
+        document.querySelectorAll('.filter-prop-btn').forEach(b => {
+            b.classList.remove('btn-primary', 'active');
+            b.classList.add('btn-light');
+        });
+        if (btn) {
+            btn.classList.remove('btn-light');
+            btn.classList.add('btn-primary', 'active');
+        }
+
+        const rows = document.querySelectorAll('#employeePropertiesTable .prop-row');
+        rows.forEach(r => {
+            if (status === 'all' || r.getAttribute('data-status') === status) {
+                r.style.display = '';
+            } else {
+                r.style.display = 'none';
+            }
+        });
+    }
+</script>
 

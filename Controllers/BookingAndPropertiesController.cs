@@ -60,6 +60,7 @@ namespace BookMyFun.Controllers
         private readonly IUserRepository _userRepo;
         private readonly IIdVerificationService _idVerificationService;
         private readonly IMediaStorageService _mediaStorage;
+        private readonly IConfigRepository? _configRepo;
 
         public BookingController(
             IPropertyRepository propRepo,
@@ -74,7 +75,8 @@ namespace BookMyFun.Controllers
             IWhatsAppService whatsAppService,
             IUserRepository userRepo,
             IIdVerificationService idVerificationService,
-            IMediaStorageService mediaStorage)
+            IMediaStorageService mediaStorage,
+            IConfigRepository? configRepo = null)
         {
             _propRepo = propRepo;
             _bookingRepo = bookingRepo;
@@ -89,6 +91,7 @@ namespace BookMyFun.Controllers
             _userRepo = userRepo;
             _idVerificationService = idVerificationService;
             _mediaStorage = mediaStorage;
+            _configRepo = configRepo;
         }
 
         [Authorize]
@@ -367,73 +370,69 @@ namespace BookMyFun.Controllers
 
         private async Task DispatchConfirmedBookingAlertsAsync(Booking booking, Property property, User client, string transactionId, string paymentMethod)
         {
-            decimal propertyStayGross = booking.TotalAmount - booking.EventPackagePriceSnapshot;
-            decimal hostPayout = booking.OwnerPayoutAmount > 0 ? booking.OwnerPayoutAmount : Math.Round(propertyStayGross * 0.90m, 2);
+            var owner = await _userRepo.GetByIdAsync(property.OwnerID);
 
-            // 1. WhatsApp & Email to Guest / Client
+            var receiptVm = new BookingReceiptViewModel
+            {
+                Booking = booking,
+                Property = property,
+                Client = client,
+                Host = owner,
+                PrimaryPayment = new Payment
+                {
+                    BookingID = booking.BookingID,
+                    GatewayTransactionID = transactionId.StartsWith("RAZORPAY_") || transactionId.StartsWith("PAY_") ? transactionId : $"PAY_{transactionId}",
+                    Amount = booking.TotalAmount,
+                    PaymentStatus = "Success"
+                }
+            };
+
+            string baseUrl = Request != null && Request.Host.HasValue 
+                ? $"{Request.Scheme}://{Request.Host}" 
+                : "https://bookmyfun.in";
+
+            string clientReceiptUrl = $"{baseUrl}/Booking/Receipt/{booking.BookingID}";
+            string ownerReceiptUrl = $"{baseUrl}/Owner/BookingReceipt/{booking.BookingID}";
+
+            // 1. Transactional Receipt to Guest / Client (Email & WhatsApp)
+            await _emailService.SendBookingReceiptEmailAsync(client.Email, client.FullName, receiptVm, clientReceiptUrl);
+
             if (!string.IsNullOrEmpty(client.Phone))
             {
-                _ = _whatsAppService.SendBookingConfirmationAsync(client.Phone, client.FullName, property.Title, booking.BookingID.ToString(), booking.TotalAmount);
+                _ = _whatsAppService.SendBookingReceiptWhatsAppAsync(
+                    client.Phone,
+                    client.FullName,
+                    property.Title,
+                    booking.BookingID.ToString(),
+                    receiptVm.ReceiptNumber,
+                    booking.TotalAmount,
+                    clientReceiptUrl,
+                    booking.CheckInDate,
+                    booking.CheckOutDate);
             }
 
-            string clientEmailBody = $@"
-                <div style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px;'>
-                    <h2 style='color: #059669;'>Payment Received &amp; Booking Confirmed!</h2>
-                    <p>Dear {client.FullName},</p>
-                    <p>Your payment of <strong>₹{booking.TotalAmount:N2}</strong> via {paymentMethod} for <strong>{property.Title}</strong> was successful.</p>
-                    <div style='background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin: 15px 0;'>
-                        <p style='margin: 4px 0;'><strong>Booking Reference:</strong> #{booking.BookingID}</p>
-                        <p style='margin: 4px 0;'><strong>Transaction ID:</strong> {transactionId}</p>
-                        <p style='margin: 4px 0;'><strong>Stay Dates:</strong> {booking.CheckInDate:dd MMM yyyy} to {booking.CheckOutDate:dd MMM yyyy}</p>
-                        <p style='margin: 4px 0;'><strong>Property Stay Amount:</strong> ₹{propertyStayGross:N2}</p>
-                        {(booking.IsEventBooking && booking.EventPackagePriceSnapshot > 0 ? $"<p style='margin: 4px 0; color: #0284c7;'><strong>Décor Package:</strong> ₹{booking.EventPackagePriceSnapshot:N2}</p>" : "")}
-                        <p style='margin: 4px 0; font-size: 1.1em; font-weight: bold;'><strong>Total Paid:</strong> ₹{booking.TotalAmount:N2}</p>
-                    </div>
-                    <p>Check-in details and digital access pass have been generated in your BookMyFun dashboard.</p>
-                </div>";
-            _ = _emailService.SendEmailAsync(client.Email, $"Booking & Payment Confirmation #{booking.BookingID} - BookMyFun", clientEmailBody);
-
-            // 2. WhatsApp & Email to Property Owner
-            var owner = await _userRepo.GetByIdAsync(property.OwnerID);
+            // 2. Transactional Settlement Receipt to Property Owner (Email & WhatsApp)
             if (owner != null)
             {
+                await _emailService.SendOwnerSettlementReceiptEmailAsync(owner.Email, owner.FullName, receiptVm, ownerReceiptUrl);
+
                 if (!string.IsNullOrEmpty(owner.Phone))
                 {
-                    _ = _whatsAppService.SendOwnerBookingAlertAsync(
+                    _ = _whatsAppService.SendOwnerBookingReceiptWhatsAppAsync(
                         owner.Phone, 
                         owner.FullName, 
                         property.Title, 
                         booking.BookingID.ToString(), 
-                        propertyStayGross, 
-                        hostPayout, 
+                        receiptVm.HostReceiptNumber, 
+                        receiptVm.PropertyStayGross, 
+                        receiptVm.HostNetPayout, 
                         client.FullName, 
                         booking.CheckInDate, 
                         booking.CheckOutDate, 
                         booking.IsEventBooking, 
-                        booking.EventPackagePriceSnapshot);
+                        booking.EventPackagePriceSnapshot,
+                        ownerReceiptUrl);
                 }
-
-                string ownerEmailBody = $@"
-                    <div style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px;'>
-                        <h2 style='color: #0284c7;'>New Confirmed Reservation #{booking.BookingID}</h2>
-                        <p>Dear {owner.FullName},</p>
-                        <p>A new guest has confirmed a reservation for your property <strong>{property.Title}</strong>.</p>
-                        <div style='background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin: 15px 0;'>
-                            <h4 style='margin-top: 0; color: #0f172a;'>Financial Breakdown for Host</h4>
-                            <p style='margin: 4px 0;'><strong>Guest Name:</strong> {client.FullName}</p>
-                            <p style='margin: 4px 0;'><strong>Stay Dates:</strong> {booking.CheckInDate:dd MMM yyyy} to {booking.CheckOutDate:dd MMM yyyy}</p>
-                            <p style='margin: 4px 0;'><strong>Property Stay (Host Gross):</strong> ₹{propertyStayGross:N2}</p>
-                            <p style='margin: 4px 0;'><strong>Platform Fee ({booking.CommissionRateSnapshot:0.#}%):</strong> -₹{(propertyStayGross - hostPayout):N2}</p>
-                            <p style='margin: 4px 0; font-size: 1.15em; font-weight: bold; color: #059669;'><strong>Your Net Host Payout:</strong> ₹{hostPayout:N2}</p>
-                            {(booking.IsEventBooking && booking.EventPackagePriceSnapshot > 0 ? $@"
-                            <hr style='border: none; border-top: 1px dashed #cbd5e1; margin: 12px 0;'/>
-                            <p style='margin: 4px 0; color: #64748b; font-size: 0.9em;'>
-                                <em>Client also added a themed décor package for ₹{booking.EventPackagePriceSnapshot:N2}. This fee is allocated directly to the Event Decorator Studio and does not impact your host payout.</em>
-                            </p>" : "")}
-                        </div>
-                        <p>Sign in to your Host Dashboard to view guest contact details and prepare for arrival.</p>
-                    </div>";
-                _ = _emailService.SendEmailAsync(owner.Email, $"New Booking Alert #{booking.BookingID} - {property.Title}", ownerEmailBody);
             }
 
             // 3. WhatsApp & Email to Event Manager if décor package was booked
@@ -473,9 +472,86 @@ namespace BookMyFun.Controllers
                             </div>
                             <p>Sign in to your Event Manager portal to accept this setup order and dispatch staging crew.</p>
                         </div>";
-                    _ = _emailService.SendEmailAsync(eventManager.Email, $"New Event Setup Order #{booking.BookingID} - {pkgName}", emEmailBody);
+                    await _emailService.EnqueueEmailAsync(eventManager.Email, $"New Event Setup Order #{booking.BookingID} - {pkgName}", emEmailBody, "EventManagerSetupAlert");
                 }
             }
+        }
+
+        [Authorize]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResendReceipt(int bookingId, string? returnUrl = null)
+        {
+            var booking = await _bookingRepo.GetByIdAsync(bookingId);
+            if (booking == null) return NotFound();
+
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            bool isStaff = User.IsInRole("Admin") || User.IsInRole("Employee");
+            if (booking.ClientID != currentUserId && !isStaff)
+            {
+                return Forbid();
+            }
+
+            var client = await _userRepo.GetByIdAsync(booking.ClientID);
+            var property = await _propRepo.GetByIdAsync(booking.PropertyID);
+            if (client == null || property == null)
+            {
+                TempData["Error"] = "Unable to resolve reservation metadata for receipt dispatch.";
+                return RedirectToAction("Confirmation", new { id = bookingId });
+            }
+
+            var owner = await _userRepo.GetByIdAsync(property.OwnerID);
+            var payments = await _bookingRepo.GetPaymentsByBookingIdAsync(bookingId);
+            var primaryPayment = payments.FirstOrDefault(p => p.PaymentStatus == "Success") ?? new Payment
+            {
+                BookingID = bookingId,
+                GatewayTransactionID = $"REC_{bookingId}",
+                Amount = booking.TotalAmount,
+                PaymentStatus = "Success"
+            };
+
+            var receiptVm = new BookingReceiptViewModel
+            {
+                Booking = booking,
+                Property = property,
+                Client = client,
+                Host = owner,
+                PrimaryPayment = primaryPayment
+            };
+
+            string baseUrl = Request != null && Request.Host.HasValue 
+                ? $"{Request.Scheme}://{Request.Host}" 
+                : "https://bookmyfun.in";
+            string clientReceiptUrl = $"{baseUrl}/Booking/Receipt/{booking.BookingID}";
+
+            await _emailService.SendBookingReceiptEmailAsync(client.Email, client.FullName, receiptVm, clientReceiptUrl);
+
+            if (!string.IsNullOrEmpty(client.Phone))
+            {
+                _ = _whatsAppService.SendBookingReceiptWhatsAppAsync(
+                    client.Phone,
+                    client.FullName,
+                    property.Title,
+                    booking.BookingID.ToString(),
+                    receiptVm.ReceiptNumber,
+                    booking.TotalAmount,
+                    clientReceiptUrl,
+                    booking.CheckInDate,
+                    booking.CheckOutDate);
+            }
+
+            if (_configRepo != null)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "ResendReceipt", "Booking", bookingId, $"Resent receipt #{receiptVm.ReceiptNumber} for booking #{bookingId} to {client.Email}");
+            }
+
+            TempData["Success"] = $"Official receipt copy ({receiptVm.ReceiptNumber}) has been dispatched to {client.Email} and WhatsApp.";
+
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+            {
+                return Redirect(returnUrl);
+            }
+            return RedirectToAction("Confirmation", new { id = bookingId });
         }
 
         [Authorize]
@@ -528,7 +604,7 @@ namespace BookMyFun.Controllers
                 {
                     _ = _whatsAppService.SendWhatsAppMessageAsync(client.Phone, msg);
                 }
-                _ = _emailService.SendEmailAsync(client.Email, $"Booking Cancellation #{bookingId} - BookMyFun", $"<p>{msg}</p>");
+                await _emailService.EnqueueEmailAsync(client.Email, $"Booking Cancellation #{bookingId} - BookMyFun", $"<p>{msg}</p>", "CancellationNotice");
             }
 
             if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
@@ -600,7 +676,94 @@ namespace BookMyFun.Controllers
         {
             var booking = await _bookingRepo.GetByIdAsync(id);
             if (booking == null) return NotFound();
-            return View(booking);
+
+            var property = await _propRepo.GetByIdAsync(booking.PropertyID);
+
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                var role = User.FindFirstValue(ClaimTypes.Role) ?? "Client";
+                var currentUserIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (int.TryParse(currentUserIdStr, out int currentUserId))
+                {
+                    if (role == "Client" && booking.ClientID != currentUserId)
+                    {
+                        return Forbid();
+                    }
+                    if (role == "Owner" && property != null && property.OwnerID != currentUserId)
+                    {
+                        return Forbid();
+                    }
+                }
+            }
+
+            var client = await _userRepo.GetByIdAsync(booking.ClientID);
+            var host = property != null ? await _userRepo.GetByIdAsync(property.OwnerID) : null;
+            var payments = await _bookingRepo.GetPaymentsByBookingIdAsync(id);
+
+            var vm = new BookingReceiptViewModel
+            {
+                Booking = booking,
+                Property = property,
+                Client = client,
+                Host = host,
+                PrimaryPayment = payments.FirstOrDefault(),
+                PaymentHistory = payments,
+                IsOwnerView = false,
+                IsAdminOrStaffView = User.IsInRole("Admin") || User.IsInRole("Employee")
+            };
+
+            return View(vm);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Receipt(int id)
+        {
+            var booking = await _bookingRepo.GetByIdAsync(id);
+            if (booking == null) return NotFound();
+
+            var property = await _propRepo.GetByIdAsync(booking.PropertyID);
+
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                var role = User.FindFirstValue(ClaimTypes.Role) ?? "Client";
+                var currentUserIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (int.TryParse(currentUserIdStr, out int currentUserId))
+                {
+                    if (role == "Client" && booking.ClientID != currentUserId)
+                    {
+                        return Forbid();
+                    }
+                    if (role == "Owner" && property != null && property.OwnerID != currentUserId)
+                    {
+                        return Forbid();
+                    }
+                }
+            }
+
+            var client = await _userRepo.GetByIdAsync(booking.ClientID);
+            var host = property != null ? await _userRepo.GetByIdAsync(property.OwnerID) : null;
+            var payments = await _bookingRepo.GetPaymentsByBookingIdAsync(id);
+
+            var vm = new BookingReceiptViewModel
+            {
+                Booking = booking,
+                Property = property,
+                Client = client,
+                Host = host,
+                PrimaryPayment = payments.FirstOrDefault(),
+                PaymentHistory = payments,
+                IsOwnerView = false,
+                IsAdminOrStaffView = User.IsInRole("Admin") || User.IsInRole("Employee")
+            };
+
+            return View("Receipt", vm);
+        }
+
+        [Authorize(Roles = "Owner,Admin,Employee")]
+        [HttpGet]
+        public IActionResult OwnerReceipt(int id)
+        {
+            return RedirectToAction("BookingReceipt", "Owner", new { id });
         }
     }
 }

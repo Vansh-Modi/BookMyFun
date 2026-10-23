@@ -5,8 +5,9 @@ namespace BookMyFun.Models.ViewModels
 {
     public class LoginViewModel
     {
-        [Required(ErrorMessage = "Please enter your Email or User ID")]
-        [Display(Name = "Email or User ID")]
+        [Required(ErrorMessage = "Please enter your email address")]
+        [EmailAddress(ErrorMessage = "Please enter a valid email address")]
+        [Display(Name = "Email Address")]
         public string Email { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Please enter your password"), DataType(DataType.Password)]
@@ -95,13 +96,22 @@ namespace BookMyFun.Models.ViewModels
         public string? FormattedAddress { get; set; }
         public decimal? Latitude { get; set; }
         public decimal? Longitude { get; set; }
+
+        [MaxLength(1000)]
+        [Display(Name = "Direct Map / Location URL")]
+        public string? MapUrl { get; set; }
         public bool IsFeatured { get; set; }
 
         [Required, Range(1, 1000)]
         public int MaxGuests { get; set; }
 
         [Required]
+        [Display(Name = "Property Category / Type")]
         public int PropertyTypeID { get; set; }
+
+        [MaxLength(100)]
+        [Display(Name = "Custom Category")]
+        public string? CustomCategory { get; set; }
 
         public string ListingStatus { get; set; } = "Draft";
         public bool IsApproved { get; set; }
@@ -121,6 +131,19 @@ namespace BookMyFun.Models.ViewModels
         public List<User> AvailableOwners { get; set; } = new();
         public List<PropertyEventCommission> PropertyEventCommissions { get; set; } = new();
         public List<EventPackage> AvailableEventPackages { get; set; } = new();
+    }
+
+    public class UpdatePropertyLocationUrlViewModel
+    {
+        public int PropertyID { get; set; }
+        public string PropertyTitle { get; set; } = string.Empty;
+        public string Location { get; set; } = string.Empty;
+
+        [MaxLength(1000)]
+        [Display(Name = "Direct Map / Location URL")]
+        public string? MapUrl { get; set; }
+
+        public string? ReturnUrl { get; set; }
     }
 
     public class BookingCheckoutViewModel
@@ -231,6 +254,7 @@ namespace BookMyFun.Models.ViewModels
         public List<Property> Properties { get; set; } = new();
         public List<Booking> Bookings { get; set; } = new();
         public List<SubscriptionPlan> AvailablePlans { get; set; } = new();
+        public List<PropertyType> AvailableCategories { get; set; } = new();
     }
 
     public class ClientDashboardViewModel
@@ -467,7 +491,11 @@ namespace BookMyFun.Models.ViewModels
 
         public string? Description { get; set; }
 
+        [Display(Name = "Cover Image / Media URL")]
         public string? MediaUrl { get; set; }
+
+        [Display(Name = "Upload Cover Image File")]
+        public IFormFile? ImageFile { get; set; }
 
         public string? IncludedItems { get; set; }
 
@@ -500,7 +528,11 @@ namespace BookMyFun.Models.ViewModels
         [Required]
         public string SetupStatus { get; set; } = "InProgress"; // 'Assigned', 'InProgress', 'Completed', 'Inspected'
 
+        [Display(Name = "Photo / Video Proof URLs")]
         public string? SetupProofMediaUrls { get; set; } // comma separated or JSON array of image/video URLs
+
+        [Display(Name = "Upload Proof Photos")]
+        public List<IFormFile>? ProofFiles { get; set; }
 
         public string? Notes { get; set; }
     }
@@ -576,6 +608,25 @@ namespace BookMyFun.Models.ViewModels
         public decimal CommissionRate { get; set; }
     }
 
+    public class UpdateEventManagerCommissionRequest
+    {
+        public int UserId { get; set; }
+        public decimal? CommissionRate { get; set; }
+    }
+
+    public class UpdateGlobalEventCommissionRequest
+    {
+        public decimal CommissionRate { get; set; }
+    }
+
+    public class EventCommissionsManagementViewModel
+    {
+        public decimal GlobalStandingEventCommission { get; set; } = 10.0m;
+        public decimal GlobalHostCommission { get; set; } = 10.0m;
+        public List<User> EventManagers { get; set; } = new();
+        public List<EventPackage> EventPackages { get; set; } = new();
+    }
+
     public class CreateEmployeeViewModel
     {
         [Required(ErrorMessage = "Full Name is required.")]
@@ -644,5 +695,40 @@ namespace BookMyFun.Models.ViewModels
         [Required(ErrorMessage = "Full Name is required.")]
         [Display(Name = "Full Name")]
         public string FullName { get; set; } = string.Empty;
+
+        public string? ActiveProjectEmail { get; set; } = "showsgarage@gmail.com";
+        public string? ConfiguredClientId { get; set; }
+        public bool IsConfiguredInDatabase { get; set; }
+    }
+
+    public class BookingReceiptViewModel
+    {
+        public Booking Booking { get; set; } = new();
+        public Property? Property { get; set; }
+        public User? Client { get; set; }
+        public User? Host { get; set; }
+        public Payment? PrimaryPayment { get; set; }
+        public List<Payment> PaymentHistory { get; set; } = new();
+
+        public string ReceiptNumber => $"BMF-REC-{Booking.BookingID:D6}";
+        public string HostReceiptNumber => $"BMF-HST-{Booking.BookingID:D6}";
+        public string TaxInvoiceNumber => $"INV-{Booking.CreatedAt:yyyyMM}-{Booking.BookingID:D5}";
+        public DateTime IssuedAt => Booking.CreatedAt;
+
+        public decimal PropertyStayGross => Math.Max(0, Booking.TotalAmount - Booking.EventPackagePriceSnapshot);
+        public decimal CommissionRate => Booking.CommissionRateSnapshot > 0 ? Booking.CommissionRateSnapshot : 10.0m;
+        public decimal PlatformCommission => (Booking.PlatformCommissionAmount > 0 && Booking.PlatformCommissionAmount <= PropertyStayGross)
+            ? Booking.PlatformCommissionAmount
+            : Math.Round(PropertyStayGross * (CommissionRate / 100m), 2);
+        public decimal HostNetPayout => (Booking.OwnerPayoutAmount > 0 && Booking.OwnerPayoutAmount <= PropertyStayGross)
+            ? Booking.OwnerPayoutAmount
+            : Math.Max(0, PropertyStayGross - PlatformCommission);
+
+        public decimal EventPackagePrice => Booking.EventPackagePriceSnapshot;
+        public decimal SecurityDeposit => Booking.SecurityDepositAmount;
+        public decimal TotalPaid => Booking.TotalAmount;
+
+        public bool IsOwnerView { get; set; } = false;
+        public bool IsAdminOrStaffView { get; set; } = false;
     }
 }

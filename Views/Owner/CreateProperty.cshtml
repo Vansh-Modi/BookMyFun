@@ -38,14 +38,21 @@
                                 <span class="form-text text-muted">Use a catchy, descriptive title showcasing the standout features.</span>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-semibold">Property Type <span class="text-danger">*</span></label>
-                                <select asp-for="PropertyTypeID" class="form-select form-select-lg rounded-3" required>
-                                    <option value="">-- Select Type --</option>
+                                <label class="form-label fw-semibold"><i class="bi bi-tag-fill text-primary me-1"></i>Property Category <span class="text-danger">*</span></label>
+                                <select asp-for="PropertyTypeID" class="form-select form-select-lg rounded-3" id="propertyCategorySelect" required>
+                                    <option value="">-- Select Category --</option>
                                     @foreach (var t in Model.AvailableTypes)
                                     {
                                         <option value="@t.PropertyTypeID">@t.TypeName</option>
                                     }
                                 </select>
+                                <div class="mt-2">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-light"><i class="bi bi-plus-circle text-primary"></i></span>
+                                        <input asp-for="CustomCategory" id="customCategoryInput" class="form-control" placeholder="Or create new category..." />
+                                    </div>
+                                    <small class="text-muted" style="font-size: 0.72rem;">e.g. Glamping, Treehouse, Eco-Stay, Beach House</small>
+                                </div>
                             </div>
                             <div class="col-12">
                                 <label class="form-label fw-semibold">About the Property <span class="text-danger">*</span></label>
@@ -108,6 +115,21 @@
                                     <span class="input-group-text bg-light"><i class="bi bi-compass text-muted"></i></span>
                                     <input asp-for="Longitude" id="longitude" type="number" step="0.0000001" class="form-control" placeholder="e.g. 73.3283" />
                                 </div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">
+                                    <i class="bi bi-pin-map-fill text-danger me-1"></i>Direct Map / Location URL (Google Maps Link)
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-link-45deg text-primary fs-5"></i></span>
+                                    <input asp-for="MapUrl" id="mapUrlInput" class="form-control" placeholder="Paste Google Maps share link, e.g. https://maps.app.goo.gl/... or https://goo.gl/maps/..." />
+                                    <a id="btnTestMapUrl" href="#" target="_blank" class="btn btn-outline-success d-none">
+                                        <i class="bi bi-box-arrow-up-right me-1"></i> Test Link
+                                    </a>
+                                </div>
+                                <span class="form-text text-muted small">
+                                    <i class="bi bi-info-circle me-1"></i> Provide an exact Google Maps pin or location share link. Confirmed guests receive this direct navigation link on their reservation voucher and checkout summary.
+                                </span>
                             </div>
                             <div class="col-12">
                                 <div class="p-3 bg-light rounded-3 d-flex align-items-center justify-content-between">
@@ -448,10 +470,13 @@
 
             const btn = this;
             btn.disabled = true;
-            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Uploading...`;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Optimizing & Uploading...`;
 
             for (let i = 0; i < fileInput.files.length; i++) {
-                const file = fileInput.files[i];
+                let file = fileInput.files[i];
+                if (window.ImageOptimizer && window.ImageOptimizer.isOptimizable(file)) {
+                    file = await window.ImageOptimizer.compressAndConvertToWebP(file, { maxWidth: 1920, maxHeight: 1080, quality: 0.82 });
+                }
                 const formData = new FormData();
                 formData.append("file", file);
                 formData.append("mediaType", "photo");
@@ -583,6 +608,22 @@
         });
 
         // Geolocation Detection
+        const mapUrlInput = document.getElementById("mapUrlInput");
+        const btnTestMapUrl = document.getElementById("btnTestMapUrl");
+        function updateMapTestBtn() {
+            const val = (mapUrlInput?.value || "").trim();
+            if (val.startsWith("http://") || val.startsWith("https://")) {
+                btnTestMapUrl.href = val;
+                btnTestMapUrl.classList.remove("d-none");
+            } else {
+                btnTestMapUrl.classList.add("d-none");
+            }
+        }
+        if (mapUrlInput && btnTestMapUrl) {
+            mapUrlInput.addEventListener("input", updateMapTestBtn);
+            updateMapTestBtn();
+        }
+
         document.getElementById("btnDetectLocation").addEventListener("click", function () {
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(function (pos) {

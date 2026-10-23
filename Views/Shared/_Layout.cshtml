@@ -3,7 +3,7 @@
     var site = await SettingsService.GetSettingsAsync();
 }
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="light" data-bs-theme="light">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -24,12 +24,15 @@
                     saved = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
                 }
                 document.documentElement.setAttribute('data-theme', saved);
+                document.documentElement.setAttribute('data-bs-theme', saved);
             } catch (e) {
                 try {
                     var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
                     document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+                    document.documentElement.setAttribute('data-bs-theme', prefersDark ? 'dark' : 'light');
                 } catch (_) {
                     document.documentElement.setAttribute('data-theme', 'light');
+                    document.documentElement.setAttribute('data-bs-theme', 'light');
                 }
             }
         })();
@@ -138,6 +141,7 @@
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="SupportQueries"><i class="bi bi-headset text-secondary me-2"></i>Customer Inquiries</a></li>
                                         <li><hr class="dropdown-divider my-1"></li>
                                         <li><h6 class="dropdown-header text-uppercase small text-muted">Platform Management</h6></li>
+                                        <li><a class="dropdown-item fw-semibold text-warning" asp-controller="Admin" asp-action="EventCommissions"><i class="bi bi-percent text-warning me-2"></i>Event Commissions &amp; Overrides</a></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageProperties"><i class="bi bi-houses me-2"></i>Manage Properties</a></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageBookings"><i class="bi bi-calendar-check me-2"></i>Manage Bookings</a></li>
                                         <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageOwners"><i class="bi bi-person-badge me-2"></i>Manage Hosts &amp; Tiers</a></li>
@@ -177,6 +181,7 @@
                                         <li><hr class="dropdown-divider my-1"></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="ManageProperties"><i class="bi bi-houses me-2"></i>Manage Properties</a></li>
                                         <li><a class="dropdown-item" asp-controller="Employee" asp-action="ManageBookings"><i class="bi bi-calendar-check me-2"></i>Manage Bookings</a></li>
+                                        <li><a class="dropdown-item fw-semibold text-warning" asp-controller="Employee" asp-action="EventCommissions"><i class="bi bi-percent text-warning me-2"></i>Event Commissions &amp; Overrides</a></li>
                                         <li><hr class="dropdown-divider my-1"></li>
                                         <li><a class="dropdown-item fw-semibold" asp-controller="Account" asp-action="Profile"><i class="bi bi-person-circle text-primary me-2"></i>My Profile</a></li>
                                         <li><hr class="dropdown-divider my-1"></li>
@@ -506,6 +511,7 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/imageOptimizer.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

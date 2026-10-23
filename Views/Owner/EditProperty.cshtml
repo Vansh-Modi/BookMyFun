@@ -20,6 +20,61 @@
                 </div>
             </div>
 
+            <!-- Listing Status & Lifecycle Controls Banner -->
+            <div class="card border-0 shadow-sm rounded-4 mb-4 p-3 bg-white">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="p-2 bg-light rounded-circle text-primary">
+                            <i class="bi bi-shield-check fs-4"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold text-dark d-flex align-items-center gap-2">
+                                <span>Status:</span>
+                                @if (Model.ListingStatus == "Deactivated")
+                                {
+                                    <span class="badge bg-secondary px-2.5 py-1 rounded-pill"><i class="bi bi-pause-circle-fill me-1"></i>Unpublished (Deactivated)</span>
+                                }
+                                else if (Model.IsApproved && Model.ListingStatus == "Active")
+                                {
+                                    <span class="badge bg-success px-2.5 py-1 rounded-pill"><i class="bi bi-check-circle-fill me-1"></i>Live & Active</span>
+                                }
+                                else if (Model.ListingStatus == "Rejected")
+                                {
+                                    <span class="badge bg-danger px-2.5 py-1 rounded-pill"><i class="bi bi-x-circle-fill me-1"></i>Rejected</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-warning text-dark px-2.5 py-1 rounded-pill"><i class="bi bi-clock-fill me-1"></i>Under Review</span>
+                                }
+                            </div>
+                            <div class="small text-muted mt-0.5">
+                                Hosts have permission to modify details and toggle active/unpublished status. Permanent deletion is managed exclusively by platform administrators.
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        @if (Model.ListingStatus == "Active")
+                        {
+                            <form asp-action="DeactivateProperty" asp-route-id="@Model.PropertyID" asp-route-deactivate="true" method="post" class="d-inline" onsubmit="return confirm('Unpublish this listing? It will be temporarily hidden from travelers and search results.');">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-outline-warning rounded-pill px-3 py-1.5 fw-semibold btn-sm">
+                                    <i class="bi bi-pause-circle me-1"></i> Unpublish Listing
+                                </button>
+                            </form>
+                        }
+                        else if (Model.ListingStatus == "Deactivated")
+                        {
+                            <form asp-action="DeactivateProperty" asp-route-id="@Model.PropertyID" asp-route-deactivate="false" method="post" class="d-inline" onsubmit="return confirm('Publish and reactivate this listing?');">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn btn-outline-success rounded-pill px-3 py-1.5 fw-semibold btn-sm">
+                                    <i class="bi bi-play-circle me-1"></i> Publish Listing
+                                </button>
+                            </form>
+                        }
+                    </div>
+                </div>
+            </div>
+
             <form asp-action="EditProperty" method="post" id="propertyEditForm">
                 @Html.AntiForgeryToken()
                 <input type="hidden" asp-for="PropertyID" />
@@ -38,13 +93,20 @@
                                 <input asp-for="Title" class="form-control form-control-lg rounded-3" required />
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-semibold">Property Type <span class="text-danger">*</span></label>
-                                <select asp-for="PropertyTypeID" class="form-select form-select-lg rounded-3" required>
+                                <label class="form-label fw-semibold"><i class="bi bi-tag-fill text-primary me-1"></i>Property Category <span class="text-danger">*</span></label>
+                                <select asp-for="PropertyTypeID" class="form-select form-select-lg rounded-3" id="propertyCategorySelect" required>
                                     @foreach (var t in Model.AvailableTypes)
                                     {
                                         <option value="@t.PropertyTypeID" selected="@(Model.PropertyTypeID == t.PropertyTypeID)">@t.TypeName</option>
                                     }
                                 </select>
+                                <div class="mt-2">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-light"><i class="bi bi-plus-circle text-primary"></i></span>
+                                        <input asp-for="CustomCategory" id="customCategoryInput" class="form-control" placeholder="Or create new category..." />
+                                    </div>
+                                    <small class="text-muted" style="font-size: 0.72rem;">e.g. Glamping, Treehouse, Eco-Stay, Beach House</small>
+                                </div>
                             </div>
                             <div class="col-12">
                                 <label class="form-label fw-semibold">About the Property <span class="text-danger">*</span></label>
@@ -106,6 +168,21 @@
                                     <span class="input-group-text bg-light"><i class="bi bi-compass text-muted"></i></span>
                                     <input asp-for="Longitude" id="longitude" type="number" step="0.0000001" class="form-control" />
                                 </div>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">
+                                    <i class="bi bi-pin-map-fill text-danger me-1"></i>Direct Map / Location URL (Google Maps Link)
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-link-45deg text-primary fs-5"></i></span>
+                                    <input asp-for="MapUrl" id="mapUrlInput" class="form-control" placeholder="Paste Google Maps share link, e.g. https://maps.app.goo.gl/... or https://goo.gl/maps/..." />
+                                    <a id="btnTestMapUrl" href="@Model.MapUrl" target="_blank" class="btn btn-outline-success @(string.IsNullOrWhiteSpace(Model.MapUrl) ? "d-none" : "")">
+                                        <i class="bi bi-box-arrow-up-right me-1"></i> Test Link
+                                    </a>
+                                </div>
+                                <span class="form-text text-muted small">
+                                    <i class="bi bi-info-circle me-1"></i> Provide an exact Google Maps pin or location share link. Confirmed guests receive this direct navigation link on their reservation voucher and checkout summary.
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -453,10 +530,13 @@
 
             const btn = this;
             btn.disabled = true;
-            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Uploading...`;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Optimizing & Uploading...`;
 
             for (let i = 0; i < fileInput.files.length; i++) {
-                const file = fileInput.files[i];
+                let file = fileInput.files[i];
+                if (window.ImageOptimizer && window.ImageOptimizer.isOptimizable(file)) {
+                    file = await window.ImageOptimizer.compressAndConvertToWebP(file, { maxWidth: 1920, maxHeight: 1080, quality: 0.82 });
+                }
                 const formData = new FormData();
                 formData.append("file", file);
                 formData.append("mediaType", "photo");
@@ -578,6 +658,21 @@
         });
 
         // Location detection
+        const mapUrlInput = document.getElementById("mapUrlInput");
+        const btnTestMapUrl = document.getElementById("btnTestMapUrl");
+        function updateMapTestBtn() {
+            const val = (mapUrlInput?.value || "").trim();
+            if (val.startsWith("http://") || val.startsWith("https://")) {
+                btnTestMapUrl.href = val;
+                btnTestMapUrl.classList.remove("d-none");
+            } else {
+                btnTestMapUrl.classList.add("d-none");
+            }
+        }
+        if (mapUrlInput && btnTestMapUrl) {
+            mapUrlInput.addEventListener("input", updateMapTestBtn);
+        }
+
         document.getElementById("btnDetectLocation").addEventListener("click", function () {
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(function (pos) {

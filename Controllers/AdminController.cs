@@ -347,6 +347,7 @@ namespace BookMyFun.Controllers
                 FormattedAddress = vm.FormattedAddress,
                 Latitude = vm.Latitude,
                 Longitude = vm.Longitude,
+                MapUrl = vm.MapUrl,
                 PricePerNight = vm.PricePerNight,
                 SecurityDepositAmount = vm.SecurityDepositAmount,
                 CommissionRate = vm.CommissionRate,
@@ -438,6 +439,7 @@ namespace BookMyFun.Controllers
                 FormattedAddress = prop.FormattedAddress,
                 Latitude = prop.Latitude,
                 Longitude = prop.Longitude,
+                MapUrl = prop.MapUrl,
                 PricePerNight = prop.PricePerNight,
                 SecurityDepositAmount = prop.SecurityDepositAmount,
                 CommissionRate = prop.CommissionRate,
@@ -478,6 +480,7 @@ namespace BookMyFun.Controllers
                 FormattedAddress = vm.FormattedAddress,
                 Latitude = vm.Latitude,
                 Longitude = vm.Longitude,
+                MapUrl = vm.MapUrl,
                 PricePerNight = vm.PricePerNight,
                 SecurityDepositAmount = vm.SecurityDepositAmount,
                 CommissionRate = vm.CommissionRate,
@@ -542,24 +545,80 @@ namespace BookMyFun.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteProperty(int id)
+        public async Task<IActionResult> DeactivateProperty(int id, bool deactivate = true, string? returnUrl = null)
         {
-            await _propRepo.DeletePropertyAsync(id);
-
+            var success = await _propRepo.DeactivatePropertyAsync(id, deactivate);
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            await _configRepo.LogAuditAsync(currentUserId, "DeleteProperty", "Property", id, $"Deleted property #{id}");
+            if (success)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, deactivate ? "AdminDeactivateProperty" : "AdminActivateProperty", "Property", id, $"Admin {(deactivate ? "deactivated" : "activated")} property #{id}");
+                TempData["Success"] = $"Property #{id} has been {(deactivate ? "deactivated" : "activated")} successfully.";
+            }
+            else
+            {
+                TempData["Error"] = $"Unable to update status for property #{id}.";
+            }
+
+            if (!string.IsNullOrWhiteSpace(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
+            {
+                return Redirect(returnUrl);
+            }
 
             return RedirectToAction(nameof(ManageProperties));
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApproveProperty(int id, bool approve)
+        public async Task<IActionResult> DeleteProperty(int id, string? returnUrl = null)
         {
-            await _propRepo.ApprovePropertyAsync(id, approve);
-
+            var success = await _propRepo.PermanentlyDeletePropertyAsync(id);
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            await _configRepo.LogAuditAsync(currentUserId, approve ? "ApproveProperty" : "RejectProperty", "Property", id, $"Property approval set to {approve}");
+            if (success)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "AdminPermanentlyDeleteProperty", "Property", id, $"Admin permanently deleted property #{id}");
+                TempData["Success"] = $"Property #{id} has been permanently deleted successfully.";
+            }
+            else
+            {
+                TempData["Error"] = $"Unable to permanently delete property #{id}.";
+            }
+
+            if (!string.IsNullOrWhiteSpace(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
+            {
+                return Redirect(returnUrl);
+            }
+
+            return RedirectToAction(nameof(ManageProperties));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveProperty(int id, bool approve, string? status = null, string? returnUrl = null)
+        {
+            var prop = await _propRepo.GetByIdAsync(id);
+            if (prop == null)
+            {
+                return NotFound();
+            }
+
+            var targetStatus = approve ? (status ?? "Active") : (status ?? "Rejected");
+            var success = await _propRepo.ApprovePropertyAsync(id, approve, targetStatus);
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            if (success)
+            {
+                var actionName = approve ? "AdminApproveProperty" : (targetStatus == "Draft" ? "AdminRevokeProperty" : "AdminRejectProperty");
+                await _configRepo.LogAuditAsync(currentUserId, actionName, "Property", id, $"Admin approval set to {approve} with status '{targetStatus}' for property '{prop.Title}'");
+                TempData["Success"] = $"Property #{id} ({prop.Title}) has been {(approve ? "approved and made live" : (targetStatus == "Rejected" ? "rejected" : "revoked / set to draft"))}.";
+            }
+            else
+            {
+                TempData["Error"] = $"Unable to update approval status for property #{id}.";
+            }
+
+            if (!string.IsNullOrWhiteSpace(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
+            {
+                return Redirect(returnUrl);
+            }
 
             return RedirectToAction(nameof(ManageProperties));
         }
@@ -576,6 +635,7 @@ namespace BookMyFun.Controllers
             ViewBag.Settings = settings;
             ViewBag.Branding = branding;
             ViewBag.EventPackages = eventPackages;
+            ViewBag.EventManagers = await _userRepo.GetUsersByRoleAsync("EventManager");
 
             return View(branding);
         }
@@ -593,24 +653,11 @@ namespace BookMyFun.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SaveSiteBranding(SiteSettingsModel model, IFormFile? logoFile)
         {
-            // If user uploads an image file, store with high-res crisp formatting in wwwroot/uploads
+            // If user uploads an image file, optimize and store with high-res crisp formatting in wwwroot/uploads
             if (logoFile != null && logoFile.Length > 0)
             {
-                var webRoot = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-                var uploadsFolder = Path.Combine(webRoot, "uploads");
-                if (!Directory.Exists(uploadsFolder)) Directory.CreateDirectory(uploadsFolder);
-
-                var extension = Path.GetExtension(logoFile.FileName).ToLowerInvariant();
-                // Prefer modern web standard extensions or vector formats for razor-sharp rendering
-                var fileName = "brand_logo_" + DateTime.UtcNow.Ticks + extension;
-                var filePath = Path.Combine(uploadsFolder, fileName);
-
-                using (var stream = new FileStream(filePath, FileMode.Create))
-                {
-                    await logoFile.CopyToAsync(stream);
-                }
-
-                model.LogoUrl = "/uploads/" + fileName;
+                var (uploadedUrl, _) = await _mediaStorage.SaveMediaFileAsync(logoFile, "photo");
+                model.LogoUrl = uploadedUrl;
             }
 
             await _siteSettingsService.SaveSettingsAsync(model);
@@ -636,6 +683,88 @@ namespace BookMyFun.Controllers
 
             TempData["Success"] = "Site branding, standing commission, and specific event commissions updated successfully!";
             return RedirectToAction(nameof(Settings));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> EventCommissions()
+        {
+            var settings = await _siteSettingsService.GetSettingsAsync();
+            var eventManagers = await _userRepo.GetUsersByRoleAsync("EventManager");
+            var eventPackages = await _eventPackageRepo.GetAllPackagesAsync();
+
+            var vm = new EventCommissionsManagementViewModel
+            {
+                GlobalStandingEventCommission = settings.EventPlatformCommissionPercent,
+                GlobalHostCommission = settings.PlatformCommissionPercent,
+                EventManagers = eventManagers,
+                EventPackages = eventPackages
+            };
+
+            return View(vm);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> UpdateGlobalEventCommission([FromBody] UpdateGlobalEventCommissionRequest model)
+        {
+            if (model.CommissionRate < 0 || model.CommissionRate > 100)
+            {
+                return Json(new { success = false, message = "Commission rate must be between 0% and 100%." });
+            }
+
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var settings = await _siteSettingsService.GetSettingsAsync();
+            settings.EventPlatformCommissionPercent = model.CommissionRate;
+            await _siteSettingsService.SaveSettingsAsync(settings);
+
+            await _configRepo.LogAuditAsync(currentUserId, "UpdateGlobalEventCommission", "SiteSetting", null,
+                $"Updated default global event manager commission rate to {model.CommissionRate:0.##}%");
+
+            return Json(new
+            {
+                success = true,
+                message = $"Default global event manager commission rate updated to {model.CommissionRate:0.##}%!",
+                rate = model.CommissionRate
+            });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> UpdateEventManagerCommission([FromBody] UpdateEventManagerCommissionRequest model)
+        {
+            if (model.UserId <= 0)
+            {
+                return Json(new { success = false, message = "Invalid event manager user ID." });
+            }
+
+            if (model.CommissionRate.HasValue && (model.CommissionRate.Value < 0 || model.CommissionRate.Value > 100))
+            {
+                return Json(new { success = false, message = "Commission rate must be between 0% and 100%." });
+            }
+
+            var user = await _userRepo.GetByIdAsync(model.UserId);
+            if (user == null || user.Role != "EventManager")
+            {
+                return Json(new { success = false, message = "Event Manager not found." });
+            }
+
+            bool updated = await _userRepo.UpdateUserCommissionRateAsync(model.UserId, model.CommissionRate);
+            if (updated)
+            {
+                var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                string desc = model.CommissionRate.HasValue
+                    ? $"Set custom commission for event manager '{user.FullName}' (#{user.UserID}) to {model.CommissionRate.Value:0.##}%"
+                    : $"Reverted commission for event manager '{user.FullName}' (#{user.UserID}) to default standing rate";
+
+                await _configRepo.LogAuditAsync(currentUserId, "UpdateEventManagerCommission", "User", model.UserId, desc);
+
+                return Json(new
+                {
+                    success = true,
+                    message = $"Commission rate for '{user.FullName}' updated successfully!",
+                    rate = model.CommissionRate
+                });
+            }
+
+            return Json(new { success = false, message = "Failed to update event manager commission rate." });
         }
 
         [HttpPost]

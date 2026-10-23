@@ -232,3 +232,53 @@
   6. Enable ASP.NET Core response compression (Gzip and Brotli) in `Program.cs`.
   7. Add `loading="lazy"` and `decoding="async"` across all catalog property card image elements.
 - **Consequence:** Guarantees an error-free, regression-tested platform with sub-second page rendering and validated payment, communication, and onboarding workflows.
+
+---
+
+### ADR-25: Multi-Channel Transactional Receipt & Settlement Statement Automated Dispatch
+- **Context:** Guests and property hosts required instantaneous, verifiable access to generated official tax receipts and settlement statements upon reservation payment. Relying solely on in-browser viewing caused loss of records, while manual dispatches burdened operational staff.
+- **Decision:**
+  1. Extend `IEmailService` and `IWhatsAppService` with dedicated receipt delivery methods (`SendBookingReceiptEmailAsync`, `SendOwnerSettlementReceiptEmailAsync`, `SendBookingReceiptWhatsAppAsync`, `SendOwnerBookingReceiptWhatsAppAsync`).
+  2. Automatically build and dispatch `BookingReceiptViewModel` in `BookingController.DispatchConfirmedBookingAlertsAsync` across both Email and WhatsApp for both guest tax receipts and host settlement statements.
+  3. Provide authorized on-demand re-dispatch endpoints (`BookingController.ResendReceipt` and `OwnerController.ResendBookingReceipt`) with strict IDOR validation and audit trail logging.
+- **Consequence:** Ensures immediate delivery of official fiscal and entry vouchers directly to guests and hosts across their preferred channels, provides frictionless proof of purchase, and simplifies check-in gate verification.
+
+---
+
+### ADR-26: Universal Theme Switching, Bootstrap 5.3 Attribute Synchronization & Token Inheritance
+- **Context:** The application exhibited theme-switching styling bugs when transitioning between Light and Dark modes:
+  1. Bootstrap 5.3 native dark mode was not activated because `<html>` only received `data-theme` rather than `data-bs-theme`.
+  2. The luxury resort design system tokens (`--bg-primary`, `--bg-card`, `--border-subtle`, `--text-main`, `--brand-navy`) were only declared in `:root` and lacked corresponding dark mode definitions in `site.css`.
+  3. `Views/Properties/Index.cshtml` had an in-page `:root` block with hardcoded light values that overrode dark mode on the explore stays catalog page.
+  4. Buttons with `.btn-light`, text with `.text-secondary`, and borders with `.border-secondary` had low contrast or rendered as blinding white boxes on dark cards.
+  5. The payment hero card in `Booking/Payment.cshtml` and `Owner/SubscriptionPayment.cshtml` used an inline mint-green gradient where `.text-dark` title turned white, producing an unreadable white-on-mint contrast bug.
+  6. Chrome/Edge `-webkit-autofill` produced jarring yellow/white backgrounds on dark input fields.
+- **Decision:**
+  1. Synchronously set both `data-theme` and `data-bs-theme` in `Views/Shared/_Layout.cshtml` (initial HTML and Anti-FOUC script) and `wwwroot/js/site.js` (`applyTheme()`), unlocking native Bootstrap 5.3 component dark modes.
+  2. Declare all luxury design tokens globally in `wwwroot/css/site.css` under both `:root, [data-theme="light"], [data-bs-theme="light"]` and `[data-theme="dark"], [data-bs-theme="dark"]`, harmonizing `--brand-navy` to `#38bdf8` in dark mode for WCAG AAA compliance.
+  3. Remove the local `:root` block in `Views/Properties/Index.cshtml` and provide scoped dark mode overrides for all `.luxe-*` classes.
+  4. Add dark mode overrides in `site.css` for `.btn-light` (`#334155` background), `.text-secondary` (`var(--text-muted)`), `.border-secondary` (`#334155`), `.btn-primary .badge.bg-white` (retaining white badge contrast), and `-webkit-autofill`.
+  5. Replace inline payment gradients with `.payment-hero-card` supporting theme-aware dark gradients (`linear-gradient(135deg, #064e3b 0%, #022c22 100%)`).
+  6. Establish `.dash-badge-secondary`, `.dash-badge-danger`, and `.dash-badge-info` classes with dark mode variants.
+- **Consequence:** Provides uniform contrast, seamless token inheritance, and zero visual glitches across all 5 user portals and public pages in both Light and Dark modes.
+
+---
+
+### ADR-27: Cross-Device Responsive Layout, Viewport Containment & Touch Target Optimization
+- **Context:** Across mobile (< 768px), tablet (768px - 991px), and desktop (>= 992px) viewports, elements exhibited layout overflow, orientation mismatches, and element sizing issues:
+  1. Negative row margins and wide content caused horizontal dragging and rogue scrollbars on mobile devices.
+  2. Input focus on iOS Safari automatically zoomed the viewport because form input `font-size` was below 16px.
+  3. Explore catalog cards in `Views/Properties/Index.cshtml` had two side-by-side action buttons (`.luxe-card-actions`) in a fixed `1fr 1.2fr` grid that cramped or overflowed card boundaries on narrow screens (< 480px).
+  4. Dashboard KPI stat cards (`.dash-stat-grid`) displayed 2 columns on all mobile screens down to 320px, truncating long currency values (`₹1,50,000`).
+  5. Modal dialogs and receipts lacked responsive padding scaling on mobile, causing modals to bleed off-screen and receipts to waste up to 72px on horizontal padding on compact displays.
+  6. Landscape phone orientations (< 500px height) squeezed viewport space when sticky bottom bars remained tall.
+- **Decision:**
+  1. Enforce strict viewport containment on `html` and `body` using `overflow-x: clip;` (with fallback to `overflow-x: hidden;`), preserving `position: sticky` functionality while eliminating accidental horizontal page scrolling.
+  2. Apply global media fluidity bounds (`img, svg, video, canvas, audio, iframe, embed, object { max-width: 100%; height: auto; }`) and word-break wrapping on headings.
+  3. Enforce `font-size: 16px !important;` on all input types, textareas, selects, `.form-control`, `.form-select`, and `.luxe-control` under `@media (max-width: 767.98px)` to prevent iOS Safari auto-zoom.
+  4. Enforce touch-target minimum height standards (>= 40px - 48px) for mobile buttons, category pills, filter pills, and bottom navigation links.
+  5. Stack `.luxe-card-actions` vertically (`grid-template-columns: 1fr`) on mobile (< 480px / < 576px) and scale `.luxe-search-card` padding to `1.25rem 1rem`.
+  6. Re-architect `.dash-stat-grid` with fluid breakpoints: 4 columns on desktop, 3 columns on tablet, 2 columns on landscape/standard phones, and 1 column on ultra-compact phones (< 380px).
+  7. Add modal dialog viewport fitting (`max-width: calc(100vw - 1rem); max-height: calc(100vh - 160px)`) and compact landscape orientation rules.
+  8. Created `TestPathHelper` in `BookMyFun.Tests` for resilient repo root discovery across all test runners, and added Tests 100–105 in `ResponsiveLayoutTests.cs`.
+- **Consequence:** Eliminates horizontal scrolling and layout overflow across all mobile, tablet, and desktop viewports, delivers touch-friendly interactive controls without iOS auto-zoom glitches, and achieves 100% test pass rate across both xUnit and DirectTestRunner suites.

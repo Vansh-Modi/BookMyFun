@@ -10,13 +10,13 @@
     <div>
         <div class="d-flex align-items-center gap-2 mb-1">
             <span class="dash-eyebrow mb-0">Event Decorator Operations</span>
-            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 rounded-pill small">
-                <i class="bi bi-geo-alt-fill me-1"></i>Area Targeting
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1 rounded-pill small">
+                <i class="bi bi-geo-alt-fill me-1"></i>Geofencing &amp; Area Targeting
             </span>
         </div>
-        <h1 class="dash-title">Serviceable Areas &amp; Coverage</h1>
+        <h1 class="dash-title">Serviceable Areas &amp; Geographic Coverage</h1>
         <p class="dash-subtitle">
-            Configure the geographical regions where your decoration crew operates. Décor options are strictly shown to guests only for properties in your selected areas.
+            Configure the geographical destinations where your decoration and staging crew operates. Celebration décor add-ons are strictly presented to guests booking properties in your active service areas.
         </p>
     </div>
     <div class="dash-actions">
@@ -29,99 +29,175 @@
     </div>
 </div>
 
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show rounded-4 shadow-sm d-flex align-items-center mb-4" role="alert">
+        <i class="bi bi-check-circle-fill fs-5 me-2 text-success"></i>
+        <div class="fw-semibold">@TempData["Success"]</div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show rounded-4 shadow-sm d-flex align-items-center mb-4" role="alert">
+        <i class="bi bi-exclamation-triangle-fill fs-5 me-2 text-danger"></i>
+        <div class="fw-semibold">@TempData["Error"]</div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
 <div class="row g-4">
-    <!-- Main Configuration Card -->
+    <!-- Main Configuration Card (col-lg-8) -->
     <div class="col-lg-8">
-        <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
-                <h5 class="fw-bold mb-0 text-dark">
-                    <i class="bi bi-pin-map-fill text-danger me-2"></i>Select Serviceable Property Areas
-                </h5>
-                <span class="badge bg-secondary-subtle text-secondary border px-2 py-1 rounded-pill small">
-                    @currentAreas.Count of @allLocations.Count Selected
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+            <div class="card-header bg-white py-3 px-4 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h5 class="fw-bold mb-0 text-dark">
+                        <i class="bi bi-pin-map-fill text-danger me-2"></i>Service Coverage &amp; Regional Targeting
+                    </h5>
+                    <small class="text-muted">Manage active areas via multi-select chips, custom tags, or regional zone boundaries.</small>
+                </div>
+                <span class="badge bg-primary px-3 py-1.5 rounded-pill" id="selectedBadgeCounter">
+                    @currentAreas.Count Active Areas
                 </span>
             </div>
+
             <div class="card-body p-4">
+                <!-- Info Banner -->
                 <div class="alert alert-info border-0 rounded-3 d-flex align-items-start gap-3 mb-4 bg-info bg-opacity-10">
                     <i class="bi bi-shield-check text-info fs-4 flex-shrink-0 mt-1"></i>
                     <div class="small text-dark">
-                        <strong>Automatic Guest Filtering Rule:</strong> When travelers view or checkout properties in BookMyFun, celebration &amp; décor add-ons are displayed <em>strictly</em> if an active Event Manager services that property's area. If no manager serves an area, décor add-on sections remain completely hidden.
+                        <strong>Guest Discovery Guarantee:</strong> When travelers view or checkout farmhouses, décor add-on options are automatically filtered. If your crew services that property's region, your packages are showcased prominently with pricing and add-on triggers.
                     </div>
                 </div>
 
                 <form asp-action="UpdateServiceAreas" method="post" id="serviceAreasForm">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
-
-                    <!-- Quick Control Bar -->
-                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                        <div class="input-group input-group-sm" style="max-width: 320px;">
-                            <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
-                            <input type="text" id="areaFilterInput" class="form-control" placeholder="Search property locations..." />
-                        </div>
-                        <div class="btn-group btn-group-sm" role="group">
-                            <button type="button" class="btn btn-outline-primary" id="btnSelectAll">
-                                <i class="bi bi-check-all me-1"></i>Select All
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary" id="btnClearAll">
-                                <i class="bi bi-x-lg me-1"></i>Clear All
-                            </button>
-                        </div>
+                    <!-- Hidden inputs container synchronized with selected areas for clean model binding -->
+                    <div id="hiddenInputsContainer">
+                        @foreach (var area in currentAreas)
+                        {
+                            <input type="hidden" name="selectedAreas" value="@area" class="sync-hidden-area" data-area="@area" />
+                        }
                     </div>
 
-                    <!-- Prominent Multi-Select Dropdown -->
-                    <div class="mb-4">
-                        <label for="selectedAreasDropdown" class="form-label fw-bold text-dark small text-uppercase mb-2">
-                            <i class="bi bi-menu-button-wide text-primary me-1"></i>Property Location Selection Dropdown
-                        </label>
-                        <select name="selectedAreas" id="selectedAreasDropdown" multiple class="form-select form-select-lg rounded-3 shadow-none border-primary-subtle" style="min-height: 220px;">
-                            @if (!allLocations.Any())
-                            {
-                                <option disabled>No property locations currently listed in the catalog.</option>
-                            }
-                            @foreach (var loc in allLocations)
-                            {
-                                bool isSelected = currentAreas.Any(a => string.Equals(a, loc, StringComparison.OrdinalIgnoreCase) || loc.Contains(a, StringComparison.OrdinalIgnoreCase) || a.Contains(loc, StringComparison.OrdinalIgnoreCase));
-                                <option value="@loc" selected="@(isSelected ? "selected" : null)" data-name="@loc.ToLowerInvariant()">
-                                    📍 @loc
-                                </option>
-                            }
-                        </select>
-                        <div class="form-text small text-muted mt-2">
-                            <i class="bi bi-mouse me-1"></i>Hold <strong>Ctrl</strong> (or <strong>Cmd</strong> on Mac) to click and select/deselect multiple locations in the dropdown.
-                        </div>
-                    </div>
-
-                    <!-- Interactive Badges & Selected Chips -->
-                    <div class="p-3 bg-light rounded-3 border mb-4">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
+                    <!-- 1. ACTIVE SERVICE COVERAGE CHIPS CLOUD -->
+                    <div class="p-3 bg-light rounded-4 border mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2.5">
                             <span class="small fw-bold text-uppercase text-secondary">
-                                <i class="bi bi-tags me-1"></i>Selected Service Coverage Preview
+                                <i class="bi bi-tags-fill text-primary me-1"></i>Active Service Coverage (<span id="activeCountText">@currentAreas.Count</span> Selected)
                             </span>
-                            <span id="selectedCountText" class="badge bg-primary rounded-pill">@currentAreas.Count Active</span>
+                            <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none p-0 fw-semibold" id="btnClearAllTags">
+                                <i class="bi bi-trash3 me-1"></i>Clear All
+                            </button>
                         </div>
-                        <div id="selectedChipsContainer" class="d-flex flex-wrap gap-2">
+                        <div id="selectedChipsCloud" class="d-flex flex-wrap gap-2 min-h-40">
                             @if (!currentAreas.Any())
                             {
-                                <span class="text-muted small fst-italic" id="emptyNotice">No service areas currently selected. Décor packages are hidden from all guests until an area is enabled.</span>
+                                <span class="text-muted small fst-italic py-2" id="emptyNotice">
+                                    <i class="bi bi-info-circle me-1"></i>No service areas currently selected. Click any location below or type a custom region to add coverage.
+                                </span>
                             }
                             @foreach (var area in currentAreas)
                             {
-                                <span class="badge bg-white text-dark border shadow-sm py-2 px-3 rounded-pill d-flex align-items-center gap-2 chip-item" data-val="@area">
-                                    <i class="bi bi-geo-alt-fill text-danger"></i>
+                                <span class="selected-area-tag" data-area="@area">
+                                    <i class="bi bi-geo-alt-fill text-primary small"></i>
                                     <span>@area</span>
-                                    <button type="button" class="btn-close btn-close-sm remove-chip" aria-label="Remove" data-val="@area" style="font-size: 0.65rem;"></button>
+                                    <button type="button" class="btn-remove-tag" data-area="@area" title="Remove @area" aria-label="Remove @area">
+                                        <i class="bi bi-x-lg" style="font-size: 0.65rem;"></i>
+                                    </button>
                                 </span>
                             }
                         </div>
                     </div>
 
-                    <!-- Submit Actions -->
-                    <div class="d-flex align-items-center justify-content-between pt-3 border-top">
+                    <!-- 2. ADD CUSTOM AREA TAG INPUT -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold small text-dark mb-1">
+                            <i class="bi bi-plus-circle text-primary me-1"></i>Add Custom Area / Sub-Region Tag:
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white border-end-0 text-muted">
+                                <i class="bi bi-geo-alt"></i>
+                            </span>
+                            <input type="text" id="customAreaInput" class="form-control border-start-0" placeholder="e.g. Lonavala North, Karjat Hills, Lavasa Valley, Mulshi Lake..." />
+                            <button type="button" class="btn btn-outline-primary px-3 fw-semibold" id="btnAddCustomArea">
+                                <i class="bi bi-plus-lg me-1"></i> Add Tag
+                            </button>
+                        </div>
+                        <span class="form-text small text-muted">Type any specific town, valley, or micro-region and press Enter or click 'Add Tag'.</span>
+                    </div>
+
+                    <!-- 3. REGIONAL BOUNDARY / MAP ZONE PRESETS -->
+                    <div class="mb-4 p-3 border rounded-3 bg-white">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="small fw-bold text-dark text-uppercase">
+                                <i class="bi bi-compass text-danger me-1"></i>Map Boundary &amp; Regional Zone Selectors
+                            </span>
+                            <span class="small text-muted">1-click geographic presets</span>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2" id="boundaryZonePresets">
+                            <button type="button" class="zone-preset-pill" data-zone="hills" title="Select hill station destinations">
+                                🏔️ Hill Stations &amp; Valleys (Lonavala, Khandala, Mahabaleshwar, Panchgani, Matheran, Igatpuri)
+                            </button>
+                            <button type="button" class="zone-preset-pill" data-zone="coastal" title="Select coastal beach destinations">
+                                🌊 Coastal &amp; Beachfront (Alibaug, Kashid, Mandwa, Diveagar, Nagaon, Murud)
+                            </button>
+                            <button type="button" class="zone-preset-pill" data-zone="metro" title="Select metropolitan destinations">
+                                🏙️ Metro &amp; Suburban (Pune, Mumbai, Thane, Navi Mumbai, Pimpri-Chinchwad)
+                            </button>
+                            <button type="button" class="zone-preset-pill" data-zone="vineyards" title="Select wine country destinations">
+                                🍇 Vineyard Country (Nashik, Sula, Dindori, Trimbak)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 4. AVAILABLE PROPERTY CATALOG LOCATIONS (INTERACTIVE CHIPS) -->
+                    <div class="mb-4">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                            <label class="form-label fw-bold text-dark small text-uppercase mb-0">
+                                <i class="bi bi-grid-fill text-primary me-1"></i>Available Catalog Locations (Click to Toggle):
+                            </label>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="input-group input-group-sm" style="max-width: 220px; flex: 1 1 auto;">
+                                    <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                                    <input type="text" id="catalogSearchInput" class="form-control" placeholder="Search locations..." />
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-2.5 py-1" id="btnSelectAllCatalog">
+                                    <i class="bi bi-check-all me-1"></i>Select All
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="p-3 border rounded-3 bg-white" style="max-height: 280px; overflow-y: auto;">
+                            <div id="catalogChipsGrid" class="d-flex flex-wrap gap-2">
+                                @if (!allLocations.Any())
+                                {
+                                    <span class="text-muted small">No property locations found in the current catalog.</span>
+                                }
+                                @foreach (var loc in allLocations)
+                                {
+                                    bool isSelected = currentAreas.Any(a => string.Equals(a, loc, StringComparison.OrdinalIgnoreCase) || loc.Contains(a, StringComparison.OrdinalIgnoreCase) || a.Contains(loc, StringComparison.OrdinalIgnoreCase));
+                                    <button type="button" class="area-chip @(isSelected ? "active" : "")" data-area="@loc">
+                                        <i class="bi @(isSelected ? "bi-check-circle-fill text-white" : "bi-geo-alt text-primary") chip-icon"></i>
+                                        <span class="chip-label">@loc</span>
+                                        <i class="bi @(isSelected ? "bi-check-lg" : "bi-plus") chip-action-icon ms-1 opacity-75"></i>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                        <div class="form-text small text-muted mt-1.5">
+                            <i class="bi bi-cursor-fill me-1"></i>Click any chip to toggle coverage on/off. Selected areas turn vibrant blue with a checkmark.
+                        </div>
+                    </div>
+
+                    <!-- 5. SAVE BUTTON -->
+                    <div class="d-flex flex-wrap align-items-center justify-content-between pt-3 border-top gap-3">
                         <span class="small text-muted">
-                            <i class="bi bi-clock-history me-1"></i>Changes take effect immediately on guest checkout.
+                            <i class="bi bi-lightning-charge-fill text-warning me-1"></i>Changes update active booking checkout visibility immediately.
                         </span>
-                        <button type="submit" class="btn btn-warning btn-lg fw-bold px-4 py-2 rounded-pill shadow-sm">
+                        <button type="submit" class="btn btn-warning btn-lg fw-bold px-5 py-2.5 rounded-pill shadow-sm">
                             <i class="bi bi-check2-circle me-1"></i> Save Service Areas
                         </button>
                     </div>
@@ -130,40 +206,56 @@
         </div>
     </div>
 
-    <!-- Right Side Information & Help Column -->
+    <!-- Status & Information Column (col-lg-4) -->
     <div class="col-lg-4">
         <!-- Live Status Card -->
         <div class="card border-0 shadow-sm rounded-4 mb-4">
-            <div class="card-header bg-white py-3 border-bottom">
+            <div class="card-header bg-white py-3 px-4 border-bottom">
                 <h6 class="fw-bold mb-0 text-dark">
                     <i class="bi bi-broadcast text-success me-2"></i>Operational Status
                 </h6>
             </div>
             <div class="card-body p-4">
                 <div class="d-flex align-items-center gap-3 mb-3">
-                    <div class="rounded-circle p-3 @(currentAreas.Any() ? "bg-success bg-opacity-10 text-success" : "bg-warning bg-opacity-10 text-warning")">
-                        <i class="bi @(currentAreas.Any() ? "bi-check-circle-fill" : "bi-exclamation-circle-fill") fs-3"></i>
+                    <div class="rounded-circle p-3 @(currentAreas.Any() ? "bg-success bg-opacity-10 text-success" : "bg-warning bg-opacity-10 text-warning")" id="statusIconWrap">
+                        <i class="bi @(currentAreas.Any() ? "bi-check-circle-fill" : "bi-exclamation-circle-fill") fs-3" id="statusIcon"></i>
                     </div>
                     <div>
-                        <h6 class="fw-bold mb-0">@(currentAreas.Any() ? "Actively Receiving Orders" : "No Areas Selected")</h6>
-                        <small class="text-muted">
+                        <h6 class="fw-bold mb-0" id="statusTitle">@(currentAreas.Any() ? "Actively Receiving Orders" : "No Areas Selected")</h6>
+                        <small class="text-muted" id="statusSubtitle">
                             @(currentAreas.Any() ? $"Your packages appear in {currentAreas.Count} regions" : "Packages hidden until areas are selected")
                         </small>
+                    </div>
+                </div>
+
+                <!-- Coverage Progress -->
+                @{
+                    int totalCount = Math.Max(1, allLocations.Count);
+                    int selCount = currentAreas.Count;
+                    int pct = Math.Min(100, (int)Math.Round((double)selCount / totalCount * 100));
+                }
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="text-muted fw-semibold">Catalog Coverage:</span>
+                        <span class="fw-bold text-primary" id="coveragePctText">@pct%</span>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar bg-primary rounded-pill" role="progressbar" style="width: @pct%;" id="coverageProgressBar"></div>
                     </div>
                 </div>
 
                 <div class="p-3 bg-light rounded-3 border small">
                     <div class="d-flex justify-content-between mb-2">
                         <span class="text-muted">Catalog Locations:</span>
-                        <strong class="text-dark">@allLocations.Count Areas</strong>
+                        <strong class="text-dark">@allLocations.Count Regions</strong>
                     </div>
                     <div class="d-flex justify-content-between mb-2">
                         <span class="text-muted">Serviced by You:</span>
-                        <strong class="text-primary">@currentAreas.Count Areas</strong>
+                        <strong class="text-primary" id="statsActiveCount">@currentAreas.Count Areas</strong>
                     </div>
                     <div class="d-flex justify-content-between border-top pt-2">
-                        <span class="text-muted">Guest Visibility:</span>
-                        <strong class="@(currentAreas.Any() ? "text-success" : "text-danger")">
+                        <span class="text-muted">Guest Checkout:</span>
+                        <strong class="@(currentAreas.Any() ? "text-success" : "text-danger")" id="statsVisibilityText">
                             @(currentAreas.Any() ? "Active for Serviced Areas" : "Completely Hidden")
                         </strong>
                     </div>
@@ -171,19 +263,19 @@
             </div>
         </div>
 
-        <!-- Order Fulfillment Guide Card -->
-        <div class="card border-0 shadow-sm rounded-4 bg-light">
+        <!-- Regional Quick Reference Card -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4 bg-light">
             <div class="card-body p-4">
                 <div class="d-flex align-items-center gap-2 mb-2">
-                    <i class="bi bi-clock-history text-primary fs-5"></i>
-                    <h6 class="fw-bold mb-0 text-dark">Order Dispatch &amp; Staging</h6>
+                    <i class="bi bi-map text-primary fs-5"></i>
+                    <h6 class="fw-bold mb-0 text-dark">Crew Dispatch &amp; Logistics</h6>
                 </div>
                 <p class="small text-muted mb-3">
-                    When guests book celebration décor in your serviced areas, assignments appear immediately on your dashboard. Dispatch decorator crews and upload completion photos for verification.
+                    Ensure your decoration crew can fulfill setups within a 3-hour window before guest check-in. Setups outside accessible transport routes should be omitted to maintain high guest satisfaction ratings.
                 </p>
                 <div class="d-flex align-items-center gap-2 small text-secondary">
-                    <i class="bi bi-check2-circle text-success"></i>
-                    <span>Order payouts are automatically disbursed upon completed and inspected setups.</span>
+                    <i class="bi bi-shield-check text-success"></i>
+                    <span>Order disbursements are guaranteed once setup proofs are uploaded and verified.</span>
                 </div>
             </div>
         </div>
@@ -193,79 +285,249 @@
 @section Scripts {
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const select = document.getElementById('selectedAreasDropdown');
-        const filterInput = document.getElementById('areaFilterInput');
-        const btnSelectAll = document.getElementById('btnSelectAll');
-        const btnClearAll = document.getElementById('btnClearAll');
-        const chipsContainer = document.getElementById('selectedChipsContainer');
-        const countText = document.getElementById('selectedCountText');
+        const selectedAreasSet = new Set();
+        @foreach (var a in currentAreas)
+        {
+            @:selectedAreasSet.add("@Html.Raw(a.Replace("\"", "\\\""))");
+        }
 
-        function updateChips() {
-            const selectedOptions = Array.from(select.selectedOptions);
-            countText.textContent = selectedOptions.length + ' Active';
+        const selectedChipsCloud = document.getElementById('selectedChipsCloud');
+        const hiddenInputsContainer = document.getElementById('hiddenInputsContainer');
+        const selectedBadgeCounter = document.getElementById('selectedBadgeCounter');
+        const activeCountText = document.getElementById('activeCountText');
+        const statsActiveCount = document.getElementById('statsActiveCount');
+        const coveragePctText = document.getElementById('coveragePctText');
+        const coverageProgressBar = document.getElementById('coverageProgressBar');
+        const statusIconWrap = document.getElementById('statusIconWrap');
+        const statusIcon = document.getElementById('statusIcon');
+        const statusTitle = document.getElementById('statusTitle');
+        const statusSubtitle = document.getElementById('statusSubtitle');
+        const statsVisibilityText = document.getElementById('statsVisibilityText');
 
-            chipsContainer.innerHTML = '';
-            if (selectedOptions.length === 0) {
-                chipsContainer.innerHTML = '<span class="text-muted small fst-italic" id="emptyNotice">No service areas currently selected. Décor packages are hidden from all guests until an area is enabled.</span>';
-                return;
+        const customAreaInput = document.getElementById('customAreaInput');
+        const btnAddCustomArea = document.getElementById('btnAddCustomArea');
+        const catalogSearchInput = document.getElementById('catalogSearchInput');
+        const btnSelectAllCatalog = document.getElementById('btnSelectAllCatalog');
+        const btnClearAllTags = document.getElementById('btnClearAllTags');
+        const catalogChipsGrid = document.getElementById('catalogChipsGrid');
+
+        const totalCatalogLocations = @Math.Max(1, allLocations.Count);
+
+        // Zone presets mappings
+        const zonePresets = {
+            hills: ['Lonavala', 'Khandala', 'Mahabaleshwar', 'Panchgani', 'Matheran', 'Igatpuri'],
+            coastal: ['Alibaug', 'Kashid', 'Mandwa', 'Diveagar', 'Nagaon', 'Murud'],
+            metro: ['Pune', 'Mumbai', 'Thane', 'Navi Mumbai', 'Pimpri-Chinchwad'],
+            vineyards: ['Nashik', 'Sula', 'Dindori', 'Trimbak']
+        };
+
+        function renderActiveChips() {
+            selectedChipsCloud.innerHTML = '';
+            hiddenInputsContainer.innerHTML = '';
+
+            if (selectedAreasSet.size === 0) {
+                selectedChipsCloud.innerHTML = '<span class="text-muted small fst-italic py-2" id="emptyNotice"><i class="bi bi-info-circle me-1"></i>No service areas currently selected. Click any location below or type a custom region to add coverage.</span>';
+            } else {
+                selectedAreasSet.forEach(area => {
+                    // Create visual chip
+                    const tag = document.createElement('span');
+                    tag.className = 'selected-area-tag animate__animated animate__fadeIn';
+                    tag.setAttribute('data-area', area);
+                    tag.innerHTML = `
+                        <i class="bi bi-geo-alt-fill text-primary small"></i>
+                        <span>${escapeHtml(area)}</span>
+                        <button type="button" class="btn-remove-tag" data-area="${escapeHtml(area)}" title="Remove ${escapeHtml(area)}" aria-label="Remove ${escapeHtml(area)}">
+                            <i class="bi bi-x-lg" style="font-size: 0.65rem;"></i>
+                        </button>
+                    `;
+                    selectedChipsCloud.appendChild(tag);
+
+                    // Create hidden input for form sync
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'selectedAreas';
+                    input.value = area;
+                    input.className = 'sync-hidden-area';
+                    input.setAttribute('data-area', area);
+                    hiddenInputsContainer.appendChild(input);
+                });
             }
 
-            selectedOptions.forEach(opt => {
-                const val = opt.value;
-                const chip = document.createElement('span');
-                chip.className = 'badge bg-white text-dark border shadow-sm py-2 px-3 rounded-pill d-flex align-items-center gap-2 chip-item';
-                chip.innerHTML = `
-                    <i class="bi bi-geo-alt-fill text-danger"></i>
-                    <span>${val}</span>
-                    <button type="button" class="btn-close btn-close-sm remove-chip" aria-label="Remove" data-val="${val}" style="font-size: 0.65rem;"></button>
-                `;
-                chipsContainer.appendChild(chip);
+            // Sync available catalog chips active state
+            if (catalogChipsGrid) {
+                catalogChipsGrid.querySelectorAll('.area-chip').forEach(chip => {
+                    const area = chip.getAttribute('data-area');
+                    const isActive = isAreaSelected(area);
+                    if (isActive) {
+                        chip.classList.add('active');
+                        chip.querySelector('.chip-icon').className = 'bi bi-check-circle-fill text-white chip-icon';
+                        chip.querySelector('.chip-action-icon').className = 'bi bi-check-lg chip-action-icon ms-1 opacity-75';
+                    } else {
+                        chip.classList.remove('active');
+                        chip.querySelector('.chip-icon').className = 'bi bi-geo-alt text-primary chip-icon';
+                        chip.querySelector('.chip-action-icon').className = 'bi bi-plus chip-action-icon ms-1 opacity-75';
+                    }
+                });
+            }
+
+            // Update stats & counters
+            const count = selectedAreasSet.size;
+            selectedBadgeCounter.textContent = `${count} Active Areas`;
+            activeCountText.textContent = count;
+            statsActiveCount.textContent = `${count} Areas`;
+
+            const pct = Math.min(100, Math.round((count / totalCatalogLocations) * 100));
+            coveragePctText.textContent = `${pct}%`;
+            coverageProgressBar.style.width = `${pct}%`;
+
+            if (count > 0) {
+                statusIconWrap.className = 'rounded-circle p-3 bg-success bg-opacity-10 text-success';
+                statusIcon.className = 'bi bi-check-circle-fill fs-3';
+                statusTitle.textContent = 'Actively Receiving Orders';
+                statusSubtitle.textContent = `Your packages appear in ${count} regions`;
+                statsVisibilityText.className = 'text-success';
+                statsVisibilityText.textContent = 'Active for Serviced Areas';
+            } else {
+                statusIconWrap.className = 'rounded-circle p-3 bg-warning bg-opacity-10 text-warning';
+                statusIcon.className = 'bi bi-exclamation-circle-fill fs-3';
+                statusTitle.textContent = 'No Areas Selected';
+                statusSubtitle.textContent = 'Packages hidden until areas are selected';
+                statsVisibilityText.className = 'text-danger';
+                statsVisibilityText.textContent = 'Completely Hidden';
+            }
+        }
+
+        function isAreaSelected(name) {
+            for (let a of selectedAreasSet) {
+                if (a.toLowerCase() === name.toLowerCase()) return true;
+            }
+            return false;
+        }
+
+        function toggleArea(name) {
+            const trimmed = name.trim();
+            if (!trimmed) return;
+
+            let existing = null;
+            for (let a of selectedAreasSet) {
+                if (a.toLowerCase() === trimmed.toLowerCase()) {
+                    existing = a;
+                    break;
+                }
+            }
+
+            if (existing) {
+                selectedAreasSet.delete(existing);
+            } else {
+                selectedAreasSet.add(trimmed);
+            }
+            renderActiveChips();
+        }
+
+        function addArea(name) {
+            const trimmed = name.trim();
+            if (!trimmed) return;
+            if (!isAreaSelected(trimmed)) {
+                selectedAreasSet.add(trimmed);
+                renderActiveChips();
+            }
+        }
+
+        function removeArea(name) {
+            const trimmed = name.trim();
+            for (let a of selectedAreasSet) {
+                if (a.toLowerCase() === trimmed.toLowerCase()) {
+                    selectedAreasSet.delete(a);
+                    break;
+                }
+            }
+            renderActiveChips();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Available chip click listener
+        if (catalogChipsGrid) {
+            catalogChipsGrid.addEventListener('click', function (e) {
+                const chip = e.target.closest('.area-chip');
+                if (chip) {
+                    const area = chip.getAttribute('data-area');
+                    toggleArea(area);
+                }
             });
         }
 
-        // Live filter in dropdown
-        filterInput.addEventListener('input', function () {
-            const term = this.value.trim().toLowerCase();
-            Array.from(select.options).forEach(opt => {
-                const name = opt.getAttribute('data-name') || opt.text.toLowerCase();
-                if (term === '' || name.includes(term)) {
-                    opt.style.display = '';
-                } else {
-                    opt.style.display = 'none';
-                }
-            });
+        // Remove active tag click listener
+        selectedChipsCloud.addEventListener('click', function (e) {
+            const btn = e.target.closest('.btn-remove-tag');
+            if (btn) {
+                const area = btn.getAttribute('data-area');
+                removeArea(area);
+            }
         });
 
-        // Select All visible
-        btnSelectAll.addEventListener('click', function () {
-            Array.from(select.options).forEach(opt => {
-                if (opt.style.display !== 'none' && !opt.disabled) {
-                    opt.selected = true;
+        // Add Custom Area
+        function handleAddCustom() {
+            const val = customAreaInput.value.trim();
+            if (val) {
+                addArea(val);
+                customAreaInput.value = '';
+                customAreaInput.focus();
+            }
+        }
+
+        btnAddCustomArea.addEventListener('click', handleAddCustom);
+        customAreaInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAddCustom();
+            }
+        });
+
+        // Select All catalog locations
+        btnSelectAllCatalog.addEventListener('click', function () {
+            catalogChipsGrid.querySelectorAll('.area-chip').forEach(chip => {
+                if (chip.style.display !== 'none') {
+                    addArea(chip.getAttribute('data-area'));
                 }
             });
-            updateChips();
         });
 
         // Clear All
-        btnClearAll.addEventListener('click', function () {
-            Array.from(select.options).forEach(opt => opt.selected = false);
-            updateChips();
+        btnClearAllTags.addEventListener('click', function () {
+            selectedAreasSet.clear();
+            renderActiveChips();
         });
 
-        // Selection change listener
-        select.addEventListener('change', updateChips);
+        // Live search filter in catalog chips
+        catalogSearchInput.addEventListener('input', function () {
+            const query = this.value.trim().toLowerCase();
+            catalogChipsGrid.querySelectorAll('.area-chip').forEach(chip => {
+                const label = chip.getAttribute('data-area').toLowerCase();
+                if (query === '' || label.includes(query)) {
+                    chip.style.display = 'inline-flex';
+                } else {
+                    chip.style.display = 'none';
+                }
+            });
+        });
 
-        // Remove chip click delegation
-        chipsContainer.addEventListener('click', function (e) {
-            const btn = e.target.closest('.remove-chip');
+        // Zone presets click listener
+        document.getElementById('boundaryZonePresets').addEventListener('click', function (e) {
+            const btn = e.target.closest('.zone-preset-pill');
             if (btn) {
-                const val = btn.getAttribute('data-val');
-                Array.from(select.options).forEach(opt => {
-                    if (opt.value === val) opt.selected = false;
-                });
-                updateChips();
+                const zone = btn.getAttribute('data-zone');
+                const areas = zonePresets[zone] || [];
+                areas.forEach(a => addArea(a));
             }
         });
+
+        // Initial render
+        renderActiveChips();
     });
 </script>
 }

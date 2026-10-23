@@ -122,12 +122,15 @@
                                 }
                             </div>
                             @{
-                                var mapQuery = Model.Latitude.HasValue && Model.Longitude.HasValue 
-                                    ? $"{Model.Latitude.Value},{Model.Longitude.Value}" 
-                                    : Uri.EscapeDataString(Model.Location);
+                                var hasDirectMapUrl = !string.IsNullOrWhiteSpace(Model.MapUrl);
+                                var mapHref = hasDirectMapUrl 
+                                    ? Model.MapUrl 
+                                    : (Model.Latitude.HasValue && Model.Longitude.HasValue 
+                                        ? $"https://www.google.com/maps/search/?api=1&query={Model.Latitude.Value},{Model.Longitude.Value}" 
+                                        : $"https://www.google.com/maps/search/?api=1&query={Uri.EscapeDataString(Model.Location)}");
                             }
-                            <a href="https://www.google.com/maps/search/?api=1&query=@mapQuery" target="_blank" class="btn btn-outline-success rounded-pill px-3">
-                                <i class="bi bi-compass me-1"></i> Open in Google Maps
+                            <a href="@mapHref" target="_blank" class="btn btn-outline-success rounded-pill px-3">
+                                <i class="bi bi-compass me-1"></i> @(hasDirectMapUrl ? "Open Verified Location Link" : "Open in Google Maps")
                             </a>
                         </div>
                     </div>

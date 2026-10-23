@@ -187,10 +187,22 @@
 </div>
 
 <script>
-    function previewDamageProof(input) {
+    async function previewDamageProof(input) {
         const container = document.getElementById('damageProofPreview');
         container.innerHTML = '';
-        if (input.files) {
+        if (input.files && input.files.length > 0) {
+            if (window.ImageOptimizer) {
+                const dt = new DataTransfer();
+                for (let i = 0; i < input.files.length; i++) {
+                    let f = input.files[i];
+                    if (window.ImageOptimizer.isOptimizable(f)) {
+                        f = await window.ImageOptimizer.compressAndConvertToWebP(f, { maxWidth: 1600, maxHeight: 1200, quality: 0.82 });
+                    }
+                    dt.items.add(f);
+                }
+                input.files = dt.files;
+            }
+
             Array.from(input.files).forEach(file => {
                 if (file.type.startsWith('image/')) {
                     const reader = new FileReader();

@@ -34,6 +34,7 @@
      */
     function applyTheme(theme, save) {
         document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.setAttribute('data-bs-theme', theme);
 
         var icons = document.querySelectorAll('.theme-icon, #themeIcon');
         icons.forEach(function (icon) {

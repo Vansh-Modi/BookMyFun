@@ -192,6 +192,10 @@
                                 <label class="form-label fw-semibold">Longitude</label>
                                 <input asp-for="Longitude" type="number" step="0.0000001" class="form-control rounded-3" />
                             </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold"><i class="bi bi-pin-map-fill text-danger me-1"></i>Direct Map / Location URL</label>
+                                <input asp-for="MapUrl" class="form-control rounded-3" placeholder="https://maps.app.goo.gl/... or https://goo.gl/maps/..." />
+                            </div>
                         </div>
                     </div>
                 </div>

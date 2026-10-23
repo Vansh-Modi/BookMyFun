@@ -3,6 +3,7 @@ using BookMyFun.Models.Entities;
 using BookMyFun.Models.ViewModels;
 using BookMyFun.Repositories;
 using BookMyFun.Services;
+using BookMyFun.Services.Exceptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -98,13 +99,30 @@ namespace BookMyFun.Controllers
             }
 
             var userId = GetCurrentUserId();
+            string? mediaUrl = model.MediaUrl?.Trim();
+
+            // Direct image file upload handling
+            if (model.ImageFile != null && model.ImageFile.Length > 0)
+            {
+                try
+                {
+                    var (uploadedUrl, _) = await _mediaStorage.SaveMediaFileAsync(model.ImageFile, "photo");
+                    mediaUrl = uploadedUrl;
+                }
+                catch (ValidationException ex)
+                {
+                    ModelState.AddModelError("ImageFile", ex.Message);
+                    return View(model);
+                }
+            }
+
             var pkg = new EventPackage
             {
                 Name = model.Name,
                 Category = model.Category,
                 BasePrice = model.BasePrice,
                 Description = model.Description,
-                MediaUrl = model.MediaUrl,
+                MediaUrl = mediaUrl,
                 IncludedItems = model.IncludedItems,
                 IsActive = model.IsActive,
                 CommissionRate = null, // Strictly controlled by Admin and Employee
@@ -153,6 +171,23 @@ namespace BookMyFun.Controllers
             var existing = await _eventRepo.GetPackageByIdAsync(model.PackageID);
             if (existing == null) return NotFound();
 
+            string? mediaUrl = model.MediaUrl?.Trim();
+
+            // Direct image file upload handling
+            if (model.ImageFile != null && model.ImageFile.Length > 0)
+            {
+                try
+                {
+                    var (uploadedUrl, _) = await _mediaStorage.SaveMediaFileAsync(model.ImageFile, "photo");
+                    mediaUrl = uploadedUrl;
+                }
+                catch (ValidationException ex)
+                {
+                    ModelState.AddModelError("ImageFile", ex.Message);
+                    return View(model);
+                }
+            }
+
             var pkg = new EventPackage
             {
                 PackageID = model.PackageID,
@@ -160,7 +195,7 @@ namespace BookMyFun.Controllers
                 Category = model.Category,
                 BasePrice = model.BasePrice,
                 Description = model.Description,
-                MediaUrl = model.MediaUrl,
+                MediaUrl = string.IsNullOrWhiteSpace(mediaUrl) ? existing.MediaUrl : mediaUrl,
                 IncludedItems = model.IncludedItems,
                 IsActive = model.IsActive,
                 CommissionRate = existing.CommissionRate, // Strictly preserved from Admin/Employee configuration
@@ -181,7 +216,7 @@ namespace BookMyFun.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> TogglePackageStatus(int id)
+        public async Task<IActionResult> TogglePackageStatus(int id, string? returnUrl = null)
         {
             var pkg = await _eventRepo.GetPackageByIdAsync(id);
             if (pkg == null) return NotFound();
@@ -192,7 +227,13 @@ namespace BookMyFun.Controllers
             var userId = GetCurrentUserId();
             await _configRepo.LogAuditAsync(userId, "ToggleEventPackageStatus", "EventPackage", id, $"Toggled status to {pkg.IsActive}");
 
-            TempData["Success"] = $"Package status set to {(pkg.IsActive ? "Active" : "Inactive")}.";
+            TempData["Success"] = $"Package '{pkg.Name}' status set to {(pkg.IsActive ? "Active" : "Inactive")}.";
+
+            if (!string.IsNullOrEmpty(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
+            {
+                return Redirect(returnUrl);
+            }
+
             return RedirectToAction(nameof(Packages));
         }
 
@@ -210,16 +251,45 @@ namespace BookMyFun.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdateSetupStatus(SetupStatusUpdateViewModel model)
+        public async Task<IActionResult> UpdateSetupStatus(SetupStatusUpdateViewModel model, string? returnUrl = null)
         {
             if (!ModelState.IsValid)
             {
                 TempData["Error"] = "Invalid setup status update payload.";
-                return RedirectToAction(nameof(AssignedSetups));
+                return RedirectToTarget(returnUrl);
             }
 
             var userId = GetCurrentUserId();
-            bool success = await _eventRepo.UpdateSetupStatusAsync(model.BookingID, model.SetupStatus, model.SetupProofMediaUrls, userId);
+            var proofUrls = new List<string>();
+
+            // Collect existing proof URLs if provided
+            if (!string.IsNullOrWhiteSpace(model.SetupProofMediaUrls))
+            {
+                var existingUrls = model.SetupProofMediaUrls
+                    .Split(new[] { ',', '\n', '\r', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                proofUrls.AddRange(existingUrls);
+            }
+
+            // Direct upload handling for proof photos
+            if (model.ProofFiles != null && model.ProofFiles.Count > 0)
+            {
+                foreach (var file in model.ProofFiles.Where(f => f.Length > 0))
+                {
+                    try
+                    {
+                        var (uploadedUrl, _) = await _mediaStorage.SaveMediaFileAsync(file, "photo");
+                        proofUrls.Add(uploadedUrl);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to upload setup proof photo for booking {BookingId}", model.BookingID);
+                    }
+                }
+            }
+
+            string mergedProofUrls = string.Join(", ", proofUrls.Distinct());
+
+            bool success = await _eventRepo.UpdateSetupStatusAsync(model.BookingID, model.SetupStatus, mergedProofUrls, userId);
 
             if (success)
             {
@@ -231,6 +301,15 @@ namespace BookMyFun.Controllers
                 TempData["Error"] = "Failed to update setup status.";
             }
 
+            return RedirectToTarget(returnUrl);
+        }
+
+        private IActionResult RedirectToTarget(string? returnUrl)
+        {
+            if (!string.IsNullOrEmpty(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
+            {
+                return Redirect(returnUrl);
+            }
             return RedirectToAction(nameof(AssignedSetups));
         }
 
@@ -303,7 +382,7 @@ namespace BookMyFun.Controllers
             {
                 TempData["Error"] = "Unable to delete package.";
             }
-            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+            if (!string.IsNullOrEmpty(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
             {
                 return Redirect(returnUrl);
             }
@@ -348,7 +427,7 @@ namespace BookMyFun.Controllers
                 TempData["Error"] = "Unable to update service areas. Please try again.";
             }
 
-            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+            if (!string.IsNullOrEmpty(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
             {
                 return Redirect(returnUrl);
             }
@@ -370,7 +449,7 @@ namespace BookMyFun.Controllers
             {
                 TempData["Error"] = $"Unable to remove event setup for Booking #{bookingId}.";
             }
-            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+            if (!string.IsNullOrEmpty(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
             {
                 return Redirect(returnUrl);
             }

@@ -1,0 +1,455 @@
+@model BookMyFun.Models.ViewModels.EventCommissionsManagementViewModel
+@{
+    var controllerName = ViewContext.RouteData.Values["controller"]?.ToString() ?? "Admin";
+    ViewData["Title"] = "Event Commission Architecture & Administrative Overrides";
+    var userRole = User.IsInRole("Admin") ? "Platform Administrator" : "Operations Staff (Employee)";
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+            <h2 class="fw-bold mb-0">
+                <i class="bi bi-percent text-warning me-2"></i>Event Manager Commission Architecture
+            </h2>
+            <span class="badge @(User.IsInRole("Admin") ? "bg-warning text-dark" : "bg-info text-dark") px-3 py-1.5 rounded-pill fw-semibold">
+                <i class="bi bi-shield-check me-1"></i>@userRole
+            </span>
+        </div>
+        <p class="text-muted mb-0">
+            Establish the global baseline event commission rate and manage granular custom overrides per event manager or per specific event package.
+        </p>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-controller="@controllerName" asp-action="ManageBookings" class="btn btn-outline-warning">
+            <i class="bi bi-calendar-check me-1"></i> Per-Booking Event Overrides
+        </a>
+        <a asp-controller="@controllerName" asp-action="Index" class="btn btn-outline-dark">
+            <i class="bi bi-arrow-left me-1"></i> Dashboard
+        </a>
+    </div>
+</div>
+
+<!-- SECTION 1: GLOBAL STANDING EVENT COMMISSION -->
+<div class="card shadow-sm border-0 rounded-4 mb-4">
+    <div class="card-header bg-dark text-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2 rounded-top-4">
+        <h5 class="fw-bold mb-0 text-white">
+            <i class="bi bi-globe2 text-warning me-2"></i>1. Default Global Standing Commission Rate
+        </h5>
+        <span class="badge bg-primary px-3 py-1.5 rounded-pill">System Baseline</span>
+    </div>
+    <div class="card-body p-4">
+        <div class="row g-4 align-items-center">
+            <div class="col-lg-6">
+                <p class="text-muted small mb-3">
+                    This global percentage serves as the foundational baseline levied on all event manager celebration &amp; décor services across BookMyFun, unless an explicit override is configured per event manager or per specific event.
+                </p>
+                <div class="p-3 bg-light rounded-3 border">
+                    <label class="form-label fw-bold text-dark small mb-1">Current Standing Baseline Event Commission</label>
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text bg-white fw-bold text-warning"><i class="bi bi-percent"></i></span>
+                        <input type="number" 
+                               step="0.1" 
+                               min="0" 
+                               max="100" 
+                               id="globalEventCommInput" 
+                               class="form-control fw-bold fs-4 text-dark" 
+                               value="@Model.GlobalStandingEventCommission.ToString("0.##")" />
+                        <span class="input-group-text bg-white fw-bold">%</span>
+                        <button type="button" class="btn btn-warning fw-bold text-dark px-4" onclick="saveGlobalEventComm()">
+                            <i class="bi bi-save me-1"></i> Save Global Baseline
+                        </button>
+                    </div>
+                    <small class="form-text text-muted mt-1 d-block">
+                        Applies platform-wide when calculating host/manager splits and financial ledger entries.
+                    </small>
+                </div>
+            </div>
+
+            <!-- Hierarchy Card -->
+            <div class="col-lg-6">
+                <div class="p-3 bg-warning-subtle rounded-3 border border-warning-subtle h-100">
+                    <h6 class="fw-bold text-dark mb-2">
+                        <i class="bi bi-diagram-3 text-warning me-1"></i> Commission Precedence Hierarchy (Highest to Lowest)
+                    </h6>
+                    <ol class="small text-muted mb-0 ps-3" style="line-height: 1.6;">
+                        <li><strong class="text-dark">Specific Booking Override:</strong> Adjusted on individual reservation voucher.</li>
+                        <li><strong class="text-dark">Property-Specific Package Override:</strong> Configured for custom host-venue packages.</li>
+                        <li><strong class="text-dark">Specific Event Package Override:</strong> Overrides configured per catalog event package below.</li>
+                        <li><strong class="text-dark">Event Manager Custom Override:</strong> Negotiated partner rates configured per event manager below.</li>
+                        <li><strong class="text-dark">Standing Global Baseline:</strong> Default rate (@Model.GlobalStandingEventCommission.ToString("0.##")%) applied automatically when no overrides exist.</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SECTION 2: PER EVENT MANAGER CUSTOM COMMISSION OVERRIDES -->
+<div class="card shadow-sm border-0 rounded-4 mb-4">
+    <div class="card-header bg-white py-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2 rounded-top-4">
+        <div>
+            <h5 class="fw-bold mb-1 text-dark">
+                <i class="bi bi-people-fill text-primary me-2"></i>2. Custom Commission Rates Per Event Manager
+            </h5>
+            <div class="small text-muted">
+                Assign custom negotiated commission percentages to specific event managers. When blank or reset, the manager inherits the global standing rate.
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 rounded-pill">
+                <i class="bi bi-person-gear me-1"></i> @Model.EventManagers.Count Event Managers
+            </span>
+        </div>
+    </div>
+    <div class="card-body p-4">
+        @if (!Model.EventManagers.Any())
+        {
+            <div class="alert alert-secondary py-3 text-center mb-0 rounded-3">
+                <i class="bi bi-person-exclamation fs-3 d-block mb-2 text-muted"></i>
+                <div class="fw-bold text-dark">No Registered Event Managers Found</div>
+                <div class="small text-muted">When users register or are assigned the <code>EventManager</code> role, they will appear here automatically for custom rate assignment.</div>
+            </div>
+        }
+        else
+        {
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <div class="input-group input-group-sm" style="max-width: 340px;">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="mgrSearchInput" class="form-control" placeholder="Search event manager by name, email, or phone..." onkeyup="filterManagerTable()" />
+                </div>
+                <div class="small text-muted">
+                    <span class="fw-bold text-dark">@Model.EventManagers.Count</span> Total Managers &bull; 
+                    <span class="text-primary fw-bold" id="customMgrOverrideCount">@Model.EventManagers.Count(m => m.CustomCommissionRate.HasValue)</span> Custom Overrides Active
+                </div>
+            </div>
+
+            <div class="table-responsive bg-white rounded-3 border">
+                <table class="table table-hover align-middle mb-0" id="eventManagerCommissionTable">
+                    <thead class="table-light small text-uppercase">
+                        <tr>
+                            <th>Event Manager</th>
+                            <th>Contact &amp; Role</th>
+                            <th>Current Commission Status</th>
+                            <th style="min-width: 190px;">Custom Commission Rate (%)</th>
+                            <th class="text-end pe-3">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var mgr in Model.EventManagers)
+                        {
+                            var hasCustom = mgr.CustomCommissionRate.HasValue;
+                            <tr class="mgr-row" data-name="@mgr.FullName.ToLower()" data-email="@mgr.Email.ToLower()" data-phone="@(mgr.Phone ?? "").ToLower()">
+                                <td>
+                                    <div class="fw-bold text-dark">
+                                        <i class="bi bi-person-badge-fill text-primary me-2"></i>@mgr.FullName
+                                    </div>
+                                    <small class="text-muted">User ID: #@mgr.UserID</small>
+                                </td>
+                                <td>
+                                    <div class="small"><i class="bi bi-envelope text-secondary me-1"></i>@mgr.Email</div>
+                                    <div class="small text-muted"><i class="bi bi-telephone text-secondary me-1"></i>@(mgr.Phone ?? "N/A")</div>
+                                </td>
+                                <td id="mgr_status_cell_@mgr.UserID">
+                                    @if (hasCustom)
+                                    {
+                                        <span class="badge bg-primary-subtle text-primary border border-primary px-2.5 py-1.5 rounded-pill">
+                                            <i class="bi bi-star-fill text-warning me-1"></i>Custom: @mgr.CustomCommissionRate!.Value.ToString("0.##")%
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-muted border px-2.5 py-1.5 rounded-pill">
+                                            Standing Default (@Model.GlobalStandingEventCommission.ToString("0.##")%)
+                                        </span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="input-group input-group-sm">
+                                        <input type="number" 
+                                               step="0.1" 
+                                               min="0" 
+                                               max="100" 
+                                               id="input_mgr_@mgr.UserID" 
+                                               class="form-control" 
+                                               placeholder="Global default" 
+                                               value="@(hasCustom ? mgr.CustomCommissionRate!.Value.ToString("0.##") : "")" />
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                </td>
+                                <td class="text-end pe-3">
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" 
+                                                class="btn btn-primary" 
+                                                title="Save custom commission rate for @mgr.FullName"
+                                                onclick="saveEventManagerComm(@mgr.UserID, '@mgr.FullName')">
+                                            <i class="bi bi-check2"></i> Save
+                                        </button>
+                                        <button type="button" 
+                                                class="btn btn-outline-secondary" 
+                                                title="Reset to Global Default Rate"
+                                                onclick="resetEventManagerComm(@mgr.UserID, '@mgr.FullName')">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="form-text small text-muted mt-2">
+                <i class="bi bi-info-circle text-primary me-1"></i>
+                Click <strong>Save</strong> to assign a custom commission rate to this manager, or click <strong>Reset</strong> to revert to the global standing default.
+            </div>
+        }
+    </div>
+</div>
+
+<!-- SECTION 3: PER SPECIFIC EVENT (CATALOG PACKAGES) OVERRIDES -->
+<div class="card shadow-sm border-0 rounded-4 mb-4">
+    <div class="card-header bg-white py-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2 rounded-top-4">
+        <div>
+            <h5 class="fw-bold mb-1 text-dark">
+                <i class="bi bi-balloon-heart-fill text-warning me-2"></i>3. Custom Commission Rates Per Specific Event Package
+            </h5>
+            <div class="small text-muted">
+                Configure package-specific custom commission rates that take precedence over the manager baseline for that celebration service.
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-warning-subtle text-dark border border-warning-subtle px-3 py-2 rounded-pill">
+                <i class="bi bi-box2-heart me-1"></i> @Model.EventPackages.Count Event Packages
+            </span>
+        </div>
+    </div>
+    <div class="card-body p-4">
+        @if (!Model.EventPackages.Any())
+        {
+            <div class="alert alert-secondary py-3 text-center mb-0 rounded-3">
+                <i class="bi bi-box-seam fs-3 d-block mb-2 text-muted"></i>
+                <div class="fw-bold text-dark">No Event Packages in Catalog</div>
+                <div class="small text-muted">Create event packages in the Event Manager catalog to configure package-specific commissions.</div>
+            </div>
+        }
+        else
+        {
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <div class="input-group input-group-sm" style="max-width: 340px;">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="pkgSearchInput" class="form-control" placeholder="Search event by name or category..." onkeyup="filterPkgTable()" />
+                </div>
+                <div class="small text-muted">
+                    <span class="fw-bold text-dark">@Model.EventPackages.Count</span> Total Packages &bull; 
+                    <span class="text-warning fw-bold" id="customPkgOverrideCount">@Model.EventPackages.Count(p => p.CommissionRate.HasValue)</span> Custom Overrides Active
+                </div>
+            </div>
+
+            <div class="table-responsive bg-white rounded-3 border">
+                <table class="table table-hover align-middle mb-0" id="eventPkgCommissionTable">
+                    <thead class="table-light small text-uppercase">
+                        <tr>
+                            <th>Event Package</th>
+                            <th>Category</th>
+                            <th>Base Price</th>
+                            <th>Current Commission Status</th>
+                            <th style="min-width: 190px;">Custom Commission Rate (%)</th>
+                            <th class="text-end pe-3">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var pkg in Model.EventPackages)
+                        {
+                            var hasCustom = pkg.CommissionRate.HasValue;
+                            <tr class="pkg-row" data-name="@pkg.Name.ToLower()" data-category="@pkg.Category.ToLower()">
+                                <td class="fw-semibold text-dark">
+                                    <i class="bi bi-palette text-warning me-2"></i>@pkg.Name
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary-subtle text-dark border">@pkg.Category</span>
+                                </td>
+                                <td class="fw-semibold text-dark">
+                                    ₹@pkg.BasePrice.ToString("N0")
+                                </td>
+                                <td id="pkg_status_cell_@pkg.PackageID">
+                                    @if (hasCustom)
+                                    {
+                                        <span class="badge bg-warning-subtle text-dark border border-warning px-2.5 py-1.5 rounded-pill">
+                                            <i class="bi bi-star-fill text-warning me-1"></i>Custom: @pkg.CommissionRate!.Value.ToString("0.##")%
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-muted border px-2.5 py-1.5 rounded-pill">
+                                            Standing Default (@Model.GlobalStandingEventCommission.ToString("0.##")%)
+                                        </span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="input-group input-group-sm">
+                                        <input type="number" 
+                                               step="0.1" 
+                                               min="0" 
+                                               max="100" 
+                                               id="input_pkg_@pkg.PackageID" 
+                                               class="form-control" 
+                                               placeholder="Global default" 
+                                               value="@(hasCustom ? pkg.CommissionRate!.Value.ToString("0.##") : "")" />
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                </td>
+                                <td class="text-end pe-3">
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" 
+                                                class="btn btn-warning fw-semibold text-dark" 
+                                                title="Save custom rate for @pkg.Name"
+                                                onclick="saveSpecificEventComm(@pkg.PackageID, '@pkg.Name')">
+                                            <i class="bi bi-check2"></i> Save
+                                        </button>
+                                        <button type="button" 
+                                                class="btn btn-outline-secondary" 
+                                                title="Reset to Standing Default Rate"
+                                                onclick="resetSpecificEventComm(@pkg.PackageID, '@pkg.Name')">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+<script>
+    const controller = '@controllerName';
+
+    // 1. Save Default Global Event Commission
+    async function saveGlobalEventComm() {
+        const val = parseFloat(document.getElementById('globalEventCommInput').value);
+        if (isNaN(val) || val < 0 || val > 100) {
+            alert('Please enter a valid commission rate percentage between 0 and 100.');
+            return;
+        }
+
+        try {
+            const resp = await fetch(`/${controller}/UpdateGlobalEventCommission`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ commissionRate: val })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert(data.message || 'Failed to update global event commission rate.');
+            }
+        } catch (e) {
+            alert('Network error while updating global commission.');
+        }
+    }
+
+    // 2. Save Custom Commission Per Event Manager
+    async function saveEventManagerComm(userId, userName) {
+        const input = document.getElementById(`input_mgr_${userId}`);
+        const val = input.value.trim();
+        let rate = null;
+
+        if (val !== '') {
+            rate = parseFloat(val);
+            if (isNaN(rate) || rate < 0 || rate > 100) {
+                alert('Please enter a valid rate between 0 and 100, or leave blank to inherit default.');
+                return;
+            }
+        }
+
+        try {
+            const resp = await fetch(`/${controller}/UpdateEventManagerCommission`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: userId, commissionRate: rate })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert(data.message || 'Failed to update event manager commission.');
+            }
+        } catch (e) {
+            alert('Network error updating event manager commission.');
+        }
+    }
+
+    // Reset Event Manager Commission to Default
+    async function resetEventManagerComm(userId, userName) {
+        if (!confirm(`Revert commission for event manager '${userName}' to the global standing default?`)) {
+            return;
+        }
+        document.getElementById(`input_mgr_${userId}`).value = '';
+        await saveEventManagerComm(userId, userName);
+    }
+
+    // 3. Save Custom Commission Per Event Package
+    async function saveSpecificEventComm(pkgId, pkgName) {
+        const input = document.getElementById(`input_pkg_${pkgId}`);
+        const val = input.value.trim();
+        let rate = null;
+
+        if (val !== '') {
+            rate = parseFloat(val);
+            if (isNaN(rate) || rate < 0 || rate > 100) {
+                alert('Please enter a valid rate between 0 and 100, or leave blank to inherit standing default.');
+                return;
+            }
+        }
+
+        try {
+            const resp = await fetch(`/${controller}/UpdateEventCommission`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ packageId: pkgId, commissionRate: rate })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert(data.message || 'Failed to update event package commission.');
+            }
+        } catch (e) {
+            alert('Network error updating event package commission.');
+        }
+    }
+
+    // Reset Event Package Commission to Default
+    async function resetSpecificEventComm(pkgId, pkgName) {
+        if (!confirm(`Revert commission for event '${pkgName}' to the global standing default?`)) {
+            return;
+        }
+        document.getElementById(`input_pkg_${pkgId}`).value = '';
+        await saveSpecificEventComm(pkgId, pkgName);
+    }
+
+    // Search filters
+    function filterManagerTable() {
+        const query = document.getElementById('mgrSearchInput').value.toLowerCase().trim();
+        document.querySelectorAll('.mgr-row').forEach(row => {
+            const name = row.getAttribute('data-name') || '';
+            const email = row.getAttribute('data-email') || '';
+            const phone = row.getAttribute('data-phone') || '';
+            row.style.display = (name.includes(query) || email.includes(query) || phone.includes(query)) ? '' : 'none';
+        });
+    }
+
+    function filterPkgTable() {
+        const query = document.getElementById('pkgSearchInput').value.toLowerCase().trim();
+        document.querySelectorAll('.pkg-row').forEach(row => {
+            const name = row.getAttribute('data-name') || '';
+            const cat = row.getAttribute('data-category') || '';
+            row.style.display = (name.includes(query) || cat.includes(query)) ? '' : 'none';
+        });
+    }
+</script>

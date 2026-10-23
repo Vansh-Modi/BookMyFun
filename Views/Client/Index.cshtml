@@ -84,7 +84,7 @@
                             }
                             else if (b.Status == "Cancelled")
                             {
-                                <span class="dash-badge dash-badge-warning" style="background: rgba(239,68,68,.12); color: #dc2626;"><i class="bi bi-x-circle-fill"></i> Cancelled</span>
+                                <span class="dash-badge dash-badge-danger"><i class="bi bi-x-circle-fill"></i> Cancelled</span>
                             }
                             else
                             {
@@ -93,8 +93,11 @@
                         </td>
                         <td class="text-end pe-4">
                             <div class="d-inline-flex flex-wrap gap-1 justify-content-end align-items-center">
+                                <a asp-controller="Booking" asp-action="Receipt" asp-route-id="@b.BookingID" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-2.5 py-1" style="font-size: 0.775rem;" title="View Official Reservation Voucher & Tax Receipt">
+                                    <i class="bi bi-file-earmark-text me-1"></i>Receipt
+                                </a>
                                 <button type="button" class="btn btn-sm btn-outline-info rounded-pill px-2.5 py-1" style="font-size: 0.775rem;" onclick="viewPaymentDetails(@b.BookingID)" title="View Payment Gateway & Refund Transparency">
-                                    <i class="bi bi-receipt me-1"></i>Receipts
+                                    <i class="bi bi-clock-history me-1"></i>Audit
                                 </button>
                                 @if (b.Status == "Confirmed")
                                 {

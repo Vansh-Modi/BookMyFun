@@ -1,47 +1,395 @@
-@model BookMyFun.Models.Entities.Booking
+@model BookMyFun.Models.ViewModels.BookingReceiptViewModel
 @{
-    ViewData["Title"] = "Booking Confirmed!";
+    ViewData["Title"] = $"Booking Confirmed - #{Model.Booking.BookingID}";
+    var propertyAddress = Model.Property?.FormattedAddress ?? Model.Property?.Location ?? "Private Venue Location";
 }
 
-<div class="row justify-content-center">
-    <div class="col-md-7 text-center">
-        <div class="card shadow-sm border-0 p-4">
-            <div class="mb-3">
-                <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
-            </div>
-            <h2 class="fw-bold text-success mb-2">Booking Confirmed!</h2>
-            <p class="text-muted">Your reservation request has been processed and your entry pass is generated.</p>
+<div class="receipt-container my-4">
+    <!-- Top Action Breadcrumbs & Navigation (Hidden in Print) -->
+    <div class="receipt-action-bar no-print mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <a asp-controller="Client" asp-action="Index" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1.5">
+                <i class="bi bi-arrow-left me-1"></i>My Bookings Dashboard
+            </a>
+            <a asp-controller="Properties" asp-action="Index" class="btn btn-sm btn-outline-dark rounded-pill px-3 py-1.5">
+                <i class="bi bi-compass me-1"></i>Explore More Farmhouses
+            </a>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a asp-controller="Booking" asp-action="Receipt" asp-route-id="@Model.Booking.BookingID" target="_blank" class="btn btn-sm btn-outline-success rounded-pill px-3 py-1.5">
+                <i class="bi bi-file-earmark-text me-1"></i>Full Tax Receipt (PDF)
+            </a>
+            <button type="button" onclick="window.print()" class="btn btn-sm btn-primary rounded-pill px-3 py-1.5 fw-bold shadow-sm">
+                <i class="bi bi-printer-fill me-1"></i>Print Pass
+            </button>
+        </div>
+    </div>
 
-            <div class="card bg-light border-0 p-3 my-3 text-start">
-                <div class="row g-2">
-                    <div class="col-6"><strong>Booking Reference:</strong></div>
-                    <div class="col-6 text-end">#@Model.BookingID</div>
-
-                    <div class="col-6"><strong>Property:</strong></div>
-                    <div class="col-6 text-end">@Model.PropertyTitle</div>
-
-                    <div class="col-6"><strong>Booking Type:</strong></div>
-                    <div class="col-6 text-end"><span class="badge bg-secondary">@Model.BookingType</span> @Model.SlotType</div>
-
-                    <div class="col-6"><strong>Dates:</strong></div>
-                    <div class="col-6 text-end">@Model.CheckInDate.ToString("MMM dd") - @Model.CheckOutDate.ToString("MMM dd, yyyy")</div>
-
-                    <div class="col-6"><strong>Total Amount Paid:</strong></div>
-                    <div class="col-6 text-end text-success fw-bold">₹@Model.TotalAmount.ToString("N2")</div>
-
-                    <div class="col-6"><strong>Payment Status:</strong></div>
-                    <div class="col-6 text-end"><span class="badge bg-success">Success</span></div>
+    <!-- Celebration Hero Banner -->
+    <div class="confirm-hero-banner receipt-card">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="confirm-pulse-icon">
+                    <i class="bi bi-check-lg"></i>
+                </div>
+                <div>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1 rounded-pill fw-bold text-uppercase mb-2" style="font-size: 0.72rem; letter-spacing: 0.05em;">
+                        <i class="bi bi-shield-check me-1"></i>Reservation Secured &amp; Paid
+                    </span>
+                    <h1 class="h3 fw-bold mb-1 text-white">BOOKING CONFIRMED!</h1>
+                    <p class="text-white-50 mb-0 small">
+                        Your stay at <strong class="text-white">@(Model.Property?.Title ?? Model.Booking.PropertyTitle)</strong> is locked in. Your digital entry voucher is generated.
+                    </p>
                 </div>
             </div>
-
-            <div class="alert alert-info small text-start">
-                <i class="bi bi-whatsapp text-success me-1"></i> Instant WhatsApp confirmation has been dispatched with check-in instructions.
+            <div class="text-md-end">
+                <div class="text-white-50 small mb-1">Booking Reference</div>
+                <div class="d-inline-flex align-items-center gap-2 bg-white bg-opacity-10 border border-white border-opacity-25 px-3 py-1.5 rounded-pill font-monospace fw-bold text-white fs-6">
+                    <span>#@Model.Booking.BookingID</span>
+                    <button type="button" onclick="copyText('#@Model.Booking.BookingID', this)" class="btn btn-link text-white p-0 text-decoration-none" title="Copy Reference ID">
+                        <i class="bi bi-clipboard"></i>
+                    </button>
+                </div>
             </div>
+        </div>
 
-            <div class="d-flex justify-content-center gap-2 mt-2">
-                <a asp-controller="Client" asp-action="Index" class="btn btn-outline-dark">Go to My Dashboard</a>
-                <a asp-controller="Properties" asp-action="Index" class="btn btn-warning">Explore More Properties</a>
+        <div class="row g-2 mt-4 pt-3 border-top border-white border-opacity-15 small">
+            <div class="col-sm-4">
+                <i class="bi bi-receipt text-warning me-1"></i>
+                <span class="text-white-50">Voucher Ref:</span>
+                <strong class="text-white ms-1 font-monospace">@Model.ReceiptNumber</strong>
+            </div>
+            <div class="col-sm-4 text-sm-center">
+                <i class="bi bi-credit-card-2-front text-success me-1"></i>
+                <span class="text-white-50">Payment Status:</span>
+                <strong class="text-white ms-1">Paid in Full (Razorpay)</strong>
+            </div>
+            <div class="col-sm-4 text-sm-end">
+                <i class="bi bi-calendar-check text-info me-1"></i>
+                <span class="text-white-50">Confirmed On:</span>
+                <strong class="text-white ms-1">@Model.IssuedAt.ToString("MMM dd, yyyy - hh:mm tt")</strong>
             </div>
         </div>
     </div>
+
+    <!-- Instant Communication Dispatch Notice -->
+    <div class="alert alert-success border-0 bg-success-subtle text-success-emphasis d-flex align-items-center justify-content-between flex-wrap gap-3 p-3 rounded-3 mb-4 shadow-sm">
+        <div class="d-flex align-items-center gap-3">
+            <i class="bi bi-whatsapp fs-3 text-success"></i>
+            <div class="small">
+                <strong>Multi-Party Confirmation &amp; Receipts Dispatched:</strong> Official receipt copy (<code>@Model.ReceiptNumber</code>) and digital entry pass were automatically sent to your email (<strong>@(Model.Client?.Email ?? Model.Booking.ClientEmail)</strong>) and WhatsApp. Your host and event coordinator have received settlement &amp; staging copies.
+            </div>
+        </div>
+        <div>
+            <form asp-controller="Booking" asp-action="ResendReceipt" method="post" class="d-inline">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="bookingId" value="@Model.Booking.BookingID" />
+                <button type="submit" class="btn btn-sm btn-outline-success rounded-pill px-3 py-1 fw-semibold" id="btnResendReceipt">
+                    <i class="bi bi-send-check me-1"></i>Resend Receipt Copy
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Key Booking Metadata Cards Grid -->
+    <div class="row g-3 mb-4">
+        <!-- Card 1: Property & Destination -->
+        <div class="col-md-4">
+            <div class="receipt-info-card">
+                <div class="receipt-section-title">
+                    <i class="bi bi-house-door-fill text-primary"></i> Property &amp; Location
+                </div>
+                <h5 class="fw-bold text-dark mb-1">
+                    @(Model.Property?.Title ?? Model.Booking.PropertyTitle)
+                </h5>
+                <div class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 rounded-pill small mb-2">
+                    @(Model.Property?.PropertyTypeName ?? "Luxury Villa / Farmhouse")
+                </div>
+                <div class="small text-muted mb-2">
+                    <i class="bi bi-geo-alt-fill text-danger me-1"></i>@propertyAddress
+                </div>
+                @if (!string.IsNullOrEmpty(Model.Property?.MapUrl))
+                {
+                    <div class="mt-2 pt-2 border-top">
+                        <a href="@Model.Property.MapUrl" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary rounded-pill w-100 fw-semibold" style="font-size: 0.78rem;">
+                            <i class="bi bi-pin-map-fill me-1"></i>Open Google Maps Navigation
+                        </a>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Card 2: Dates, Schedule & Guests -->
+        <div class="col-md-4">
+            <div class="receipt-info-card">
+                <div class="receipt-section-title">
+                    <i class="bi bi-calendar-event text-primary"></i> Stay Schedule
+                </div>
+                <div class="mb-2">
+                    <div class="small text-muted">Check-In Date &amp; Time</div>
+                    <div class="fw-bold text-dark">@Model.Booking.CheckInDate.ToString("ddd, MMM dd, yyyy")</div>
+                    <div class="small text-success fw-semibold"><i class="bi bi-clock me-1"></i>02:00 PM onwards</div>
+                </div>
+                <div class="mb-2 pt-2 border-top">
+                    <div class="small text-muted">Check-Out Date &amp; Time</div>
+                    <div class="fw-bold text-dark">@Model.Booking.CheckOutDate.ToString("ddd, MMM dd, yyyy")</div>
+                    <div class="small text-muted"><i class="bi bi-clock me-1"></i>By 11:00 AM</div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center pt-2 border-top small text-muted">
+                    <span>Duration: <strong class="text-dark">@Model.Booking.BookingType</strong></span>
+                    <span>Party: <strong class="text-dark">Up to @(Model.Property?.MaxGuests ?? 10)</strong></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 3: Financial & Payment Snapshot -->
+        <div class="col-md-4">
+            <div class="receipt-info-card">
+                <div class="receipt-section-title">
+                    <i class="bi bi-cash-stack text-success"></i> Payment Summary
+                </div>
+                <div class="d-flex justify-content-between small text-muted mb-1">
+                    <span>Accommodation:</span>
+                    <strong class="text-dark">₹@Model.PropertyStayGross.ToString("N2")</strong>
+                </div>
+                @if (Model.Booking.IsEventBooking && Model.EventPackagePrice > 0)
+                {
+                    <div class="d-flex justify-content-between small text-primary mb-1">
+                        <span><i class="bi bi-palette2 me-1"></i>Décor Add-on:</span>
+                        <strong>₹@Model.EventPackagePrice.ToString("N2")</strong>
+                    </div>
+                }
+                @if (Model.SecurityDeposit > 0)
+                {
+                    <div class="d-flex justify-content-between small text-muted mb-1">
+                        <span>Security Deposit:</span>
+                        <strong class="text-dark">₹@Model.SecurityDeposit.ToString("N2")</strong>
+                    </div>
+                }
+                <div class="d-flex justify-content-between align-items-baseline pt-2 mt-2 border-top">
+                    <span class="fw-bold text-dark">Total Paid:</span>
+                    <span class="fs-5 fw-bold text-success">₹@Model.TotalPaid.ToString("N2")</span>
+                </div>
+                <div class="text-muted small mt-1 font-monospace" style="font-size: 0.72rem;">
+                    Txn: @(Model.PrimaryPayment?.GatewayTransactionID ?? "RAZORPAY_TOKEN_" + Model.Booking.BookingID)
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section: Next Steps Journey (Actionable 4-Step Roadmap) -->
+    <div class="mb-4">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <h4 class="fw-bold text-heading text-dark mb-0">
+                <i class="bi bi-signpost-split-fill text-primary me-2"></i>What Happens Next? Your Stay Roadmap
+            </h4>
+            <span class="badge bg-light text-muted border small">4 Simple Steps</span>
+        </div>
+
+        <div class="next-steps-grid">
+            <!-- Step 1 -->
+            <div class="next-step-card">
+                <div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="next-step-badge next-step-badge-done">
+                            <i class="bi bi-check-lg"></i>
+                        </div>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5 rounded-pill small">
+                            Completed
+                        </span>
+                    </div>
+                    <h6 class="fw-bold text-dark mb-1">1. Confirmation Dispatched</h6>
+                    <p class="small text-muted mb-0" style="line-height: 1.5;">
+                        Your reservation voucher and entry receipt are confirmed and synchronized with our host network.
+                    </p>
+                </div>
+                <div class="mt-3 pt-2 border-top text-muted small" style="font-size: 0.75rem;">
+                    <i class="bi bi-check-circle-fill text-success me-1"></i>WhatsApp &amp; Email alerts delivered
+                </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="next-step-card">
+                <div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="next-step-badge next-step-badge-todo">
+                            2
+                        </div>
+                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-0.5 rounded-pill small">
+                            Action Required
+                        </span>
+                    </div>
+                    <h6 class="fw-bold text-dark mb-1">2. Carry Government IDs</h6>
+                    <p class="small text-muted mb-0" style="line-height: 1.5;">
+                        Government photo ID (Aadhaar, Passport, or Driving License) is mandatory at the property gate for all adult travelers.
+                    </p>
+                </div>
+                <div class="mt-3 pt-2 border-top text-muted small" style="font-size: 0.75rem;">
+                    <i class="bi bi-shield-check text-primary me-1"></i>Mandatory Indian hospitality regulation
+                </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="next-step-card">
+                <div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="next-step-badge next-step-badge-todo">
+                            3
+                        </div>
+                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-2 py-0.5 rounded-pill small">
+                            Recommended
+                        </span>
+                    </div>
+                    <h6 class="fw-bold text-dark mb-1">3. Map Your Route</h6>
+                    <p class="small text-muted mb-0" style="line-height: 1.5;">
+                        Save the direct Google Maps link or share coordinates with your travel group for turn-by-turn country road navigation.
+                    </p>
+                </div>
+                @if (!string.IsNullOrEmpty(Model.Property?.MapUrl))
+                {
+                    <div class="mt-3 pt-2 border-top">
+                        <a href="@Model.Property.MapUrl" target="_blank" rel="noopener noreferrer" class="text-primary text-decoration-none fw-semibold small">
+                            <i class="bi bi-pin-map-fill me-1"></i>Open Google Maps Pin &rarr;
+                        </a>
+                    </div>
+                }
+                else
+                {
+                    <div class="mt-3 pt-2 border-top text-muted small" style="font-size: 0.75rem;">
+                        <i class="bi bi-geo-alt me-1"></i>Route provided in welcome message
+                    </div>
+                }
+            </div>
+
+            <!-- Step 4 -->
+            <div class="next-step-card">
+                <div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="next-step-badge next-step-badge-todo">
+                            4
+                        </div>
+                        <span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 rounded-pill small">
+                            On Stay Date
+                        </span>
+                    </div>
+                    <h6 class="fw-bold text-dark mb-1">4. Gate Pass &amp; Check-In</h6>
+                    <p class="small text-muted mb-0" style="line-height: 1.5;">
+                        Arrive from 02:00 PM. Present your digital entry pass or printout to the on-site property caretaker to claim your keys.
+                    </p>
+                </div>
+                <div class="mt-3 pt-2 border-top text-muted small" style="font-size: 0.75rem;">
+                    <i class="bi bi-key-fill text-warning me-1"></i>Smart entry &amp; caretaker assistance
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section: Access to Download & Print Receipts Panel (Dedicated Hub) -->
+    <div class="receipt-download-hub no-print" id="receiptDownloadCard">
+        <div class="row g-3 align-items-center">
+            <div class="col-lg-7">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <i class="bi bi-file-earmark-arrow-down-fill text-primary fs-3"></i>
+                    <h4 class="fw-bold text-dark mb-0">Official Tax Invoices &amp; Digital Entry Passes</h4>
+                </div>
+                <p class="text-muted small mb-0" style="line-height: 1.5;">
+                    Download your formal GST tax invoice, print gate pass vouchers, or share reservation coordinates directly with your travel companions.
+                </p>
+            </div>
+            <div class="col-lg-5 text-lg-end">
+                <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
+                    <a asp-controller="Booking" asp-action="Receipt" asp-route-id="@Model.Booking.BookingID" target="_blank" class="btn btn-primary rounded-pill px-3.5 py-2 fw-bold shadow-sm">
+                        <i class="bi bi-file-earmark-pdf-fill me-1"></i>Download Tax Receipt
+                    </a>
+                    <button type="button" onclick="window.print()" class="btn btn-outline-dark rounded-pill px-3.5 py-2 fw-semibold">
+                        <i class="bi bi-printer-fill me-1"></i>Print Pass
+                    </button>
+                    <form asp-controller="Booking" asp-action="ResendReceipt" method="post" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="bookingId" value="@Model.Booking.BookingID" />
+                        <button type="submit" class="btn btn-outline-primary rounded-pill px-3.5 py-2 fw-semibold" id="btnDispatchReceiptChannels">
+                            <i class="bi bi-send-check-fill me-1"></i>Email &amp; WhatsApp Receipt
+                        </button>
+                    </form>
+                    <button type="button" id="btnShareReservation" onclick="copyReservationSummary()" class="btn btn-outline-success rounded-pill px-3.5 py-2 fw-semibold">
+                        <i class="bi bi-share-fill me-1"></i>Share Details
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Important Check-in Guidelines & Concierge Support -->
+    <div class="card border-0 bg-light-subtle rounded-3 p-4 mb-4">
+        <div class="row g-3">
+            <div class="col-md-6 border-end-md">
+                <div class="fw-bold text-dark small mb-2">
+                    <i class="bi bi-info-circle-fill text-primary me-1"></i> Check-In &amp; Property House Rules
+                </div>
+                <ul class="small text-muted ps-3 mb-0" style="line-height: 1.6;">
+                    <li><strong>Gate Pass:</strong> Show this confirmation pass and government ID at the gate.</li>
+                    <li><strong>Quiet Hours:</strong> Community quiet hours observed from 10:00 PM onwards.</li>
+                    <li><strong>Cancellation Snapshot:</strong> Free cancellation up to <strong>@Model.Booking.FreeCancellationWindowHoursSnapshot hours</strong> before check-in. Standard policy cutoff is @Model.Booking.CancellationCutoffHoursSnapshot hours.</li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <div class="fw-bold text-dark small mb-2">
+                    <i class="bi bi-headset text-success me-1"></i> 24/7 Guest Concierge &amp; Host Support
+                </div>
+                <p class="small text-muted mb-2" style="line-height: 1.5;">
+                    Need route assistance, local recommendations, or early check-in coordination? Our luxury concierge is available round-the-clock:
+                </p>
+                <div class="small">
+                    <div><i class="bi bi-envelope me-1 text-primary"></i> Concierge: <strong>support@bookmyfun.in</strong></div>
+                    <div><i class="bi bi-telephone me-1 text-success"></i> Helpline: <strong>+91 98765 43210</strong></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation Buttons (Screen Only) -->
+    <div class="d-flex flex-wrap justify-content-center gap-3 no-print">
+        <a asp-controller="Client" asp-action="Index" class="btn btn-outline-dark rounded-pill px-4 py-2">
+            <i class="bi bi-calendar-check me-1"></i>Go to My Bookings Dashboard
+        </a>
+        <a asp-controller="Properties" asp-action="Index" class="btn btn-warning rounded-pill px-4 py-2 fw-semibold">
+            <i class="bi bi-compass me-1"></i>Explore More Farmhouses &amp; Villas
+        </a>
+    </div>
 </div>
+
+@section Scripts {
+    <script>
+        function copyText(text, btn) {
+            navigator.clipboard.writeText(text).then(function() {
+                var orig = btn.innerHTML;
+                btn.innerHTML = '<i class="bi bi-check-lg text-success"></i>';
+                setTimeout(function() { btn.innerHTML = orig; }, 2000);
+            });
+        }
+
+        function copyReservationSummary() {
+            var summary = "🎉 Booking Confirmed at @(Model.Property?.Title ?? Model.Booking.PropertyTitle)!\n" +
+                          "📍 Venue: @propertyAddress\n" +
+                          "🗓 Stay: @Model.Booking.CheckInDate.ToString("ddd, MMM dd") - @Model.Booking.CheckOutDate.ToString("ddd, MMM dd, yyyy")\n" +
+                          @if (!string.IsNullOrEmpty(Model.Property?.MapUrl)) { <text>"🗺 Location: @Model.Property.MapUrl\n" +</text> }
+                          "🎫 Booking Ref: #@Model.Booking.BookingID\n" +
+                          "🌟 Booked with BookMyFun Luxury Retreats";
+
+            navigator.clipboard.writeText(summary).then(function() {
+                var btn = document.getElementById('btnShareReservation');
+                if (btn) {
+                    var origHtml = btn.innerHTML;
+                    btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Copied to Clipboard!';
+                    btn.classList.remove('btn-outline-success');
+                    btn.classList.add('btn-success');
+                    setTimeout(function() {
+                        btn.innerHTML = origHtml;
+                        btn.classList.remove('btn-success');
+                        btn.classList.add('btn-outline-success');
+                    }, 2500);
+                }
+            });
+        }
+    </script>
+}

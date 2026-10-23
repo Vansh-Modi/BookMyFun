@@ -4,15 +4,16 @@
     var isEmployee = User.IsInRole("Employee");
     var controllerName = isEmployee ? "Employee" : "Admin";
     var totalCount = Model?.Count() ?? 0;
-    var approvedCount = Model?.Count(p => p.IsApproved) ?? 0;
-    var pendingCount = Model?.Count(p => !p.IsApproved && p.ListingStatus != "Rejected") ?? 0;
+    var approvedCount = Model?.Count(p => p.IsApproved && p.ListingStatus == "Active") ?? 0;
+    var deactivatedCount = Model?.Count(p => p.ListingStatus == "Deactivated") ?? 0;
+    var pendingCount = Model?.Count(p => !p.IsApproved && p.ListingStatus != "Rejected" && p.ListingStatus != "Deactivated") ?? 0;
     var rejectedCount = Model?.Count(p => p.ListingStatus == "Rejected") ?? 0;
 }
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <div>
         <h2 class="fw-bold mb-1"><i class="bi bi-building text-primary me-2"></i>Property Listings Management</h2>
-        <p class="text-muted mb-0">Create, edit, approve, or remove properties across hosts on the platform.</p>
+        <p class="text-muted mb-0">Create, edit, approve, deactivate, or permanently delete properties across hosts on the platform.</p>
     </div>
     <a asp-controller="@controllerName" asp-action="CreateProperty" class="btn btn-primary px-3 rounded-pill fw-semibold shadow-sm">
         <i class="bi bi-plus-circle me-1"></i> Add Property for Owner
@@ -25,13 +26,16 @@
         All Properties <span class="badge bg-white text-primary ms-1">@totalCount</span>
     </button>
     <button type="button" class="btn btn-light border rounded-pill px-3 filter-prop-btn text-success" data-filter="approved" onclick="filterProps('approved', this)">
-        <i class="bi bi-check-circle-fill me-1"></i> Approved &amp; Live <span class="badge bg-success text-white ms-1">@approvedCount</span>
+        <i class="bi bi-check-circle-fill me-1"></i> Active &amp; Live <span class="badge bg-success text-white ms-1">@approvedCount</span>
+    </button>
+    <button type="button" class="btn btn-light border rounded-pill px-3 filter-prop-btn text-secondary" data-filter="deactivated" onclick="filterProps('deactivated', this)">
+        <i class="bi bi-pause-circle-fill me-1"></i> Deactivated <span class="badge bg-secondary text-white ms-1">@deactivatedCount</span>
     </button>
     <button type="button" class="btn btn-light border rounded-pill px-3 filter-prop-btn text-warning" data-filter="waiting" onclick="filterProps('waiting', this)">
         <i class="bi bi-clock-fill me-1"></i> Waiting Review <span class="badge bg-warning text-dark ms-1">@pendingCount</span>
     </button>
     <button type="button" class="btn btn-light border rounded-pill px-3 filter-prop-btn text-danger" data-filter="rejected" onclick="filterProps('rejected', this)">
-        <i class="bi bi-x-circle-fill me-1"></i> Rejected / Inactive <span class="badge bg-danger text-white ms-1">@rejectedCount</span>
+        <i class="bi bi-x-circle-fill me-1"></i> Rejected <span class="badge bg-danger text-white ms-1">@rejectedCount</span>
     </button>
 </div>
 
@@ -63,7 +67,7 @@
                 {
                     @foreach (var p in Model)
                     {
-                        var statusCategory = p.ListingStatus == "Rejected" ? "rejected" : (p.IsApproved ? "approved" : "waiting");
+                        var statusCategory = p.ListingStatus == "Deactivated" ? "deactivated" : (p.ListingStatus == "Rejected" ? "rejected" : (p.IsApproved && p.ListingStatus == "Active" ? "approved" : "waiting"));
                         <tr class="prop-row" data-status="@statusCategory">
                             <td class="ps-3">
                                 <div class="d-flex align-items-center">
@@ -79,13 +83,17 @@
                             <td><small class="text-muted"><i class="bi bi-geo-alt text-danger me-1"></i>@p.Location</small></td>
                             <td><strong class="text-dark">₹@p.PricePerNight.ToString("N0")</strong></td>
                             <td>
-                                @if (p.ListingStatus == "Rejected")
+                                @if (p.ListingStatus == "Deactivated")
+                                {
+                                    <span class="badge bg-secondary"><i class="bi bi-pause-circle-fill me-1"></i>Deactivated</span>
+                                }
+                                else if (p.ListingStatus == "Rejected")
                                 {
                                     <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Rejected</span>
                                 }
-                                else if (p.IsApproved)
+                                else if (p.IsApproved && p.ListingStatus == "Active")
                                 {
-                                    <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Active &amp; Approved</span>
+                                    <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Active &amp; Live</span>
                                 }
                                 else
                                 {
@@ -93,18 +101,64 @@
                                 }
                             </td>
                             <td class="text-end pe-3">
-                                <form asp-controller="@controllerName" asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="@(!p.IsApproved)" method="post" class="d-inline me-1">
-                                    @Html.AntiForgeryToken()
-                                    <button type="submit" class="btn btn-sm @(p.IsApproved ? "btn-outline-warning" : "btn-outline-success")">
-                                        @(p.IsApproved ? "Revoke" : "Approve")
-                                    </button>
-                                </form>
+                                <!-- Deactivate / Activate Button -->
+                                @if (p.ListingStatus == "Deactivated")
+                                {
+                                    <form asp-controller="@controllerName" asp-action="DeactivateProperty" asp-route-id="@p.PropertyID" asp-route-deactivate="false" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Reactivate property for guest booking">
+                                            <i class="bi bi-play-circle me-1"></i> Activate
+                                        </button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <form asp-controller="@controllerName" asp-action="DeactivateProperty" asp-route-id="@p.PropertyID" asp-route-deactivate="true" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1" onsubmit="return confirm('Deactivate property #@p.PropertyID (@p.Title)? It will be hidden from guests.');">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="Deactivate property">
+                                            <i class="bi bi-pause-circle me-1"></i> Deactivate
+                                        </button>
+                                    </form>
+                                }
+
+                                <!-- Approve / Reject / Revoke Buttons -->
+                                @if (!p.IsApproved || p.ListingStatus != "Active")
+                                {
+                                    <form asp-controller="@controllerName" asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="true" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Approve & Publish Listing">
+                                            <i class="bi bi-check-circle me-1"></i> Approve
+                                        </button>
+                                    </form>
+                                    @if (p.ListingStatus != "Rejected")
+                                    {
+                                        <form asp-controller="@controllerName" asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="false" asp-route-status="Rejected" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1" onsubmit="return confirm('Reject listing for property #@p.PropertyID?');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Reject Property Listing">
+                                                <i class="bi bi-x-circle me-1"></i> Reject
+                                            </button>
+                                        </form>
+                                    }
+                                }
+                                else
+                                {
+                                    <form asp-controller="@controllerName" asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="false" asp-route-status="Draft" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1" onsubmit="return confirm('Revoke approval for property #@p.PropertyID? This will move it back to draft.');">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-outline-warning" title="Revoke Approval">
+                                            <i class="bi bi-arrow-counterclockwise me-1"></i> Revoke
+                                        </button>
+                                    </form>
+                                }
+
+                                <!-- Edit Button -->
                                 <a asp-controller="@controllerName" asp-action="EditProperty" asp-route-id="@p.PropertyID" class="btn btn-sm btn-outline-primary me-1">
                                     <i class="bi bi-pencil"></i> Edit
                                 </a>
-                                <form asp-controller="@controllerName" asp-action="DeleteProperty" asp-route-id="@p.PropertyID" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete property #@p.PropertyID (@p.Title)?');">
+
+                                <!-- Permanently Delete Button -->
+                                <form asp-controller="@controllerName" asp-action="DeleteProperty" asp-route-id="@p.PropertyID" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline" onsubmit="return confirm('Permanently delete property #@p.PropertyID (@p.Title)? This action is irreversible.');">
                                     @Html.AntiForgeryToken()
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Permanently delete property">
                                         <i class="bi bi-trash"></i> Delete
                                     </button>
                                 </form>

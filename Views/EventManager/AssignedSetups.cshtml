@@ -111,9 +111,10 @@
                         <div class="modal fade" id="setupModal-@b.BookingID" tabindex="-1" aria-hidden="true">
                             <div class="modal-dialog modal-dialog-centered">
                                 <div class="modal-content rounded-4 shadow border-0">
-                                    <form asp-action="UpdateSetupStatus" method="post">
+                                    <form asp-action="UpdateSetupStatus" method="post" enctype="multipart/form-data">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="BookingID" value="@b.BookingID" />
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
                                         <div class="modal-header border-bottom">
                                             <h5 class="modal-title fw-bold">Update Setup: @b.PropertyTitle</h5>
                                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -137,9 +138,18 @@
                                                 </select>
                                             </div>
                                             <div class="mb-3">
-                                                <label class="form-label fw-semibold small">Photo / Video Proof URLs</label>
-                                                <textarea name="SetupProofMediaUrls" class="form-control" rows="3" placeholder="Enter links to photos of the completed stage, floral canopy, or lighting...">@b.SetupProofMediaUrls</textarea>
-                                                <div class="form-text small">Upload media via Media Uploader or paste direct image/video links.</div>
+                                                <label class="form-label fw-semibold small text-heading">
+                                                    <i class="bi bi-camera-fill text-warning me-1"></i> Direct Proof Photo Upload
+                                                </label>
+                                                <input type="file" name="ProofFiles" class="form-control" multiple accept="image/jpeg,image/png,image/webp,image/avif" />
+                                                <div class="form-text small">Select photos of completed stage, flowers, or lighting from your device.</div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold small text-heading">
+                                                    <i class="bi bi-link-45deg text-primary me-1"></i> Or External Photo / Video Proof URLs
+                                                </label>
+                                                <textarea name="SetupProofMediaUrls" class="form-control" rows="2" placeholder="Enter links to photos of the completed stage, floral canopy, or lighting...">@b.SetupProofMediaUrls</textarea>
+                                                <div class="form-text small">Paste direct image/video links (comma or newline separated).</div>
                                             </div>
                                         </div>
                                         <div class="modal-footer border-top">

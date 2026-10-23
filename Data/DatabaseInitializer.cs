@@ -102,17 +102,52 @@ BEGIN
     );
 END
 
+-- Seed default global event platform commission rate if not configured
+IF NOT EXISTS (SELECT 1 FROM SiteSettings WHERE SettingKey = 'EventPlatformCommissionPercent')
+BEGIN
+    INSERT INTO SiteSettings (SettingKey, SettingValue, IsEncrypted, UpdatedAt)
+    VALUES ('EventPlatformCommissionPercent', '10.0', 0, GETDATE());
+END
+
+IF NOT EXISTS (SELECT 1 FROM SiteSettings WHERE SettingKey = 'PlatformCommissionPercent')
+BEGIN
+    INSERT INTO SiteSettings (SettingKey, SettingValue, IsEncrypted, UpdatedAt)
+    VALUES ('PlatformCommissionPercent', '10.0', 0, GETDATE());
+END
+
 -- 3. ApiConfigurations Table
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ApiConfigurations')
 BEGIN
     CREATE TABLE ApiConfigurations (
         ConfigID INT IDENTITY(1,1) PRIMARY KEY,
-        ServiceProvider NVARCHAR(50) CHECK (ServiceProvider IN ('SMTP', 'WhatsApp', 'Razorpay', 'Cashfree')) NOT NULL,
+        ServiceProvider NVARCHAR(50) CHECK (ServiceProvider IN ('SMTP', 'WhatsApp', 'Razorpay', 'Cashfree', 'Google')) NOT NULL,
         ApiKey NVARCHAR(255) NOT NULL,
         ApiSecret NVARCHAR(255) NOT NULL,
         ExtraParams NVARCHAR(MAX),
         IsActive BIT DEFAULT 1
     );
+END
+ELSE
+BEGIN
+    -- Ensure ServiceProvider CHECK constraint supports Google OAuth
+    DECLARE @ApiConfigConstraint NVARCHAR(200);
+    SELECT @ApiConfigConstraint = cc.name 
+    FROM sys.check_constraints cc
+    JOIN sys.columns c ON cc.parent_object_id = c.object_id AND cc.parent_column_id = c.column_id
+    WHERE cc.parent_object_id = OBJECT_ID('ApiConfigurations') AND c.name = 'ServiceProvider';
+
+    IF @ApiConfigConstraint IS NOT NULL AND @ApiConfigConstraint <> 'CK_ApiConfigurations_ServiceProvider_V2'
+    BEGIN
+        EXEC('ALTER TABLE ApiConfigurations DROP CONSTRAINT ' + @ApiConfigConstraint);
+        ALTER TABLE ApiConfigurations ADD CONSTRAINT CK_ApiConfigurations_ServiceProvider_V2 CHECK (ServiceProvider IN ('SMTP', 'WhatsApp', 'Razorpay', 'Cashfree', 'Google'));
+    END
+END
+
+-- Ensure Google OAuth active project configuration is initialized
+IF NOT EXISTS (SELECT 1 FROM ApiConfigurations WHERE ServiceProvider = 'Google')
+BEGIN
+    INSERT INTO ApiConfigurations (ServiceProvider, ApiKey, ApiSecret, ExtraParams, IsActive)
+    VALUES ('Google', 'GOOGLE_OAUTH_ACTIVE_CLIENT', 'GOOGLE_OAUTH_ACTIVE_SECRET', '{""ProjectEmail"":""showsgarage@gmail.com""}', 1);
 END
 
 -- 4. PropertyTypes Table
@@ -188,6 +223,7 @@ BEGIN
         FormattedAddress NVARCHAR(500) NULL,
         Latitude DECIMAL(9,6) NULL,
         Longitude DECIMAL(9,6) NULL,
+        MapUrl NVARCHAR(1000) NULL,
         PricePerNight DECIMAL(18,2) NOT NULL,
         SecurityDepositAmount DECIMAL(18,2) DEFAULT 0.00,
         CommissionRate DECIMAL(5,2) NULL,
@@ -198,7 +234,7 @@ BEGIN
         CancellationFeeValue DECIMAL(18,2) DEFAULT 10.00,
         MaxGuests INT NOT NULL,
         IsFeatured BIT DEFAULT 0,
-        ListingStatus NVARCHAR(20) CHECK (ListingStatus IN ('Draft', 'PendingPayment', 'Active', 'Expired')) DEFAULT 'Draft',
+        ListingStatus NVARCHAR(20) CHECK (ListingStatus IN ('Draft', 'PendingPayment', 'Active', 'Expired', 'Deactivated', 'Rejected')) DEFAULT 'Draft',
         IsApproved BIT DEFAULT 0,
         CreatedAt DATETIME2 DEFAULT GETDATE()
     );
@@ -218,6 +254,24 @@ BEGIN
         ALTER TABLE Properties ADD Latitude DECIMAL(9,6) NULL;
         ALTER TABLE Properties ADD Longitude DECIMAL(9,6) NULL;
         ALTER TABLE Properties ADD IsFeatured BIT DEFAULT 0;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Properties') AND name = 'MapUrl')
+    BEGIN
+        ALTER TABLE Properties ADD MapUrl NVARCHAR(1000) NULL;
+    END
+
+    -- Ensure ListingStatus CHECK constraint supports Deactivated and Rejected
+    DECLARE @ListingStatusConstraint NVARCHAR(200);
+    SELECT @ListingStatusConstraint = cc.name 
+    FROM sys.check_constraints cc
+    JOIN sys.columns c ON cc.parent_object_id = c.object_id AND cc.parent_column_id = c.column_id
+    WHERE cc.parent_object_id = OBJECT_ID('Properties') AND c.name = 'ListingStatus';
+
+    IF @ListingStatusConstraint IS NOT NULL AND @ListingStatusConstraint <> 'CK_Properties_ListingStatus_V2'
+    BEGIN
+        EXEC('ALTER TABLE Properties DROP CONSTRAINT ' + @ListingStatusConstraint);
+        ALTER TABLE Properties ADD CONSTRAINT CK_Properties_ListingStatus_V2 CHECK (ListingStatus IN ('Draft', 'PendingPayment', 'Active', 'Expired', 'Deactivated', 'Rejected'));
     END
 END
 

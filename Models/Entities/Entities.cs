@@ -30,7 +30,7 @@ namespace BookMyFun.Models.Entities
     public class ApiConfiguration
     {
         public int ConfigID { get; set; }
-        public string ServiceProvider { get; set; } = string.Empty; // 'SMTP', 'WhatsApp', 'Razorpay', 'Cashfree'
+        public string ServiceProvider { get; set; } = string.Empty; // 'SMTP', 'WhatsApp', 'Razorpay', 'Cashfree', 'Google'
         public string ApiKey { get; set; } = string.Empty;
         public string ApiSecret { get; set; } = string.Empty;
         public string? ExtraParams { get; set; }
@@ -87,6 +87,7 @@ namespace BookMyFun.Models.Entities
         public string? FormattedAddress { get; set; }
         public decimal? Latitude { get; set; }
         public decimal? Longitude { get; set; }
+        public string? MapUrl { get; set; }
         public decimal PricePerNight { get; set; }
         public decimal SecurityDepositAmount { get; set; } = 0.00m;
         public decimal? CommissionRate { get; set; }

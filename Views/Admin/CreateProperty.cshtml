@@ -111,6 +111,10 @@
                                 <label class="form-label fw-semibold">Longitude</label>
                                 <input asp-for="Longitude" id="longitude" type="number" step="0.0000001" class="form-control" />
                             </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold"><i class="bi bi-pin-map-fill text-danger me-1"></i>Direct Map / Location URL</label>
+                                <input asp-for="MapUrl" class="form-control rounded-3" placeholder="https://maps.app.goo.gl/... or https://goo.gl/maps/..." />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -265,16 +269,25 @@
         document.getElementById("btnAdminUpload").addEventListener("click", async function () {
             const fi = document.getElementById("adminFileInput");
             if (!fi.files.length) return alert("Select a file");
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Optimizing & Uploading...`;
             for (let i = 0; i < fi.files.length; i++) {
+                let file = fi.files[i];
+                if (window.ImageOptimizer && window.ImageOptimizer.isOptimizable(file)) {
+                    file = await window.ImageOptimizer.compressAndConvertToWebP(file, { maxWidth: 1920, maxHeight: 1080, quality: 0.82 });
+                }
                 const fd = new FormData();
-                fd.append("file", fi.files[i]);
-                fd.append("mediaType", fi.files[i].type.startsWith("video") ? "video" : "photo");
+                fd.append("file", file);
+                fd.append("mediaType", file.type.startsWith("video") ? "video" : "photo");
                 const res = await (await fetch("/api/media/upload-file", { method: "POST", body: fd })).json();
                 if (res.success) {
                     mediaList.push({ url: res.url, mediaType: res.mediaType, sourceType: "file" });
                     if (!primaryInput.value && res.mediaType === "photo") primaryInput.value = res.url;
                 }
             }
+            btn.disabled = false;
+            btn.innerHTML = `<i class="bi bi-upload me-1"></i> Upload File`;
             fi.value = "";
             updateGallery();
         });

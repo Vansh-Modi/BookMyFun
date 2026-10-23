@@ -12,8 +12,11 @@ namespace BookMyFun.Repositories
         Task<List<Property>> SearchPropertiesAsync(string? location, int? propertyTypeId, int? occasionId, decimal? minPrice, decimal? maxPrice, int? guests);
         Task<int> CreatePropertyAsync(Property property);
         Task<bool> UpdatePropertyAsync(Property property);
+        Task<bool> UpdatePropertyMapUrlAsync(int propertyId, int ownerId, string? mapUrl);
         Task<bool> DeletePropertyAsync(int propertyId);
-        Task<bool> ApprovePropertyAsync(int propertyId, bool isApproved);
+        Task<bool> PermanentlyDeletePropertyAsync(int propertyId);
+        Task<bool> DeactivatePropertyAsync(int propertyId, bool deactivate = true);
+        Task<bool> ApprovePropertyAsync(int propertyId, bool isApproved, string? targetStatus = null);
         Task<bool> SetPropertyOccasionsAsync(int propertyId, List<int> occasionIds);
         Task<List<int>> GetPropertyOccasionIdsAsync(int propertyId);
         Task<int> AddPropertyImageAsync(int propertyId, string imageUrl, bool isPrimary);
@@ -26,6 +29,8 @@ namespace BookMyFun.Repositories
         Task<List<AmenityMaster>> GetPropertyAmenitiesAsync(int propertyId);
         Task<bool> SetPropertyAmenitiesAsync(int propertyId, List<int> amenityIds);
         Task<List<PropertyType>> GetPropertyTypesAsync();
+        Task<int> GetOrCreatePropertyTypeByNameAsync(string name);
+        Task<bool> UpdatePropertyCategoryAsync(int propertyId, int ownerId, int propertyTypeId);
         Task<List<Occasion>> GetOccasionsAsync();
         Task<int> GetOrCreateAmenityByNameAsync(string name);
         Task<int> GetOrCreateOccasionByNameAsync(string name);
@@ -167,12 +172,12 @@ namespace BookMyFun.Repositories
         {
             const string sql = @"
                 INSERT INTO Properties 
-                (OwnerID, PropertyTypeID, Title, Description, Location, FormattedAddress, Latitude, Longitude,
+                (OwnerID, PropertyTypeID, Title, Description, Location, FormattedAddress, Latitude, Longitude, MapUrl,
                  PricePerNight, SecurityDepositAmount, CommissionRate, EventCommissionRate, FreeCancellationWindowHours, CancellationCutoffHours,
                  CancellationFeeType, CancellationFeeValue, MaxGuests, ListingStatus, IsApproved, IsFeatured, CreatedAt)
                 OUTPUT INSERTED.PropertyID
                 VALUES 
-                (@OwnerID, @PropertyTypeID, @Title, @Description, @Location, @FormattedAddress, @Latitude, @Longitude,
+                (@OwnerID, @PropertyTypeID, @Title, @Description, @Location, @FormattedAddress, @Latitude, @Longitude, @MapUrl,
                  @PricePerNight, @SecurityDepositAmount, @CommissionRate, @EventCommissionRate, @FreeCancellationWindowHours, @CancellationCutoffHours,
                  @CancellationFeeType, @CancellationFeeValue, @MaxGuests, @ListingStatus, @IsApproved, @IsFeatured, GETDATE())";
 
@@ -185,6 +190,7 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@FormattedAddress", DBHelper.ToDbValue(property.FormattedAddress)),
                 new SqlParameter("@Latitude", DBHelper.ToDbValue(property.Latitude)),
                 new SqlParameter("@Longitude", DBHelper.ToDbValue(property.Longitude)),
+                new SqlParameter("@MapUrl", DBHelper.ToDbValue(property.MapUrl)),
                 new SqlParameter("@PricePerNight", property.PricePerNight),
                 new SqlParameter("@SecurityDepositAmount", property.SecurityDepositAmount),
                 new SqlParameter("@CommissionRate", DBHelper.ToDbValue(property.CommissionRate)),
@@ -226,6 +232,7 @@ namespace BookMyFun.Repositories
                     FormattedAddress = @FormattedAddress,
                     Latitude = @Latitude,
                     Longitude = @Longitude,
+                    MapUrl = @MapUrl,
                     PricePerNight = @PricePerNight,
                     SecurityDepositAmount = @SecurityDepositAmount,
                     CommissionRate = @CommissionRate,
@@ -247,6 +254,7 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@FormattedAddress", DBHelper.ToDbValue(property.FormattedAddress)),
                 new SqlParameter("@Latitude", DBHelper.ToDbValue(property.Latitude)),
                 new SqlParameter("@Longitude", DBHelper.ToDbValue(property.Longitude)),
+                new SqlParameter("@MapUrl", DBHelper.ToDbValue(property.MapUrl)),
                 new SqlParameter("@PricePerNight", property.PricePerNight),
                 new SqlParameter("@SecurityDepositAmount", property.SecurityDepositAmount),
                 new SqlParameter("@CommissionRate", DBHelper.ToDbValue(property.CommissionRate)),
@@ -272,23 +280,98 @@ namespace BookMyFun.Repositories
             return rows > 0;
         }
 
+        public async Task<bool> UpdatePropertyMapUrlAsync(int propertyId, int ownerId, string? mapUrl)
+        {
+            const string sql = @"
+                UPDATE Properties
+                SET MapUrl = @MapUrl
+                WHERE PropertyID = @PropertyID AND OwnerID = @OwnerID";
+
+            int rows = await _db.ExecuteNonQueryAsync(sql,
+                new SqlParameter("@MapUrl", DBHelper.ToDbValue(mapUrl)),
+                new SqlParameter("@PropertyID", propertyId),
+                new SqlParameter("@OwnerID", ownerId));
+
+            return rows > 0;
+        }
+
         public async Task<bool> DeletePropertyAsync(int propertyId)
         {
-            const string sql = "DELETE FROM Properties WHERE PropertyID = @PropertyID";
+            return await PermanentlyDeletePropertyAsync(propertyId);
+        }
+
+        public async Task<bool> PermanentlyDeletePropertyAsync(int propertyId)
+        {
+            const string sql = @"
+                BEGIN TRANSACTION;
+                BEGIN TRY
+                    -- 1. Remove Payments and Refunds for bookings on this property
+                    DELETE FROM Payments WHERE BookingID IN (SELECT BookingID FROM Bookings WHERE PropertyID = @PropertyID);
+                    DELETE FROM BookingRefunds WHERE BookingID IN (SELECT BookingID FROM Bookings WHERE PropertyID = @PropertyID);
+
+                    -- 2. Remove Damage Claims
+                    DELETE FROM DamageClaims WHERE PropertyID = @PropertyID OR BookingID IN (SELECT BookingID FROM Bookings WHERE PropertyID = @PropertyID);
+
+                    -- 3. Remove Bookings
+                    DELETE FROM Bookings WHERE PropertyID = @PropertyID;
+
+                    -- 4. Remove Reviews
+                    DELETE FROM CustomerReviews WHERE PropertyID = @PropertyID;
+
+                    -- 5. Remove Event Commissions
+                    DELETE FROM PropertyEventCommissions WHERE PropertyID = @PropertyID;
+
+                    -- 6. Remove Amenities, Occasions, Media, Images, Listing Payments
+                    DELETE FROM PropertyAmenitiesMapping WHERE PropertyID = @PropertyID;
+                    DELETE FROM PropertyOccasions WHERE PropertyID = @PropertyID;
+                    DELETE FROM PropertyMedia WHERE PropertyID = @PropertyID;
+                    DELETE FROM PropertyImages WHERE PropertyID = @PropertyID;
+                    DELETE FROM PropertyListingPayments WHERE PropertyID = @PropertyID;
+
+                    -- 7. Permanently delete Property
+                    DELETE FROM Properties WHERE PropertyID = @PropertyID;
+
+                    COMMIT TRANSACTION;
+                END TRY
+                BEGIN CATCH
+                    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+                    THROW;
+                END CATCH";
+
             var rows = await _db.ExecuteNonQueryAsync(sql, new SqlParameter("@PropertyID", propertyId));
             return rows > 0;
         }
 
-        public async Task<bool> ApprovePropertyAsync(int propertyId, bool isApproved)
+        public async Task<bool> DeactivatePropertyAsync(int propertyId, bool deactivate = true)
+        {
+            const string sql = @"
+                UPDATE Properties
+                SET ListingStatus = CASE WHEN @Deactivate = 1 THEN 'Deactivated' ELSE 'Active' END,
+                    IsApproved = CASE WHEN @Deactivate = 1 THEN 0 ELSE 1 END
+                WHERE PropertyID = @PropertyID";
+
+            var rows = await _db.ExecuteNonQueryAsync(sql,
+                new SqlParameter("@Deactivate", deactivate),
+                new SqlParameter("@PropertyID", propertyId));
+
+            return rows > 0;
+        }
+
+        public async Task<bool> ApprovePropertyAsync(int propertyId, bool isApproved, string? targetStatus = null)
         {
             const string sql = @"
                 UPDATE Properties 
                 SET IsApproved = @IsApproved,
-                    ListingStatus = CASE WHEN @IsApproved = 1 THEN 'Active' ELSE 'Draft' END
+                    ListingStatus = CASE 
+                        WHEN @TargetStatus IS NOT NULL AND @TargetStatus <> '' THEN @TargetStatus
+                        WHEN @IsApproved = 1 THEN 'Active' 
+                        ELSE 'Rejected' 
+                    END
                 WHERE PropertyID = @PropertyID";
 
             var rows = await _db.ExecuteNonQueryAsync(sql,
                 new SqlParameter("@IsApproved", isApproved),
+                new SqlParameter("@TargetStatus", (object?)targetStatus ?? DBNull.Value),
                 new SqlParameter("@PropertyID", propertyId));
 
             return rows > 0;
@@ -457,6 +540,41 @@ namespace BookMyFun.Repositories
             });
         }
 
+        public async Task<int> GetOrCreatePropertyTypeByNameAsync(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return 0;
+            name = name.Trim();
+            if (name.Length > 50) name = name.Substring(0, 50);
+
+            const string findSql = "SELECT PropertyTypeID FROM PropertyTypes WHERE LOWER(TypeName) = LOWER(@Name)";
+            var existing = await _db.ExecuteScalarAsync(findSql, new SqlParameter("@Name", name));
+            if (existing != null && existing != DBNull.Value)
+            {
+                return Convert.ToInt32(existing);
+            }
+
+            const string insertSql = "INSERT INTO PropertyTypes (TypeName, Description) VALUES (@Name, @Description); SELECT SCOPE_IDENTITY();";
+            var newId = await _db.ExecuteScalarAsync(insertSql,
+                new SqlParameter("@Name", name),
+                new SqlParameter("@Description", $"Custom property category: {name}"));
+            return Convert.ToInt32(newId);
+        }
+
+        public async Task<bool> UpdatePropertyCategoryAsync(int propertyId, int ownerId, int propertyTypeId)
+        {
+            const string sql = @"
+                UPDATE Properties
+                SET PropertyTypeID = @PropertyTypeID
+                WHERE PropertyID = @PropertyID AND OwnerID = @OwnerID";
+
+            int rows = await _db.ExecuteNonQueryAsync(sql,
+                new SqlParameter("@PropertyTypeID", propertyTypeId),
+                new SqlParameter("@PropertyID", propertyId),
+                new SqlParameter("@OwnerID", ownerId));
+
+            return rows > 0;
+        }
+
         public async Task<List<Occasion>> GetOccasionsAsync()
         {
             const string sql = "SELECT * FROM Occasions ORDER BY OccasionName";
@@ -581,6 +699,13 @@ namespace BookMyFun.Repositories
             {
                 int lngOrd = reader.GetOrdinal("Longitude");
                 if (!reader.IsDBNull(lngOrd)) p.Longitude = reader.GetDecimal(lngOrd);
+            }
+            catch { }
+
+            try
+            {
+                int mapOrd = reader.GetOrdinal("MapUrl");
+                if (!reader.IsDBNull(mapOrd)) p.MapUrl = reader.GetString(mapOrd);
             }
             catch { }
 

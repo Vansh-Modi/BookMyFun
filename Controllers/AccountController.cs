@@ -24,6 +24,8 @@ namespace BookMyFun.Controllers
         private readonly IIdVerificationRepository _idRepo;
         private readonly IAuthenticationSchemeProvider _schemeProvider;
         private readonly ILogger<AccountController> _logger;
+        private readonly IConfigRepository? _configRepo;
+        private readonly IConfiguration? _configuration;
 
         public AccountController(
             IUserRepository userRepo, 
@@ -36,7 +38,9 @@ namespace BookMyFun.Controllers
             IPropertyRepository propRepo,
             IIdVerificationRepository idRepo,
             IAuthenticationSchemeProvider schemeProvider,
-            ILogger<AccountController> logger)
+            ILogger<AccountController> logger,
+            IConfigRepository? configRepo = null,
+            IConfiguration? configuration = null)
         {
             _userRepo = userRepo;
             _otpRepo = otpRepo;
@@ -49,6 +53,8 @@ namespace BookMyFun.Controllers
             _idRepo = idRepo;
             _schemeProvider = schemeProvider;
             _logger = logger;
+            _configRepo = configRepo;
+            _configuration = configuration;
         }
 
         [HttpPost]
@@ -86,29 +92,22 @@ namespace BookMyFun.Controllers
             // Send OTP via Email or WhatsApp depending on contact format
             if (contact.Contains("@"))
             {
-                string subject = "Your BookMyFun Verification Code";
-                string body = $@"
-                    <div style='font-family: Arial, sans-serif; padding: 25px; color: #1e293b; max-width: 520px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;'>
-                        <div style='text-align: center; margin-bottom: 20px;'>
-                            <h2 style='color: #0B4F6C; margin: 0; font-size: 24px; font-weight: 700;'>BookMyFun</h2>
-                            <p style='color: #64748B; font-size: 14px; margin-top: 4px;'>Account Verification Code</p>
-                        </div>
-                        <div style='border-top: 1px solid #e2e8f0; padding-top: 20px;'>
-                            <p style='font-size: 15px; margin-bottom: 12px;'>Hello,</p>
-                            <p style='font-size: 15px; line-height: 1.5; color: #334155;'>Your one-time verification code (OTP) is:</p>
-                            <div style='text-align: center; margin: 24px 0; padding: 18px; background: #FFFBEB; border: 1px dashed #F59E0B; border-radius: 8px;'>
-                                <span style='color: #D97706; font-size: 36px; font-weight: 800; letter-spacing: 8px;'>{otp}</span>
-                            </div>
-                            <p style='font-size: 14px; color: #64748B; line-height: 1.5;'>This verification code is valid for <strong>10 minutes</strong>. Please enter this code on the verification screen to proceed.</p>
-                            <p style='font-size: 13px; color: #94A3B8; margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 16px;'>If you did not request this code, please safely ignore this email.</p>
-                        </div>
-                    </div>";
-                await _emailService.SendEmailAsync(contact, subject, body);
+                bool sent = await _emailService.SendOtpEmailAsync(contact, otp, request.Purpose);
+                if (!sent)
+                {
+                    _logger.LogError("Failed to deliver OTP email to {Contact} for {Purpose}", contact, request.Purpose);
+                    return Json(new { success = false, message = "Unable to dispatch verification email. Please verify your email address or try again later." });
+                }
             }
             else
             {
                 string msg = $"Your BookMyFun verification code is: *{otp}*. Valid for 10 minutes. Do not share this code.";
-                await _whatsAppService.SendWhatsAppMessageAsync(contact, msg);
+                bool sent = await _whatsAppService.SendWhatsAppMessageAsync(contact, msg);
+                if (!sent)
+                {
+                    _logger.LogError("Failed to deliver OTP WhatsApp message to {Contact} for {Purpose}", contact, request.Purpose);
+                    return Json(new { success = false, message = "Unable to dispatch verification code via WhatsApp. Please verify your phone number." });
+                }
             }
 
             _logger.LogInformation("Sent OTP to {Contact} for {Purpose}", contact, request.Purpose);
@@ -136,7 +135,7 @@ namespace BookMyFun.Controllers
             var user = await _userRepo.GetByEmailAsync(model.Email.Trim().ToLowerInvariant());
             if (user == null || !VerifyPassword(model.Password, user.PasswordHash))
             {
-                ModelState.AddModelError("", "Invalid email/ID or password.");
+                ModelState.AddModelError("", "Invalid email or password.");
                 return View(model);
             }
 
@@ -191,12 +190,58 @@ namespace BookMyFun.Controllers
                 return Challenge(properties, provider);
             }
 
-            // Provider not configured in appsettings.json yet (e.g. initial setup)
-            // Display interactive direct Google sign-in/registration prompt
+            // Resolve active project Google credentials and email
+            string activeEmail = "showsgarage@gmail.com";
+            string? clientId = null;
+            bool isConfiguredInDb = false;
+
+            if (_configRepo != null)
+            {
+                try
+                {
+                    var googleConfig = await _configRepo.GetActiveConfigByProviderAsync("Google");
+                    if (googleConfig != null)
+                    {
+                        clientId = googleConfig.ApiKey;
+                        isConfiguredInDb = googleConfig.IsActive && !string.IsNullOrWhiteSpace(googleConfig.ApiKey);
+                        if (!string.IsNullOrWhiteSpace(googleConfig.ExtraParams))
+                        {
+                            try
+                            {
+                                using var doc = System.Text.Json.JsonDocument.Parse(googleConfig.ExtraParams);
+                                if (doc.RootElement.TryGetProperty("ProjectEmail", out var pe) && !string.IsNullOrWhiteSpace(pe.GetString()))
+                                {
+                                    activeEmail = pe.GetString()!;
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to load Google OAuth config from database.");
+                }
+            }
+
+            if (_configuration != null)
+            {
+                var cfgEmail = _configuration["Authentication:Google:ProjectEmail"];
+                if (!string.IsNullOrWhiteSpace(cfgEmail)) activeEmail = cfgEmail;
+
+                var cfgClientId = _configuration["Authentication:Google:ClientId"];
+                if (!string.IsNullOrWhiteSpace(cfgClientId)) clientId ??= cfgClientId;
+            }
+
+            // Provider not configured in authentication middleware yet (e.g. initial setup or local)
+            // Display interactive direct Google sign-in/registration prompt pre-bound with active project credentials
             return View("ExternalLoginPrompt", new ExternalLoginPromptViewModel
             {
                 Provider = provider,
-                ReturnUrl = returnUrl
+                ReturnUrl = returnUrl,
+                ActiveProjectEmail = activeEmail,
+                ConfiguredClientId = clientId,
+                IsConfiguredInDatabase = isConfiguredInDb
             });
         }
 
@@ -237,6 +282,7 @@ namespace BookMyFun.Controllers
         {
             if (!ModelState.IsValid)
             {
+                model.ActiveProjectEmail ??= "showsgarage@gmail.com";
                 return View("ExternalLoginPrompt", model);
             }
 

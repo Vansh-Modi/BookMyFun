@@ -192,8 +192,8 @@
                                     </div>
                                     <div class="col-12 mt-2">
                                         <label class="form-label fw-semibold small">Attach Photo / PDF of ID Document (Max 5MB)</label>
-                                        <input asp-for="IdDocumentFile" type="file" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.webp,.pdf" />
-                                        <div class="form-text small text-muted"><i class="bi bi-lock me-1"></i>Encrypted in private storage and never shared with hosts.</div>
+                                        <input asp-for="IdDocumentFile" type="file" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.webp,.pdf" onchange="if(window.ImageOptimizer && this.files && this.files.length) { const inp = this; ImageOptimizer.compressAndConvertToWebP(this.files[0], { maxWidth: 1600, maxHeight: 1200, quality: 0.85 }).then(f => { const dt = new DataTransfer(); dt.items.add(f); inp.files = dt.files; }); }" />
+                                        <div class="form-text small text-muted"><i class="bi bi-lock me-1"></i>Encrypted in private storage and never shared with hosts. Photos are auto-optimized.</div>
                                     </div>
                                 </div>
                             </div>

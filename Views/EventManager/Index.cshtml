@@ -80,7 +80,7 @@
         <div class="dash-stat-sub"><i class="bi bi-shield-check text-success me-1"></i>Proofs submitted &amp; inspected</div>
     </a>
 
-    <a asp-action="Packages" class="dash-stat-card text-decoration-none">
+    <a href="#decorationOfferingsShowcase" class="dash-stat-card text-decoration-none">
         <div class="dash-stat-top">
             <span class="dash-stat-label">Active Packages</span>
             <span class="dash-stat-icon icon-amber"><i class="bi bi-box-seam-fill"></i></span>
@@ -99,151 +99,156 @@
     </a>
 </div>
 
-<!-- Operational Service Areas Configuration (Dynamic from listed properties) -->
-@{
-    var distinctLocations = ViewBag.DistinctLocations as List<string> ?? new();
-    string rawAreas = ViewBag.ServiceAreas as string ?? "";
-    var currentAreas = rawAreas.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
-}
-<div class="card border-0 shadow-sm rounded-4 mb-4 bg-card">
-    <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-center pt-3 px-4 gap-2">
+<!-- ============================================================
+     PRIMARY FOCAL POINT: HIGH-PRIORITY DECORATION OFFERINGS & UPSELL SHOWCASE (TASK 4)
+     ============================================================ -->
+<div class="card border-0 shadow-sm rounded-4 mb-4 bg-card overflow-hidden" id="decorationOfferingsShowcase">
+    <!-- Focal Header with Upsell Badges & Actions -->
+    <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-center pt-3 px-4 gap-3">
         <div>
-            <h5 class="fw-bold mb-0 text-heading">
-                <i class="bi bi-geo-alt-fill text-danger me-2"></i>My Operational Service Areas
-            </h5>
-            <span class="text-muted small">Select the listed property regions where you provide decoration services. Guests booking outside your areas will not see decoration add-ons.</span>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <h5 class="fw-bold mb-0 text-heading">
+                    <i class="bi bi-stars text-warning me-2 fs-5"></i>Featured Decoration Offerings &amp; Guest Upsells
+                </h5>
+                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1 small">
+                    <i class="bi bi-lightning-charge-fill me-1"></i>Live in Guest Checkout
+                </span>
+            </div>
+            <span class="text-muted small">Themed celebrations presented directly to guests reserving farm properties in your serviced coverage zones.</span>
         </div>
-        <div>
-            @if (currentAreas.Any())
-            {
-                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill">
-                    <i class="bi bi-check-circle-fill me-1"></i> Serving @currentAreas.Count Area@(currentAreas.Count > 1 ? "s" : "")
-                </span>
-            }
-            else
-            {
-                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 rounded-pill">
-                    <i class="bi bi-exclamation-triangle-fill me-1"></i> No Service Areas Selected (Décor hidden)
-                </span>
-            }
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <a asp-action="CreatePackage" class="btn btn-sm btn-warning fw-bold px-3 py-1.5 rounded-pill shadow-sm">
+                <i class="bi bi-plus-circle me-1"></i>Create New Offering
+            </a>
+            <a asp-action="Packages" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1.5">
+                <i class="bi bi-boxes me-1"></i>Full Catalog (@packages.Count)
+            </a>
         </div>
     </div>
-    <div class="card-body px-4 pb-4">
-        @if (TempData["Success"] != null)
+
+    <!-- Interactive Offering Filter Pills -->
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 px-4 pt-2 pb-3 border-bottom bg-light bg-opacity-50">
+        <div class="d-flex flex-wrap gap-1.5" id="offeringsFilterBar">
+            <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 offering-filter-btn active" data-filter="all" onclick="filterOfferings('all', this)">
+                All Offerings (@packages.Count)
+            </button>
+            <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 offering-filter-btn text-success" data-filter="active" onclick="filterOfferings('active', this)">
+                <i class="bi bi-check-circle-fill me-1"></i>Live in Checkout (@packages.Count(p => p.IsActive))
+            </button>
+            <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 offering-filter-btn text-secondary" data-filter="inactive" onclick="filterOfferings('inactive', this)">
+                <i class="bi bi-eye-slash me-1"></i>Hidden / Draft (@packages.Count(p => !p.IsActive))
+            </button>
+        </div>
+        <div class="small text-muted d-none d-md-block">
+            <i class="bi bi-shield-check text-success me-1"></i>Upsell fees allocated 100% to decorator payout (minus platform fee)
+        </div>
+    </div>
+
+    <!-- Offerings Showcase Grid -->
+    <div class="card-body px-4 pb-4 pt-3">
+        @if (!packages.Any())
         {
-            <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm d-flex align-items-center mb-3" role="alert">
-                <i class="bi bi-check-circle-fill fs-5 me-2"></i>
-                <div class="small">@TempData["Success"]</div>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            <div class="text-center py-5">
+                <div class="mb-3">
+                    <span class="p-3 bg-warning-subtle rounded-circle d-inline-flex align-items-center justify-content-center text-warning" style="width: 72px; height: 72px;">
+                        <i class="bi bi-gift-fill fs-2"></i>
+                    </span>
+                </div>
+                <h5 class="fw-bold text-heading mb-1">No Decoration Offerings Created Yet</h5>
+                <p class="text-muted small mb-3 mx-auto" style="max-width: 480px;">
+                    Guests booking farm stays will not see decoration add-on packages during checkout until you create your first offering. Launch an offering today to unlock immediate celebration revenue.
+                </p>
+                <a asp-action="CreatePackage" class="btn btn-warning fw-bold px-4 py-2 rounded-pill shadow-sm">
+                    <i class="bi bi-plus-circle me-1"></i>Launch Your First Offering
+                </a>
             </div>
         }
-        @if (TempData["Error"] != null)
+        else
         {
-            <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm d-flex align-items-center mb-3" role="alert">
-                <i class="bi bi-exclamation-triangle-fill fs-5 me-2"></i>
-                <div class="small">@TempData["Error"]</div>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        }
+            <div class="row g-3" id="offeringsGrid">
+                @foreach (var pkg in packages)
+                {
+                    var isPkgActive = pkg.IsActive;
+                    var decoratorPayoutEst = Math.Round(pkg.BasePrice * 0.90m, 2);
 
-        <form asp-action="UpdateServiceAreas" method="post">
-            @Html.AntiForgeryToken()
-            <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
-            <div class="row g-3">
-                <div class="col-lg-8">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <label class="form-label small fw-bold text-secondary mb-0">
-                            <i class="bi bi-menu-button-wide text-primary me-1"></i>Select Serviceable Property Areas (Dropdown):
-                        </label>
-                        <a asp-action="ServiceAreas" class="small text-primary fw-semibold text-decoration-none">
-                            <i class="bi bi-box-arrow-up-right me-1"></i>Open Full Areas Manager
-                        </a>
-                    </div>
-                    <select name="selectedAreas" multiple class="form-select rounded-3 border-primary-subtle" style="min-height: 120px;" title="Hold Ctrl/Cmd to select multiple areas">
-                        @if (!distinctLocations.Any())
-                        {
-                            <option disabled>No property locations registered in the catalog yet.</option>
-                        }
-                        @foreach (var loc in distinctLocations)
-                        {
-                            bool isSelected = currentAreas.Any(a => string.Equals(a, loc, StringComparison.OrdinalIgnoreCase) || loc.Contains(a, StringComparison.OrdinalIgnoreCase) || a.Contains(loc, StringComparison.OrdinalIgnoreCase));
-                            <option value="@loc" selected="@(isSelected ? "selected" : null)">
-                                📍 @loc @(isSelected ? "✓ (Active)" : "")
-                            </option>
-                        }
-                    </select>
-                    <div class="form-text small mt-1 text-muted">
-                        <i class="bi bi-info-circle me-1"></i>Hold <strong>Ctrl</strong> (or <strong>Cmd</strong> on Mac) to select multiple areas. Décor options appear to guests only for properties in these areas.
-                    </div>
-                </div>
-                <div class="col-lg-4 d-flex flex-column justify-content-between">
-                    <div class="p-3 bg-light rounded-3 border mb-2">
-                        <div class="small fw-semibold text-dark mb-1"><i class="bi bi-shield-check text-success me-1"></i>Active Coverage:</div>
-                        <div class="small text-muted">
-                            @if (currentAreas.Any())
-                            {
-                                <span class="fw-semibold text-primary">@string.Join(", ", currentAreas)</span>
-                            }
-                            else
-                            {
-                                <span class="text-danger fw-semibold">No areas selected. Décor packages are hidden on guest checkout.</span>
-                            }
-                        </div>
-                    </div>
-                    <div class="text-end">
-                        <button type="submit" class="btn btn-warning fw-bold px-4 py-2 rounded-pill shadow-sm w-100">
-                            <i class="bi bi-save2 me-1"></i> Save Service Areas
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Active Décor Packages Showcase -->
-<div class="card border-0 shadow-sm rounded-4 mb-4 bg-card">
-    <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center pt-3 px-4">
-        <div>
-            <h5 class="fw-bold mb-0 text-heading"><i class="bi bi-boxes text-warning me-2"></i>Active Décor &amp; Staging Packages</h5>
-            <span class="text-muted small">Themed offerings available for guest booking selection</span>
-        </div>
-        <a asp-action="Packages" class="btn btn-sm btn-outline-secondary rounded-pill">Manage All (@ViewBag.ActivePackagesCount)</a>
-    </div>
-    <div class="card-body px-4 pb-4">
-        <div class="row g-3">
-            @foreach (var pkg in packages.Take(4))
-            {
-                <div class="col-md-6 col-xl-3">
-                    <div class="card h-100 border rounded-3 overflow-hidden shadow-sm bg-card">
-                        <div style="height: 140px; background-size: cover; background-position: center; background-image: url('@(string.IsNullOrEmpty(pkg.MediaUrl) ? "https://images.unsplash.com/photo-1519741497674-611481863552" : pkg.MediaUrl)');">
-                            <span class="badge bg-dark bg-opacity-75 text-white m-2">@pkg.Category</span>
-                        </div>
-                        <div class="card-body p-3 d-flex flex-column justify-content-between">
-                            <div>
-                                <h6 class="fw-bold mb-1 text-truncate text-heading" title="@pkg.Name">@pkg.Name</h6>
-                                <p class="text-muted small mb-2 line-clamp-2" style="font-size: 0.8rem;">@pkg.Description</p>
+                    <div class="col-md-6 col-xl-3 offering-card-col" data-active="@(isPkgActive ? "active" : "inactive")" data-category="@pkg.Category.ToLower()">
+                        <div class="card h-100 offering-focal-card shadow-sm bg-card">
+                            <!-- Image Wrapper with Badges -->
+                            <div class="offering-img-wrapper">
+                                <img src="@(string.IsNullOrEmpty(pkg.MediaUrl) ? "https://images.unsplash.com/photo-1519741497674-611481863552" : pkg.MediaUrl)" alt="@pkg.Name" onerror="this.src='https://images.unsplash.com/photo-1519741497674-611481863552';" />
+                                <div class="position-absolute top-0 start-0 m-2">
+                                    <span class="badge bg-dark bg-opacity-75 text-white shadow-sm" style="font-size: 0.72rem;">@pkg.Category</span>
+                                </div>
+                                <div class="position-absolute top-0 end-0 m-2">
+                                    @if (isPkgActive)
+                                    {
+                                        <span class="offering-badge-live">
+                                            <i class="bi bi-lightning-charge-fill me-1"></i>Live Upsell
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="offering-badge-inactive">
+                                            <i class="bi bi-eye-slash me-1"></i>Hidden
+                                        </span>
+                                    }
+                                </div>
                             </div>
-                            <div class="d-flex justify-content-between align-items-center pt-2 border-top">
-                                <span class="fw-bold text-warning">₹@pkg.BasePrice.ToString("N0")</span>
-                                <div class="d-flex align-items-center gap-1">
-                                    <a asp-action="EditPackage" asp-route-id="@pkg.PackageID" class="btn btn-sm btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;">
-                                        <i class="bi bi-pencil me-1"></i>Edit
-                                    </a>
-                                    <form asp-action="DeletePackage" asp-route-id="@pkg.PackageID" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete the event package \'@pkg.Name\'?');">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
-                                        <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill" style="font-size: 0.75rem;">
-                                            <i class="bi bi-trash me-1"></i>Delete
-                                        </button>
-                                    </form>
+
+                            <!-- Card Body -->
+                            <div class="card-body p-3 d-flex flex-column justify-content-between">
+                                <div>
+                                    <h6 class="fw-bold mb-1 text-truncate text-heading" title="@pkg.Name">@pkg.Name</h6>
+                                    <p class="text-muted small mb-2 line-clamp-2" style="font-size: 0.8rem; min-height: 2.4em;">@pkg.Description</p>
+                                    @if (!string.IsNullOrWhiteSpace(pkg.IncludedItems))
+                                    {
+                                        <div class="small text-muted text-truncate mb-2" title="@pkg.IncludedItems" style="font-size: 0.75rem;">
+                                            <i class="bi bi-check2-circle text-success me-1"></i>@pkg.IncludedItems
+                                        </div>
+                                    }
+                                </div>
+
+                                <div class="pt-2 border-top">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <div>
+                                            <span class="fw-bold text-warning fs-6">₹@pkg.BasePrice.ToString("N0")</span>
+                                            <span class="text-muted" style="font-size: 0.7rem;">/event</span>
+                                        </div>
+                                        <span class="offering-payout-chip" title="Estimated net earnings after 10% platform commission">
+                                            <i class="bi bi-wallet2"></i>Est: ₹@decoratorPayoutEst.ToString("N0")
+                                        </span>
+                                    </div>
+
+                                    <!-- Interactive Actions Bar -->
+                                    <div class="d-flex justify-content-between align-items-center gap-1 pt-1">
+                                        <!-- 1-Click Status Toggle -->
+                                        <form asp-action="TogglePackageStatus" asp-route-id="@pkg.PackageID" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm @(isPkgActive ? "btn-outline-secondary" : "btn-outline-success") py-0 px-2 rounded-pill" style="font-size: 0.75rem;" title="@(isPkgActive ? "Pause package in checkout" : "Make package live in checkout")">
+                                                <i class="bi @(isPkgActive ? "bi-pause-circle" : "bi-play-circle") me-1"></i>@(isPkgActive ? "Deactivate" : "Make Live")
+                                            </button>
+                                        </form>
+
+                                        <div class="d-flex align-items-center gap-1">
+                                            <a asp-action="EditPackage" asp-route-id="@pkg.PackageID" class="btn btn-sm btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;">
+                                                <i class="bi bi-pencil me-1"></i>Edit
+                                            </a>
+                                            <form asp-action="DeletePackage" asp-route-id="@pkg.PackageID" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete the event package \'@pkg.Name\'?');">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2 rounded-pill" style="font-size: 0.75rem;">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            }
-        </div>
+                }
+            </div>
+        }
     </div>
 </div>
 
@@ -432,9 +437,10 @@
                         <div class="modal fade" id="updateStatusModal-@item.BookingID" tabindex="-1" aria-hidden="true">
                             <div class="modal-dialog modal-dialog-centered">
                                 <div class="modal-content rounded-4 shadow border-0 bg-card">
-                                    <form asp-action="UpdateSetupStatus" method="post">
+                                    <form asp-action="UpdateSetupStatus" method="post" enctype="multipart/form-data">
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="BookingID" value="@item.BookingID" />
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
                                         <div class="modal-header border-bottom">
                                             <h5 class="modal-title fw-bold text-heading">Update Setup Status: Booking #@item.BookingID</h5>
                                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -461,8 +467,17 @@
                                                 </select>
                                             </div>
                                             <div class="mb-3">
-                                                <label class="form-label fw-semibold small">Photo / Video Proof URLs</label>
-                                                <textarea name="SetupProofMediaUrls" class="form-control" rows="3" placeholder="Paste image links, Cloudinary/Drive URLs, or video walkthroughs...">@item.SetupProofMediaUrls</textarea>
+                                                <label class="form-label fw-semibold small text-heading">
+                                                    <i class="bi bi-camera-fill text-warning me-1"></i> Direct Proof Photo Upload
+                                                </label>
+                                                <input type="file" name="ProofFiles" class="form-control" multiple accept="image/jpeg,image/png,image/webp,image/avif" />
+                                                <div class="form-text small">Select photos of completed stage, flowers, or lighting from your device.</div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label fw-semibold small text-heading">
+                                                    <i class="bi bi-link-45deg text-primary me-1"></i> Or External Photo / Video Proof URLs
+                                                </label>
+                                                <textarea name="SetupProofMediaUrls" class="form-control" rows="2" placeholder="Paste image links, Cloudinary/Drive URLs, or video walkthroughs...">@item.SetupProofMediaUrls</textarea>
                                                 <div class="form-text small">Upload or link verifiable photo/video evidence of the decorated venue.</div>
                                             </div>
                                         </div>
@@ -518,7 +533,177 @@
     </div>
 </div>
 
+<!-- Operational Service Areas Configuration (Redesigned with Multi-Select Chips & Custom Tags) -->
+@{
+    var distinctLocations = ViewBag.DistinctLocations as List<string> ?? new();
+    string rawAreas = ViewBag.ServiceAreas as string ?? "";
+    var currentAreas = rawAreas.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+}
+<div class="card border-0 shadow-sm rounded-4 mb-4 bg-card overflow-hidden">
+    <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-center pt-3 px-4 gap-2">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <h5 class="fw-bold mb-0 text-heading">
+                    <i class="bi bi-geo-alt-fill text-danger me-2"></i>Operational Service Areas &amp; Coverage
+                </h5>
+                <span class="badge bg-primary px-2.5 py-1 rounded-pill small" id="dashActiveAreaBadge">
+                    @currentAreas.Count Active
+                </span>
+            </div>
+            <span class="text-muted small">Select the listed regions where your crew provides decoration services. Add custom tags or click chips to toggle coverage.</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a asp-action="ServiceAreas" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                <i class="bi bi-compass me-1"></i>Open Full Boundary Manager
+            </a>
+        </div>
+    </div>
+    <div class="card-body px-4 pb-4">
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm d-flex align-items-center mb-3" role="alert">
+                <i class="bi bi-check-circle-fill fs-5 me-2"></i>
+                <div class="small">@TempData["Success"]</div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm d-flex align-items-center mb-3" role="alert">
+                <i class="bi bi-exclamation-triangle-fill fs-5 me-2"></i>
+                <div class="small">@TempData["Error"]</div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+
+        <form asp-action="UpdateServiceAreas" method="post" id="dashServiceAreasForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+            <div id="dashHiddenInputsContainer">
+                @foreach (var area in currentAreas)
+                {
+                    <input type="hidden" name="selectedAreas" value="@area" class="dash-sync-area" data-area="@area" />
+                }
+            </div>
+
+            <!-- Active Coverage Tags Container -->
+            <div class="p-3 bg-light rounded-3 border mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="small fw-bold text-uppercase text-secondary">
+                        <i class="bi bi-tags-fill text-primary me-1"></i>Active Coverage (<span id="dashActiveCountText">@currentAreas.Count</span> Selected)
+                    </span>
+                    <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none p-0 fw-semibold" id="dashBtnClearAll">
+                        <i class="bi bi-trash3 me-1"></i>Clear All
+                    </button>
+                </div>
+                <div id="dashSelectedChipsCloud" class="d-flex flex-wrap gap-2">
+                    @if (!currentAreas.Any())
+                    {
+                        <span class="text-muted small fst-italic py-1" id="dashEmptyNotice">
+                            <i class="bi bi-info-circle me-1"></i>No service areas selected. Click any location chip below to enable guest bookings.
+                        </span>
+                    }
+                    @foreach (var area in currentAreas)
+                    {
+                        <span class="selected-area-tag" data-area="@area">
+                            <i class="bi bi-geo-alt-fill text-primary small"></i>
+                            <span>@area</span>
+                            <button type="button" class="btn-remove-tag dash-remove-tag" data-area="@area" title="Remove @area" aria-label="Remove @area">
+                                <i class="bi bi-x-lg" style="font-size: 0.65rem;"></i>
+                            </button>
+                        </span>
+                    }
+                </div>
+            </div>
+
+            <!-- Available Location Chips & Custom Tag Bar -->
+            <div class="row g-3">
+                <div class="col-lg-8">
+                    <!-- Search + Available Chips -->
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                        <label class="form-label small fw-bold text-secondary mb-0">
+                            <i class="bi bi-grid-fill text-primary me-1"></i>Available Location Chips (Click to Toggle):
+                        </label>
+                        <div class="input-group input-group-sm" style="max-width: 200px;">
+                            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" id="dashLocationSearch" class="form-control border-start-0" placeholder="Filter..." />
+                        </div>
+                    </div>
+                    <div class="p-2.5 border rounded-3 bg-white mb-2" style="max-height: 140px; overflow-y: auto;">
+                        <div id="dashChipsGrid" class="d-flex flex-wrap gap-1.5">
+                            @if (!distinctLocations.Any())
+                            {
+                                <span class="text-muted small">No property locations registered in the catalog yet.</span>
+                            }
+                            @foreach (var loc in distinctLocations)
+                            {
+                                bool isSelected = currentAreas.Any(a => string.Equals(a, loc, StringComparison.OrdinalIgnoreCase) || loc.Contains(a, StringComparison.OrdinalIgnoreCase) || a.Contains(loc, StringComparison.OrdinalIgnoreCase));
+                                <button type="button" class="area-chip @(isSelected ? "active" : "")" data-area="@loc" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+                                    <i class="bi @(isSelected ? "bi-check-circle-fill text-white" : "bi-geo-alt text-primary") chip-icon"></i>
+                                    <span class="chip-label">@loc</span>
+                                    <i class="bi @(isSelected ? "bi-check-lg" : "bi-plus") chip-action-icon ms-1 opacity-75"></i>
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Custom Tag Input -->
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-light text-muted"><i class="bi bi-tag"></i></span>
+                        <input type="text" id="dashCustomAreaInput" class="form-control" placeholder="Add custom region or city (e.g. Lonavala North, Karjat Hills)..." />
+                        <button type="button" class="btn btn-outline-primary" id="dashBtnAddCustom">
+                            <i class="bi bi-plus-lg me-1"></i>Add
+                        </button>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 d-flex flex-column justify-content-between">
+                    <div class="p-3 bg-light rounded-3 border mb-2">
+                        <div class="small fw-semibold text-dark mb-1"><i class="bi bi-shield-check text-success me-1"></i>Visibility Status:</div>
+                        <div class="small" id="dashCoverageSummary">
+                            @if (currentAreas.Any())
+                            {
+                                <span class="text-success fw-semibold"><i class="bi bi-check-circle me-1"></i>Active for @currentAreas.Count serviced destination@(currentAreas.Count > 1 ? "s" : "")</span>
+                            }
+                            else
+                            {
+                                <span class="text-danger fw-semibold"><i class="bi bi-eye-slash me-1"></i>Packages hidden until areas selected</span>
+                            }
+                        </div>
+                    </div>
+                    <div>
+                        <button type="submit" class="btn btn-warning fw-bold px-4 py-2 rounded-pill shadow-sm w-100">
+                            <i class="bi bi-save2 me-1"></i> Save Service Areas
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
 @section Scripts {
+<script>
+    window.filterOfferings = function(filter, btn) {
+        document.querySelectorAll('.offering-filter-btn').forEach(b => {
+            b.classList.remove('btn-primary', 'active');
+            b.classList.add('btn-light');
+        });
+        if (btn) {
+            btn.classList.remove('btn-light');
+            btn.classList.add('btn-primary', 'active');
+        }
+
+        const cols = document.querySelectorAll('.offering-card-col');
+        cols.forEach(col => {
+            const activeStatus = col.getAttribute('data-active');
+            if (filter === 'all' || activeStatus === filter) {
+                col.style.display = '';
+            } else {
+                col.style.display = 'none';
+            }
+        });
+    };
 <script>
     document.addEventListener("DOMContentLoaded", function () {
         const tabButtons = document.querySelectorAll("#eventOrderTabs button");
@@ -540,6 +725,169 @@
                 });
             });
         });
+
+        // Dashboard Service Areas Chips Widget Logic
+        (function() {
+            const selectedSet = new Set();
+            @foreach (var a in currentAreas)
+            {
+                @:selectedSet.add("@Html.Raw(a.Replace("\"", "\\\""))");
+            }
+
+            const cloud = document.getElementById('dashSelectedChipsCloud');
+            const hiddenCont = document.getElementById('dashHiddenInputsContainer');
+            const badge = document.getElementById('dashActiveAreaBadge');
+            const countText = document.getElementById('dashActiveCountText');
+            const summary = document.getElementById('dashCoverageSummary');
+            const chipsGrid = document.getElementById('dashChipsGrid');
+            const searchInp = document.getElementById('dashLocationSearch');
+            const customInp = document.getElementById('dashCustomAreaInput');
+            const btnAdd = document.getElementById('dashBtnAddCustom');
+            const btnClear = document.getElementById('dashBtnClearAll');
+
+            if (!cloud || !hiddenCont) return;
+
+            function render() {
+                cloud.innerHTML = '';
+                hiddenCont.innerHTML = '';
+
+                if (selectedSet.size === 0) {
+                    cloud.innerHTML = '<span class="text-muted small fst-italic py-1" id="dashEmptyNotice"><i class="bi bi-info-circle me-1"></i>No service areas selected. Click any location chip below to enable guest bookings.</span>';
+                } else {
+                    selectedSet.forEach(area => {
+                        const tag = document.createElement('span');
+                        tag.className = 'selected-area-tag';
+                        tag.setAttribute('data-area', area);
+                        tag.innerHTML = `
+                            <i class="bi bi-geo-alt-fill text-primary small"></i>
+                            <span>${escapeHtml(area)}</span>
+                            <button type="button" class="btn-remove-tag dash-remove-tag" data-area="${escapeHtml(area)}" title="Remove ${escapeHtml(area)}" aria-label="Remove ${escapeHtml(area)}">
+                                <i class="bi bi-x-lg" style="font-size: 0.65rem;"></i>
+                            </button>
+                        `;
+                        cloud.appendChild(tag);
+
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'selectedAreas';
+                        input.value = area;
+                        input.className = 'dash-sync-area';
+                        input.setAttribute('data-area', area);
+                        hiddenCont.appendChild(input);
+                    });
+                }
+
+                if (chipsGrid) {
+                    chipsGrid.querySelectorAll('.area-chip').forEach(chip => {
+                        const area = chip.getAttribute('data-area');
+                        const isActive = isSelected(area);
+                        if (isActive) {
+                            chip.classList.add('active');
+                            chip.querySelector('.chip-icon').className = 'bi bi-check-circle-fill text-white chip-icon';
+                            chip.querySelector('.chip-action-icon').className = 'bi bi-check-lg chip-action-icon ms-1 opacity-75';
+                        } else {
+                            chip.classList.remove('active');
+                            chip.querySelector('.chip-icon').className = 'bi bi-geo-alt text-primary chip-icon';
+                            chip.querySelector('.chip-action-icon').className = 'bi bi-plus chip-action-icon ms-1 opacity-75';
+                        }
+                    });
+                }
+
+                const count = selectedSet.size;
+                if (badge) badge.textContent = `${count} Active`;
+                if (countText) countText.textContent = count;
+                if (summary) {
+                    if (count > 0) {
+                        summary.innerHTML = `<span class="text-success fw-semibold"><i class="bi bi-check-circle me-1"></i>Active for ${count} serviced destination${count > 1 ? 's' : ''}</span>`;
+                    } else {
+                        summary.innerHTML = '<span class="text-danger fw-semibold"><i class="bi bi-eye-slash me-1"></i>Packages hidden until areas selected</span>';
+                    }
+                }
+            }
+
+            function isSelected(name) {
+                for (let a of selectedSet) {
+                    if (a.toLowerCase() === name.toLowerCase()) return true;
+                }
+                return false;
+            }
+
+            function toggle(name) {
+                const trimmed = name.trim();
+                if (!trimmed) return;
+                let found = null;
+                for (let a of selectedSet) {
+                    if (a.toLowerCase() === trimmed.toLowerCase()) { found = a; break; }
+                }
+                if (found) selectedSet.delete(found);
+                else selectedSet.add(trimmed);
+                render();
+            }
+
+            function add(name) {
+                const trimmed = name.trim();
+                if (trimmed && !isSelected(trimmed)) {
+                    selectedSet.add(trimmed);
+                    render();
+                }
+            }
+
+            function remove(name) {
+                const trimmed = name.trim();
+                for (let a of selectedSet) {
+                    if (a.toLowerCase() === trimmed.toLowerCase()) {
+                        selectedSet.delete(a);
+                        break;
+                    }
+                }
+                render();
+            }
+
+            function escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            if (chipsGrid) {
+                chipsGrid.addEventListener('click', function(e) {
+                    const chip = e.target.closest('.area-chip');
+                    if (chip) toggle(chip.getAttribute('data-area'));
+                });
+            }
+
+            cloud.addEventListener('click', function(e) {
+                const btn = e.target.closest('.dash-remove-tag');
+                if (btn) remove(btn.getAttribute('data-area'));
+            });
+
+            if (btnAdd && customInp) {
+                const doAdd = () => {
+                    const val = customInp.value.trim();
+                    if (val) { add(val); customInp.value = ''; customInp.focus(); }
+                };
+                btnAdd.addEventListener('click', doAdd);
+                customInp.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') { e.preventDefault(); doAdd(); }
+                });
+            }
+
+            if (btnClear) {
+                btnClear.addEventListener('click', () => { selectedSet.clear(); render(); });
+            }
+
+            if (searchInp && chipsGrid) {
+                searchInp.addEventListener('input', function() {
+                    const q = this.value.trim().toLowerCase();
+                    chipsGrid.querySelectorAll('.area-chip').forEach(chip => {
+                        const a = chip.getAttribute('data-area').toLowerCase();
+                        chip.style.display = (q === '' || a.includes(q)) ? 'inline-flex' : 'none';
+                    });
+                });
+            }
+
+            render();
+        })();
     });
 </script>
 }

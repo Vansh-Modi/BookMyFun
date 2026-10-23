@@ -114,7 +114,10 @@
 
         const uploaded = [];
         for (let i = 0; i < fileInput.files.length; i++) {
-            const file = fileInput.files[i];
+            let file = fileInput.files[i];
+            if (window.ImageOptimizer && window.ImageOptimizer.isOptimizable(file)) {
+                file = await window.ImageOptimizer.compressAndConvertToWebP(file, { maxWidth: 1600, maxHeight: 1200, quality: 0.82 });
+            }
             const fd = new FormData();
             fd.append("file", file);
             fd.append("mediaType", file.type.startsWith("video") ? "video" : "photo");
