@@ -252,7 +252,7 @@
                     <div class="col-md-5">
                         <div class="small text-muted">Transaction ID</div>
                         <div class="fw-monospace text-dark small">
-                            @(Model.PrimaryPayment?.GatewayTransactionID ?? "RAZORPAY_TOKEN_" + Model.Booking.BookingID)
+                            @(Model.PrimaryPayment?.GatewayTransactionID ?? "PAY_" + Model.Booking.BookingID)
                         </div>
                     </div>
                     <div class="col-md-3 text-md-end">

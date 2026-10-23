@@ -171,7 +171,7 @@
                     <span class="fs-5 fw-bold text-success">₹@Model.TotalPaid.ToString("N2")</span>
                 </div>
                 <div class="text-muted small mt-1 font-monospace" style="font-size: 0.72rem;">
-                    Txn: @(Model.PrimaryPayment?.GatewayTransactionID ?? "RAZORPAY_TOKEN_" + Model.Booking.BookingID)
+                    Txn: @(Model.PrimaryPayment?.GatewayTransactionID ?? "PAY_" + Model.Booking.BookingID)
                 </div>
             </div>
         </div>

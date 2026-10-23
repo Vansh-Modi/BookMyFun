@@ -43,7 +43,7 @@ namespace BookMyFun.Repositories
                 BEGIN
                     UPDATE ApiConfigurations 
                     SET ApiKey = @ApiKey, 
-                        ApiSecret = @ApiSecret, 
+                        ApiSecret = CASE WHEN @ApiSecret IS NOT NULL AND RTRIM(LTRIM(@ApiSecret)) <> '' THEN @ApiSecret ELSE ApiSecret END, 
                         ExtraParams = @ExtraParams, 
                         IsActive = @IsActive
                     WHERE ServiceProvider = @ServiceProvider
@@ -57,7 +57,7 @@ namespace BookMyFun.Repositories
             var rows = await _db.ExecuteNonQueryAsync(sql,
                 new SqlParameter("@ServiceProvider", config.ServiceProvider),
                 new SqlParameter("@ApiKey", config.ApiKey),
-                new SqlParameter("@ApiSecret", config.ApiSecret),
+                new SqlParameter("@ApiSecret", DBHelper.ToDbValue(config.ApiSecret)),
                 new SqlParameter("@ExtraParams", DBHelper.ToDbValue(config.ExtraParams)),
                 new SqlParameter("@IsActive", config.IsActive));
 
