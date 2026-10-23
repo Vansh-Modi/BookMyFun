@@ -49,6 +49,12 @@ namespace BookMyFun.Controllers
         {
             var clientId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
+            var booking = await _bookingRepo.GetByIdAsync(bookingId);
+            if (booking == null || booking.ClientID != clientId || booking.PropertyID != propertyId)
+            {
+                return Forbid();
+            }
+
             var review = new CustomerReview
             {
                 BookingID = bookingId,

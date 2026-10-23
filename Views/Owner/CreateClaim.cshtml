@@ -121,6 +121,7 @@
             const fd = new FormData();
             fd.append("file", file);
             fd.append("mediaType", file.type.startsWith("video") ? "video" : "photo");
+            fd.append("__RequestVerificationToken", document.querySelector('input[name="__RequestVerificationToken"]')?.value || '');
 
             try {
                 const res = await (await fetch("/api/media/upload-file", { method: "POST", body: fd })).json();

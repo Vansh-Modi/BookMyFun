@@ -33,6 +33,7 @@ builder.Services.AddScoped<IPartnerLeadRepository, PartnerLeadRepository>();
 builder.Services.AddScoped<IDamageClaimRepository, DamageClaimRepository>();
 builder.Services.AddScoped<IIdVerificationRepository, IdVerificationRepository>();
 builder.Services.AddScoped<IEventPackageRepository, EventPackageRepository>();
+builder.Services.AddScoped<IWebhookEventRepository, WebhookEventRepository>();
 
 // Services
 builder.Services.AddScoped<IBookingPricingService, BookingPricingService>();
@@ -49,6 +50,11 @@ builder.Services.AddScoped<IRefundEngineService, RefundEngineService>();
 builder.Services.AddScoped<IPartnerLeadService, PartnerLeadService>();
 builder.Services.AddScoped<IDamageClaimService, DamageClaimService>();
 builder.Services.AddScoped<IIdVerificationService, IdVerificationService>();
+
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "RequestVerificationToken";
+});
 
 // Cookie & External Authentication (Google, etc.)
 var authBuilder = builder.Services.AddAuthentication(options =>

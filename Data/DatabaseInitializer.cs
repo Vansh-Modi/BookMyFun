@@ -644,6 +644,19 @@ BEGIN
         CreatedAt DATETIME2 DEFAULT GETDATE()
     );
 END
+
+-- 28. WebhookEvents Table (for Razorpay idempotency)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'WebhookEvents')
+BEGIN
+    CREATE TABLE WebhookEvents (
+        EventID INT IDENTITY(1,1) PRIMARY KEY,
+        GatewayEventID NVARCHAR(100) NOT NULL UNIQUE,
+        EventType NVARCHAR(100) NOT NULL,
+        Status NVARCHAR(50) NOT NULL,
+        ProcessedAt DATETIME2 DEFAULT GETDATE()
+    );
+    CREATE UNIQUE INDEX IX_WebhookEvents_GatewayEventID ON WebhookEvents(GatewayEventID);
+END
 ";
 
                 await _dbHelper.ExecuteNonQueryAsync(script);

@@ -296,45 +296,26 @@ namespace BookMyFun.Controllers
         [Authorize]
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ProcessPayment(int bookingId, string orderId, string paymentMethod)
-        {
-            var booking = await _bookingRepo.GetByIdAsync(bookingId);
-            if (booking == null) return NotFound();
-
-            var paymentId = "pay_" + Guid.NewGuid().ToString("N")[..14];
-
-            // Record successful payment transaction
-            await _bookingRepo.RecordPaymentAsync(new Payment
-            {
-                BookingID = bookingId,
-                GatewayTransactionID = $"{paymentMethod.ToUpper()}_{paymentId}",
-                Amount = booking.TotalAmount,
-                PaymentStatus = "Success"
-            });
-
-            // Update booking status to Confirmed
-            await _bookingRepo.UpdateBookingStatusAsync(bookingId, "Confirmed");
-
-            // Dispatch Notifications across Client, Owner, and Event Manager
-            var client = await _userRepo.GetByIdAsync(booking.ClientID);
-            var property = await _propRepo.GetByIdAsync(booking.PropertyID);
-
-            if (client != null && property != null)
-            {
-                await DispatchConfirmedBookingAlertsAsync(booking, property, client, paymentId, paymentMethod);
-            }
-
-            TempData["Success"] = "Payment completed successfully! Booking confirmed.";
-            return RedirectToAction("Confirmation", new { id = bookingId });
-        }
-
-        [Authorize]
-        [HttpPost]
-        [ValidateAntiForgeryToken]
         public async Task<IActionResult> VerifyPayment(int bookingId, string razorpay_order_id, string razorpay_payment_id, string razorpay_signature)
         {
             var booking = await _bookingRepo.GetByIdAsync(bookingId);
             if (booking == null) return NotFound();
+
+            var currentUserIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(currentUserIdStr) || !int.TryParse(currentUserIdStr, out var currentUserId))
+            {
+                return Challenge();
+            }
+
+            if (booking.ClientID != currentUserId && !User.IsInRole("Admin"))
+            {
+                return Forbid();
+            }
+
+            if (booking.Status == "Confirmed")
+            {
+                return RedirectToAction("Confirmation", new { id = bookingId });
+            }
 
             bool isValid = await _paymentService.VerifyPaymentSignatureAsync(razorpay_order_id, razorpay_payment_id, razorpay_signature);
             if (!isValid)
@@ -343,28 +324,9 @@ namespace BookMyFun.Controllers
                 return RedirectToAction("Payment", new { id = bookingId });
             }
 
-            // Record Razorpay payment transaction
-            await _bookingRepo.RecordPaymentAsync(new Payment
-            {
-                BookingID = bookingId,
-                GatewayTransactionID = $"RAZORPAY_{razorpay_payment_id}",
-                Amount = booking.TotalAmount,
-                PaymentStatus = "Success"
-            });
-
-            // Update booking status to Confirmed
-            await _bookingRepo.UpdateBookingStatusAsync(bookingId, "Confirmed");
-
-            // Dispatch Notifications across Client, Owner, and Event Manager
-            var client = await _userRepo.GetByIdAsync(booking.ClientID);
-            var property = await _propRepo.GetByIdAsync(booking.PropertyID);
-
-            if (client != null && property != null)
-            {
-                await DispatchConfirmedBookingAlertsAsync(booking, property, client, razorpay_payment_id, "Razorpay");
-            }
-
-            TempData["Success"] = "Razorpay payment verified successfully! Your booking is confirmed.";
+            // Payment signature verified on client return.
+            // Booking and payment status updates are handled exclusively via verified Razorpay webhook events.
+            TempData["Success"] = "Payment verified! Your booking confirmation is being finalized via our secure webhook.";
             return RedirectToAction("Confirmation", new { id = bookingId });
         }
 
@@ -624,11 +586,26 @@ namespace BookMyFun.Controllers
             if (booking == null) return NotFound(new { success = false, message = "Booking not found." });
 
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var role = User.FindFirstValue(ClaimTypes.Role) ?? "Client";
-
-            if (role == "Client" && booking.ClientID != currentUserId)
+            var isStaff = User.IsInRole("Admin") || User.IsInRole("Employee");
+            if (!isStaff)
             {
-                return Forbid();
+                var role = User.FindFirstValue(ClaimTypes.Role) ?? "Client";
+                if (role == "Client" && booking.ClientID != currentUserId)
+                {
+                    return Forbid();
+                }
+                if (role == "Owner")
+                {
+                    var property = await _propRepo.GetByIdAsync(booking.PropertyID);
+                    if (property == null || property.OwnerID != currentUserId)
+                    {
+                        return Forbid();
+                    }
+                }
+                if (role != "Client" && role != "Owner")
+                {
+                    return Forbid();
+                }
             }
 
             var payments = await _bookingRepo.GetPaymentsByBookingIdAsync(bookingId);
@@ -672,6 +649,7 @@ namespace BookMyFun.Controllers
             });
         }
 
+        [Authorize]
         public async Task<IActionResult> Confirmation(int id)
         {
             var booking = await _bookingRepo.GetByIdAsync(id);
@@ -679,20 +657,22 @@ namespace BookMyFun.Controllers
 
             var property = await _propRepo.GetByIdAsync(booking.PropertyID);
 
-            if (User.Identity?.IsAuthenticated == true)
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var isStaff = User.IsInRole("Admin") || User.IsInRole("Employee");
+            if (!isStaff)
             {
                 var role = User.FindFirstValue(ClaimTypes.Role) ?? "Client";
-                var currentUserIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                if (int.TryParse(currentUserIdStr, out int currentUserId))
+                if (role == "Client" && booking.ClientID != currentUserId)
                 {
-                    if (role == "Client" && booking.ClientID != currentUserId)
-                    {
-                        return Forbid();
-                    }
-                    if (role == "Owner" && property != null && property.OwnerID != currentUserId)
-                    {
-                        return Forbid();
-                    }
+                    return Forbid();
+                }
+                if (role == "Owner" && (property == null || property.OwnerID != currentUserId))
+                {
+                    return Forbid();
+                }
+                if (role != "Client" && role != "Owner")
+                {
+                    return Forbid();
                 }
             }
 
@@ -715,6 +695,7 @@ namespace BookMyFun.Controllers
             return View(vm);
         }
 
+        [Authorize]
         [HttpGet]
         public async Task<IActionResult> Receipt(int id)
         {
@@ -723,20 +704,22 @@ namespace BookMyFun.Controllers
 
             var property = await _propRepo.GetByIdAsync(booking.PropertyID);
 
-            if (User.Identity?.IsAuthenticated == true)
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var isStaff = User.IsInRole("Admin") || User.IsInRole("Employee");
+            if (!isStaff)
             {
                 var role = User.FindFirstValue(ClaimTypes.Role) ?? "Client";
-                var currentUserIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                if (int.TryParse(currentUserIdStr, out int currentUserId))
+                if (role == "Client" && booking.ClientID != currentUserId)
                 {
-                    if (role == "Client" && booking.ClientID != currentUserId)
-                    {
-                        return Forbid();
-                    }
-                    if (role == "Owner" && property != null && property.OwnerID != currentUserId)
-                    {
-                        return Forbid();
-                    }
+                    return Forbid();
+                }
+                if (role == "Owner" && (property == null || property.OwnerID != currentUserId))
+                {
+                    return Forbid();
+                }
+                if (role != "Client" && role != "Owner")
+                {
+                    return Forbid();
                 }
             }
 

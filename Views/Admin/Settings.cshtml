@@ -688,9 +688,10 @@
         }
 
         try {
+            const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
             const resp = await fetch(`/Admin/UpdateEventCommission`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
                 body: JSON.stringify({ packageId: packageId, commissionRate: rate })
             });
             const data = await resp.json();

@@ -4,6 +4,7 @@
     var selectedStatus = ViewBag.SelectedStatus as string ?? "All";
     var controllerName = ViewContext.RouteData.Values["controller"]?.ToString() ?? "Admin";
 }
+@Html.AntiForgeryToken()
 
 <div class="container-fluid py-4 px-lg-4">
     <!-- Header Banner -->
@@ -276,9 +277,10 @@
         }
         try {
             const controller = '@(ViewContext.RouteData.Values["controller"]?.ToString() ?? "Admin")';
+            const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
             const resp = await fetch(`/${controller}/UpdateBookingEventCommission`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
                 body: JSON.stringify({ bookingId: bookingId, commissionRate: rate })
             });
             const data = await resp.json();

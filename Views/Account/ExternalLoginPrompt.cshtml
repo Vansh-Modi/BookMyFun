@@ -18,8 +18,8 @@
                         <path fill="none" d="M0 0h48v48H0z"/>
                     </svg>
                 </div>
-                <h3 class="fw-bold mb-1 text-heading">Google Account Direct Sign-In</h3>
-                <p class="text-muted small mb-0">Sign in or register instantly with your Google account without a password or OTP</p>
+                <h3 class="fw-bold mb-1 text-heading">Google Account Sign-In</h3>
+                <p class="text-muted small mb-0">Google OAuth is not currently configured for this environment</p>
             </div>
 
             <!-- Active Project Google Credentials Status Pill -->
@@ -37,53 +37,21 @@
                 }
             </div>
 
-            @if (!ViewData.ModelState.IsValid)
-            {
-                <div class="alert alert-danger py-2 px-3 rounded-3 small mb-3">
-                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                    @Html.ValidationSummary(true, "")
+            <!-- Notice: Direct login disabled / standard OAuth required -->
+            <div class="alert alert-warning border d-flex align-items-center mb-4 py-3 px-3 rounded-3 shadow-sm">
+                <i class="bi bi-shield-exclamation text-warning fs-3 me-3"></i>
+                <div class="small">
+                    <div class="fw-bold text-dark">Google Sign-In Pending Configuration</div>
+                    <div class="text-muted">Standard Google OAuth credentials have not been configured for this environment. Please sign in using your email and password, or contact the site administrator.</div>
                 </div>
-            }
+            </div>
 
-            <!-- Quick Direct Login Form -->
-            <form asp-action="DirectGoogleLogin" method="post">
-                @Html.AntiForgeryToken()
-                <input type="hidden" asp-for="Provider" />
-                <input type="hidden" asp-for="ReturnUrl" />
-                <input type="hidden" asp-for="ActiveProjectEmail" />
-
-                <div class="mb-3">
-                    <label asp-for="Email" class="form-label fw-semibold small text-muted">Google Email Address</label>
-                    <div class="input-group">
-                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-envelope text-muted"></i></span>
-                        <input asp-for="Email" id="googleEmail" class="form-control border-start-0 ps-0" placeholder="e.g. @activeEmail" required autofocus />
-                    </div>
-                    <span asp-validation-for="Email" class="text-danger small"></span>
-                </div>
-
-                <div class="mb-4">
-                    <label asp-for="FullName" class="form-label fw-semibold small text-muted">Your Full Name</label>
-                    <div class="input-group">
-                        <span class="input-group-text bg-light border-end-0"><i class="bi bi-person text-muted"></i></span>
-                        <input asp-for="FullName" id="googleName" class="form-control border-start-0 ps-0" placeholder="e.g. BookMyFun Project Admin" required />
-                    </div>
-                    <span asp-validation-for="FullName" class="text-danger small"></span>
-                </div>
-
-                <!-- Submit Button -->
-                <div class="d-grid mb-3">
-                    <button type="submit" class="btn btn-warning btn-lg fw-bold rounded-3 shadow-sm py-2">
-                        <i class="bi bi-box-arrow-in-right me-1"></i> Continue with Google
-                    </button>
-                </div>
-
-                <!-- One-click Active Project Account Button -->
-                <div class="d-grid mb-3">
-                    <button type="button" class="btn btn-outline-dark btn-sm py-2 rounded-3 fw-semibold" onclick="fillProjectGoogle()">
-                        <i class="bi bi-google text-danger me-1"></i> Use Active Project Account (@activeEmail)
-                    </button>
-                </div>
-            </form>
+            <!-- Return to Standard Login Button -->
+            <div class="d-grid mb-3">
+                <a asp-action="Login" class="btn btn-primary btn-lg fw-bold rounded-3 shadow-sm py-2">
+                    <i class="bi bi-box-arrow-in-left me-1"></i> Return to Sign In
+                </a>
+            </div>
 
             <!-- Admin Setup Guide Accordion/Card -->
             <div class="border rounded-3 p-3 bg-light mt-3 small">
@@ -121,14 +89,4 @@
     </div>
 </div>
 
-@section Scripts {
-<script>
-    function fillProjectGoogle() {
-        document.getElementById('googleEmail').value = '@activeEmail';
-        document.getElementById('googleName').value = 'BookMyFun Project Admin';
-    }
-    function fillDemoGoogle() {
-        fillProjectGoogle();
-    }
-</script>
-}
+

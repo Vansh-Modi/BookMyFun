@@ -361,3 +361,12 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Database backups and sensitive uploads
+master_backup.bak
+*.bak
+App_Data/PrivateDocuments/
+
+# Local environment configuration overrides
+appsettings.Development.json
+appsettings.*.local.json

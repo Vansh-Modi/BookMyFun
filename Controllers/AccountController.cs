@@ -26,6 +26,7 @@ namespace BookMyFun.Controllers
         private readonly ILogger<AccountController> _logger;
         private readonly IConfigRepository? _configRepo;
         private readonly IConfiguration? _configuration;
+        private readonly IWebHostEnvironment? _env;
 
         public AccountController(
             IUserRepository userRepo, 
@@ -40,7 +41,8 @@ namespace BookMyFun.Controllers
             IAuthenticationSchemeProvider schemeProvider,
             ILogger<AccountController> logger,
             IConfigRepository? configRepo = null,
-            IConfiguration? configuration = null)
+            IConfiguration? configuration = null,
+            IWebHostEnvironment? env = null)
         {
             _userRepo = userRepo;
             _otpRepo = otpRepo;
@@ -55,6 +57,7 @@ namespace BookMyFun.Controllers
             _logger = logger;
             _configRepo = configRepo;
             _configuration = configuration;
+            _env = env;
         }
 
         [HttpPost]
@@ -276,10 +279,19 @@ namespace BookMyFun.Controllers
             return await ProcessExternalUserLoginAsync(email, name, "Google", providerKey ?? Guid.NewGuid().ToString("N"), picture, returnUrl);
         }
 
-        [HttpPost]
-        [ValidateAntiForgeryToken]
+        [NonAction]
         public async Task<IActionResult> DirectGoogleLogin(ExternalLoginPromptViewModel model)
         {
+            if (_env != null && !_env.IsDevelopment())
+            {
+                return new NotFoundResult();
+            }
+
+            if (HttpContext?.Request?.Path.HasValue == true && !string.IsNullOrEmpty(HttpContext.Request.Path.Value))
+            {
+                return new NotFoundResult();
+            }
+
             if (!ModelState.IsValid)
             {
                 model.ActiveProjectEmail ??= "showsgarage@gmail.com";

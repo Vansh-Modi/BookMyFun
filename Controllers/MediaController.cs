@@ -32,6 +32,7 @@ namespace BookMyFun.Controllers
 
         [HttpPost("upload-file")]
         [Authorize(Roles = "Owner,Admin,Employee,EventManager")]
+        [ValidateAntiForgeryToken]
         [RequestSizeLimit(105 * 1024 * 1024)] // 105MB limit for videos
         public async Task<IActionResult> UploadMediaFile([FromForm] IFormFile file, [FromForm] string mediaType, [FromForm] int? propertyId, [FromForm] bool isPrimary = false)
         {
@@ -45,31 +46,38 @@ namespace BookMyFun.Controllers
             int mediaId = 0;
             if (propertyId.HasValue && propertyId.Value > 0)
             {
+                int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                string role = User.FindFirstValue(ClaimTypes.Role) ?? "";
+
+                if (role == "EventManager")
+                {
+                    throw new ForbiddenException("Event managers cannot attach media directly to properties.");
+                }
+
                 // Tenant isolation check
                 var prop = await _propertyRepo.GetByIdAsync(propertyId.Value);
-                if (prop != null)
+                if (prop == null)
                 {
-                    int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-                    string role = User.FindFirstValue(ClaimTypes.Role) ?? "";
-
-                    if (role == "Owner" && prop.OwnerID != currentUserId)
-                    {
-                        throw new ForbiddenException("Cannot attach media to another host's property.");
-                    }
-
-                    var mediaRecord = new PropertyMedia
-                    {
-                        PropertyID = propertyId.Value,
-                        MediaType = type,
-                        SourceType = "file",
-                        StorageUrl = publicUrl,
-                        PublicId = publicId,
-                        IsPrimary = isPrimary,
-                        SortOrder = 0,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    mediaId = await _propertyRepo.AddPropertyMediaAsync(mediaRecord);
+                    return NotFound(new { success = false, message = "Property not found." });
                 }
+
+                if (role == "Owner" && prop.OwnerID != currentUserId)
+                {
+                    throw new ForbiddenException("Cannot attach media to another host's property.");
+                }
+
+                var mediaRecord = new PropertyMedia
+                {
+                    PropertyID = propertyId.Value,
+                    MediaType = type,
+                    SourceType = "file",
+                    StorageUrl = publicUrl,
+                    PublicId = publicId,
+                    IsPrimary = isPrimary,
+                    SortOrder = 0,
+                    CreatedAt = DateTime.UtcNow
+                };
+                mediaId = await _propertyRepo.AddPropertyMediaAsync(mediaRecord);
             }
 
             return Ok(new
@@ -85,6 +93,7 @@ namespace BookMyFun.Controllers
 
         [HttpPost("verify-url")]
         [Authorize(Roles = "Owner,Admin,Employee,EventManager")]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> VerifyExternalUrl([FromBody] ExternalUrlVerifyRequest request)
         {
             if (request == null || string.IsNullOrWhiteSpace(request.Url))
@@ -98,30 +107,37 @@ namespace BookMyFun.Controllers
             int mediaId = 0;
             if (request.PropertyId.HasValue && request.PropertyId.Value > 0)
             {
-                var prop = await _propertyRepo.GetByIdAsync(request.PropertyId.Value);
-                if (prop != null)
+                int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                string role = User.FindFirstValue(ClaimTypes.Role) ?? "";
+
+                if (role == "EventManager")
                 {
-                    int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-                    string role = User.FindFirstValue(ClaimTypes.Role) ?? "";
-
-                    if (role == "Owner" && prop.OwnerID != currentUserId)
-                    {
-                        throw new ForbiddenException("Cannot attach media to another host's property.");
-                    }
-
-                    var mediaRecord = new PropertyMedia
-                    {
-                        PropertyID = request.PropertyId.Value,
-                        MediaType = type,
-                        SourceType = "url",
-                        StorageUrl = request.Url.Trim(),
-                        PublicId = null,
-                        IsPrimary = request.IsPrimary,
-                        SortOrder = 0,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    mediaId = await _propertyRepo.AddPropertyMediaAsync(mediaRecord);
+                    throw new ForbiddenException("Event managers cannot attach media directly to properties.");
                 }
+
+                var prop = await _propertyRepo.GetByIdAsync(request.PropertyId.Value);
+                if (prop == null)
+                {
+                    return NotFound(new { success = false, message = "Property not found." });
+                }
+
+                if (role == "Owner" && prop.OwnerID != currentUserId)
+                {
+                    throw new ForbiddenException("Cannot attach media to another host's property.");
+                }
+
+                var mediaRecord = new PropertyMedia
+                {
+                    PropertyID = request.PropertyId.Value,
+                    MediaType = type,
+                    SourceType = "url",
+                    StorageUrl = request.Url.Trim(),
+                    PublicId = null,
+                    IsPrimary = request.IsPrimary,
+                    SortOrder = 0,
+                    CreatedAt = DateTime.UtcNow
+                };
+                mediaId = await _propertyRepo.AddPropertyMediaAsync(mediaRecord);
             }
 
             return Ok(new
@@ -138,12 +154,31 @@ namespace BookMyFun.Controllers
         [Authorize(Roles = "Owner,Admin,Employee,EventManager")]
         public async Task<IActionResult> DeleteMedia(int mediaId)
         {
+            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            string role = User.FindFirstValue(ClaimTypes.Role) ?? "";
+
+            if (role == "Owner")
+            {
+                var media = await _propertyRepo.GetPropertyMediaByIdAsync(mediaId);
+                if (media == null) return NotFound(new { success = false, message = "Media record not found." });
+                var prop = await _propertyRepo.GetByIdAsync(media.PropertyID);
+                if (prop == null || prop.OwnerID != currentUserId)
+                {
+                    throw new ForbiddenException("Cannot delete media from another host's property.");
+                }
+            }
+            else if (role == "EventManager")
+            {
+                throw new ForbiddenException("Event managers are not authorized to delete property media.");
+            }
+
             bool deleted = await _propertyRepo.DeletePropertyMediaAsync(mediaId);
             return Ok(new { success = deleted });
         }
 
         [HttpPost("upload-id-document")]
         [Authorize(Roles = "Client,Admin,Employee")]
+        [ValidateAntiForgeryToken]
         [RequestSizeLimit(6 * 1024 * 1024)] // 6MB limit
         public async Task<IActionResult> UploadIdDocument([FromForm] IFormFile file, [FromForm] string documentType, [FromForm] string? maskedIdentifier)
         {
@@ -182,6 +217,15 @@ namespace BookMyFun.Controllers
             if (string.Equals(userRole, "Owner", StringComparison.OrdinalIgnoreCase))
             {
                 throw new ForbiddenException("Host accounts are prohibited from accessing client identity files.");
+            }
+
+            // Client role can only access their own documents
+            if (string.Equals(userRole, "Client", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!key.StartsWith($"doc_client_{currentUserId}_", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new ForbiddenException("You can only access identity documents that belong to you.");
+                }
             }
 
             bool validToken = _mediaStorage.ValidateExpiringDocumentToken(key, token, currentUserId, userRole);

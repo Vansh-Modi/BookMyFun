@@ -4,6 +4,7 @@
     ViewData["Title"] = "Event Commission Architecture & Administrative Overrides";
     var userRole = User.IsInRole("Admin") ? "Platform Administrator" : "Operations Staff (Employee)";
 }
+@Html.AntiForgeryToken()
 
 <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
@@ -333,10 +334,11 @@
             return;
         }
 
+        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
         try {
             const resp = await fetch(`/${controller}/UpdateGlobalEventCommission`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
                 body: JSON.stringify({ commissionRate: val })
             });
             const data = await resp.json();
@@ -365,10 +367,11 @@
             }
         }
 
+        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
         try {
             const resp = await fetch(`/${controller}/UpdateEventManagerCommission`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
                 body: JSON.stringify({ userId: userId, commissionRate: rate })
             });
             const data = await resp.json();
@@ -406,10 +409,11 @@
             }
         }
 
+        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
         try {
             const resp = await fetch(`/${controller}/UpdateEventCommission`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
                 body: JSON.stringify({ packageId: pkgId, commissionRate: rate })
             });
             const data = await resp.json();

@@ -541,6 +541,7 @@
                 formData.append("file", file);
                 formData.append("mediaType", "photo");
                 formData.append("propertyId", propertyId);
+                formData.append("__RequestVerificationToken", document.querySelector('input[name="__RequestVerificationToken"]')?.value || '');
 
                 try {
                     const response = await fetch("/api/media/upload-file", {
@@ -585,6 +586,7 @@
             formData.append("file", file);
             formData.append("mediaType", "video");
             formData.append("propertyId", propertyId);
+            formData.append("__RequestVerificationToken", document.querySelector('input[name="__RequestVerificationToken"]')?.value || '');
 
             try {
                 const response = await fetch("/api/media/upload-file", {
@@ -628,9 +630,10 @@
             btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Verifying...`;
 
             try {
+                const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
                 const response = await fetch("/api/media/verify-url", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "RequestVerificationToken": token },
                     body: JSON.stringify({
                         url: url,
                         mediaType: mediaType,

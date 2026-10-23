@@ -661,6 +661,7 @@ namespace BookMyFun.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateGlobalEventCommission([FromBody] UpdateGlobalEventCommissionRequest model)
         {
             if (model.CommissionRate < 0 || model.CommissionRate > 100)
@@ -685,6 +686,7 @@ namespace BookMyFun.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateEventManagerCommission([FromBody] UpdateEventManagerCommissionRequest model)
         {
             if (model.UserId <= 0)
@@ -725,6 +727,7 @@ namespace BookMyFun.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateEventCommission([FromBody] UpdateEventCommissionRequest model)
         {
             if (model.PackageId <= 0)
@@ -759,6 +762,7 @@ namespace BookMyFun.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateBookingEventCommission([FromBody] UpdateBookingEventCommissionRequest model)
         {
             if (model.BookingId <= 0 || model.CommissionRate < 0 || model.CommissionRate > 100)

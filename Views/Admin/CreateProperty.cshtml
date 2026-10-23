@@ -280,6 +280,7 @@
                 const fd = new FormData();
                 fd.append("file", file);
                 fd.append("mediaType", file.type.startsWith("video") ? "video" : "photo");
+                fd.append("__RequestVerificationToken", document.querySelector('input[name="__RequestVerificationToken"]')?.value || '');
                 const res = await (await fetch("/api/media/upload-file", { method: "POST", body: fd })).json();
                 if (res.success) {
                     mediaList.push({ url: res.url, mediaType: res.mediaType, sourceType: "file" });
@@ -295,9 +296,10 @@
         document.getElementById("btnAdminAddUrl").addEventListener("click", async function () {
             const inp = document.getElementById("adminUrlInput");
             if (!inp.value) return;
+            const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
             const res = await (await fetch("/api/media/verify-url", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", "RequestVerificationToken": token },
                 body: JSON.stringify({ url: inp.value, mediaType: "photo" })
             })).json();
             if (res.success) {

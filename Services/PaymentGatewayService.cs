@@ -48,8 +48,8 @@ namespace BookMyFun.Services
             // 2. Fallback to appsettings.json if not configured in DB
             if (string.IsNullOrWhiteSpace(keyId))
             {
-                keyId = _configuration["Razorpay:KeyId"] ?? "rzp_test_bookmyfun_demo";
-                keySecret = _configuration["Razorpay:KeySecret"] ?? "rzp_secret_demo_12345";
+                keyId = _configuration["Razorpay:KeyId"] ?? string.Empty;
+                keySecret = _configuration["Razorpay:KeySecret"] ?? string.Empty;
             }
 
             bool isDemoKey = keyId.Contains("demo") || keySecret.Contains("demo");
@@ -128,18 +128,25 @@ namespace BookMyFun.Services
 
         public async Task<bool> VerifyPaymentSignatureAsync(string orderId, string paymentId, string signature)
         {
+            if (string.IsNullOrWhiteSpace(orderId) || 
+                string.IsNullOrWhiteSpace(paymentId) || 
+                string.IsNullOrWhiteSpace(signature))
+            {
+                return false;
+            }
+
             var config = await _configRepo.GetActiveConfigByProviderAsync("Razorpay");
-            string secret = config?.ApiSecret ?? string.Empty;
+            string? secret = config?.ApiSecret;
 
             if (string.IsNullOrWhiteSpace(secret))
             {
-                secret = _configuration["Razorpay:KeySecret"] ?? "rzp_secret_demo_12345";
+                secret = _configuration["Razorpay:KeySecret"];
             }
 
-            if (string.IsNullOrEmpty(signature) || signature.StartsWith("sim_") || secret.Contains("demo"))
+            if (string.IsNullOrWhiteSpace(secret))
             {
-                // In demo / sandbox test environments
-                return true;
+                _logger.LogWarning("Razorpay API secret is not configured. Cannot verify payment signature.");
+                return false;
             }
 
             try
@@ -147,9 +154,12 @@ namespace BookMyFun.Services
                 var payload = $"{orderId}|{paymentId}";
                 using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret.Trim()));
                 var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
-                var generatedSignature = BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+                var generatedSignature = Convert.ToHexString(hash).ToLowerInvariant();
 
-                return string.Equals(generatedSignature, signature, StringComparison.OrdinalIgnoreCase);
+                byte[] generatedBytes = Encoding.UTF8.GetBytes(generatedSignature);
+                byte[] providedBytes = Encoding.UTF8.GetBytes(signature.Trim().ToLowerInvariant());
+
+                return CryptographicOperations.FixedTimeEquals(generatedBytes, providedBytes);
             }
             catch (Exception ex)
             {

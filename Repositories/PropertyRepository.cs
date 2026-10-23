@@ -23,6 +23,7 @@ namespace BookMyFun.Repositories
         Task<List<PropertyImage>> GetPropertyImagesAsync(int propertyId);
         Task<int> AddPropertyMediaAsync(PropertyMedia media);
         Task<List<PropertyMedia>> GetPropertyMediaAsync(int propertyId);
+        Task<PropertyMedia?> GetPropertyMediaByIdAsync(int mediaId) => Task.FromResult<PropertyMedia?>(null);
         Task<bool> DeletePropertyMediaAsync(int mediaId);
         Task<List<AmenityMaster>> GetAllAmenitiesAsync();
         Task<List<int>> GetPropertyAmenityIdsAsync(int propertyId);
@@ -470,6 +471,23 @@ namespace BookMyFun.Repositories
                 SortOrder = r.GetInt32(r.GetOrdinal("SortOrder")),
                 CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt"))
             }, new SqlParameter("@PropertyID", propertyId));
+        }
+
+        public async Task<PropertyMedia?> GetPropertyMediaByIdAsync(int mediaId)
+        {
+            const string sql = "SELECT * FROM PropertyMedia WHERE MediaID = @MediaID";
+            return await _db.ExecuteReaderSingleAsync(sql, r => new PropertyMedia
+            {
+                MediaID = r.GetInt32(r.GetOrdinal("MediaID")),
+                PropertyID = r.GetInt32(r.GetOrdinal("PropertyID")),
+                MediaType = r.GetString(r.GetOrdinal("MediaType")),
+                SourceType = r.GetString(r.GetOrdinal("SourceType")),
+                StorageUrl = r.GetString(r.GetOrdinal("StorageUrl")),
+                PublicId = r.IsDBNull(r.GetOrdinal("PublicId")) ? null : r.GetString(r.GetOrdinal("PublicId")),
+                IsPrimary = r.GetBoolean(r.GetOrdinal("IsPrimary")),
+                SortOrder = r.GetInt32(r.GetOrdinal("SortOrder")),
+                CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt"))
+            }, new SqlParameter("@MediaID", mediaId));
         }
 
         public async Task<bool> DeletePropertyMediaAsync(int mediaId)

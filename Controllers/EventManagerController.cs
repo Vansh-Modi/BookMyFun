@@ -143,6 +143,13 @@ namespace BookMyFun.Controllers
             var pkg = await _eventRepo.GetPackageByIdAsync(id);
             if (pkg == null) return NotFound();
 
+            var userId = GetCurrentUserId();
+            var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
+            if (!isStaffOrAdmin && pkg.CreatedByUserID != userId)
+            {
+                return Forbid();
+            }
+
             var vm = new EventPackageEditViewModel
             {
                 PackageID = pkg.PackageID,
@@ -170,6 +177,13 @@ namespace BookMyFun.Controllers
 
             var existing = await _eventRepo.GetPackageByIdAsync(model.PackageID);
             if (existing == null) return NotFound();
+
+            var userId = GetCurrentUserId();
+            var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
+            if (!isStaffOrAdmin && existing.CreatedByUserID != userId)
+            {
+                return Forbid();
+            }
 
             string? mediaUrl = model.MediaUrl?.Trim();
 
@@ -206,7 +220,6 @@ namespace BookMyFun.Controllers
             bool updated = await _eventRepo.UpdatePackageAsync(pkg);
             if (updated)
             {
-                var userId = GetCurrentUserId();
                 await _configRepo.LogAuditAsync(userId, "UpdateEventPackage", "EventPackage", pkg.PackageID, $"Updated package '{pkg.Name}'");
                 TempData["Success"] = "Event package updated successfully!";
             }
@@ -221,10 +234,16 @@ namespace BookMyFun.Controllers
             var pkg = await _eventRepo.GetPackageByIdAsync(id);
             if (pkg == null) return NotFound();
 
+            var userId = GetCurrentUserId();
+            var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
+            if (!isStaffOrAdmin && pkg.CreatedByUserID != userId)
+            {
+                return Forbid();
+            }
+
             pkg.IsActive = !pkg.IsActive;
             await _eventRepo.UpdatePackageAsync(pkg);
 
-            var userId = GetCurrentUserId();
             await _configRepo.LogAuditAsync(userId, "ToggleEventPackageStatus", "EventPackage", id, $"Toggled status to {pkg.IsActive}");
 
             TempData["Success"] = $"Package '{pkg.Name}' status set to {(pkg.IsActive ? "Active" : "Inactive")}.";
@@ -260,6 +279,17 @@ namespace BookMyFun.Controllers
             }
 
             var userId = GetCurrentUserId();
+            var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
+            if (!isStaffOrAdmin)
+            {
+                var allSetups = await _eventRepo.GetAllEventBookingsAsync();
+                var currentSetup = allSetups.FirstOrDefault(s => s.BookingID == model.BookingID);
+                if (currentSetup == null || currentSetup.DecoratorAssignedID != userId)
+                {
+                    return Forbid();
+                }
+            }
+
             var proofUrls = new List<string>();
 
             // Collect existing proof URLs if provided
@@ -318,6 +348,21 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> AcceptOrder(int bookingId)
         {
             var userId = GetCurrentUserId();
+            var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
+            var allSetups = await _eventRepo.GetAllEventBookingsAsync();
+            var currentSetup = allSetups.FirstOrDefault(s => s.BookingID == bookingId);
+            if (currentSetup == null)
+            {
+                TempData["Error"] = $"Unable to find event setup order #{bookingId}.";
+                return RedirectToAction(nameof(Dashboard));
+            }
+
+            if (!isStaffOrAdmin && currentSetup.DecoratorAssignedID != null && currentSetup.DecoratorAssignedID != userId && currentSetup.SetupStatus != "Pending")
+            {
+                TempData["Error"] = $"Event order #{bookingId} is already assigned to another decorator.";
+                return RedirectToAction(nameof(Dashboard));
+            }
+
             bool success = await _eventRepo.AssignDecoratorAsync(bookingId, userId);
             if (success)
             {
@@ -332,6 +377,7 @@ namespace BookMyFun.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin,Employee")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ApproveOrder(int bookingId)
         {
@@ -350,6 +396,7 @@ namespace BookMyFun.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin,Employee")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AssignDecorator(int bookingId, int decoratorId)
         {
@@ -372,6 +419,15 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> DeletePackage(int id, string? returnUrl = null)
         {
             var userId = GetCurrentUserId();
+            var pkg = await _eventRepo.GetPackageByIdAsync(id);
+            if (pkg == null) return NotFound();
+
+            var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
+            if (!isStaffOrAdmin && pkg.CreatedByUserID != userId)
+            {
+                return Forbid();
+            }
+
             bool deleted = await _eventRepo.DeletePackageAsync(id);
             if (deleted)
             {
@@ -439,6 +495,17 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> DeleteEventOrder(int bookingId, string? returnUrl = null)
         {
             var userId = GetCurrentUserId();
+            var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
+            if (!isStaffOrAdmin)
+            {
+                var allSetups = await _eventRepo.GetAllEventBookingsAsync();
+                var currentSetup = allSetups.FirstOrDefault(s => s.BookingID == bookingId);
+                if (currentSetup == null || currentSetup.DecoratorAssignedID != userId)
+                {
+                    return Forbid();
+                }
+            }
+
             bool removed = await _eventRepo.CancelOrRemoveEventFromBookingAsync(bookingId);
             if (removed)
             {
