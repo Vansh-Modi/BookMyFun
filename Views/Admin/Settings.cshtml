@@ -31,6 +31,7 @@
                     <option value="sec-social">🌐 3. Social Media & Community Channels</option>
                     <option value="sec-commission">💰 4. Platform Commission & Financial Rules</option>
                     <option value="sec-thirdparty">🔑 5. Third-Party Service Credentials (APIs)</option>
+                    <option value="sec-popularstays">🏖️ 6. Popular Stays (Footer Recommendations & Fallback)</option>
                 </select>
             </div>
             <div class="col-lg-7 d-none d-md-flex flex-wrap gap-2 justify-content-lg-end">
@@ -40,6 +41,7 @@
                 <button type="button" class="btn btn-sm btn-outline-primary category-pill" data-target="sec-social">Social Media</button>
                 <button type="button" class="btn btn-sm btn-outline-primary category-pill" data-target="sec-commission">Commission</button>
                 <button type="button" class="btn btn-sm btn-outline-primary category-pill" data-target="sec-thirdparty">Third-Party APIs</button>
+                <button type="button" class="btn btn-sm btn-outline-primary category-pill" data-target="sec-popularstays">Popular Stays</button>
             </div>
         </div>
     </div>
@@ -376,6 +378,90 @@
                 </button>
             </div>
         </form>
+
+        <!-- 6. Popular Stays (Footer Recommendations & Fallback) -->
+        @{
+            var fallbacks = ViewBag.PopularStaysFallback as List<BookMyFun.Services.PopularStayItem> ?? new();
+            var liveStays = ViewBag.CurrentPopularStays as List<BookMyFun.Services.PopularStayItem> ?? new();
+            while (fallbacks.Count < 5)
+            {
+                fallbacks.Add(new BookMyFun.Services.PopularStayItem());
+            }
+        }
+        <div class="card shadow-sm border-0 mb-4 config-card" id="sec-popularstays">
+            <div class="card-header bg-dark text-white fw-bold py-3 d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-geo-alt-fill text-warning me-2"></i>6. Popular Stays (Footer Recommendations &amp; Fallback)</span>
+                <span class="badge bg-info text-dark">15m Cache</span>
+            </div>
+            <div class="card-body p-4">
+                <div class="alert alert-primary py-2 px-3 small mb-3">
+                    <i class="bi bi-info-circle-fill me-1"></i>
+                    <strong>Dynamic Selection Algorithm:</strong> The footer automatically shows the top 5 properties with the highest confirmed bookings in the last 30 days. When fewer than 5 properties have bookings, the platform fills the remaining slots using the admin-configured fallback list below. Cached in memory for 15 minutes.
+                </div>
+
+                <div class="mb-4">
+                    <h6 class="fw-bold text-dark mb-2"><i class="bi bi-broadcast text-success me-1"></i> Currently Displayed in Footer (Live 15-Minute Cache)</h6>
+                    <div class="d-flex flex-wrap gap-2">
+                        @if (liveStays.Any())
+                        {
+                            foreach (var stay in liveStays)
+                            {
+                                <span class="badge bg-light text-dark border p-2">
+                                    <i class="bi bi-house-door-fill text-primary me-1"></i>
+                                    <strong>@stay.Title</strong>
+                                    <span class="text-muted">(@stay.Location)</span>
+                                    @if (stay.PropertyID > 0)
+                                    {
+                                        <span class="badge bg-success-subtle text-success ms-1">ID: #@stay.PropertyID</span>
+                                    }
+                                </span>
+                            }
+                        }
+                        else
+                        {
+                            <span class="text-muted small">No items currently cached.</span>
+                        }
+                    </div>
+                </div>
+
+                <h6 class="fw-bold text-dark mb-3"><i class="bi bi-pencil-square text-warning me-1"></i> Edit Fallback Stays List</h6>
+                <form asp-controller="Admin" asp-action="SavePopularStaysFallback" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered align-middle">
+                            <thead class="table-light small">
+                                <tr>
+                                    <th style="width: 45px;">#</th>
+                                    <th>Title (Label shown in footer)</th>
+                                    <th>Location (Search filter)</th>
+                                    <th style="width: 120px;">Property ID (0 for all)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (int i = 0; i < 5; i++)
+                                {
+                                    <tr>
+                                        <td class="text-center fw-bold text-muted">@(i + 1)</td>
+                                        <td>
+                                            <input type="text" name="fallbackItems[@i].Title" class="form-control form-control-sm" value="@fallbacks[i].Title" placeholder="e.g. Lonavala Luxury Villas" required />
+                                        </td>
+                                        <td>
+                                            <input type="text" name="fallbackItems[@i].Location" class="form-control form-control-sm" value="@fallbacks[i].Location" placeholder="e.g. Lonavala" required />
+                                        </td>
+                                        <td>
+                                            <input type="number" name="fallbackItems[@i].PropertyID" class="form-control form-control-sm" value="@fallbacks[i].PropertyID" min="0" placeholder="0" />
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <button type="submit" class="btn btn-primary fw-bold btn-sm mt-2">
+                        <i class="bi bi-save me-1"></i> Save Fallback Popular Stays
+                    </button>
+                </form>
+            </div>
+        </div>
     </div>
 
     <!-- Right Column: Third-Party Service Credentials (APIs) -->

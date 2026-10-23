@@ -1,4 +1,6 @@
+using BookMyFun.Data;
 using BookMyFun.Repositories;
+using System.Text.Json;
 
 namespace BookMyFun.Services
 {
@@ -6,6 +8,16 @@ namespace BookMyFun.Services
     {
         Task<SiteSettingsModel> GetSettingsAsync();
         Task SaveSettingsAsync(SiteSettingsModel model);
+        Task<List<PopularStayItem>> GetPopularStaysAsync();
+        Task<List<PopularStayItem>> GetPopularStaysFallbackAsync();
+        Task SavePopularStaysFallbackAsync(List<PopularStayItem> items);
+    }
+
+    public class PopularStayItem
+    {
+        public int PropertyID { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Location { get; set; } = string.Empty;
     }
 
     public class SiteSettingsModel
@@ -29,13 +41,27 @@ namespace BookMyFun.Services
     public class SiteSettingsService : ISiteSettingsService
     {
         private readonly IConfigRepository _configRepo;
+        private readonly DBHelper? _db;
         private static SiteSettingsModel? _cachedSettings;
         private static DateTime _cacheExpiry = DateTime.MinValue;
+
+        private static List<PopularStayItem>? _cachedPopularStays;
+        private static DateTime _popularStaysCacheExpiry = DateTime.MinValue;
         private static readonly object _lock = new();
 
-        public SiteSettingsService(IConfigRepository configRepo)
+        private static readonly List<PopularStayItem> DefaultFallbackStays = new()
+        {
+            new PopularStayItem { PropertyID = 0, Title = "Lonavala Luxury Villas", Location = "Lonavala" },
+            new PopularStayItem { PropertyID = 0, Title = "Alibaug Farmhouses", Location = "Alibaug" },
+            new PopularStayItem { PropertyID = 0, Title = "Goa Beach Resorts", Location = "Goa" },
+            new PopularStayItem { PropertyID = 0, Title = "Hillside Cottages", Location = "Mahabaleshwar" },
+            new PopularStayItem { PropertyID = 0, Title = "Karjat Riverfront Stays", Location = "Karjat" }
+        };
+
+        public SiteSettingsService(IConfigRepository configRepo, DBHelper? db = null)
         {
             _configRepo = configRepo;
+            _db = db;
         }
 
         public async Task<SiteSettingsModel> GetSettingsAsync()
@@ -105,6 +131,137 @@ namespace BookMyFun.Services
                 _cachedSettings = null;
                 _cacheExpiry = DateTime.MinValue;
             }
+        }
+
+        public async Task<List<PopularStayItem>> GetPopularStaysFallbackAsync()
+        {
+            var json = await _configRepo.GetSettingValueAsync("PopularStaysFallback");
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return DefaultFallbackStays.ToList();
+            }
+
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<List<PopularStayItem>>(json);
+                if (parsed != null && parsed.Any())
+                {
+                    return parsed;
+                }
+            }
+            catch
+            {
+                // In case of corrupt JSON, return defaults
+            }
+
+            return DefaultFallbackStays.ToList();
+        }
+
+        public async Task SavePopularStaysFallbackAsync(List<PopularStayItem> items)
+        {
+            var cleanItems = items?
+                .Where(x => !string.IsNullOrWhiteSpace(x.Title))
+                .Take(10)
+                .ToList() ?? new List<PopularStayItem>();
+
+            var json = JsonSerializer.Serialize(cleanItems);
+            await _configRepo.SetSettingValueAsync("PopularStaysFallback", json);
+
+            // Invalidate 15-minute popular stays cache immediately
+            lock (_lock)
+            {
+                _cachedPopularStays = null;
+                _popularStaysCacheExpiry = DateTime.MinValue;
+            }
+        }
+
+        public async Task<List<PopularStayItem>> GetPopularStaysAsync()
+        {
+            lock (_lock)
+            {
+                if (_cachedPopularStays != null && DateTime.UtcNow < _popularStaysCacheExpiry)
+                {
+                    return _cachedPopularStays;
+                }
+            }
+
+            var result = new List<PopularStayItem>();
+
+            // 1. Fetch top properties by confirmed/completed bookings in last 30 days
+            if (_db != null)
+            {
+                try
+                {
+                    const string sql = @"
+                        SELECT TOP 5 p.PropertyID, p.Title, p.Location, COUNT(b.BookingID) AS BookingCount
+                        FROM Properties p
+                        JOIN Bookings b ON p.PropertyID = b.PropertyID
+                        WHERE b.Status IN ('Confirmed', 'Completed')
+                          AND b.CreatedAt >= DATEADD(DAY, -30, GETDATE())
+                          AND p.IsApproved = 1
+                        GROUP BY p.PropertyID, p.Title, p.Location
+                        ORDER BY BookingCount DESC";
+
+                    var dynamicTop = await _db.ExecuteReaderListAsync(sql, reader => new PopularStayItem
+                    {
+                        PropertyID = reader.GetInt32(reader.GetOrdinal("PropertyID")),
+                        Title = reader.GetString(reader.GetOrdinal("Title")),
+                        Location = reader.GetString(reader.GetOrdinal("Location"))
+                    });
+
+                    if (dynamicTop != null && dynamicTop.Any())
+                    {
+                        result.AddRange(dynamicTop);
+                    }
+                }
+                catch
+                {
+                    // Fall back gracefully if DB fails or table unavailable
+                }
+            }
+
+            // 2. If fewer than 5 have bookings, fill remaining spots from admin-editable fallback list in SiteSettings
+            if (result.Count < 5)
+            {
+                var fallbacks = await GetPopularStaysFallbackAsync();
+                foreach (var fb in fallbacks)
+                {
+                    if (result.Count >= 5) break;
+
+                    bool exists = result.Any(r =>
+                        (fb.PropertyID > 0 && r.PropertyID == fb.PropertyID) ||
+                        string.Equals(r.Title, fb.Title, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(r.Location, fb.Location, StringComparison.OrdinalIgnoreCase));
+
+                    if (!exists)
+                    {
+                        result.Add(fb);
+                    }
+                }
+
+                // If still fewer than 5, append remaining without duplicate check
+                if (result.Count < 5)
+                {
+                    foreach (var fb in fallbacks)
+                    {
+                        if (result.Count >= 5) break;
+                        if (!result.Contains(fb))
+                        {
+                            result.Add(fb);
+                        }
+                    }
+                }
+            }
+
+            var finalResult = result.Take(5).ToList();
+
+            lock (_lock)
+            {
+                _cachedPopularStays = finalResult;
+                _popularStaysCacheExpiry = DateTime.UtcNow.AddMinutes(15);
+            }
+
+            return finalResult;
         }
     }
 }

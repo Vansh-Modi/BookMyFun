@@ -308,15 +308,28 @@ namespace BookMyFun.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ManageBookings(string? status = null)
+        public async Task<IActionResult> ManageBookings(string? status = null, int page = 1, int pageSize = 20)
         {
-            var bookings = await _bookingRepo.GetAllBookingsAsync();
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var allBookings = await _bookingRepo.GetAllBookingsAsync();
             if (!string.IsNullOrEmpty(status) && !string.Equals(status, "All", StringComparison.OrdinalIgnoreCase))
             {
-                bookings = bookings.Where(b => string.Equals(b.Status, status, StringComparison.OrdinalIgnoreCase)).ToList();
+                allBookings = allBookings.Where(b => string.Equals(b.Status, status, StringComparison.OrdinalIgnoreCase)).ToList();
             }
+
+            int totalCount = allBookings.Count;
+            int totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
+            var pagedBookings = allBookings.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
             ViewBag.SelectedStatus = status ?? "All";
-            return View(bookings);
+            ViewBag.CurrentPage = page;
+            ViewBag.PageSize = pageSize;
+            ViewBag.TotalCount = totalCount;
+            ViewBag.TotalPages = totalPages;
+
+            return View(pagedBookings);
         }
 
         [HttpGet]
@@ -636,8 +649,27 @@ namespace BookMyFun.Controllers
             ViewBag.Branding = branding;
             ViewBag.EventPackages = eventPackages;
             ViewBag.EventManagers = await _userRepo.GetUsersByRoleAsync("EventManager");
+            ViewBag.PopularStaysFallback = await _siteSettingsService.GetPopularStaysFallbackAsync();
+            ViewBag.CurrentPopularStays = await _siteSettingsService.GetPopularStaysAsync();
 
             return View(branding);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SavePopularStaysFallback(List<PopularStayItem> fallbackItems)
+        {
+            await _siteSettingsService.SavePopularStaysFallbackAsync(fallbackItems);
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _configRepo.LogAuditAsync(
+                currentUserId,
+                "UpdatePopularStaysFallback",
+                "SiteSetting",
+                null,
+                "Updated footer popular stays fallback list");
+
+            TempData["Success"] = "Popular stays fallback list updated and cached successfully!";
+            return RedirectToAction(nameof(Settings));
         }
 
         [HttpPost]

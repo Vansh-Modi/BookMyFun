@@ -72,7 +72,7 @@
                 <a class="navbar-brand fw-bold text-warning d-flex align-items-center" asp-controller="Home" asp-action="Index">
                     @if (!string.IsNullOrEmpty(site.LogoUrl))
                     {
-                        <img src="@site.LogoUrl" alt="@site.SiteName" style="height: 38px; object-fit: contain;" class="me-2" />
+                        <img src="@Url.Content(site.LogoUrl)" alt="@site.SiteName" style="height: 38px; object-fit: contain;" class="me-2" />
                     }
                     else
                     {
@@ -364,7 +364,7 @@
                     <h4 class="text-warning fw-bold mb-3 d-flex align-items-center">
                         @if (!string.IsNullOrEmpty(site.LogoUrl))
                         {
-                            <img src="@site.LogoUrl" alt="@site.SiteName" style="height: 30px;" class="me-2" />
+                            <img src="@Url.Content(site.LogoUrl)" alt="@site.SiteName" style="height: 30px;" class="me-2" />
                         }
                         else
                         {
@@ -399,10 +399,36 @@
                 <div class="col-lg-2 col-md-6 col-6">
                     <h6 class="text-white fw-bold mb-3">Popular Stays</h6>
                     <ul class="list-unstyled small">
-                        <li class="mb-2"><a asp-controller="Properties" asp-action="Index" asp-route-location="Lonavala" class="text-white-50 text-decoration-none hover-white">Lonavala Villas</a></li>
-                        <li class="mb-2"><a asp-controller="Properties" asp-action="Index" asp-route-location="Alibaug" class="text-white-50 text-decoration-none hover-white">Alibaug Farmhouses</a></li>
-                        <li class="mb-2"><a asp-controller="Properties" asp-action="Index" asp-route-location="Goa" class="text-white-50 text-decoration-none hover-white">Goa Beach Resorts</a></li>
-                        <li class="mb-2"><a asp-controller="Properties" asp-action="Index" asp-route-location="Mahabaleshwar" class="text-white-50 text-decoration-none hover-white">Hillside Cottages</a></li>
+                        @{
+                            var popularStays = await SettingsService.GetPopularStaysAsync();
+                        }
+                        @if (popularStays != null && popularStays.Any())
+                        {
+                            foreach (var stay in popularStays)
+                            {
+                                <li class="mb-2">
+                                    @if (stay.PropertyID > 0)
+                                    {
+                                        <a asp-controller="Properties" asp-action="Details" asp-route-id="@stay.PropertyID" class="text-white-50 text-decoration-none hover-white text-truncate d-block" title="@stay.Title (@stay.Location)">
+                                            @stay.Title
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <a asp-controller="Properties" asp-action="Index" asp-route-location="@stay.Location" class="text-white-50 text-decoration-none hover-white text-truncate d-block" title="@stay.Title">
+                                            @stay.Title
+                                        </a>
+                                    }
+                                </li>
+                            }
+                        }
+                        else
+                        {
+                            <li class="mb-2"><a asp-controller="Properties" asp-action="Index" asp-route-location="Lonavala" class="text-white-50 text-decoration-none hover-white">Lonavala Villas</a></li>
+                            <li class="mb-2"><a asp-controller="Properties" asp-action="Index" asp-route-location="Alibaug" class="text-white-50 text-decoration-none hover-white">Alibaug Farmhouses</a></li>
+                            <li class="mb-2"><a asp-controller="Properties" asp-action="Index" asp-route-location="Goa" class="text-white-50 text-decoration-none hover-white">Goa Beach Resorts</a></li>
+                            <li class="mb-2"><a asp-controller="Properties" asp-action="Index" asp-route-location="Mahabaleshwar" class="text-white-50 text-decoration-none hover-white">Hillside Cottages</a></li>
+                        }
                     </ul>
                 </div>
 
@@ -434,8 +460,17 @@
             </div>
 
             <hr class="border-secondary my-3" />
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center small text-light opacity-50">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center small text-light opacity-75 gap-3">
                 <p class="mb-0">&copy; @DateTime.UtcNow.Year @site.SiteName Platforms Private Limited. All Rights Reserved.</p>
+                <div class="developer-credit d-inline-flex align-items-center gap-2 py-1 px-3 rounded-pill bg-black bg-opacity-25 border border-secondary border-opacity-25">
+                    <span>Developed by <strong class="text-warning">Vansh Modi</strong></span>
+                    <a href="https://github.com/Vansh-Modi" target="_blank" rel="noopener noreferrer" class="text-warning text-decoration-none" title="Vansh Modi on GitHub">
+                        <i class="bi bi-github"></i>
+                    </a>
+                    <a href="https://www.linkedin.com/in/vansh-modi-08041731b/?isSelfProfile=true" target="_blank" rel="noopener noreferrer" class="text-primary text-decoration-none" title="Vansh Modi on LinkedIn">
+                        <i class="bi bi-linkedin"></i>
+                    </a>
+                </div>
                 <div>
                     <a asp-controller="Home" asp-action="Privacy" class="text-light opacity-50 text-decoration-none me-3">Privacy Policy</a>
                     <a href="#" class="text-light opacity-50 text-decoration-none">Terms of Service</a>
