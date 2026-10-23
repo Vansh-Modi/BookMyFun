@@ -43,11 +43,13 @@ namespace BookMyFun.Tests
             public string LastSavedOtp { get; private set; } = string.Empty;
             public string LastSavedPurpose { get; private set; } = string.Empty;
 
-            public Task<bool> SaveOtpAsync(string contact, string otp, string purpose, int expiryMinutes = 10)
+            public int LastExpirySeconds { get; private set; }
+            public Task<bool> SaveOtpAsync(string contact, string otp, string purpose, int expirySeconds = 150)
             {
                 LastSavedContact = contact;
                 LastSavedOtp = otp;
                 LastSavedPurpose = purpose;
+                LastExpirySeconds = expirySeconds;
                 return Task.FromResult(true);
             }
 
@@ -274,6 +276,74 @@ namespace BookMyFun.Tests
             Assert.NotNull(successEmail.LastOtpCode);
             Assert.Equal(6, successEmail.LastOtpCode.Length);
             Assert.Equal("newuser@example.com", otpRepo.LastSavedContact);
+            Assert.Equal(150, otpRepo.LastExpirySeconds);
+
+            var expirySecondsProp = val?.GetType().GetProperty("expirySeconds")?.GetValue(val);
+            Assert.Equal(150, expirySecondsProp);
+        }
+
+        [Fact]
+        public async Task AccountController_SendOtp_FailsWhenUserAlreadyExistsForRegistration()
+        {
+            var successEmail = new MockSuccessEmailService();
+            var otpRepo = new StubOtpRepo();
+            var userRepo = new StubUserRepo();
+            // Pre-seed existing user
+            await userRepo.CreateUserAsync(new User { Email = "existing@example.com", FullName = "Existing", Role = "Client", PasswordHash = "hash" });
+
+            var controller = new AccountController(
+                userRepo,
+                otpRepo,
+                null!, null!,
+                successEmail,
+                null!,
+                null!, null!, null!, null!,
+                NullLogger<AccountController>.Instance);
+
+            var result = await controller.SendOtp(new SendOtpRequestModel
+            {
+                Contact = "existing@bookmyfun.com",
+                Purpose = "Registration"
+            }) as JsonResult;
+
+            Assert.NotNull(result);
+            var val = result.Value;
+            var successProp = val?.GetType().GetProperty("success")?.GetValue(val);
+            var messageProp = val?.GetType().GetProperty("message")?.GetValue(val)?.ToString();
+
+            Assert.Equal(false, successProp);
+            Assert.Contains("already exists", messageProp ?? "");
+        }
+
+        [Fact]
+        public async Task AccountController_SendOtp_FailsWhenUserDoesNotExistForForgotPassword()
+        {
+            var successEmail = new MockSuccessEmailService();
+            var otpRepo = new StubOtpRepo();
+            var userRepo = new StubUserRepo();
+
+            var controller = new AccountController(
+                userRepo,
+                otpRepo,
+                null!, null!,
+                successEmail,
+                null!,
+                null!, null!, null!, null!,
+                NullLogger<AccountController>.Instance);
+
+            var result = await controller.SendOtp(new SendOtpRequestModel
+            {
+                Contact = "unknown@example.com",
+                Purpose = "ForgotPassword"
+            }) as JsonResult;
+
+            Assert.NotNull(result);
+            var val = result.Value;
+            var successProp = val?.GetType().GetProperty("success")?.GetValue(val);
+            var messageProp = val?.GetType().GetProperty("message")?.GetValue(val)?.ToString();
+
+            Assert.Equal(false, successProp);
+            Assert.Contains("No account registered", messageProp ?? "");
         }
     }
 }

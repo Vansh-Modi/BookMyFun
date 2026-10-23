@@ -10,6 +10,7 @@ namespace BookMyFun.Services
     public interface IEmailService
     {
         Task<bool> SendEmailAsync(string toEmail, string subject, string bodyHtml);
+        Task<bool> SendEmailAsync(string toEmail, string subject, string bodyHtml, string? plainTextBody) => SendEmailAsync(toEmail, subject, bodyHtml);
         Task<bool> SendOtpEmailAsync(string toEmail, string otpCode, string purpose, string? recipientName = null);
         Task EnqueueEmailAsync(string toEmail, string subject, string bodyHtml, string messageType = "Notification");
         Task<bool> SendBookingReceiptEmailAsync(string toEmail, string clientName, BookingReceiptViewModel receipt, string receiptUrl) => Task.FromResult(true);
@@ -19,6 +20,7 @@ namespace BookMyFun.Services
     public interface IWhatsAppService
     {
         Task<bool> SendWhatsAppMessageAsync(string phoneNumber, string message);
+        Task EnqueueWhatsAppAsync(string phoneNumber, string message, string messageType = "Notification");
         Task<bool> SendBookingConfirmationAsync(string phoneNumber, string clientName, string propertyTitle, string bookingId, decimal amount);
         Task<bool> SendOwnerBookingAlertAsync(string phoneNumber, string ownerName, string propertyTitle, string bookingId, decimal hostGross, decimal hostPayout, string guestName, DateTime checkIn, DateTime checkOut, bool hasDecoration, decimal decorationAmount);
         Task<bool> SendEventManagerSetupAlertAsync(string phoneNumber, string eventManagerName, string propertyTitle, string bookingId, string packageName, decimal packageAmount, DateTime eventDate, string clientName);
@@ -32,9 +34,10 @@ namespace BookMyFun.Services
         private readonly IConfiguration _configuration;
         private readonly IEmailQueueService _emailQueue;
         private readonly ILogger<CommunicationService> _logger;
+        private readonly IHttpClientFactory? _httpClientFactory;
 
         public CommunicationService(IConfigRepository configRepo, IConfiguration configuration, ILogger<CommunicationService> logger)
-            : this(configRepo, configuration, new EmailQueueService(Microsoft.Extensions.Logging.Abstractions.NullLogger<EmailQueueService>.Instance), logger)
+            : this(configRepo, configuration, new EmailQueueService(Microsoft.Extensions.Logging.Abstractions.NullLogger<EmailQueueService>.Instance), logger, null)
         {
         }
 
@@ -42,15 +45,20 @@ namespace BookMyFun.Services
             IConfigRepository configRepo, 
             IConfiguration configuration,
             IEmailQueueService emailQueue,
-            ILogger<CommunicationService> logger)
+            ILogger<CommunicationService> logger,
+            IHttpClientFactory? httpClientFactory = null)
         {
             _configRepo = configRepo;
             _configuration = configuration;
             _emailQueue = emailQueue;
             _logger = logger;
+            _httpClientFactory = httpClientFactory;
         }
 
-        public async Task<bool> SendEmailAsync(string toEmail, string subject, string bodyHtml)
+        public Task<bool> SendEmailAsync(string toEmail, string subject, string bodyHtml)
+            => SendEmailAsync(toEmail, subject, bodyHtml, null);
+
+        public async Task<bool> SendEmailAsync(string toEmail, string subject, string bodyHtml, string? plainTextBody)
         {
             if (string.IsNullOrWhiteSpace(toEmail))
             {
@@ -146,7 +154,7 @@ namespace BookMyFun.Services
                 string cleanPass = apiSecret.Trim().Replace(" ", "");
 
                 // Sanitize sender address: ensure strictly valid email address syntax
-                string senderAddress = "no-reply@bookmyfun.com";
+                string senderAddress = "no-reply@bookmyfun.in";
                 if (!string.IsNullOrWhiteSpace(fromEmail) && MailAddress.TryCreate(fromEmail.Trim(), out var parsedFrom))
                 {
                     senderAddress = parsedFrom.Address;
@@ -167,12 +175,26 @@ namespace BookMyFun.Services
 
                 var mail = new MailMessage
                 {
-                    From = new MailAddress(senderAddress, "BookMyFun Luxury Stays"),
+                    From = new MailAddress(senderAddress, "BookMyFun"),
                     Subject = subject,
                     Body = bodyHtml,
                     IsBodyHtml = true
                 };
                 mail.To.Add(parsedToAddress);
+
+                // Anti-spam and RFC compliance headers
+                mail.Headers.Add("X-Auto-Response-Suppress", "All");
+                mail.Headers.Add("Auto-Submitted", "auto-generated");
+
+                // Provide multi-part alternative views (plain text + HTML) for maximum deliverability
+                string plainText = !string.IsNullOrWhiteSpace(plainTextBody)
+                    ? plainTextBody
+                    : Regex.Replace(bodyHtml, "<[^>]+>", " ").Replace("&nbsp;", " ").Trim();
+
+                var plainView = AlternateView.CreateAlternateViewFromString(plainText, System.Text.Encoding.UTF8, "text/plain");
+                var htmlView = AlternateView.CreateAlternateViewFromString(bodyHtml, System.Text.Encoding.UTF8, "text/html");
+                mail.AlternateViews.Add(plainView);
+                mail.AlternateViews.Add(htmlView);
 
                 await client.SendMailAsync(mail);
                 _logger.LogInformation("Real email successfully delivered to {ToEmail} via {Host}:{Port}", cleanToEmail, host, port);
@@ -198,20 +220,20 @@ namespace BookMyFun.Services
             switch (purpose?.ToLowerInvariant())
             {
                 case "forgotpassword":
-                    subject = "Reset Your BookMyFun Password";
+                    subject = "Reset your BookMyFun password";
                     purposeHeadline = "Password Reset Request";
                     purposeDescription = "We received a request to reset the password for your BookMyFun account. Enter the verification code below to set a new password:";
                     securityNote = "If you did not request this password reset, please ignore this email or contact support immediately if you suspect unauthorized activity.";
                     break;
                 case "login":
-                    subject = "BookMyFun Sign-In Verification Code";
+                    subject = "Your BookMyFun sign-in code";
                     purposeHeadline = "Secure Account Sign-In";
                     purposeDescription = "Use this verification code to complete your sign-in to BookMyFun:";
                     securityNote = "Never share this code with anyone. BookMyFun employees will never ask for your verification code.";
                     break;
                 case "registration":
                 default:
-                    subject = "Your BookMyFun Account Verification Code";
+                    subject = "Your BookMyFun verification code";
                     purposeHeadline = "Account Email Verification";
                     purposeDescription = "Thank you for creating an account with BookMyFun! Please verify your email address with the verification code below:";
                     securityNote = "This code confirms your email address and activates your BookMyFun guest account.";
@@ -251,7 +273,7 @@ namespace BookMyFun.Services
                             <div style='background: #FFFBEB; border: 2px dashed #F59E0B; border-radius: 12px; padding: 20px; text-align: center; margin: 25px 0;'>
                                 <span style='display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #B45309; letter-spacing: 0.1em; margin-bottom: 6px;'>Verification Code</span>
                                 <span style='font-family: monospace, ""Courier New"", Courier; color: #D97706; font-size: 38px; font-weight: 800; letter-spacing: 10px; display: inline-block;'>{otpCode}</span>
-                                <span style='display: block; font-size: 12px; color: #78350F; margin-top: 6px;'>Valid for 10 minutes</span>
+                                <span style='display: block; font-size: 12px; color: #78350F; margin-top: 6px;'>Valid for 150 seconds (2.5 minutes)</span>
                             </div>
 
                             <p style='font-size: 13px; line-height: 1.6; color: #64748B; margin: 20px 0 0;'>
@@ -275,7 +297,20 @@ namespace BookMyFun.Services
 </body>
 </html>";
 
-            return await SendEmailAsync(toEmail, subject, bodyHtml);
+            string plainTextBody = $@"{greeting}
+
+{purposeHeadline}
+{purposeDescription}
+
+Verification Code: {otpCode}
+(This code is valid for 150 seconds / 2.5 minutes)
+
+Security Notice: {securityNote}
+
+Need assistance? Visit https://bookmyfun.in/Home/Contact
+© {DateTime.UtcNow.Year} BookMyFun Technologies. All rights reserved.";
+
+            return await SendEmailAsync(toEmail, subject, bodyHtml, plainTextBody);
         }
 
         public async Task EnqueueEmailAsync(string toEmail, string subject, string bodyHtml, string messageType = "Notification")
@@ -284,9 +319,24 @@ namespace BookMyFun.Services
 
             await _emailQueue.EnqueueAsync(new EmailQueueMessage
             {
+                Channel = "Email",
                 ToEmail = toEmail.Trim(),
                 Subject = subject,
                 BodyHtml = bodyHtml,
+                MessageType = messageType,
+                QueuedAtUtc = DateTime.UtcNow
+            });
+        }
+
+        public async Task EnqueueWhatsAppAsync(string phoneNumber, string message, string messageType = "Notification")
+        {
+            if (string.IsNullOrWhiteSpace(phoneNumber) || string.IsNullOrWhiteSpace(message)) return;
+
+            await _emailQueue.EnqueueAsync(new EmailQueueMessage
+            {
+                Channel = "WhatsApp",
+                ToPhone = phoneNumber.Trim(),
+                BodyHtml = message,
                 MessageType = messageType,
                 QueuedAtUtc = DateTime.UtcNow
             });
@@ -339,7 +389,9 @@ namespace BookMyFun.Services
                 }
 
                 // Real Meta Cloud API Call
-                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+                var http = _httpClientFactory != null
+                    ? _httpClientFactory.CreateClient("WhatsApp")
+                    : new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
                 http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey.Trim());
 
                 if (string.IsNullOrWhiteSpace(endpoint))
@@ -594,7 +646,8 @@ namespace BookMyFun.Services
                        $"💰 Total Amount Paid: ₹{amount:N2}\n" +
                        $"📅 Check-in details and digital entry pass are now accessible in your BookMyFun dashboard.\n\n" +
                        $"Thank you for booking with BookMyFun!";
-            return await SendWhatsAppMessageAsync(phoneNumber, text);
+            await EnqueueWhatsAppAsync(phoneNumber, text, "WhatsAppNotification");
+            return true;
         }
 
         public async Task<bool> SendBookingReceiptWhatsAppAsync(
@@ -621,7 +674,8 @@ namespace BookMyFun.Services
                        $"{receiptUrl}\n\n" +
                        $"Please carry valid government photo IDs for all check-in guests. We look forward to hosting you!\n— Team BookMyFun";
 
-            return await SendWhatsAppMessageAsync(phoneNumber, text);
+            await EnqueueWhatsAppAsync(phoneNumber, text, "WhatsAppNotification");
+            return true;
         }
 
         public async Task<bool> SendOwnerBookingAlertAsync(
@@ -650,7 +704,8 @@ namespace BookMyFun.Services
                        $"• Your Net Host Payout: ₹{hostPayout:N2}{decorNote}\n\n" +
                        $"Please check your Host Dashboard for guest contact details and check-in preparation.";
 
-            return await SendWhatsAppMessageAsync(phoneNumber, text);
+            await EnqueueWhatsAppAsync(phoneNumber, text, "WhatsAppNotification");
+            return true;
         }
 
         public async Task<bool> SendOwnerBookingReceiptWhatsAppAsync(
@@ -686,7 +741,8 @@ namespace BookMyFun.Services
                        $"{settlementReceiptUrl}\n\n" +
                        $"Sign in to your Host Dashboard to access guest details and prepare the property for arrival.\n— Team BookMyFun";
 
-            return await SendWhatsAppMessageAsync(phoneNumber, text);
+            await EnqueueWhatsAppAsync(phoneNumber, text, "WhatsAppNotification");
+            return true;
         }
 
         public async Task<bool> SendEventManagerSetupAlertAsync(
@@ -710,7 +766,8 @@ namespace BookMyFun.Services
                        $"• Client: {clientName}\n\n" +
                        $"Sign in to your Event Manager portal at https://bookmyfun.in/EventManager/Dashboard to accept and coordinate setup crew.";
 
-            return await SendWhatsAppMessageAsync(phoneNumber, text);
+            await EnqueueWhatsAppAsync(phoneNumber, text, "WhatsAppNotification");
+            return true;
         }
     }
 }

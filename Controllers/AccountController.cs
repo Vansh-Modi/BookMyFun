@@ -88,9 +88,9 @@ namespace BookMyFun.Controllers
                 }
             }
 
-            // Generate secure 6-digit numeric OTP
+            // Generate secure 6-digit numeric OTP with 150 seconds expiry
             var otp = RandomNumberGenerator.GetInt32(100000, 999999).ToString();
-            await _otpRepo.SaveOtpAsync(contact, otp, request.Purpose);
+            await _otpRepo.SaveOtpAsync(contact, otp, request.Purpose, 150);
 
             // Send OTP via Email or WhatsApp depending on contact format
             if (contact.Contains("@"))
@@ -104,7 +104,7 @@ namespace BookMyFun.Controllers
             }
             else
             {
-                string msg = $"Your BookMyFun verification code is: *{otp}*. Valid for 10 minutes. Do not share this code.";
+                string msg = $"Your BookMyFun verification code is: *{otp}*. Valid for 150 seconds. Do not share this code.";
                 bool sent = await _whatsAppService.SendWhatsAppMessageAsync(contact, msg);
                 if (!sent)
                 {
@@ -113,13 +113,14 @@ namespace BookMyFun.Controllers
                 }
             }
 
-            _logger.LogInformation("Sent OTP to {Contact} for {Purpose}", contact, request.Purpose);
+            _logger.LogInformation("Sent OTP to {Contact} for {Purpose} (expires in 150s)", contact, request.Purpose);
 
             return Json(new { 
                 success = true, 
+                expirySeconds = 150,
                 message = contact.Contains("@") 
-                    ? "Verification code sent to your email! Please check your inbox and enter the 6-digit OTP below." 
-                    : "Verification code sent to your mobile number! Please enter the 6-digit OTP below."
+                    ? "Verification code sent to your email! Valid for 2 minutes 30 seconds." 
+                    : "Verification code sent to your mobile number! Valid for 2 minutes 30 seconds."
             });
         }
 
