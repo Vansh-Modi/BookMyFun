@@ -13,6 +13,17 @@ builder.Services.AddControllersWithViews(options =>
     options.Filters.Add<BookMyFun.Services.Filters.GlobalExceptionFilter>();
 });
 
+// Register HTTP Client Factory
+builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("Razorpay", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+builder.Services.AddHttpClient("WhatsApp", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+
 // Register Data Access Layer (Raw ADO.NET)
 builder.Services.AddSingleton<DBHelper>();
 builder.Services.AddTransient<DatabaseInitializer>();
@@ -75,13 +86,16 @@ var authBuilder = builder.Services.AddAuthentication(options =>
     options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
 });
 
-// Conditionally configure Google OAuth if client credentials are provided
-var googleClientId = builder.Configuration["Authentication:Google:ClientId"];
-var googleClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
-bool isGoogleConfigured = !string.IsNullOrWhiteSpace(googleClientId)
-    && !string.IsNullOrWhiteSpace(googleClientSecret)
-    && !googleClientId.Contains("YOUR_GOOGLE_CLIENT_ID")
-    && !googleClientId.Contains("your-google-client-id");
+// Conditionally configure Google OAuth if flag is enabled and client credentials are provided via environment variables only
+bool isGoogleLoginEnabled = builder.Configuration.GetValue<bool>("GoogleLogin:Enabled", false);
+var googleClientId = Environment.GetEnvironmentVariable("Google__ClientId") 
+    ?? Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID");
+var googleClientSecret = Environment.GetEnvironmentVariable("Google__ClientSecret") 
+    ?? Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET");
+
+bool isGoogleConfigured = isGoogleLoginEnabled
+    && !string.IsNullOrWhiteSpace(googleClientId)
+    && !string.IsNullOrWhiteSpace(googleClientSecret);
 
 if (isGoogleConfigured)
 {

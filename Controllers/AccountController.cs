@@ -184,6 +184,14 @@ namespace BookMyFun.Controllers
         [HttpPost]
         public async Task<IActionResult> ExternalLogin(string provider = "Google", string? returnUrl = null)
         {
+            // Requirement Item 2: When GoogleLogin:Enabled is false, redirect to login with a friendly message
+            bool isGoogleLoginEnabled = _configuration?.GetValue<bool>("GoogleLogin:Enabled", false) ?? false;
+            if (!isGoogleLoginEnabled)
+            {
+                TempData["InfoMessage"] = "Google sign-in is currently disabled. Please sign in with your email and password.";
+                return RedirectToAction(nameof(Login));
+            }
+
             var schemes = await _schemeProvider.GetAllSchemesAsync();
             var isProviderAvailable = schemes.Any(s => string.Equals(s.Name, provider, StringComparison.OrdinalIgnoreCase));
 
@@ -194,64 +202,20 @@ namespace BookMyFun.Controllers
                 return Challenge(properties, provider);
             }
 
-            // Resolve active project Google credentials and email
-            string activeEmail = "showsgarage@gmail.com";
-            string? clientId = null;
-            bool isConfiguredInDb = false;
-
-            if (_configRepo != null)
-            {
-                try
-                {
-                    var googleConfig = await _configRepo.GetActiveConfigByProviderAsync("Google");
-                    if (googleConfig != null)
-                    {
-                        clientId = googleConfig.ApiKey;
-                        isConfiguredInDb = googleConfig.IsActive && !string.IsNullOrWhiteSpace(googleConfig.ApiKey);
-                        if (!string.IsNullOrWhiteSpace(googleConfig.ExtraParams))
-                        {
-                            try
-                            {
-                                using var doc = System.Text.Json.JsonDocument.Parse(googleConfig.ExtraParams);
-                                if (doc.RootElement.TryGetProperty("ProjectEmail", out var pe) && !string.IsNullOrWhiteSpace(pe.GetString()))
-                                {
-                                    activeEmail = pe.GetString()!;
-                                }
-                            }
-                            catch { }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to load Google OAuth config from database.");
-                }
-            }
-
-            if (_configuration != null)
-            {
-                var cfgEmail = _configuration["Authentication:Google:ProjectEmail"];
-                if (!string.IsNullOrWhiteSpace(cfgEmail)) activeEmail = cfgEmail;
-
-                var cfgClientId = _configuration["Authentication:Google:ClientId"];
-                if (!string.IsNullOrWhiteSpace(cfgClientId)) clientId ??= cfgClientId;
-            }
-
-            // Provider not configured in authentication middleware yet (e.g. initial setup or local)
-            // Display interactive direct Google sign-in/registration prompt pre-bound with active project credentials
-            return View("ExternalLoginPrompt", new ExternalLoginPromptViewModel
-            {
-                Provider = provider,
-                ReturnUrl = returnUrl,
-                ActiveProjectEmail = activeEmail,
-                ConfiguredClientId = clientId,
-                IsConfiguredInDatabase = isConfiguredInDb
-            });
+            TempData["InfoMessage"] = "Google authentication service is not configured. Please sign in with your email and password.";
+            return RedirectToAction(nameof(Login));
         }
 
         [HttpGet]
         public async Task<IActionResult> ExternalLoginCallback(string? returnUrl = null, string? remoteError = null)
         {
+            bool isGoogleLoginEnabled = _configuration?.GetValue<bool>("GoogleLogin:Enabled", false) ?? false;
+            if (!isGoogleLoginEnabled)
+            {
+                TempData["InfoMessage"] = "Google sign-in is currently disabled. Please sign in with your email and password.";
+                return RedirectToAction(nameof(Login));
+            }
+
             if (!string.IsNullOrEmpty(remoteError))
             {
                 TempData["Error"] = $"Error from external authentication provider: {remoteError}";
@@ -281,31 +245,10 @@ namespace BookMyFun.Controllers
         }
 
         [NonAction]
-        public async Task<IActionResult> DirectGoogleLogin(ExternalLoginPromptViewModel model)
+        public Task<IActionResult> DirectGoogleLogin(ExternalLoginPromptViewModel model)
         {
-            if (_env != null && !_env.IsDevelopment())
-            {
-                return new NotFoundResult();
-            }
-
-            if (HttpContext?.Request?.Path.HasValue == true && !string.IsNullOrEmpty(HttpContext.Request.Path.Value))
-            {
-                return new NotFoundResult();
-            }
-
-            if (!ModelState.IsValid)
-            {
-                model.ActiveProjectEmail ??= "showsgarage@gmail.com";
-                return View("ExternalLoginPrompt", model);
-            }
-
-            return await ProcessExternalUserLoginAsync(
-                model.Email, 
-                model.FullName, 
-                string.IsNullOrWhiteSpace(model.Provider) ? "Google" : model.Provider, 
-                "DIRECT_" + Guid.NewGuid().ToString("N")[..12], 
-                null, 
-                model.ReturnUrl);
+            // Security: DirectGoogleLogin is permanently disabled regardless of flags or environment
+            return Task.FromResult<IActionResult>(new NotFoundResult());
         }
 
         private async Task<IActionResult> ProcessExternalUserLoginAsync(

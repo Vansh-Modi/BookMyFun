@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Xunit;
 
 namespace BookMyFun.Tests
 {
@@ -172,7 +173,7 @@ namespace BookMyFun.Tests
             return (controller, authService);
         }
 
-        public async Task DirectGoogleLogin_ActiveProjectEmail_AuthenticatesAndLinksProvider()
+        internal async Task DirectGoogleLogin_ActiveProjectEmail_AuthenticatesAndLinksProvider()
         {
             var userRepo = new InMemoryUserRepo();
             var (controller, authService) = CreateController(userRepo);
@@ -236,7 +237,7 @@ namespace BookMyFun.Tests
             }
         }
 
-        public async Task DirectGoogleLogin_InvalidModel_RedisplaysPromptWithActiveProjectEmail()
+        internal async Task DirectGoogleLogin_InvalidModel_RedisplaysPromptWithActiveProjectEmail()
         {
             var userRepo = new InMemoryUserRepo();
             var (controller, _) = CreateController(userRepo);
@@ -272,7 +273,7 @@ namespace BookMyFun.Tests
             }
         }
 
-        public async Task ExternalLogin_WhenMiddlewareUnconfigured_SuppliesActiveProjectEmailAndConfig()
+        internal async Task ExternalLogin_WhenMiddlewareUnconfigured_SuppliesActiveProjectEmailAndConfig()
         {
             var userRepo = new InMemoryUserRepo();
             var configRepo = new StubConfigRepo
@@ -321,7 +322,7 @@ namespace BookMyFun.Tests
             }
         }
 
-        public void ExternalLoginPromptView_ContainsActiveProjectEmailAndCredentialBindings()
+        internal void ExternalLoginPromptView_ContainsActiveProjectEmailAndCredentialBindings()
         {
             string viewPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Views", "Account", "ExternalLoginPrompt.cshtml");
             if (!File.Exists(viewPath))
@@ -357,7 +358,7 @@ namespace BookMyFun.Tests
             }
         }
 
-        public void AdminSettingsView_ContainsGoogleOAuthTabAndConfigurationForm()
+        internal void AdminSettingsView_ContainsGoogleOAuthTabAndConfigurationForm()
         {
             string viewPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Views", "Admin", "Settings.cshtml");
             if (!File.Exists(viewPath))
@@ -391,6 +392,61 @@ namespace BookMyFun.Tests
             {
                 throw new Exception("Settings.cshtml does not reference active project email 'showsgarage@gmail.com'.");
             }
+        }
+
+        [Fact]
+        public async Task ExternalLogin_WhenGoogleLoginDisabled_RedirectsToLoginWithFriendlyMessage()
+        {
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["GoogleLogin:Enabled"] = "false"
+                })
+                .Build();
+
+            var userRepo = new InMemoryUserRepo();
+            var (controller, _) = CreateController(userRepo, configuration: config);
+
+            var result = await controller.ExternalLogin("Google", null);
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("Login", redirect.ActionName);
+            Assert.Contains("Google sign-in is currently disabled", controller.TempData["InfoMessage"]?.ToString() ?? "");
+        }
+
+        [Fact]
+        public async Task ExternalLoginCallback_WhenGoogleLoginDisabled_RedirectsToLoginWithFriendlyMessage()
+        {
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["GoogleLogin:Enabled"] = "false"
+                })
+                .Build();
+
+            var userRepo = new InMemoryUserRepo();
+            var (controller, _) = CreateController(userRepo, configuration: config);
+
+            var result = await controller.ExternalLoginCallback(null, null);
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("Login", redirect.ActionName);
+            Assert.Contains("Google sign-in is currently disabled", controller.TempData["InfoMessage"]?.ToString() ?? "");
+        }
+
+        [Fact]
+        public async Task DirectGoogleLogin_AlwaysReturnsNotFoundResult()
+        {
+            var userRepo = new InMemoryUserRepo();
+            var (controller, _) = CreateController(userRepo);
+
+            var result = await controller.DirectGoogleLogin(new ExternalLoginPromptViewModel
+            {
+                Email = "test@example.com",
+                FullName = "Test"
+            });
+
+            Assert.IsType<NotFoundResult>(result);
         }
     }
 }

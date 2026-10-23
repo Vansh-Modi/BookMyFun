@@ -959,18 +959,8 @@ public class UnitTest1
                     Provider = "Google"
                 });
 
-                var redirect = Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);
-                Assert.Equal("Index", redirect.ActionName);
-                Assert.Equal("Client", redirect.ControllerName);
-
-                // Verify user was automatically registered in database as a Client
-                var userInDb = await userRepo.GetByEmailAsync(testGoogleEmail);
-                Assert.NotNull(userInDb);
-                Assert.Equal(testGoogleName, userInDb.FullName);
-                Assert.Equal("Client", userInDb.Role);
-                Assert.Equal("Google", userInDb.AuthProvider);
-                Assert.True(userInDb.IsActive);
-                Assert.StartsWith("OAUTH_GOOGLE_", userInDb.PasswordHash);
+                // Security: DirectGoogleLogin is permanently disabled and fails closed with NotFound
+                Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(result);
             }
             finally
             {
@@ -1045,15 +1035,8 @@ public class UnitTest1
                     Provider = "Google"
                 });
 
-                var redirect = Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToActionResult>(result);
-                Assert.Equal("Index", redirect.ActionName);
-                Assert.Equal("Client", redirect.ControllerName);
-
-                // Verify user's AuthProvider was linked to Google
-                var updatedUser = await userRepo.GetByIdAsync(userId);
-                Assert.NotNull(updatedUser);
-                Assert.Equal("Google", updatedUser.AuthProvider);
-                Assert.NotNull(updatedUser.AuthProviderKey);
+                // Security: DirectGoogleLogin is permanently disabled and fails closed with NotFound
+                Assert.IsType<Microsoft.AspNetCore.Mvc.NotFoundResult>(result);
             }
             finally
             {
