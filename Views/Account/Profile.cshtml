@@ -134,6 +134,9 @@
                                         </button>
                                     </div>
                                 </div>
+                                <div class="mt-3">
+                                    <partial name="_PolicyConsentCheckbox" />
+                                </div>
                                 <div id="profileKycResubmitAlert" class="mt-2 small" style="display: none;"></div>
                             </form>
                         </div>
@@ -365,9 +368,18 @@
             return;
         }
 
+        const consentCheck = document.querySelector('#profileKycResubmitForm input[name="PolicyConsent"]:checked');
+        if (!consentCheck) {
+            alertDiv.className = 'mt-2 alert alert-warning py-1 px-2';
+            alertDiv.textContent = 'You must agree to the Terms of Service, Privacy Policy, and Refund Policy before submitting your identification document.';
+            alertDiv.style.display = 'block';
+            return;
+        }
+
         const formData = new FormData();
         formData.append('file', fileInput.files[0]);
         formData.append('documentType', docTypeSelect.value);
+        formData.append('PolicyConsent', 'true');
 
         const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
         alertDiv.className = 'mt-2 alert alert-info py-1 px-2';

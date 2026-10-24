@@ -16,17 +16,20 @@ namespace BookMyFun.Controllers
         private readonly IMediaStorageService _mediaStorage;
         private readonly IConfigRepository _configRepo;
         private readonly ILogger<EventManagerController> _logger;
+        private readonly ILegalDocumentService? _legalService;
 
         public EventManagerController(
             IEventPackageRepository eventRepo,
             IMediaStorageService mediaStorage,
             IConfigRepository configRepo,
-            ILogger<EventManagerController> logger)
+            ILogger<EventManagerController> logger,
+            ILegalDocumentService? legalService = null)
         {
             _eventRepo = eventRepo;
             _mediaStorage = mediaStorage;
             _configRepo = configRepo;
             _logger = logger;
+            _legalService = legalService;
         }
 
         [AllowAnonymous]
@@ -93,6 +96,16 @@ namespace BookMyFun.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> CreatePackage(EventPackageCreateViewModel model)
         {
+            // Mandatory policy consent check (Item 3e)
+            if (Request.HasFormContentType)
+            {
+                string? consent = Request.Form["PolicyConsent"];
+                if (consent != "true")
+                {
+                    ModelState.AddModelError("", "You must agree to the Terms of Service, Privacy Policy, and Refund Policy to create an event package.");
+                }
+            }
+
             if (!ModelState.IsValid)
             {
                 return View(model);
@@ -132,6 +145,21 @@ namespace BookMyFun.Controllers
 
             int pkgId = await _eventRepo.CreatePackageAsync(pkg);
             await _configRepo.LogAuditAsync(userId, "CreateEventPackage", "EventPackage", pkgId, $"Created package '{pkg.Name}' in category {pkg.Category}");
+
+            // Record policy consent acceptances (Item 3f)
+            if (_legalService != null)
+            {
+                try
+                {
+                    var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+                    var pageUrl = Request.Path.Value;
+                    await _legalService.RecordAllStandardConsentsAsync(userId, null, ip, pageUrl);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to record legal consent for event manager {UserId} during package creation", userId);
+                }
+            }
 
             TempData["Success"] = $"Event package '{pkg.Name}' created successfully!";
             return RedirectToAction(nameof(Packages));

@@ -1,4 +1,5 @@
 @inject BookMyFun.Services.ISiteSettingsService SettingsService
+@inject BookMyFun.Services.ILegalDocumentService LegalDocService
 @{
     var site = await SettingsService.GetSettingsAsync();
 }
@@ -445,10 +446,20 @@
                     <h6 class="text-white fw-bold mb-3">Customer Support</h6>
                     <ul class="list-unstyled small text-light opacity-75">
                         <li class="mb-2"><i class="bi bi-headset text-warning me-2"></i> Dedicated Booking Executive</li>
-                        <li class="mb-2"><i class="bi bi-telephone text-warning me-2"></i> @site.SupportPhone</li>
-                        <li class="mb-2"><i class="bi bi-whatsapp text-success me-2"></i> @site.WhatsAppNumber</li>
-                        <li class="mb-2"><i class="bi bi-envelope text-warning me-2"></i> @site.SupportEmail</li>
-                        @if (!string.IsNullOrEmpty(site.Address))
+                        @if (!string.IsNullOrWhiteSpace(site.SupportPhone))
+                        {
+                            <li class="mb-2"><i class="bi bi-telephone text-warning me-2"></i> <a href="tel:@site.SupportPhone" class="text-light opacity-75 text-decoration-none">@site.SupportPhone</a></li>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(site.WhatsAppNumber))
+                        {
+                            var cleanWa = site.WhatsAppNumber.Replace("+", "").Replace(" ", "").Replace("(", "").Replace(")", "").Replace("-", "");
+                            <li class="mb-2"><i class="bi bi-whatsapp text-success me-2"></i> <a href="https://wa.me/@cleanWa" target="_blank" rel="noopener noreferrer" class="text-light opacity-75 text-decoration-none">@site.WhatsAppNumber</a></li>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(site.SupportEmail))
+                        {
+                            <li class="mb-2"><i class="bi bi-envelope text-warning me-2"></i> <a href="mailto:@site.SupportEmail" class="text-light opacity-75 text-decoration-none">@site.SupportEmail</a></li>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(site.Address))
                         {
                             <li class="mb-2"><i class="bi bi-geo-alt text-warning me-2"></i> @site.Address</li>
                         }
@@ -464,6 +475,12 @@
                 <p class="mb-0">&copy; @DateTime.UtcNow.Year @site.SiteName Platforms Private Limited. All Rights Reserved.</p>
                 <div class="developer-credit d-inline-flex align-items-center gap-2 py-1 px-3 rounded-pill bg-black bg-opacity-25 border border-secondary border-opacity-25">
                     <span>Developed by <strong class="text-warning">Vansh Modi</strong></span>
+                    <a href="tel:8849077959" target="_blank" rel="noopener noreferrer" class="text-success text-decoration-none" title="Call: 8849077959">
+                        <i class="bi bi-telephone-fill"></i>
+                    </a>
+                    <a href="mailto:vanshmodi268@gmail.com" target="_blank" rel="noopener noreferrer" class="text-info text-decoration-none" title="Email: vanshmodi268@gmail.com">
+                        <i class="bi bi-envelope-fill"></i>
+                    </a>
                     <a href="https://github.com/Vansh-Modi" target="_blank" rel="noopener noreferrer" class="text-warning text-decoration-none" title="Vansh Modi on GitHub">
                         <i class="bi bi-github"></i>
                     </a>
@@ -472,8 +489,23 @@
                     </a>
                 </div>
                 <div>
-                    <a asp-controller="Home" asp-action="Privacy" class="text-light opacity-50 text-decoration-none me-3">Privacy Policy</a>
-                    <a href="#" class="text-light opacity-50 text-decoration-none">Terms of Service</a>
+                    @{
+                        bool hasPrivacy = await LegalDocService.HasContentAsync("PrivacyPolicy");
+                        bool hasTerms = await LegalDocService.HasContentAsync("TermsOfService");
+                        bool hasRefund = await LegalDocService.HasContentAsync("RefundPolicy");
+                    }
+                    @if (hasPrivacy)
+                    {
+                        <a href="/privacy-policy" class="text-light opacity-50 text-decoration-none me-3">Privacy Policy</a>
+                    }
+                    @if (hasTerms)
+                    {
+                        <a href="/terms" class="text-light opacity-50 text-decoration-none me-3">Terms of Service</a>
+                    }
+                    @if (hasRefund)
+                    {
+                        <a href="/refund-policy" class="text-light opacity-50 text-decoration-none">Refund Policy</a>
+                    }
                 </div>
             </div>
         </div>

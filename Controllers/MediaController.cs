@@ -17,17 +17,20 @@ namespace BookMyFun.Controllers
         private readonly IPropertyRepository _propertyRepo;
         private readonly IIdVerificationService _idVerificationService;
         private readonly ILogger<MediaController> _logger;
+        private readonly ILegalDocumentService? _legalService;
 
         public MediaController(
             IMediaStorageService mediaStorage,
             IPropertyRepository propertyRepo,
             IIdVerificationService idVerificationService,
-            ILogger<MediaController> logger)
+            ILogger<MediaController> logger,
+            ILegalDocumentService? legalService = null)
         {
             _mediaStorage = mediaStorage;
             _propertyRepo = propertyRepo;
             _idVerificationService = idVerificationService;
             _logger = logger;
+            _legalService = legalService;
         }
 
         [HttpPost("upload-file")]
@@ -185,6 +188,14 @@ namespace BookMyFun.Controllers
             if (file == null || file.Length == 0)
                 throw new ValidationException("file", "No identification file provided.");
 
+            // Mandatory policy consent check (Item 3e)
+            if (Request.HasFormContentType)
+            {
+                string? consent = Request.Form["PolicyConsent"];
+                if (consent != "true")
+                    throw new ValidationException("policyConsent", "You must agree to the Terms of Service, Privacy Policy, and Refund Policy before submitting your identification document.");
+            }
+
             int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             string safeKey = await _mediaStorage.SavePrivateDocumentAsync(file, currentUserId);
 
@@ -193,6 +204,21 @@ namespace BookMyFun.Controllers
                 documentType ?? "Aadhaar",
                 safeKey,
                 maskedIdentifier);
+
+            // Record policy consent acceptances (Item 3f)
+            if (_legalService != null)
+            {
+                try
+                {
+                    var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+                    var pageUrl = Request.Path.Value;
+                    await _legalService.RecordAllStandardConsentsAsync(currentUserId, null, ip, pageUrl);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to record legal consent for client {UserId} during KYC upload", currentUserId);
+                }
+            }
 
             return Ok(new
             {

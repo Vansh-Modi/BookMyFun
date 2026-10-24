@@ -22,6 +22,7 @@ namespace BookMyFun.Controllers
         private readonly ILogger<OwnerController> _logger;
         private readonly IEmailService? _emailService;
         private readonly IWhatsAppService? _whatsAppService;
+        private readonly ILegalDocumentService? _legalService;
 
         public OwnerController(
             IPropertyRepository propRepo,
@@ -33,7 +34,8 @@ namespace BookMyFun.Controllers
             IConfigRepository configRepo,
             ILogger<OwnerController> logger,
             IEmailService? emailService = null,
-            IWhatsAppService? whatsAppService = null)
+            IWhatsAppService? whatsAppService = null,
+            ILegalDocumentService? legalService = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -45,6 +47,7 @@ namespace BookMyFun.Controllers
             _logger = logger;
             _emailService = emailService;
             _whatsAppService = whatsAppService;
+            _legalService = legalService;
         }
 
         private int GetCurrentUserId() => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -126,6 +129,16 @@ namespace BookMyFun.Controllers
             {
                 TempData["Error"] = "Subscription quota reached.";
                 return RedirectToAction(nameof(Subscriptions));
+            }
+
+            // Mandatory policy consent check (Item 3e)
+            if (Request.HasFormContentType)
+            {
+                string? consent = Request.Form["PolicyConsent"];
+                if (consent != "true")
+                {
+                    ModelState.AddModelError("", "You must agree to the Terms of Service, Privacy Policy, and Refund Policy to list a property.");
+                }
             }
 
             // Process Custom Category
@@ -211,6 +224,21 @@ namespace BookMyFun.Controllers
             };
 
             var propId = await _propRepo.CreatePropertyAsync(prop);
+
+            // Record policy consent acceptances (Item 3f)
+            if (_legalService != null)
+            {
+                try
+                {
+                    var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+                    var pageUrl = Request.Path.Value;
+                    await _legalService.RecordAllStandardConsentsAsync(ownerId, null, ip, pageUrl);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to record legal consent for owner {OwnerId} during property creation", ownerId);
+                }
+            }
             if (!string.IsNullOrEmpty(vm.ImageUrlInput))
             {
                 await _propRepo.AddPropertyImageAsync(propId, vm.ImageUrlInput, true);

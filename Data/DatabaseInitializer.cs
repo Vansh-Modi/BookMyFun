@@ -725,6 +725,56 @@ BEGIN
     );
     CREATE UNIQUE INDEX IX_WebhookEvents_GatewayEventID ON WebhookEvents(GatewayEventID);
 END
+
+-- 29. LegalDocuments Table (Versioning & Content Governance)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'LegalDocuments')
+BEGIN
+    CREATE TABLE LegalDocuments (
+        DocumentID INT IDENTITY(1,1) PRIMARY KEY,
+        DocumentType NVARCHAR(50) NOT NULL, -- 'PrivacyPolicy', 'TermsOfService', 'RefundPolicy'
+        Title NVARCHAR(200) NOT NULL,
+        Body NVARCHAR(MAX) NOT NULL,
+        Version NVARCHAR(20) NOT NULL,
+        EffectiveDate DATETIME NOT NULL DEFAULT GETUTCDATE(),
+        IsDraft BIT NOT NULL DEFAULT 1,
+        IsCurrent BIT NOT NULL DEFAULT 1,
+        CreatedAt DATETIME NOT NULL DEFAULT GETUTCDATE(),
+        CreatedByUserID INT NULL FOREIGN KEY REFERENCES Users(UserID)
+    );
+    CREATE INDEX IX_LegalDocuments_Type_Current ON LegalDocuments(DocumentType, IsCurrent);
+    CREATE INDEX IX_LegalDocuments_Type_Version ON LegalDocuments(DocumentType, Version);
+
+    -- Seed Initial Draft Documents (Clearly marked DRAFT as required by Item 3h)
+    INSERT INTO LegalDocuments (DocumentType, Title, Body, Version, EffectiveDate, IsDraft, IsCurrent)
+    VALUES 
+    ('PrivacyPolicy', 'Privacy Policy', 
+     '<p><strong>DRAFT: requires legal review before publishing.</strong></p><p>This Privacy Policy outlines how BookMyFun collects, handles, stores, and protects your personal identification and reservation data.</p><h3>1. Information Collection</h3><p>We collect contact details, KYC verification documents, booking history, and transaction references.</p><h3>2. Security & Data Protection</h3><p>Guest identity documents are encrypted and accessible only with ephemeral, short-lived tokens. Host partners never receive raw identity files.</p>',
+     '1.0', GETUTCDATE(), 1, 1),
+    ('TermsOfService', 'Terms of Service', 
+     '<p><strong>DRAFT: requires legal review before publishing.</strong></p><p>Welcome to BookMyFun. By accessing or using our marketplace for farmhouses, villas, and event spaces, you agree to these Terms of Service.</p><h3>1. Platform Role</h3><p>BookMyFun provides an intermediary marketplace connecting guests, verified hosts, and certified event decor managers.</p><h3>2. Booking and Payments</h3><p>All reservations must be completed through authorized platform payment gateways.</p>',
+     '1.0', GETUTCDATE(), 1, 1),
+    ('RefundPolicy', 'Refund and Cancellation Policy', 
+     '<p><strong>DRAFT: requires legal review before publishing.</strong></p><p>This policy governs guest cancellations, host cancellations, and emergency force majeure occurrences across BookMyFun reservations.</p><h3>1. Cancellation Windows</h3><p>Free cancellation is eligible up to 72 hours prior to scheduled check-in, minus non-refundable payment gateway processing fees.</p><h3>2. Payout Protection</h3><p>Cancellations occurring within 24 to 72 hours are subject to standard tiered deductions as specified during checkout.</p>',
+     '1.0', GETUTCDATE(), 1, 1);
+END
+
+-- 30. PolicyAcceptances Table (Evidence for Disputes)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'PolicyAcceptances')
+BEGIN
+    CREATE TABLE PolicyAcceptances (
+        AcceptanceID INT IDENTITY(1,1) PRIMARY KEY,
+        UserID INT NULL FOREIGN KEY REFERENCES Users(UserID),
+        LeadID INT NULL FOREIGN KEY REFERENCES PartnerLeads(LeadID),
+        DocumentType NVARCHAR(50) NOT NULL,
+        Version NVARCHAR(20) NOT NULL,
+        AcceptedAt DATETIME NOT NULL DEFAULT GETUTCDATE(),
+        IpAddress NVARCHAR(50) NULL,
+        PageUrl NVARCHAR(500) NULL
+    );
+    CREATE INDEX IX_PolicyAcceptances_User ON PolicyAcceptances(UserID, DocumentType);
+    CREATE INDEX IX_PolicyAcceptances_Lead ON PolicyAcceptances(LeadID, DocumentType);
+    CREATE INDEX IX_PolicyAcceptances_Type_Version ON PolicyAcceptances(DocumentType, Version);
+END
 ";
 
                 await _dbHelper.ExecuteNonQueryAsync(script);

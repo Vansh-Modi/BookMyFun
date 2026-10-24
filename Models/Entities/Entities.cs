@@ -398,4 +398,31 @@ namespace BookMyFun.Models.Entities
         public decimal BasePrice { get; set; }
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     }
+
+    public class LegalDocument
+    {
+        public int DocumentID { get; set; }
+        public string DocumentType { get; set; } = string.Empty; // 'PrivacyPolicy', 'TermsOfService', 'RefundPolicy'
+        public string Title { get; set; } = string.Empty;
+        public string Body { get; set; } = string.Empty;
+        public string Version { get; set; } = "1.0";
+        public DateTime EffectiveDate { get; set; } = DateTime.UtcNow;
+        public bool IsDraft { get; set; } = true;
+        public bool IsCurrent { get; set; } = true;
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public int? CreatedByUserID { get; set; }
+        public string? CreatedByUserName { get; set; }
+    }
+
+    public class PolicyAcceptance
+    {
+        public int AcceptanceID { get; set; }
+        public int? UserID { get; set; }
+        public int? LeadID { get; set; }
+        public string DocumentType { get; set; } = string.Empty;
+        public string Version { get; set; } = string.Empty;
+        public DateTime AcceptedAt { get; set; } = DateTime.UtcNow;
+        public string? IpAddress { get; set; }
+        public string? PageUrl { get; set; }
+    }
 }

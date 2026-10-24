@@ -27,6 +27,7 @@ namespace BookMyFun.Controllers
         private readonly IConfigRepository? _configRepo;
         private readonly IConfiguration? _configuration;
         private readonly IWebHostEnvironment? _env;
+        private readonly ILegalDocumentService? _legalService;
 
         public AccountController(
             IUserRepository userRepo, 
@@ -42,7 +43,8 @@ namespace BookMyFun.Controllers
             ILogger<AccountController> logger,
             IConfigRepository? configRepo = null,
             IConfiguration? configuration = null,
-            IWebHostEnvironment? env = null)
+            IWebHostEnvironment? env = null,
+            ILegalDocumentService? legalService = null)
         {
             _userRepo = userRepo;
             _otpRepo = otpRepo;
@@ -58,6 +60,7 @@ namespace BookMyFun.Controllers
             _configRepo = configRepo;
             _configuration = configuration;
             _env = env;
+            _legalService = legalService;
         }
 
         [HttpPost]
@@ -414,6 +417,17 @@ namespace BookMyFun.Controllers
         {
             if (!ModelState.IsValid) return View(model);
 
+            // Mandatory policy consent check (Item 3e)
+            if (Request.HasFormContentType)
+            {
+                string? consent = Request.Form["PolicyConsent"];
+                if (consent != "true")
+                {
+                    ModelState.AddModelError("", "You must agree to the Terms of Service, Privacy Policy, and Refund Policy to register.");
+                    return View(model);
+                }
+            }
+
             var existing = await _userRepo.GetByEmailAsync(model.Email);
             if (existing != null)
             {
@@ -455,6 +469,21 @@ namespace BookMyFun.Controllers
                 return View(model);
             }
 
+            // Record policy consent acceptances (Item 3f)
+            if (_legalService != null)
+            {
+                try
+                {
+                    var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+                    var pageUrl = Request.Path.Value;
+                    await _legalService.RecordAllStandardConsentsAsync(userId, null, ip, pageUrl);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to record legal policy acceptance during user registration for {UserId}", userId);
+                }
+            }
+
             TempData["Success"] = "Registration successful! Please login with your credentials.";
             return RedirectToAction("Login");
         }
@@ -481,9 +510,37 @@ namespace BookMyFun.Controllers
         {
             if (!ModelState.IsValid) return View(model);
 
+            // Mandatory policy consent check (Item 3e)
+            if (Request.HasFormContentType)
+            {
+                string? consent = Request.Form["PolicyConsent"];
+                if (consent != "true")
+                {
+                    ModelState.AddModelError("", "You must agree to the Terms of Service, Privacy Policy, and Refund Policy to activate your host account.");
+                    return View(model);
+                }
+            }
+
             try
             {
                 await _partnerLeadService.ActivateOwnerAccountAsync(model);
+
+                // Record policy consent acceptances (Item 3f)
+                if (_legalService != null)
+                {
+                    try
+                    {
+                        var user = await _userRepo.GetByEmailAsync(model.Email);
+                        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+                        var pageUrl = Request.Path.Value;
+                        await _legalService.RecordAllStandardConsentsAsync(user?.UserID, null, ip, pageUrl);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to record legal policy acceptance during host activation for {Email}", model.Email);
+                    }
+                }
+
                 TempData["Success"] = "Host account activated successfully! Please login with your new password.";
                 return RedirectToAction("Login");
             }

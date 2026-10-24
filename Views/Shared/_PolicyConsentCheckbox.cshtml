@@ -1,0 +1,37 @@
+@inject BookMyFun.Services.ILegalDocumentService LegalService
+@model string?
+@{
+    bool privacyOnly = string.Equals(Model, "PrivacyOnly", StringComparison.OrdinalIgnoreCase) || 
+                       (ViewBag.PrivacyOnly as bool? == true);
+
+    bool isPublished = privacyOnly 
+        ? await LegalService.HasContentAsync("PrivacyPolicy")
+        : await LegalService.AreAllStandardPoliciesPublishedAsync();
+}
+
+<div class="mb-3 form-check policy-consent-wrapper p-3 rounded-3 border bg-light-subtle">
+    @if (!isPublished)
+    {
+        <input type="checkbox" class="form-check-input" id="policyConsentCheckDisabled" disabled required />
+        <label class="form-check-label text-danger fw-semibold" for="policyConsentCheckDisabled">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i> Policy not yet published. Please contact support.
+        </label>
+        <div class="form-text text-danger small">
+            Submission is blocked until the mandatory policy documents have been published by the administration.
+        </div>
+    }
+    else
+    {
+        <input type="checkbox" class="form-check-input" name="PolicyConsent" id="policyConsentCheck" value="true" required />
+        <label class="form-check-label small fw-medium" for="policyConsentCheck">
+            @if (privacyOnly)
+            {
+                <span>I have read and agree to the <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" class="text-primary fw-semibold">Privacy Policy</a>. <span class="text-danger">*</span></span>
+            }
+            else
+            {
+                <span>I have read and agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" class="text-primary fw-semibold">Terms of Service</a>, <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" class="text-primary fw-semibold">Privacy Policy</a>, and <a href="/refund-policy" target="_blank" rel="noopener noreferrer" class="text-primary fw-semibold">Refund Policy</a>. <span class="text-danger">*</span></span>
+            }
+        </label>
+    }
+</div>

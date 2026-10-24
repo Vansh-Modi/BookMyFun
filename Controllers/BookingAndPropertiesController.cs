@@ -72,6 +72,7 @@ namespace BookMyFun.Controllers
         private readonly IMediaStorageService _mediaStorage;
         private readonly IConfigRepository? _configRepo;
         private readonly ILogger<BookingController>? _logger;
+        private readonly ILegalDocumentService? _legalService;
 
         public BookingController(
             IPropertyRepository propRepo,
@@ -88,7 +89,8 @@ namespace BookMyFun.Controllers
             IIdVerificationService idVerificationService,
             IMediaStorageService mediaStorage,
             IConfigRepository? configRepo = null,
-            ILogger<BookingController>? logger = null)
+            ILogger<BookingController>? logger = null,
+            ILegalDocumentService? legalService = null)
         {
             _propRepo = propRepo;
             _bookingRepo = bookingRepo;
@@ -105,6 +107,7 @@ namespace BookMyFun.Controllers
             _mediaStorage = mediaStorage;
             _configRepo = configRepo;
             _logger = logger;
+            _legalService = legalService;
         }
 
         [Authorize]
@@ -200,6 +203,16 @@ namespace BookMyFun.Controllers
                 if (string.IsNullOrEmpty(clientIdStr) || !int.TryParse(clientIdStr, out int clientId))
                 {
                     return Challenge();
+                }
+
+                // Mandatory policy consent check (Item 3e)
+                if (Request.HasFormContentType)
+                {
+                    string? consent = Request.Form["PolicyConsent"];
+                    if (consent != "true")
+                    {
+                        ModelState.AddModelError("", "You must agree to the Terms of Service, Privacy Policy, and Refund Policy to proceed with checkout.");
+                    }
                 }
 
                 // Date and input validations
@@ -330,6 +343,21 @@ namespace BookMyFun.Controllers
                 };
 
                 int bookingId = await _bookingRepo.CreateBookingAsync(booking);
+
+                // Record policy consent acceptances (Item 3f)
+                if (_legalService != null)
+                {
+                    try
+                    {
+                        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+                        var pageUrl = Request.Path.Value;
+                        await _legalService.RecordAllStandardConsentsAsync(clientId, null, ip, pageUrl);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning(ex, "Failed to record legal policy acceptances for client {ClientId} during booking checkout", clientId);
+                    }
+                }
 
                 // Redirect to Dedicated Payment Page
                 return RedirectToAction("Payment", new { id = bookingId });

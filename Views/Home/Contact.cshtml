@@ -45,7 +45,11 @@
                         <label class="form-label fw-semibold">Tell us about your requirements <span class="text-danger">*</span></label>
                         <textarea asp-for="Message" class="form-control" rows="5" placeholder="Mention dates, guest count, location preference or custom timings..." required></textarea>
                     </div>
-                    <div class="col-12 mt-4">
+                    <!-- Privacy Notice Consent (Item 3e) -->
+                    <div class="col-12 mt-3">
+                        <partial name="_PolicyConsentCheckbox" model="@("PrivacyOnly")" />
+                    </div>
+                    <div class="col-12 mt-3">
                         <button type="submit" class="btn btn-warning btn-lg fw-bold w-100 py-3 shadow-sm">
                             <i class="bi bi-send-fill me-2"></i> Submit Query to Support Executive
                         </button>

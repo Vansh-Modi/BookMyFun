@@ -15,6 +15,7 @@ namespace BookMyFun.Controllers
         private readonly IEmailService _emailService;
         private readonly IWhatsAppService _whatsAppService;
         private readonly IUserRepository _userRepo;
+        private readonly ILegalDocumentService _legalService;
 
         public HomeController(
             IPropertyRepository propRepo,
@@ -22,7 +23,8 @@ namespace BookMyFun.Controllers
             IPartnerLeadService partnerLeadService,
             IEmailService emailService,
             IWhatsAppService whatsAppService,
-            IUserRepository userRepo)
+            IUserRepository userRepo,
+            ILegalDocumentService legalService)
         {
             _propRepo = propRepo;
             _contactRepo = contactRepo;
@@ -30,6 +32,7 @@ namespace BookMyFun.Controllers
             _emailService = emailService;
             _whatsAppService = whatsAppService;
             _userRepo = userRepo;
+            _legalService = legalService;
         }
 
         public async Task<IActionResult> Index()
@@ -59,6 +62,11 @@ namespace BookMyFun.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Partner(BookMyFun.Models.ViewModels.PartnerLeadCreateViewModel model)
         {
+            if (!Request.Form.ContainsKey("PolicyConsent") || Request.Form["PolicyConsent"] != "true")
+            {
+                ModelState.AddModelError("", "You must accept the Terms of Service, Privacy Policy, and Refund Policy before submitting your partner application.");
+            }
+
             if (!ModelState.IsValid)
             {
                 ViewBag.InitialType = model.PartnerType ?? "Owner";
@@ -66,6 +74,20 @@ namespace BookMyFun.Controllers
             }
 
             int leadId = await _partnerLeadService.CreateLeadAsync(model);
+
+            // Record policy consent acceptance
+            try
+            {
+                string ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+                string pageUrl = Request.Path.Value ?? "/Home/Partner";
+                await _legalService.RecordAllStandardConsentsAsync(null, leadId, ip, pageUrl);
+            }
+            catch (Exception ex)
+            {
+                ModelState.AddModelError("", ex.Message);
+                ViewBag.InitialType = model.PartnerType ?? "Owner";
+                return View(model);
+            }
 
             bool isEventManager = string.Equals(model.PartnerType, "EventManager", StringComparison.OrdinalIgnoreCase);
             string roleLabel = isEventManager ? "Event Manager & Décor Studio" : "Farmhouse Host";
@@ -108,9 +130,31 @@ namespace BookMyFun.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Contact(ContactUs model)
         {
+            if (!Request.Form.ContainsKey("PolicyConsent") || Request.Form["PolicyConsent"] != "true")
+            {
+                ModelState.AddModelError("", "You must read and agree to the Privacy Policy to submit an inquiry.");
+            }
+
             if (string.IsNullOrWhiteSpace(model.Name) || string.IsNullOrWhiteSpace(model.Email) || string.IsNullOrWhiteSpace(model.Message))
             {
                 ModelState.AddModelError("", "Please fill in all mandatory fields.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }
+
+            // Record policy consent acceptance (privacy notice only)
+            try
+            {
+                string ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+                string pageUrl = Request.Path.Value ?? "/Home/Contact";
+                await _legalService.RecordConsentAsync(null, null, "PrivacyPolicy", ip, pageUrl);
+            }
+            catch (Exception ex)
+            {
+                ModelState.AddModelError("", ex.Message);
                 return View(model);
             }
 
@@ -141,9 +185,54 @@ namespace BookMyFun.Controllers
             return RedirectToAction(nameof(Contact));
         }
 
+        [HttpGet("/privacy-policy")]
+        public async Task<IActionResult> PrivacyPolicy()
+        {
+            var doc = await _legalService.GetCurrentDocumentAsync("PrivacyPolicy");
+            return View("LegalDocumentView", doc ?? new LegalDocument
+            {
+                Title = "Privacy Policy",
+                DocumentType = "PrivacyPolicy",
+                Body = "<p>Policy not yet published. Please contact support.</p>",
+                Version = "1.0",
+                EffectiveDate = DateTime.UtcNow,
+                IsDraft = true
+            });
+        }
+
+        [HttpGet("/terms")]
+        public async Task<IActionResult> Terms()
+        {
+            var doc = await _legalService.GetCurrentDocumentAsync("TermsOfService");
+            return View("LegalDocumentView", doc ?? new LegalDocument
+            {
+                Title = "Terms of Service",
+                DocumentType = "TermsOfService",
+                Body = "<p>Policy not yet published. Please contact support.</p>",
+                Version = "1.0",
+                EffectiveDate = DateTime.UtcNow,
+                IsDraft = true
+            });
+        }
+
+        [HttpGet("/refund-policy")]
+        public async Task<IActionResult> RefundPolicy()
+        {
+            var doc = await _legalService.GetCurrentDocumentAsync("RefundPolicy");
+            return View("LegalDocumentView", doc ?? new LegalDocument
+            {
+                Title = "Refund and Cancellation Policy",
+                DocumentType = "RefundPolicy",
+                Body = "<p>Policy not yet published. Please contact support.</p>",
+                Version = "1.0",
+                EffectiveDate = DateTime.UtcNow,
+                IsDraft = true
+            });
+        }
+
         public IActionResult Privacy()
         {
-            return View();
+            return RedirectToAction(nameof(PrivacyPolicy));
         }
 
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]

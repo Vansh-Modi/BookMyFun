@@ -1,0 +1,61 @@
+@model BookMyFun.Models.Entities.LegalDocument
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <!-- Header Card -->
+            <div class="card border-0 shadow-sm rounded-4 mb-4 p-4 p-md-5 bg-card">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-2 small">
+                        <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                        <li class="breadcrumb-item active" aria-current="page">@Model.Title</li>
+                    </ol>
+                </nav>
+                <h1 class="display-6 fw-bold mb-3 text-dark">@Model.Title</h1>
+
+                <!-- Meta info: current version, effective date, and last updated line -->
+                <div class="d-flex flex-wrap align-items-center gap-3 text-muted small pb-3 border-bottom">
+                    <div>
+                        <i class="bi bi-tag-fill text-primary me-1"></i>
+                        <strong>Current Version:</strong> <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">v@(Model.Version)</span>
+                    </div>
+                    <div>
+                        <i class="bi bi-calendar-event text-success me-1"></i>
+                        <strong>Effective Date:</strong> @Model.EffectiveDate.ToString("MMMM dd, yyyy")
+                    </div>
+                    <div>
+                        <i class="bi bi-clock-history text-secondary me-1"></i>
+                        <strong>Last Updated:</strong> @Model.CreatedAt.ToString("MMMM dd, yyyy HH:mm") UTC
+                    </div>
+                </div>
+
+                @if (Model.IsDraft)
+                {
+                    <div class="alert alert-warning border-warning rounded-4 mt-4 mb-0 d-flex align-items-center gap-3" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill fs-3 text-warning"></i>
+                        <div>
+                            <div class="fw-bold">DRAFT: requires legal review before publishing.</div>
+                            <small class="text-muted">This document is currently undergoing formal legal oversight and is displayed in draft preview format.</small>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <!-- Content Body -->
+            <div class="card border-0 shadow-sm rounded-4 p-4 p-md-5 bg-card">
+                <div class="legal-document-content prose" style="line-height: 1.8; font-size: 1.05rem;">
+                    @Html.Raw(Model.Body)
+                </div>
+            </div>
+
+            <div class="mt-4 text-center">
+                <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary rounded-pill px-4">
+                    <i class="bi bi-arrow-left me-1"></i> Back to Marketplace
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

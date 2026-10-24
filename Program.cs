@@ -45,6 +45,7 @@ builder.Services.AddScoped<IDamageClaimRepository, DamageClaimRepository>();
 builder.Services.AddScoped<IIdVerificationRepository, IdVerificationRepository>();
 builder.Services.AddScoped<IEventPackageRepository, EventPackageRepository>();
 builder.Services.AddScoped<IWebhookEventRepository, WebhookEventRepository>();
+builder.Services.AddScoped<ILegalDocumentRepository, LegalDocumentRepository>();
 
 // Services
 builder.Services.AddScoped<IBookingPricingService, BookingPricingService>();
@@ -61,6 +62,7 @@ builder.Services.AddScoped<IRefundEngineService, RefundEngineService>();
 builder.Services.AddScoped<IPartnerLeadService, PartnerLeadService>();
 builder.Services.AddScoped<IDamageClaimService, DamageClaimService>();
 builder.Services.AddScoped<IIdVerificationService, IdVerificationService>();
+builder.Services.AddScoped<ILegalDocumentService, LegalDocumentService>();
 
 builder.Services.AddAntiforgery(options =>
 {

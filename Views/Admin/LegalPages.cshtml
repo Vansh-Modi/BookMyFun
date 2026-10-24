@@ -1,0 +1,201 @@
+@model BookMyFun.Models.Entities.LegalDocument
+@{
+    ViewData["Title"] = "Content > Legal Pages Editor";
+    var activeType = ViewBag.ActiveDocType as string ?? "PrivacyPolicy";
+    var history = ViewBag.History as List<BookMyFun.Models.Entities.LegalDocument> ?? new List<BookMyFun.Models.Entities.LegalDocument>();
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small">
+                <li class="breadcrumb-item"><a asp-action="Index">Dashboard</a></li>
+                <li class="breadcrumb-item">Content</li>
+                <li class="breadcrumb-item active" aria-current="page">Legal Pages</li>
+            </ol>
+        </nav>
+        <h2 class="fw-bold mb-1"><i class="bi bi-file-earmark-text text-primary me-2"></i>Legal Documents &amp; Compliance Editor</h2>
+        <p class="text-muted mb-0">Manage platform legal policies with strict audit versioning. Old versions remain read-only for dispute evidence.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="@(activeType == "TermsOfService" ? "/terms" : (activeType == "RefundPolicy" ? "/refund-policy" : "/privacy-policy"))" target="_blank" class="btn btn-outline-primary rounded-pill px-3">
+            <i class="bi bi-box-arrow-up-right me-1"></i> Preview Public Page
+        </a>
+    </div>
+</div>
+
+<!-- Document Type Selector Pills -->
+<div class="d-flex flex-wrap gap-2 mb-4">
+    <a asp-action="LegalPages" asp-route-type="PrivacyPolicy" class="btn rounded-pill px-4 @(activeType == "PrivacyPolicy" ? "btn-primary shadow-sm fw-bold" : "btn-light border")">
+        <i class="bi bi-shield-check me-1"></i> Privacy Policy
+    </a>
+    <a asp-action="LegalPages" asp-route-type="TermsOfService" class="btn rounded-pill px-4 @(activeType == "TermsOfService" ? "btn-primary shadow-sm fw-bold" : "btn-light border")">
+        <i class="bi bi-file-text me-1"></i> Terms of Service
+    </a>
+    <a asp-action="LegalPages" asp-route-type="RefundPolicy" class="btn rounded-pill px-4 @(activeType == "RefundPolicy" ? "btn-primary shadow-sm fw-bold" : "btn-light border")">
+        <i class="bi bi-arrow-counterclockwise me-1"></i> Refund &amp; Cancellation Policy
+    </a>
+</div>
+
+<div class="row g-4">
+    <!-- Main Document Editor Form -->
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold mb-0 text-dark">
+                    <i class="bi bi-pencil-square text-primary me-2"></i>Edit @Model.Title
+                </h5>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-1.5 rounded-pill">
+                    Active: v@(Model.Version)
+                </span>
+            </div>
+            <div class="card-body p-4">
+                <form asp-action="SaveLegalDocument" method="post" id="legalDocForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="documentType" value="@activeType" />
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-7">
+                            <label class="form-label fw-semibold">Document Title <span class="text-danger">*</span></label>
+                            <input type="text" name="title" class="form-control" value="@Model.Title" required />
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label fw-semibold">Next Version Number <span class="text-danger">*</span></label>
+                            @{
+                                string nextVer = "1.0";
+                                if (double.TryParse(Model.Version, out double v))
+                                {
+                                    nextVer = (v + 0.1).ToString("0.0");
+                                }
+                            }
+                            <input type="text" name="version" class="form-control" value="@nextVer" required />
+                            <div class="form-text small">Saving creates a new immutable version. Previous accepted versions are preserved.</div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Effective Date <span class="text-danger">*</span></label>
+                            <input type="date" name="effectiveDate" class="form-control" value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" required />
+                        </div>
+                        <div class="col-md-6 d-flex align-items-center">
+                            <div class="form-check form-switch mt-3">
+                                <input class="form-check-input" type="checkbox" role="switch" name="isDraft" value="true" id="isDraftSwitch" @(Model.IsDraft ? "checked" : "") />
+                                <label class="form-check-label fw-semibold" for="isDraftSwitch">
+                                    Mark as DRAFT (Requires legal review banner)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Rich Text Editor Toolbar -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Policy Body Content (Rich Text) <span class="text-danger">*</span></label>
+                        <div class="btn-toolbar mb-2 p-1 bg-light rounded border gap-1" role="toolbar">
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" onclick="formatDoc('formatBlock', '<h3>')" title="Heading 3">H3</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="formatDoc('formatBlock', '<h4>')" title="Heading 4">H4</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="formatDoc('formatBlock', '<p>')" title="Paragraph">P</button>
+                            </div>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" onclick="formatDoc('bold')" title="Bold"><b>B</b></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="formatDoc('italic')" title="Italic"><i>I</i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="formatDoc('underline')" title="Underline"><u>U</u></button>
+                            </div>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" onclick="formatDoc('insertUnorderedList')" title="Bullet List"><i class="bi bi-list-ul"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="formatDoc('insertOrderedList')" title="Numbered List"><i class="bi bi-list-ol"></i></button>
+                            </div>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary" onclick="addLink()" title="Insert Link"><i class="bi bi-link-45deg"></i></button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="formatDoc('unlink')" title="Remove Link"><i class="bi bi-link-45deg text-danger"></i></button>
+                            </div>
+                        </div>
+
+                        <!-- Editable Container -->
+                        <div id="richEditor" class="form-control p-3 bg-white border rounded" style="min-height: 380px; max-height: 600px; overflow-y: auto;" contenteditable="true">
+                            @Html.Raw(Model.Body)
+                        </div>
+                        <input type="hidden" name="body" id="hiddenBody" />
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                        <small class="text-muted"><i class="bi bi-info-circle me-1"></i>New versions are immediately published as active.</small>
+                        <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
+                            <i class="bi bi-check-circle me-1"></i> Save New Version
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Version History Sidebar (Read-Only) -->
+    <div class="col-lg-4">
+        <div class="card shadow-sm border-0 rounded-4 overflow-hidden mb-4">
+            <div class="card-header bg-white py-3 border-bottom">
+                <h6 class="fw-bold mb-0 text-dark">
+                    <i class="bi bi-clock-history text-secondary me-2"></i>Version History (Immutable Audit Log)
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                @if (history == null || !history.Any())
+                {
+                    <div class="p-4 text-center text-muted small">No prior versions recorded.</div>
+                }
+                else
+                {
+                    <div class="list-group list-group-flush">
+                        @foreach (var h in history)
+                        {
+                            <div class="list-group-item p-3 @(h.IsCurrent ? "bg-light-subtle" : "")">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="fw-bold text-dark">v@(h.Version)</span>
+                                    @if (h.IsCurrent)
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">Active Live</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill">Archived</span>
+                                    }
+                                </div>
+                                <div class="small text-muted mb-2">
+                                    Effective: @h.EffectiveDate.ToString("MMM dd, yyyy") &bull; Updated: @h.CreatedAt.ToString("MMM dd, yyyy")
+                                    @if (!string.IsNullOrEmpty(h.CreatedByUserName))
+                                    {
+                                        <div><i class="bi bi-person me-1"></i>@h.CreatedByUserName</div>
+                                    }
+                                </div>
+                                <a asp-action="ViewLegalVersion" asp-route-id="@h.DocumentID" class="btn btn-sm btn-outline-secondary rounded-pill px-3 w-100">
+                                    <i class="bi bi-eye me-1"></i> View Historical Snapshot
+                                </a>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    function formatDoc(cmd, val = null) {
+        document.execCommand(cmd, false, val);
+        document.getElementById('richEditor').focus();
+    }
+
+    function addLink() {
+        const url = prompt('Enter link URL (e.g., https://bookmyfun.in/terms):');
+        if (url) {
+            document.execCommand('createLink', false, url);
+        }
+    }
+
+    document.getElementById('legalDocForm').addEventListener('submit', function() {
+        const content = document.getElementById('richEditor').innerHTML;
+        document.getElementById('hiddenBody').value = content;
+    });
+</script>
+}

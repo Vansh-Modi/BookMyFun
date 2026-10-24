@@ -38,6 +38,9 @@
                     <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
                 </div>
 
+                <!-- Mandatory Legal & Compliance Consent (Item 3e) -->
+                <partial name="_PolicyConsentCheckbox" />
+
                 <div class="d-grid mb-3">
                     <button type="submit" class="btn btn-success btn-lg fw-bold rounded-3 shadow-sm" style="background-color: #059669; border-color: #059669;">
                         <i class="bi bi-key-fill me-2"></i>Activate & Go To Login

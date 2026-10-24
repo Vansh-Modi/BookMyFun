@@ -1,0 +1,40 @@
+@model BookMyFun.Models.Entities.LegalDocument
+@{
+    ViewData["Title"] = $"Historical Version v{Model.Version} - {Model.Title}";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a asp-action="Index">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a asp-action="LegalPages" asp-route-type="@Model.DocumentType">Legal Pages</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Version v@(Model.Version)</li>
+                </ol>
+            </nav>
+            <h2 class="fw-bold mb-1"><i class="bi bi-clock-history text-muted me-2"></i>@Model.Title &bull; Version v@(Model.Version)</h2>
+            <p class="text-muted mb-0">Immutable archived snapshot used for legal dispute resolution and audit verification.</p>
+        </div>
+        <a asp-action="LegalPages" asp-route-type="@Model.DocumentType" class="btn btn-outline-secondary rounded-pill px-4">
+            <i class="bi bi-arrow-left me-1"></i> Back to Editor
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-light">
+        <div class="d-flex flex-wrap gap-4 text-muted small">
+            <div><strong>Version:</strong> v@(Model.Version)</div>
+            <div><strong>Document ID:</strong> #@Model.DocumentID</div>
+            <div><strong>Effective Date:</strong> @Model.EffectiveDate.ToString("MMMM dd, yyyy")</div>
+            <div><strong>Archived Date:</strong> @Model.CreatedAt.ToString("MMMM dd, yyyy HH:mm") UTC</div>
+            <div><strong>Recorded Editor:</strong> @(Model.CreatedByUserName ?? "Staff Admin")</div>
+            <div><strong>Status:</strong> @(Model.IsCurrent ? "Active Current" : "Archived Read-Only")</div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4 p-4 p-md-5 bg-white">
+        <div class="prose" style="line-height: 1.8;">
+            @Html.Raw(Model.Body)
+        </div>
+    </div>
+</div>

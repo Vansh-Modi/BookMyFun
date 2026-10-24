@@ -29,6 +29,7 @@ namespace BookMyFun.Controllers
         private readonly IIdVerificationService _idVerificationService;
         private readonly IMediaStorageService _mediaStorage;
         private readonly IEventPackageRepository _eventPackageRepo;
+        private readonly ILegalDocumentService? _legalService;
 
         public AdminController(
             IPropertyRepository propRepo,
@@ -46,7 +47,8 @@ namespace BookMyFun.Controllers
             IDamageClaimService damageClaimService,
             IIdVerificationService idVerificationService,
             IMediaStorageService mediaStorage,
-            IEventPackageRepository eventPackageRepo)
+            IEventPackageRepository eventPackageRepo,
+            ILegalDocumentService? legalService = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -64,6 +66,7 @@ namespace BookMyFun.Controllers
             _idVerificationService = idVerificationService;
             _mediaStorage = mediaStorage;
             _eventPackageRepo = eventPackageRepo;
+            _legalService = legalService;
         }
 
         public async Task<IActionResult> Index()
@@ -2324,6 +2327,85 @@ namespace BookMyFun.Controllers
             using var stream = new MemoryStream();
             workbook.SaveAs(stream);
             return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Analytics_Report_{DateTime.UtcNow:yyyyMMdd_HHmm}.xlsx");
+        }
+
+        // --- Content > Legal Pages Management (Item 3 STRICT) ---
+        [HttpGet]
+        public async Task<IActionResult> LegalPages(string? type = "PrivacyPolicy")
+        {
+            string docType = type switch
+            {
+                "TermsOfService" => "TermsOfService",
+                "RefundPolicy" => "RefundPolicy",
+                _ => "PrivacyPolicy"
+            };
+
+            var current = await _legalService.GetCurrentDocumentAsync(docType);
+            var history = await _legalService.GetDocumentHistoryAsync(docType);
+
+            ViewBag.ActiveDocType = docType;
+            ViewBag.History = history;
+
+            return View(current ?? new LegalDocument
+            {
+                DocumentType = docType,
+                Title = docType switch
+                {
+                    "TermsOfService" => "Terms of Service",
+                    "RefundPolicy" => "Refund and Cancellation Policy",
+                    _ => "Privacy Policy"
+                },
+                Body = "<p>DRAFT: requires legal review before publishing.</p>",
+                Version = "1.0",
+                EffectiveDate = DateTime.UtcNow,
+                IsDraft = true,
+                IsCurrent = true
+            });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveLegalDocument(
+            string documentType,
+            string title,
+            string body,
+            string? version,
+            DateTime effectiveDate,
+            bool isDraft)
+        {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+            var created = await _legalService.SaveNewVersionAsync(
+                documentType,
+                title,
+                body,
+                version,
+                effectiveDate,
+                isDraft,
+                currentUserId);
+
+            await _configRepo.LogAuditAsync(
+                currentUserId,
+                "SaveLegalDocument",
+                "LegalDocument",
+                created.DocumentID,
+                $"Created new version v{created.Version} for {documentType} (Draft={isDraft})");
+
+            TempData["Success"] = $"{title} saved successfully as version v{created.Version}. Previous versions preserved in history.";
+            return RedirectToAction(nameof(LegalPages), new { type = documentType });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ViewLegalVersion(int id)
+        {
+            var doc = await _legalService.GetDocumentByIdAsync(id);
+            if (doc == null)
+            {
+                TempData["Error"] = "Historical legal document version not found.";
+                return RedirectToAction(nameof(LegalPages));
+            }
+
+            return View(doc);
         }
     }
 }
