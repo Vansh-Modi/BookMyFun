@@ -471,7 +471,7 @@ namespace BookMyFun.Controllers
 
             if (!string.IsNullOrEmpty(client.Phone) && _whatsAppService != null)
             {
-                _ = _whatsAppService.SendBookingReceiptWhatsAppAsync(
+                await _whatsAppService.SendBookingReceiptWhatsAppAsync(
                     client.Phone,
                     client.FullName,
                     property.Title,
@@ -493,7 +493,7 @@ namespace BookMyFun.Controllers
 
                 if (!string.IsNullOrEmpty(owner.Phone) && _whatsAppService != null)
                 {
-                    _ = _whatsAppService.SendOwnerBookingReceiptWhatsAppAsync(
+                    await _whatsAppService.SendOwnerBookingReceiptWhatsAppAsync(
                         owner.Phone, 
                         owner.FullName, 
                         property.Title, 
@@ -518,7 +518,7 @@ namespace BookMyFun.Controllers
                 if (eventManager != null && !string.IsNullOrEmpty(eventManager.Phone) && _whatsAppService != null)
                 {
                     string pkgName = booking.EventPackageName ?? "Selected Décor Package";
-                    _ = _whatsAppService.SendEventManagerSetupAlertAsync(
+                    await _whatsAppService.SendEventManagerSetupAlertAsync(
                         eventManager.Phone,
                         eventManager.FullName,
                         property.Title,

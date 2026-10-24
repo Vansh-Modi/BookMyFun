@@ -862,7 +862,7 @@ namespace BookMyFun.Controllers
 
             if (_whatsAppService != null && !string.IsNullOrEmpty(owner.Phone))
             {
-                _ = _whatsAppService.SendOwnerBookingReceiptWhatsAppAsync(
+                await _whatsAppService.SendOwnerBookingReceiptWhatsAppAsync(
                     owner.Phone,
                     owner.FullName,
                     property.Title,

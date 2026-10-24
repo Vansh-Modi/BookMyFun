@@ -523,7 +523,11 @@
         @if (Model != null && Model.Any())
         {
             <div class="text-md-end text-muted small">
-                Showing <strong class="text-dark">@Model.Count()</strong> curated properties
+                Showing <strong class="text-dark">@Model.Count()</strong> of <strong class="text-dark">@(ViewBag.TotalCount ?? Model.Count())</strong> curated properties
+                @if (ViewBag.TotalPages != null && (int)ViewBag.TotalPages > 1)
+                {
+                    <span>(Page @(ViewBag.CurrentPage ?? 1) of @ViewBag.TotalPages)</span>
+                }
             </div>
         }
     </div>
@@ -711,4 +715,71 @@
         }
         }
     </div>
+
+    @if (ViewBag.TotalPages != null && (int)ViewBag.TotalPages > 1)
+    {
+        int currentPage = ViewBag.CurrentPage ?? 1;
+        int totalPages = ViewBag.TotalPages;
+
+        <nav aria-label="Properties pagination" class="mt-5">
+            <ul class="pagination justify-content-center flex-wrap gap-1">
+                @if (currentPage > 1)
+                {
+                    <li class="page-item">
+                        <a class="page-link rounded-pill px-3 fw-semibold shadow-sm" asp-action="Index" 
+                           asp-route-page="@(currentPage - 1)"
+                           asp-route-location="@ViewBag.SelectedLocation"
+                           asp-route-typeId="@ViewBag.SelectedTypeId"
+                           asp-route-occasionId="@ViewBag.SelectedOccasionId"
+                           asp-route-minPrice="@ViewBag.SelectedMinPrice"
+                           asp-route-maxPrice="@ViewBag.SelectedMaxPrice"
+                           asp-route-guests="@ViewBag.SelectedGuests">
+                            &laquo; Previous
+                        </a>
+                    </li>
+                }
+
+                @for (int i = 1; i <= totalPages; i++)
+                {
+                    if (i == 1 || i == totalPages || (i >= currentPage - 2 && i <= currentPage + 2))
+                    {
+                        <li class="page-item @(i == currentPage ? "active" : "")">
+                            <a class="page-link rounded-circle d-flex align-items-center justify-content-center fw-bold shadow-sm @(i == currentPage ? "bg-dark border-dark text-white" : "text-dark")" 
+                               style="width: 40px; height: 40px;"
+                               asp-action="Index" 
+                               asp-route-page="@i"
+                               asp-route-location="@ViewBag.SelectedLocation"
+                               asp-route-typeId="@ViewBag.SelectedTypeId"
+                               asp-route-occasionId="@ViewBag.SelectedOccasionId"
+                               asp-route-minPrice="@ViewBag.SelectedMinPrice"
+                               asp-route-maxPrice="@ViewBag.SelectedMaxPrice"
+                               asp-route-guests="@ViewBag.SelectedGuests">
+                                @i
+                            </a>
+                        </li>
+                    }
+                    else if (i == currentPage - 3 || i == currentPage + 3)
+                    {
+                        <li class="page-item disabled"><span class="page-link border-0 text-muted">&hellip;</span></li>
+                    }
+                }
+
+                @if (currentPage < totalPages)
+                {
+                    <li class="page-item">
+                        <a class="page-link rounded-pill px-3 fw-semibold shadow-sm" asp-action="Index" 
+                           asp-route-page="@(currentPage + 1)"
+                           asp-route-location="@ViewBag.SelectedLocation"
+                           asp-route-typeId="@ViewBag.SelectedTypeId"
+                           asp-route-occasionId="@ViewBag.SelectedOccasionId"
+                           asp-route-minPrice="@ViewBag.SelectedMinPrice"
+                           asp-route-maxPrice="@ViewBag.SelectedMaxPrice"
+                           asp-route-guests="@ViewBag.SelectedGuests">
+                            Next &raquo;
+                        </a>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
 </div>
