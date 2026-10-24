@@ -93,9 +93,7 @@ namespace BookMyFun.Controllers
                 await _emailService.EnqueueEmailAsync(staff.Email, subject, body, "StaffPartnerNotification");
             }
 
-            TempData["Success"] = isEventManager
-                ? "Thank you for applying to partner as an Event Manager & Décor Studio! Our operations team will review your profile and reach out shortly."
-                : "Thank you for applying to partner with BookMyFun! Our onboarding team will inspect your property details and contact you with your activation link shortly.";
+            TempData["Success"] = "Thank you for submitting your partner application! Partner verification takes standard 24 to 48 hours. You will be notified by email and message once verification is complete.";
 
             return RedirectToAction(nameof(Partner), new { type = isEventManager ? "eventmanager" : "owner" });
         }

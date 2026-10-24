@@ -138,7 +138,7 @@
                                         <input asp-for="Email" type="email" class="form-control border-start-0 ps-0" placeholder="name@domain.com" required />
                                     </div>
                                     <span asp-validation-for="Email" class="text-danger small"></span>
-                                    <small class="text-muted" id="lblEmailHelp">@(isEventTab ? "An automated invite with your Event Manager Dashboard login credentials will be dispatched to this email upon approval." : "An automated invite with your Host Dashboard login credentials will be dispatched to this email upon approval.")</small>
+                                    <small class="text-muted" id="lblEmailHelp">Upon verification, your login ID and a secure 48-hour password setup link will be sent to this email.</small>
                                 </div>
 
                                 <div class="col-md-6">
@@ -180,6 +180,9 @@
                                     <i class="bi bi-send-check me-2"></i>
                                     <span id="btnSubmitText">@(isEventTab ? "Submit Event Manager Application" : "Submit Farm Host Application")</span>
                                 </button>
+                                <p class="text-muted text-center small mt-2 mb-0">
+                                    <i class="bi bi-clock-history me-1 text-primary"></i>Partner verification takes standard 24 to 48 hours. You will be notified by email and message once verification is complete.
+                                </p>
                             </div>
                         </form>
                     </div>
@@ -227,7 +230,7 @@
             document.getElementById('inputFullName').placeholder = 'e.g. Aarti Sharma';
 
             document.getElementById('lblEmail').innerHTML = 'Business Email Address <span class="text-danger">*</span>';
-            document.getElementById('lblEmailHelp').textContent = 'An automated invite with your Event Manager Dashboard login credentials will be dispatched to this email upon approval.';
+            document.getElementById('lblEmailHelp').textContent = 'Upon verification, your login ID and a secure 48-hour password setup link will be sent to this email.';
 
             document.getElementById('lblPropertyName').innerHTML = 'Décor Studio / Agency / Brand Name <span class="text-danger">*</span>';
             document.getElementById('iconPropertyName').className = 'bi bi-stars';
@@ -270,7 +273,7 @@
             document.getElementById('inputFullName').placeholder = 'e.g. Ramesh Patel';
 
             document.getElementById('lblEmail').innerHTML = 'Email Address <span class="text-danger">*</span>';
-            document.getElementById('lblEmailHelp').textContent = 'An automated invite with your Host Dashboard login credentials will be dispatched to this email upon approval.';
+            document.getElementById('lblEmailHelp').textContent = 'Upon verification, your login ID and a secure 48-hour password setup link will be sent to this email.';
 
             document.getElementById('lblPropertyName').innerHTML = 'Farm / Villa Property Name <span class="text-danger">*</span>';
             document.getElementById('iconPropertyName').className = 'bi bi-house';

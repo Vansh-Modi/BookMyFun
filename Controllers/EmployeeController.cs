@@ -584,8 +584,8 @@ namespace BookMyFun.Controllers
             var (success, initialPassword, token, accountId, roleDisplayName, email, phone) = await _partnerLeadService.ApproveLeadAsync(leadId, currentUserId);
             if (success)
             {
-                await _configRepo.LogAuditAsync(currentUserId, "EmployeeApproveLead", "PartnerLead", leadId, $"Approved partner lead #{leadId} and generated {roleDisplayName} account #{accountId} with temporary credentials.");
-                TempData["Success"] = $"Partner Lead #{leadId} approved! Account #{accountId} ({roleDisplayName}) generated with Temporary Password: {initialPassword}. Credentials dispatched to {email} via WhatsApp and Email.";
+                await _configRepo.LogAuditAsync(currentUserId, "EmployeeApproveLead", "PartnerLead", leadId, $"Approved partner lead #{leadId} and generated {roleDisplayName} account #{accountId} with single-use password setup link.");
+                TempData["Success"] = $"Partner Lead #{leadId} approved! Account #{accountId} ({roleDisplayName}) generated. A secure 48-hour one-time password setup link was dispatched to {email} via WhatsApp and Email.";
             }
             return RedirectToAction(nameof(PartnerLeads));
         }

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using BookMyFun.Models.ViewModels;
 
 namespace BookMyFun.Tests;
 
@@ -87,17 +88,28 @@ public class UnitTest1
 
             createdUserId = accountId;
             Assert.True(success);
-            Assert.StartsWith("Host@", initialPassword);
+            Assert.NotEmpty(token);
             Assert.True(accountId > 0);
             Assert.Equal(testEmail, email);
             Assert.Equal("Farmhouse & Villa Host", roleDisplayName);
 
-            // Verify user exists and can authenticate with generated password
+            // User sets password securely using one-time token (Item 9c)
+            string chosenPassword = "HostSecurePassword123!";
+            bool activated = await partnerLeadService.ActivateOwnerAccountAsync(new ActivateOwnerViewModel
+            {
+                Token = token,
+                Email = testEmail,
+                Password = chosenPassword,
+                ConfirmPassword = chosenPassword
+            });
+            Assert.True(activated);
+
+            // Verify user exists and can authenticate with chosen password
             var user = await userRepo.GetByEmailAsync(testEmail);
             Assert.NotNull(user);
             Assert.Equal("Owner", user.Role);
             Assert.True(user.IsActive);
-            Assert.True(BookMyFun.Controllers.AccountController.VerifyPassword(initialPassword, user.PasswordHash));
+            Assert.True(BookMyFun.Controllers.AccountController.VerifyPassword(chosenPassword, user.PasswordHash));
         }
         finally
         {
