@@ -1,0 +1,299 @@
+@{
+    var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Client";
+    var currentCtrl = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+    var currentAct = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+}
+
+<ul class="nav flex-column dashboard-nav">
+@if (role == "Admin")
+{
+    <!-- 1. Overview -->
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "Index" ? "active" : "")" asp-controller="Admin" asp-action="Index">
+            <i class="bi bi-speedometer2 text-primary"></i>
+            <span class="nav-text">Overview</span>
+        </a>
+    </li>
+
+    <!-- 2. Bookings & Refunds -->
+    <li class="dashboard-nav-heading">Bookings &amp; Refunds</li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "ManageBookings" ? "active" : "")" asp-controller="Admin" asp-action="ManageBookings">
+            <i class="bi bi-calendar-check text-success"></i>
+            <span class="nav-text">Bookings</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "RefundsQueue" ? "active" : "")" asp-controller="Admin" asp-action="RefundsQueue">
+            <i class="bi bi-arrow-counterclockwise text-info"></i>
+            <span class="nav-text">Refunds Queue</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "DamageClaims" ? "active" : "")" asp-controller="Admin" asp-action="DamageClaims">
+            <i class="bi bi-shield-shaded text-danger"></i>
+            <span class="nav-text">Damage Claims</span>
+        </a>
+    </li>
+
+    <!-- 3. Properties -->
+    <li class="dashboard-nav-heading">Properties</li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "ManageProperties" ? "active" : "")" asp-controller="Admin" asp-action="ManageProperties">
+            <i class="bi bi-building text-warning"></i>
+            <span class="nav-text">Manage Properties</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "CreateProperty" ? "active" : "")" asp-controller="Admin" asp-action="CreateProperty">
+            <i class="bi bi-plus-circle text-success"></i>
+            <span class="nav-text">Add Property</span>
+        </a>
+    </li>
+
+    <!-- 4. Users and Partners -->
+    <li class="dashboard-nav-heading">Users &amp; Partners</li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "ManageOwners" ? "active" : "")" asp-controller="Admin" asp-action="ManageOwners">
+            <i class="bi bi-person-badge text-warning"></i>
+            <span class="nav-text">Hosts &amp; Owners</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "ManageEmployees" ? "active" : "")" asp-controller="Admin" asp-action="ManageEmployees">
+            <i class="bi bi-person-workspace text-primary"></i>
+            <span class="nav-text">Staff &amp; Employees</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "PartnerLeads" ? "active" : "")" asp-controller="Admin" asp-action="PartnerLeads">
+            <i class="bi bi-people text-success"></i>
+            <span class="nav-text">Partner Leads</span>
+        </a>
+    </li>
+
+    <!-- 5. KYC -->
+    <li class="dashboard-nav-heading">KYC</li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "IdVerifications" ? "active" : "")" asp-controller="Admin" asp-action="IdVerifications">
+            <i class="bi bi-person-vcard text-info"></i>
+            <span class="nav-text">Guest KYC Queue</span>
+        </a>
+    </li>
+
+    <!-- 6. Finance -->
+    <li class="dashboard-nav-heading">Finance</li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "DynamicAnalytics" ? "active" : "")" asp-controller="Admin" asp-action="DynamicAnalytics">
+            <i class="bi bi-graph-up-arrow text-success"></i>
+            <span class="nav-text">Dynamic Analytics</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "Reports" ? "active" : "")" asp-controller="Admin" asp-action="Reports">
+            <i class="bi bi-file-earmark-spreadsheet text-info"></i>
+            <span class="nav-text">Financial Reports</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "EventCommissions" ? "active" : "")" asp-controller="Admin" asp-action="EventCommissions">
+            <i class="bi bi-percent text-warning"></i>
+            <span class="nav-text">Event Commissions</span>
+        </a>
+    </li>
+
+    <!-- 7. Content -->
+    <li class="dashboard-nav-heading">Content</li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "Settings" && Context.Request.Query["section"] == "sec-popularstays" ? "active" : "")" asp-controller="Admin" asp-action="Settings" asp-route-section="sec-popularstays">
+            <i class="bi bi-stars text-warning"></i>
+            <span class="nav-text">Popular Stays</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "LegalPages" ? "active" : "")" asp-controller="Admin" asp-action="LegalPages">
+            <i class="bi bi-file-earmark-text text-info"></i>
+            <span class="nav-text">Legal Pages</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "Settings" && Context.Request.Query["section"] == "sec-footer" ? "active" : "")" asp-controller="Admin" asp-action="Settings" asp-route-section="sec-footer">
+            <i class="bi bi-layout-text-window-reverse text-secondary"></i>
+            <span class="nav-text">Footer &amp; Contact</span>
+        </a>
+    </li>
+
+    <!-- 8. Settings & Support -->
+    <li class="dashboard-nav-heading">Settings &amp; Support</li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "Settings" && string.IsNullOrEmpty(Context.Request.Query["section"]) ? "active" : "")" asp-controller="Admin" asp-action="Settings">
+            <i class="bi bi-sliders text-secondary"></i>
+            <span class="nav-text">Site Settings</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "SupportQueries" ? "active" : "")" asp-controller="Admin" asp-action="SupportQueries">
+            <i class="bi bi-headset text-primary"></i>
+            <span class="nav-text">Support Queries</span>
+        </a>
+    </li>
+
+    <!-- 9. Audit Log -->
+    <li class="dashboard-nav-heading">Audit Log</li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "AuditLog" ? "active" : "")" asp-controller="Admin" asp-action="AuditLog">
+            <i class="bi bi-journal-check text-danger"></i>
+            <span class="nav-text">Audit Log</span>
+        </a>
+    </li>
+}
+else if (role == "Employee")
+{
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Employee" && currentAct == "Index" ? "active" : "")" asp-controller="Employee" asp-action="Index">
+            <i class="bi bi-speedometer2 text-primary"></i>
+            <span class="nav-text">Staff Dashboard</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-heading">Operations Queues</li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Employee" && currentAct == "ManageBookings" ? "active" : "")" asp-controller="Employee" asp-action="ManageBookings">
+            <i class="bi bi-calendar-check text-success"></i>
+            <span class="nav-text">Bookings</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Employee" && currentAct == "RefundsQueue" ? "active" : "")" asp-controller="Employee" asp-action="RefundsQueue">
+            <i class="bi bi-arrow-counterclockwise text-info"></i>
+            <span class="nav-text">Refunds Queue</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Employee" && currentAct == "IdVerifications" ? "active" : "")" asp-controller="Employee" asp-action="IdVerifications">
+            <i class="bi bi-person-vcard text-primary"></i>
+            <span class="nav-text">Guest KYC</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Employee" && currentAct == "PartnerLeads" ? "active" : "")" asp-controller="Employee" asp-action="PartnerLeads">
+            <i class="bi bi-people text-success"></i>
+            <span class="nav-text">Partner Leads</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Employee" && currentAct == "DamageClaims" ? "active" : "")" asp-controller="Employee" asp-action="DamageClaims">
+            <i class="bi bi-shield-shaded text-danger"></i>
+            <span class="nav-text">Damage Claims</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-heading">Platform Oversight</li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Employee" && currentAct == "ManageProperties" ? "active" : "")" asp-controller="Employee" asp-action="ManageProperties">
+            <i class="bi bi-building text-warning"></i>
+            <span class="nav-text">Properties</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Employee" && currentAct == "EventCommissions" ? "active" : "")" asp-controller="Employee" asp-action="EventCommissions">
+            <i class="bi bi-percent text-warning"></i>
+            <span class="nav-text">Event Commissions</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Employee" && currentAct == "SupportQueries" ? "active" : "")" asp-controller="Employee" asp-action="SupportQueries">
+            <i class="bi bi-headset text-secondary"></i>
+            <span class="nav-text">Support Queries</span>
+        </a>
+    </li>
+}
+else if (role == "Owner")
+{
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Owner" && currentAct == "Index" ? "active" : "")" asp-controller="Owner" asp-action="Index">
+            <i class="bi bi-grid-fill text-warning"></i>
+            <span class="nav-text">Host Dashboard</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-heading">Property &amp; Bookings</li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Owner" && currentAct == "CreateProperty" ? "active" : "")" asp-controller="Owner" asp-action="CreateProperty">
+            <i class="bi bi-plus-circle-fill text-success"></i>
+            <span class="nav-text">List New Farm</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Owner" && currentAct == "DamageClaims" ? "active" : "")" asp-controller="Owner" asp-action="DamageClaims">
+            <i class="bi bi-shield-exclamation text-danger"></i>
+            <span class="nav-text">Deposit Claims</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Owner" && currentAct == "Subscriptions" ? "active" : "")" asp-controller="Owner" asp-action="Subscriptions">
+            <i class="bi bi-award text-primary"></i>
+            <span class="nav-text">Subscription Plans</span>
+        </a>
+    </li>
+}
+else if (role == "EventManager")
+{
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "EventManager" && (currentAct == "Index" || currentAct == "Dashboard") ? "active" : "")" asp-controller="EventManager" asp-action="Index">
+            <i class="bi bi-speedometer2 text-primary"></i>
+            <span class="nav-text">Event Dashboard</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-heading">Services &amp; Packages</li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "EventManager" && currentAct == "ServiceAreas" ? "active" : "")" asp-controller="EventManager" asp-action="ServiceAreas">
+            <i class="bi bi-geo-alt-fill text-primary"></i>
+            <span class="nav-text">Service Areas</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "EventManager" && currentAct == "Packages" ? "active" : "")" asp-controller="EventManager" asp-action="Packages">
+            <i class="bi bi-box-seam text-success"></i>
+            <span class="nav-text">Décor Packages</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "EventManager" && currentAct == "AssignedSetups" ? "active" : "")" asp-controller="EventManager" asp-action="AssignedSetups">
+            <i class="bi bi-calendar-event text-warning"></i>
+            <span class="nav-text">Assigned Setups</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "EventManager" && currentAct == "Financials" ? "active" : "")" asp-controller="EventManager" asp-action="Financials">
+            <i class="bi bi-wallet2 text-info"></i>
+            <span class="nav-text">Earnings &amp; Payouts</span>
+        </a>
+    </li>
+}
+else if (role == "Client" || string.IsNullOrEmpty(role))
+{
+    <!-- Client / Guest -->
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Client" && currentAct == "Index" ? "active" : "")" asp-controller="Client" asp-action="Index">
+            <i class="bi bi-calendar-check text-primary"></i>
+            <span class="nav-text">My Trips &amp; Bookings</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link" asp-controller="Properties" asp-action="Index">
+            <i class="bi bi-compass text-success"></i>
+            <span class="nav-text">Explore Stays</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Account" && currentAct == "Profile" ? "active" : "")" asp-controller="Account" asp-action="Profile">
+            <i class="bi bi-person text-secondary"></i>
+            <span class="nav-text">Profile &amp; Settings</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link" asp-controller="Home" asp-action="Contact">
+            <i class="bi bi-headset text-warning"></i>
+            <span class="nav-text">Support Desk</span>
+        </a>
+    </li>
+}
+</ul>
