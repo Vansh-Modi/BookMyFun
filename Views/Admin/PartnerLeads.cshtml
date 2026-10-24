@@ -230,9 +230,18 @@
             else
             {
                 <div class="text-center py-5">
-                    <i class="bi bi-person-x fs-1 text-muted d-block mb-3"></i>
-                    <h5 class="fw-bold text-secondary">No Partner Leads Found</h5>
-                    <p class="text-muted small mb-0">No lead submissions match the selected criteria.</p>
+                    <div class="empty-state-box py-4">
+                        <div class="d-inline-flex align-items-center justify-content-center bg-success-subtle text-success rounded-circle p-4 mb-3" style="width: 80px; height: 80px;">
+                            <i class="bi bi-people-fill fs-1"></i>
+                        </div>
+                        <h4 class="fw-bold text-dark mb-1">No Partner Leads Found</h4>
+                        <p class="text-muted small mb-3" style="max-width: 420px; margin: 0 auto;">
+                            No partner lead inquiries or onboarding applications match the selected criteria.
+                        </p>
+                        <a asp-controller="@controllerName" asp-action="PartnerLeads" class="btn btn-outline-success rounded-pill px-4 py-2 fw-semibold">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i>Reset Filters &amp; View All Leads
+                        </a>
+                    </div>
                 </div>
             }
         </div>

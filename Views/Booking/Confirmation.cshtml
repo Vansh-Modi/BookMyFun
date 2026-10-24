@@ -177,6 +177,100 @@
         </div>
     </div>
 
+    <!-- Dedicated Host Contact & Directions Card (Printable Summary Card) -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4 printable-summary-card">
+        <div class="card-header bg-primary-subtle py-3 px-4 border-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-person-badge-fill text-primary fs-4"></i>
+                <h5 class="fw-bold mb-0 text-primary-emphasis">Host Contact &amp; Property Directions</h5>
+            </div>
+            <span class="badge bg-white text-primary border border-primary-subtle px-3 py-1.5 rounded-pill fw-semibold small">
+                <i class="bi bi-shield-check me-1"></i>Verified Host Pass
+            </span>
+        </div>
+        <div class="card-body p-4">
+            <div class="row g-4">
+                <!-- Host Profile & Contact Details -->
+                <div class="col-md-6 border-end-md">
+                    <div class="text-uppercase text-muted fw-bold small mb-2" style="font-size: 0.75rem; letter-spacing: 0.05em;">
+                        <i class="bi bi-person-fill text-secondary me-1"></i>Property Host &amp; Caretaker
+                    </div>
+                    <h5 class="fw-bold text-dark mb-1">
+                        @(Model.Host?.FullName ?? "On-Site Property Caretaker")
+                    </h5>
+                    <div class="text-muted small mb-3">Your dedicated point of contact for gate access, keys, and on-site check-in.</div>
+                    
+                    <div class="d-flex flex-column gap-2">
+                        @if (!string.IsNullOrWhiteSpace(Model.Host?.Phone))
+                        {
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-success-subtle text-success p-2 rounded-circle">
+                                    <i class="bi bi-telephone-fill"></i>
+                                </span>
+                                <div>
+                                    <div class="small text-muted" style="font-size: 0.72rem;">Host Mobile Number</div>
+                                    <a href="tel:@Model.Host.Phone" class="fw-bold text-dark text-decoration-none">
+                                        @Model.Host.Phone
+                                    </a>
+                                </div>
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.Host?.Email))
+                        {
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-primary-subtle text-primary p-2 rounded-circle">
+                                    <i class="bi bi-envelope-fill"></i>
+                                </span>
+                                <div>
+                                    <div class="small text-muted" style="font-size: 0.72rem;">Host Email Address</div>
+                                    <a href="mailto:@Model.Host.Email" class="fw-bold text-dark text-decoration-none">
+                                        @Model.Host.Email
+                                    </a>
+                                </div>
+                            </div>
+                        }
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-info-subtle text-info p-2 rounded-circle">
+                                <i class="bi bi-headset"></i>
+                            </span>
+                            <div>
+                                <div class="small text-muted" style="font-size: 0.72rem;">24/7 Platform Concierge Helpline</div>
+                                <span class="fw-bold text-dark">+91 (020) 4567-8900</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Directions & Location Map -->
+                <div class="col-md-6">
+                    <div class="text-uppercase text-muted fw-bold small mb-2" style="font-size: 0.75rem; letter-spacing: 0.05em;">
+                        <i class="bi bi-geo-alt-fill text-danger me-1"></i>Arrival Directions &amp; Navigation
+                    </div>
+                    <div class="fw-bold text-dark mb-1">@propertyAddress</div>
+                    <p class="small text-muted mb-3" style="line-height: 1.5;">
+                        Located in the scenic outskirts. Please follow paved access roads and look for the BookMyFun property signboard at the main gate.
+                    </p>
+
+                    @if (!string.IsNullOrEmpty(Model.Property?.MapUrl))
+                    {
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
+                            <a href="@Model.Property.MapUrl" target="_blank" rel="noopener noreferrer" class="btn btn-primary rounded-pill px-3 py-1.5 fw-semibold shadow-sm small">
+                                <i class="bi bi-cursor-fill me-1"></i>Open Google Maps Navigation
+                            </a>
+                            <span class="small text-muted">Tap to open live GPS route</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-light border small mb-0 p-2">
+                            <i class="bi bi-info-circle me-1 text-primary"></i>Detailed driving directions and route landmarks have also been delivered to your WhatsApp message.
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Section: Next Steps Journey (Actionable 4-Step Roadmap) -->
     <div class="mb-4">
         <div class="d-flex align-items-center justify-content-between mb-3">
@@ -357,6 +451,32 @@
         </a>
     </div>
 </div>
+
+@section Styles {
+    <style>
+        @@media print {
+            .no-print, header, footer, .navbar, .receipt-action-bar, .receipt-download-hub, .btn {
+                display: none !important;
+            }
+            .receipt-container {
+                margin: 0 !important;
+                padding: 0 !important;
+                max-width: 100% !important;
+            }
+            .confirm-hero-banner {
+                background: #1e293b !important;
+                color: #fff !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .printable-summary-card {
+                border: 1px solid #cbd5e1 !important;
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+}
 
 @section Scripts {
     <script>

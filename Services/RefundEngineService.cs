@@ -14,6 +14,7 @@ namespace BookMyFun.Services
         Task<List<BookingRefund>> GetRefundsQueueAsync(string? status = null);
         Task<bool> OverrideRefundStatusAsync(int refundId, string newStatus, int staffUserId, string? notes);
         Task<BookingRefund> AdjudicateAdminRefundAsync(int refundId, int adminUserId, string action, decimal refundAmount, string reason, bool issueAsCredit = false);
+        Task<BookingRefund?> GetRefundByIdAsync(int refundId) => Task.FromResult<BookingRefund?>(null);
     }
 
     public class RefundEngineService : IRefundEngineService
@@ -617,6 +618,11 @@ namespace BookMyFun.Services
         public async Task<bool> OverrideRefundStatusAsync(int refundId, string newStatus, int staffUserId, string? notes)
         {
             return await _refundRepo.UpdateRefundStatusAsync(refundId, newStatus, staffUserId, notes);
+        }
+
+        public async Task<BookingRefund?> GetRefundByIdAsync(int refundId)
+        {
+            return await _refundRepo.GetRefundByIdAsync(refundId);
         }
 
         private async Task<decimal> GetGatewayFeePercentageAsync()

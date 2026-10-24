@@ -213,10 +213,19 @@
             }
             else
             {
-                <div class="p-5 text-center text-muted">
-                    <i class="bi bi-shield-x fs-1 d-block mb-3 opacity-50"></i>
-                    <h5>No verification submissions found</h5>
-                    <p class="mb-0">There are currently no ID documents matching your criteria.</p>
+                <div class="p-5 text-center">
+                    <div class="empty-state-box py-4">
+                        <div class="d-inline-flex align-items-center justify-content-center bg-indigo-subtle text-primary rounded-circle p-4 mb-3" style="width: 80px; height: 80px; background-color: #e0e7ff; color: #4338ca;">
+                            <i class="bi bi-shield-check fs-1"></i>
+                        </div>
+                        <h4 class="fw-bold text-dark mb-1">No Verification Submissions Found</h4>
+                        <p class="text-muted small mb-3" style="max-width: 420px; margin: 0 auto;">
+                            There are currently no ID documents or KYC records matching your criteria. All customer verification requests have been processed.
+                        </p>
+                        <a asp-controller="@controllerName" asp-action="IdVerifications" class="btn btn-outline-primary rounded-pill px-4 py-2 fw-semibold">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i>Reset Filters &amp; Show All
+                        </a>
+                    </div>
                 </div>
             }
         </div>

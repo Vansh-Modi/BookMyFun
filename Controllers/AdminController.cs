@@ -798,11 +798,15 @@ namespace BookMyFun.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeactivateProperty(int id, bool deactivate = true, string? returnUrl = null)
         {
+            var prop = await _propRepo.GetByIdAsync(id);
+            var oldState = prop?.ListingStatus ?? (deactivate ? "Active" : "Inactive");
             var success = await _propRepo.DeactivatePropertyAsync(id, deactivate);
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             if (success)
             {
-                await _configRepo.LogAuditAsync(currentUserId, deactivate ? "AdminDeactivateProperty" : "AdminActivateProperty", "Property", id, $"Admin {(deactivate ? "deactivated" : "activated")} property #{id}");
+                var newState = deactivate ? "Inactive" : "Active";
+                await _configRepo.LogAuditAsync(currentUserId, deactivate ? "AdminDeactivateProperty" : "AdminActivateProperty", "Property", id,
+                    $"Old active state: '{oldState}' -> New active state: '{newState}'. Property: '{prop?.Title ?? id.ToString()}'");
                 TempData["Success"] = $"Property #{id} has been {(deactivate ? "deactivated" : "activated")} successfully.";
             }
             else
@@ -852,13 +856,16 @@ namespace BookMyFun.Controllers
                 return NotFound();
             }
 
+            var oldApprovalStatus = prop.ListingStatus;
+            var oldApproved = prop.IsApproved;
             var targetStatus = approve ? (status ?? "Active") : (status ?? "Rejected");
             var success = await _propRepo.ApprovePropertyAsync(id, approve, targetStatus);
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             if (success)
             {
                 var actionName = approve ? "AdminApproveProperty" : (targetStatus == "Draft" ? "AdminRevokeProperty" : "AdminRejectProperty");
-                await _configRepo.LogAuditAsync(currentUserId, actionName, "Property", id, $"Admin approval set to {approve} with status '{targetStatus}' for property '{prop.Title}'");
+                await _configRepo.LogAuditAsync(currentUserId, actionName, "Property", id,
+                    $"Old status: '{oldApprovalStatus}', IsApproved: {oldApproved} -> New status: '{targetStatus}', IsApproved: {approve}. Property: '{prop.Title}'");
                 TempData["Success"] = $"Property #{id} ({prop.Title}) has been {(approve ? "approved and made live" : (targetStatus == "Rejected" ? "rejected" : "revoked / set to draft"))}.";
             }
             else
@@ -924,6 +931,8 @@ namespace BookMyFun.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SaveSiteBranding(SiteSettingsModel model, IFormFile? logoFile)
         {
+            var oldSettings = await _siteSettingsService.GetSettingsAsync();
+
             // If user uploads an image file, optimize and store with high-res crisp formatting in wwwroot/uploads
             if (logoFile != null && logoFile.Length > 0)
             {
@@ -932,6 +941,10 @@ namespace BookMyFun.Controllers
             }
 
             await _siteSettingsService.SaveSettingsAsync(model);
+
+            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _configRepo.LogAuditAsync(currentUserId, "UpdateSiteBranding", "SiteSettings", null,
+                $"Old: [Name='{oldSettings.SiteName}', Tagline='{oldSettings.SiteTagline}'] -> New: [Name='{model.SiteName}', Tagline='{model.SiteTagline}']");
 
             // Persist per-event specific commission overrides if submitted
             if (Request.Form.Keys.Any(k => k.StartsWith("eventPkgComm_")))
@@ -1793,11 +1806,14 @@ namespace BookMyFun.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> OverrideRefund(int refundId, string status, string? notes)
         {
+            var prevRefund = await _refundEngine.GetRefundByIdAsync(refundId);
+            var oldStatus = prevRefund?.Status ?? "Unknown";
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             bool updated = await _refundEngine.OverrideRefundStatusAsync(refundId, status, currentUserId, notes);
             if (updated)
             {
-                await _configRepo.LogAuditAsync(currentUserId, "AdminOverrideRefund", "BookingRefund", refundId, $"Refund #{refundId} manually updated to {status}. Notes: {notes}");
+                await _configRepo.LogAuditAsync(currentUserId, "AdminOverrideRefund", "BookingRefund", refundId,
+                    $"Old status: '{oldStatus}' -> New status: '{status}'. Notes: {notes}");
                 TempData["Success"] = $"Refund #{refundId} overridden to '{status}'.";
             }
             return RedirectToAction(nameof(RefundsQueue));
@@ -1813,11 +1829,15 @@ namespace BookMyFun.Controllers
                 return RedirectToAction(nameof(RefundsQueue));
             }
 
+            var prevRefund = await _refundEngine.GetRefundByIdAsync(refundId);
+            var oldStatus = prevRefund?.Status ?? "Unknown";
+            var oldAmount = prevRefund?.NetRefundAmount ?? 0m;
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             try
             {
                 var updated = await _refundEngine.AdjudicateAdminRefundAsync(refundId, currentUserId, action, refundAmount, reason, issueAsCredit);
-                await _configRepo.LogAuditAsync(currentUserId, "AdminAdjudicateRefund", "BookingRefund", refundId, $"Adjudication: {action}, Amount: ₹{refundAmount:N2}, Reason: {reason}");
+                await _configRepo.LogAuditAsync(currentUserId, "AdminAdjudicateRefund", "BookingRefund", refundId,
+                    $"Old status: '{oldStatus}', Old Amount: ₹{oldAmount:N2} -> New action: '{action}', New Amount: ₹{refundAmount:N2}, Reason: '{reason}', Credit={issueAsCredit}");
                 TempData["Success"] = $"Refund #{refundId} adjudication completed ({action}).";
             }
             catch (Exception ex)
@@ -2075,6 +2095,8 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> SavePaymentSettings(string currencySymbol, string? razorpayKeyId, string? razorpayKeySecret)
         {
             var settings = await _siteSettingsService.GetSettingsAsync();
+            var oldCurrency = settings.CurrencySymbol;
+
             settings.CurrencySymbol = currencySymbol ?? "₹";
             if (!string.IsNullOrWhiteSpace(razorpayKeyId)) settings.RazorpayKeyId = razorpayKeyId.Trim();
             if (!string.IsNullOrWhiteSpace(razorpayKeySecret)) settings.RazorpayKeySecret = razorpayKeySecret.Trim();
@@ -2082,7 +2104,8 @@ namespace BookMyFun.Controllers
             await _siteSettingsService.SaveSettingsAsync(settings);
 
             int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            await _configRepo.LogAuditAsync(currentUserId, "UpdatePaymentSettings", "SiteSettings", null, $"Currency: {currencySymbol}, Razorpay Key: [REDACTED]");
+            await _configRepo.LogAuditAsync(currentUserId, "UpdatePaymentSettings", "SiteSettings", null,
+                $"Old currency: '{oldCurrency}' -> New currency: '{settings.CurrencySymbol}', Razorpay Key: [REDACTED]");
 
             TempData["Success"] = "Payment settings saved successfully.";
             return RedirectToAction(nameof(Settings), new { section = "sec-payments" });
@@ -2129,6 +2152,10 @@ namespace BookMyFun.Controllers
             string? youtubeUrl)
         {
             var settings = await _siteSettingsService.GetSettingsAsync();
+            var oldAddressPresent = !string.IsNullOrWhiteSpace(settings.Address);
+            var oldPhone = settings.SupportPhone;
+            var oldEmail = settings.SupportEmail;
+
             settings.Address = address ?? "";
             settings.SupportPhone = supportPhone ?? "";
             settings.WhatsAppNumber = whatsAppNumber ?? "";
@@ -2140,7 +2167,8 @@ namespace BookMyFun.Controllers
             await _siteSettingsService.SaveSettingsAsync(settings);
 
             int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            await _configRepo.LogAuditAsync(currentUserId, "UpdateFooterSettings", "SiteSettings", null, $"Updated official footer & contact details. Address present: {!string.IsNullOrWhiteSpace(address)}");
+            await _configRepo.LogAuditAsync(currentUserId, "UpdateFooterSettings", "SiteSettings", null,
+                $"Old: [AddressPresent={oldAddressPresent}, Phone='{oldPhone}', Email='{oldEmail}'] -> New: [AddressPresent={!string.IsNullOrWhiteSpace(address)}, Phone='{supportPhone}', Email='{supportEmail}']");
 
             TempData["Success"] = "Footer & contact settings saved successfully.";
             return RedirectToAction(nameof(Settings), new { section = "sec-footer" });
@@ -2151,6 +2179,8 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> SaveFeatureFlags(bool googleLoginEnabled, bool instantOnlineBookingEnabled, bool whatsAppNotificationsEnabled)
         {
             var settings = await _siteSettingsService.GetSettingsAsync();
+            var oldFlags = $"GoogleLogin={settings.GoogleLoginEnabled}, InstantBooking={settings.InstantOnlineBookingEnabled}, WhatsAppNotifications={settings.WhatsAppNotificationsEnabled}";
+
             settings.GoogleLoginEnabled = googleLoginEnabled;
             settings.InstantOnlineBookingEnabled = instantOnlineBookingEnabled;
             settings.WhatsAppNotificationsEnabled = whatsAppNotificationsEnabled;
@@ -2158,8 +2188,9 @@ namespace BookMyFun.Controllers
             await _siteSettingsService.SaveSettingsAsync(settings);
 
             int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var newFlags = $"GoogleLogin={googleLoginEnabled}, InstantBooking={instantOnlineBookingEnabled}, WhatsAppNotifications={whatsAppNotificationsEnabled}";
             await _configRepo.LogAuditAsync(currentUserId, "UpdateFeatureFlags", "SiteSettings", null,
-                $"Feature flags: GoogleLogin={googleLoginEnabled}, InstantBooking={instantOnlineBookingEnabled}, WhatsAppNotifications={whatsAppNotificationsEnabled}");
+                $"Old: [{oldFlags}] -> New: [{newFlags}]");
 
             TempData["Success"] = "Feature flags saved successfully.";
             return RedirectToAction(nameof(Settings), new { section = "sec-features" });
@@ -2373,6 +2404,7 @@ namespace BookMyFun.Controllers
             DateTime effectiveDate,
             bool isDraft)
         {
+            var previousDoc = _legalService != null ? await _legalService.GetCurrentDocumentAsync(documentType) : null;
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
             var created = await _legalService.SaveNewVersionAsync(
@@ -2384,12 +2416,13 @@ namespace BookMyFun.Controllers
                 isDraft,
                 currentUserId);
 
+            var oldVersion = previousDoc != null ? $"v{previousDoc.Version}" : "None";
             await _configRepo.LogAuditAsync(
                 currentUserId,
                 "SaveLegalDocument",
                 "LegalDocument",
                 created.DocumentID,
-                $"Created new version v{created.Version} for {documentType} (Draft={isDraft})");
+                $"Old version: '{oldVersion}' -> New version: 'v{created.Version}' for {documentType} (Draft={isDraft}, Title='{title}')");
 
             TempData["Success"] = $"{title} saved successfully as version v{created.Version}. Previous versions preserved in history.";
             return RedirectToAction(nameof(LegalPages), new { type = documentType });
