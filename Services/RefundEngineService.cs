@@ -384,7 +384,14 @@ namespace BookMyFun.Services
             refund.RefundID = refundId;
 
             // 6. Call Gateway Refund if refund amount > 0 and not pure credit
-            if (finalNetRefund > 0 && !issueCredit && _gatewayService != null)
+            if ((ruleApplied == 5 || ruleApplied == 6) && !isStaff)
+            {
+                // Rows 5 and 6 require admin adjudication: include admin in refund queue with Pending status
+                refund.Status = "Pending";
+                await _refundRepo.UpdateRefundStatusAsync(refundId, "Pending", requestingUserId, $"Awaiting admin adjudication under Scenario #{ruleApplied}");
+                _logger.LogInformation("Refund #{RefundId} for Booking #{BookingId} placed in Admin Refund Queue for Scenario #{RuleApplied}", refundId, bookingId, ruleApplied);
+            }
+            else if (finalNetRefund > 0 && !issueCredit && _gatewayService != null)
             {
                 string paymentId = payments?.FirstOrDefault(p => p.PaymentStatus == "Completed" || p.PaymentStatus == "Success")?.GatewayTransactionID 
                     ?? $"PAY_BOOKING_{bookingId}";
@@ -415,6 +422,50 @@ namespace BookMyFun.Services
             // 7. Multi-Stakeholder Notifications
             string timeline = await GetRefundTimelineSettingAsync();
             var client = _userRepo != null ? await _userRepo.GetByIdAsync(booking.ClientID) : null;
+            var owner = property != null && _userRepo != null ? await _userRepo.GetByIdAsync(property.OwnerID) : null;
+            User? eventManager = null;
+            if (booking.IsEventBooking && booking.EventPackagePriceSnapshot > 0 && _userRepo != null)
+            {
+                if (booking.DecoratorAssignedID.HasValue)
+                {
+                    eventManager = await _userRepo.GetByIdAsync(booking.DecoratorAssignedID.Value);
+                }
+                if (eventManager == null)
+                {
+                    var ems = await _userRepo.GetUsersByRoleAsync("EventManager");
+                    eventManager = ems.FirstOrDefault();
+                }
+            }
+
+            if (_emailService != null && client != null && property != null)
+            {
+                decimal payoutAdjustment = heldOwnerPayout - newOwnerPayout;
+                decimal heldBalanceChange = heldOwnerPayout - newOwnerPayout;
+                decimal totalDeductions = finalCancelFee + finalGatewayFee;
+
+                try
+                {
+                    await _emailService.DispatchCancellationNotificationsAsync(
+                        booking,
+                        property,
+                        client,
+                        owner,
+                        eventManager,
+                        ruleApplied,
+                        amountPaid,
+                        totalDeductions,
+                        finalNetRefund,
+                        timeline,
+                        reason ?? $"Cancellation under Scenario #{ruleApplied}",
+                        payoutAdjustment,
+                        heldBalanceChange);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to dispatch cancellation notifications for Booking #{BookingId}", bookingId);
+                }
+            }
+
             if (client != null && _emailService != null)
             {
                 await _emailService.SendCancellationCustomerNotificationAsync(
@@ -423,17 +474,13 @@ namespace BookMyFun.Services
                     ruleApplied, finalNetRefund, timeline);
             }
 
-            if (property != null && _emailService != null)
+            if (property != null && _emailService != null && owner != null)
             {
-                var owner = _userRepo != null ? await _userRepo.GetByIdAsync(property.OwnerID) : null;
-                if (owner != null)
-                {
-                    decimal hostImpact = ruleApplied == 3 ? ownerShareAmount : (ruleApplied == 2 ? ownerShareAmount : (ruleApplied == 4 ? await GetD3PenaltySettingAsync() : 0.00m));
-                    bool hostReceived = (ruleApplied == 2 || ruleApplied == 3);
-                    await _emailService.SendCancellationOwnerNotificationAsync(
-                        owner.UserID, owner.Email, bookingId, property.Title,
-                        hostImpact, hostReceived, reason ?? $"Cancellation under Rule #{ruleApplied}");
-                }
+                decimal hostImpact = ruleApplied == 3 ? ownerShareAmount : (ruleApplied == 2 ? ownerShareAmount : (ruleApplied == 4 ? await GetD3PenaltySettingAsync() : 0.00m));
+                bool hostReceived = (ruleApplied == 2 || ruleApplied == 3);
+                await _emailService.SendCancellationOwnerNotificationAsync(
+                    owner.UserID, owner.Email, bookingId, property.Title,
+                    hostImpact, hostReceived, reason ?? $"Cancellation under Rule #{ruleApplied}");
             }
 
             return refund;
@@ -502,7 +549,47 @@ namespace BookMyFun.Services
             // Multi-stakeholder notifications
             var client = _userRepo != null ? await _userRepo.GetByIdAsync(booking.ClientID) : null;
             var property = await _propertyRepo.GetByIdAsync(booking.PropertyID);
+            var owner = property != null && _userRepo != null ? await _userRepo.GetByIdAsync(property.OwnerID) : null;
+            User? eventManager = null;
+            if (booking.IsEventBooking && booking.EventPackagePriceSnapshot > 0 && _userRepo != null)
+            {
+                if (booking.DecoratorAssignedID.HasValue)
+                {
+                    eventManager = await _userRepo.GetByIdAsync(booking.DecoratorAssignedID.Value);
+                }
+                if (eventManager == null)
+                {
+                    var ems = await _userRepo.GetUsersByRoleAsync("EventManager");
+                    eventManager = ems.FirstOrDefault();
+                }
+            }
             string timeline = await GetRefundTimelineSettingAsync();
+
+            if (_emailService != null && client != null && property != null)
+            {
+                decimal totalDeductions = Math.Max(0, booking.TotalAmount - approvedRefund);
+                try
+                {
+                    await _emailService.DispatchCancellationNotificationsAsync(
+                        booking,
+                        property,
+                        client,
+                        owner,
+                        eventManager,
+                        rule,
+                        booking.TotalAmount,
+                        totalDeductions,
+                        approvedRefund,
+                        timeline,
+                        reason,
+                        approvedRefund,
+                        approvedRefund);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to dispatch cancellation notifications during admin adjudication for Booking #{BookingId}", booking.BookingID);
+                }
+            }
 
             if (client != null && _emailService != null)
             {
@@ -512,15 +599,11 @@ namespace BookMyFun.Services
                     rule, approvedRefund, timeline);
             }
 
-            if (property != null && _emailService != null)
+            if (property != null && _emailService != null && owner != null)
             {
-                var owner = _userRepo != null ? await _userRepo.GetByIdAsync(property.OwnerID) : null;
-                if (owner != null)
-                {
-                    await _emailService.SendCancellationOwnerNotificationAsync(
-                        owner.UserID, owner.Email, booking.BookingID, property.Title,
-                        approvedRefund, isReceived: false, reason);
-                }
+                await _emailService.SendCancellationOwnerNotificationAsync(
+                    owner.UserID, owner.Email, booking.BookingID, property.Title,
+                    approvedRefund, isReceived: false, reason);
             }
 
             return refund;

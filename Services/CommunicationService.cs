@@ -876,15 +876,18 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
             string timeline = "5 to 7 business days")
         {
             // 1. In-App Notification
-            _emailQueue.AddInAppNotification(
-                clientId,
-                "Booking Cancelled",
-                $"Booking #{bookingId} for {propertyTitle} has been cancelled (Rule #{ruleApplied}). Net refund of ₹{refundAmount:N2} will be credited within {timeline}.",
-                "BookingCancellation",
-                "/Client/Index");
+            if (_emailQueue.TryAcquireNotificationKey($"cancellation_{bookingId}_client_inapp"))
+            {
+                _emailQueue.AddInAppNotification(
+                    clientId,
+                    "Booking Cancelled",
+                    $"Booking #{bookingId} for {propertyTitle} has been cancelled (Rule #{ruleApplied}). Net refund of ₹{refundAmount:N2} will be credited within {timeline}.",
+                    "BookingCancellation",
+                    "/Client/Index");
+            }
 
             // 2. Transactional Email
-            if (!string.IsNullOrWhiteSpace(clientEmail))
+            if (!string.IsNullOrWhiteSpace(clientEmail) && _emailQueue.TryAcquireNotificationKey($"cancellation_{bookingId}_client_email"))
             {
                 string subject = $"Booking #{bookingId} Cancellation & Refund Confirmation - BookMyFun";
                 string bodyHtml = $@"
@@ -906,7 +909,7 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
             }
 
             // 3. WhatsApp if opted in
-            if (whatsappOptIn && !string.IsNullOrWhiteSpace(clientPhone))
+            if (whatsappOptIn && !string.IsNullOrWhiteSpace(clientPhone) && _emailQueue.TryAcquireNotificationKey($"cancellation_{bookingId}_client_whatsapp"))
             {
                 string waMsg = $"Your booking #{bookingId} for {propertyTitle} was cancelled (Policy Rule #{ruleApplied}). Net refund of ₹{refundAmount:N2} will be credited to your account in {timeline}.";
                 await EnqueueWhatsAppAsync(clientPhone, waMsg, "BookingCancellation");
@@ -929,15 +932,18 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
                 : $"You will lose / owe ₹{amountReceivedOrLost:N2}.";
 
             // 1. In-App Notification
-            _emailQueue.AddInAppNotification(
-                ownerId,
-                "Booking Cancelled by Guest or Host",
-                $"Booking #{bookingId} for {propertyTitle} was cancelled. {impactText} Reason: {reason}.",
-                "BookingCancellation",
-                "/Owner/Index");
+            if (_emailQueue.TryAcquireNotificationKey($"cancellation_{bookingId}_owner_inapp"))
+            {
+                _emailQueue.AddInAppNotification(
+                    ownerId,
+                    "Booking Cancelled by Guest or Host",
+                    $"Booking #{bookingId} for {propertyTitle} was cancelled. {impactText} Reason: {reason}.",
+                    "BookingCancellation",
+                    "/Owner/Index");
+            }
 
             // 2. Transactional Email
-            if (!string.IsNullOrWhiteSpace(ownerEmail))
+            if (!string.IsNullOrWhiteSpace(ownerEmail) && _emailQueue.TryAcquireNotificationKey($"cancellation_{bookingId}_owner_email"))
             {
                 string subject = $"Booking #{bookingId} Cancelled - Host Update - BookMyFun";
                 string bodyHtml = $@"
@@ -1216,6 +1222,251 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to dispatch event manager WhatsApp notification for booking {BookingId}", booking.BookingID);
+                }
+            }
+        }
+
+        public async Task DispatchCancellationNotificationsAsync(
+            BookMyFun.Models.Entities.Booking booking, 
+            BookMyFun.Models.Entities.Property property, 
+            BookMyFun.Models.Entities.User client, 
+            BookMyFun.Models.Entities.User? owner, 
+            BookMyFun.Models.Entities.User? eventManager, 
+            int ruleApplied, 
+            decimal amountPaid, 
+            decimal gatewayDeduction, 
+            decimal netRefund, 
+            string expectedTimeline, 
+            string cancellationReason, 
+            decimal ownerPayoutAdjustment, 
+            decimal heldBalanceChange, 
+            string? baseUrl = null)
+        {
+            baseUrl ??= "https://bookmyfun.in";
+            string reason = !string.IsNullOrWhiteSpace(cancellationReason) ? cancellationReason : $"Cancelled under Scenario #{ruleApplied}";
+
+            // 1. Client Notifications (In-App, Email, WhatsApp)
+            // 1a. In-App
+            try
+            {
+                string key = $"cancellation_{booking.BookingID}_client_inapp";
+                if (_emailQueue.TryAcquireNotificationKey(key))
+                {
+                    _emailQueue.AddInAppNotification(
+                        client.UserID,
+                        "Booking Cancelled",
+                        $"Your booking #{booking.BookingID} for '{property.Title}' has been cancelled under Scenario #{ruleApplied}. Paid: ₹{amountPaid:N2}, Gateway/fee deduction: ₹{gatewayDeduction:N2}, Net refund: ₹{netRefund:N2}. Expected timeline: {expectedTimeline}.",
+                        "BookingCancellation",
+                        "/Client/Index");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to dispatch client in-app cancellation notification for booking {BookingId}", booking.BookingID);
+            }
+
+            // 1b. Email
+            try
+            {
+                string key = $"cancellation_{booking.BookingID}_client_email";
+                if (!string.IsNullOrWhiteSpace(client.Email) && _emailQueue.TryAcquireNotificationKey(key))
+                {
+                    string subject = $"Booking #{booking.BookingID} Cancellation & Refund Summary - BookMyFun";
+                    string bodyHtml = $@"
+<div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
+    <div style=""border-bottom: 2px solid #ef4444; padding-bottom: 16px; margin-bottom: 20px;"">
+        <h2 style=""color: #dc2626; margin: 0 0 6px 0; font-size: 20px;"">Booking Cancellation Notice</h2>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">BookMyFun Reservation Transparency</p>
+    </div>
+    <p style=""font-size: 15px; line-height: 1.6;"">Dear <strong>{WebUtility.HtmlEncode(client.FullName)}</strong>,</p>
+    <p style=""font-size: 14px; line-height: 1.6; color: #334155;"">Your booking #{booking.BookingID} for <strong>{WebUtility.HtmlEncode(property.Title)}</strong> has been cancelled.</p>
+    <div style=""background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;"">
+        <div style=""margin-bottom: 8px;""><strong>Cancellation Policy Applied:</strong> Scenario #{ruleApplied}</div>
+        <div style=""margin-bottom: 8px;""><strong>Original Amount Paid:</strong> ₹{amountPaid:N2}</div>
+        <div style=""margin-bottom: 8px;""><strong>Gateway / Cancellation Deduction:</strong> ₹{gatewayDeduction:N2}</div>
+        <div style=""margin-bottom: 8px;""><strong>Net Refund Amount:</strong> <span style=""color: #16a34a; font-weight: bold;"">₹{netRefund:N2}</span></div>
+        <div><strong>Expected Credit Timeline:</strong> {WebUtility.HtmlEncode(expectedTimeline)}</div>
+    </div>
+    <p style=""font-size: 13px; color: #64748b;"">Refunds are credited back to the original source of payment.</p>
+</div>";
+                    await EnqueueEmailAsync(client.Email.Trim(), subject, bodyHtml, "BookingCancellation");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to dispatch client email cancellation notification for booking {BookingId}", booking.BookingID);
+            }
+
+            // 1c. WhatsApp
+            try
+            {
+                string key = $"cancellation_{booking.BookingID}_client_whatsapp";
+                if (!string.IsNullOrWhiteSpace(client.Phone) && _emailQueue.TryAcquireNotificationKey(key))
+                {
+                    string msg = $"⚠️ *Booking Cancellation & Refund Notice*\n\n" +
+                                 $"Dear {client.FullName},\n" +
+                                 $"Your booking #{booking.BookingID} for *{property.Title}* was cancelled.\n\n" +
+                                 $"• Rule Applied: Scenario #{ruleApplied}\n" +
+                                 $"• Amount Paid: ₹{amountPaid:N2}\n" +
+                                 $"• Gateway/Fee Deduction: ₹{gatewayDeduction:N2}\n" +
+                                 $"• Net Refund: ₹{netRefund:N2}\n" +
+                                 $"• Expected Timeline: {expectedTimeline}\n\n" +
+                                 $"View details on your BookMyFun dashboard.\n— Team BookMyFun";
+                    await EnqueueWhatsAppAsync(client.Phone.Trim(), msg, "BookingCancellation");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to dispatch client WhatsApp cancellation notification for booking {BookingId}", booking.BookingID);
+            }
+
+            // 2. Owner Notifications (In-App, Email, WhatsApp if enabled)
+            if (owner != null)
+            {
+                // 2a. In-App
+                try
+                {
+                    string key = $"cancellation_{booking.BookingID}_owner_inapp";
+                    if (_emailQueue.TryAcquireNotificationKey(key))
+                    {
+                        _emailQueue.AddInAppNotification(
+                            owner.UserID,
+                            "Booking Cancelled - Settlement Update",
+                            $"Booking #{booking.BookingID} for '{property.Title}' was cancelled. Reason: {reason}. Payout adjustment: ₹{ownerPayoutAdjustment:N2}, Held balance change: ₹{heldBalanceChange:N2}.",
+                            "OwnerBookingAlert",
+                            "/Owner/Bookings");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to dispatch owner in-app cancellation notification for booking {BookingId}", booking.BookingID);
+                }
+
+                // 2b. Email
+                try
+                {
+                    string key = $"cancellation_{booking.BookingID}_owner_email";
+                    if (!string.IsNullOrWhiteSpace(owner.Email) && _emailQueue.TryAcquireNotificationKey(key))
+                    {
+                        string subject = $"Booking #{booking.BookingID} Cancelled - Host Settlement Update - BookMyFun";
+                        string bodyHtml = $@"
+<div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
+    <div style=""border-bottom: 2px solid #ef4444; padding-bottom: 16px; margin-bottom: 20px;"">
+        <h2 style=""color: #dc2626; margin: 0 0 6px 0; font-size: 20px;"">Host Booking Cancellation Update</h2>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">BookMyFun Host Settlement</p>
+    </div>
+    <p style=""font-size: 15px; line-height: 1.6;"">Hello <strong>{WebUtility.HtmlEncode(owner.FullName)}</strong>,</p>
+    <p style=""font-size: 14px; line-height: 1.6; color: #334155;"">Booking #{booking.BookingID} for your listing <strong>{WebUtility.HtmlEncode(property.Title)}</strong> has been cancelled.</p>
+    <div style=""background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;"">
+        <div style=""margin-bottom: 8px;""><strong>Booking Reference:</strong> #{booking.BookingID}</div>
+        <div style=""margin-bottom: 8px;""><strong>Cancellation Reason:</strong> {WebUtility.HtmlEncode(reason)}</div>
+        <div style=""margin-bottom: 8px;""><strong>Host Payout Adjustment:</strong> <span style=""font-weight: bold;"">₹{ownerPayoutAdjustment:N2}</span></div>
+        <div><strong>Held Balance Change:</strong> <span style=""font-weight: bold;"">₹{heldBalanceChange:N2}</span></div>
+    </div>
+    <p style=""font-size: 13px; color: #64748b;"">Check your host dashboard for updated financial ledger and payout status.</p>
+</div>";
+                        await EnqueueEmailAsync(owner.Email.Trim(), subject, bodyHtml, "OwnerBookingCancellation");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to dispatch owner email cancellation notification for booking {BookingId}", booking.BookingID);
+                }
+
+                // 2c. WhatsApp (only if owner has WhatsApp updates on)
+                try
+                {
+                    string key = $"cancellation_{booking.BookingID}_owner_whatsapp";
+                    if (owner.WhatsAppNotificationsEnabled && !string.IsNullOrWhiteSpace(owner.Phone) && _emailQueue.TryAcquireNotificationKey(key))
+                    {
+                        string msg = $"🏡 *Booking Cancelled - Host Update*\n\n" +
+                                     $"Hello {owner.FullName},\n" +
+                                     $"Booking #{booking.BookingID} for *{property.Title}* was cancelled.\n\n" +
+                                     $"• Cancellation Reason: {reason}\n" +
+                                     $"• Payout Adjustment: ₹{ownerPayoutAdjustment:N2}\n" +
+                                     $"• Held Balance Change: ₹{heldBalanceChange:N2}\n\n" +
+                                     $"Check your Host Dashboard for updated records.\n— Team BookMyFun";
+                        await EnqueueWhatsAppAsync(owner.Phone.Trim(), msg, "OwnerBookingAlert");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to dispatch owner WhatsApp cancellation notification for booking {BookingId}", booking.BookingID);
+                }
+            }
+
+            // 3. EventManager Notifications (only if an event package was selected and eventManager is not null)
+            if (booking.IsEventBooking && booking.EventPackagePriceSnapshot > 0 && eventManager != null)
+            {
+                string packageName = booking.EventPackageName ?? "Selected Décor Package";
+
+                // 3a. In-App
+                try
+                {
+                    string key = $"cancellation_{booking.BookingID}_eventmanager_inapp";
+                    if (_emailQueue.TryAcquireNotificationKey(key))
+                    {
+                        _emailQueue.AddInAppNotification(
+                            eventManager.UserID,
+                            "Event Order Cancelled",
+                            $"Booking #{booking.BookingID} has been cancelled. Package '{packageName}' is cancelled - no setup needed.",
+                            "EventManagerAlert",
+                            "/EventManager/Dashboard");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to dispatch event manager in-app cancellation notification for booking {BookingId}", booking.BookingID);
+                }
+
+                // 3b. Email
+                try
+                {
+                    string key = $"cancellation_{booking.BookingID}_eventmanager_email";
+                    if (!string.IsNullOrWhiteSpace(eventManager.Email) && _emailQueue.TryAcquireNotificationKey(key))
+                    {
+                        string subject = $"Event Order Cancelled: #{booking.BookingID} - {packageName}";
+                        string bodyHtml = $@"
+<div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
+    <div style=""border-bottom: 2px solid #ef4444; padding-bottom: 16px; margin-bottom: 20px;"">
+        <h2 style=""color: #dc2626; margin: 0 0 6px 0; font-size: 20px;"">Event Package Staging Cancelled</h2>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">BookMyFun Event Services</p>
+    </div>
+    <p style=""font-size: 15px; line-height: 1.6;"">Hello <strong>{WebUtility.HtmlEncode(eventManager.FullName)}</strong>,</p>
+    <p style=""font-size: 14px; line-height: 1.6; color: #334155;"">Booking #{booking.BookingID} at <strong>{WebUtility.HtmlEncode(property.Title)}</strong> has been cancelled.</p>
+    <div style=""background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;"">
+        <div style=""margin-bottom: 8px;""><strong>Booking Reference:</strong> #{booking.BookingID}</div>
+        <div style=""margin-bottom: 8px;""><strong>Décor Package:</strong> {WebUtility.HtmlEncode(packageName)} (Cancelled)</div>
+        <div><strong>Status:</strong> <span style=""color: #dc2626; font-weight: bold;"">No setup needed</span></div>
+    </div>
+    <p style=""font-size: 13px; color: #64748b;"">Your staging calendar has been updated automatically.</p>
+</div>";
+                        await EnqueueEmailAsync(eventManager.Email.Trim(), subject, bodyHtml, "EventManagerAlert");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to dispatch event manager email cancellation notification for booking {BookingId}", booking.BookingID);
+                }
+
+                // 3c. WhatsApp
+                try
+                {
+                    string key = $"cancellation_{booking.BookingID}_eventmanager_whatsapp";
+                    if (!string.IsNullOrWhiteSpace(eventManager.Phone) && _emailQueue.TryAcquireNotificationKey(key))
+                    {
+                        string msg = $"🎪 *Event Order Cancelled*\n\n" +
+                                     $"Hello {eventManager.FullName},\n" +
+                                     $"Booking #{booking.BookingID} at *{property.Title}* was cancelled.\n\n" +
+                                     $"• Package: {packageName} is cancelled\n" +
+                                     $"• Action: No setup needed\n\n" +
+                                     $"Your staging schedule has been updated automatically.\n— Team BookMyFun";
+                        await EnqueueWhatsAppAsync(eventManager.Phone.Trim(), msg, "EventManagerAlert");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to dispatch event manager WhatsApp cancellation notification for booking {BookingId}", booking.BookingID);
                 }
             }
         }
