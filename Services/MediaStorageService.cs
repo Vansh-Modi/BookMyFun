@@ -63,7 +63,8 @@ namespace BookMyFun.Services
             string safeFileName = $"{publicId}{safeExtension}";
 
             string subFolder = mediaType.Equals("video", StringComparison.OrdinalIgnoreCase) ? "videos" : "photos";
-            string uploadsFolder = Path.Combine(_env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "uploads", subFolder);
+            string webRoot = !string.IsNullOrWhiteSpace(_env.WebRootPath) ? _env.WebRootPath : Path.Combine(_env.ContentRootPath, "wwwroot");
+            string uploadsFolder = Path.Combine(webRoot, "uploads", subFolder);
 
             if (!Directory.Exists(uploadsFolder))
             {

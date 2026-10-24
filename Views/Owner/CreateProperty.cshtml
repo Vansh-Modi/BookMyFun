@@ -405,7 +405,7 @@
                          <i class="bi bi-play-circle-fill fs-1 text-danger"></i>
                          <span class="small text-truncate px-2" style="max-width: 100%;">Video Tour</span>
                        </div>`
-                    : `<img src="${m.url}" class="card-img-top rounded-3 object-fit-cover" style="height: 140px;" alt="Property Image" onerror="this.src='/images/property-placeholder.jpg';" />`;
+                    : `<img src="${m.previewUrl || m.url}" class="card-img-top rounded-3 object-fit-cover" style="height: 140px;" alt="Property Image" onerror="this.src='/images/property-placeholder.jpg';" />`;
 
                 col.innerHTML = `
                     <div class="card h-100 border shadow-sm rounded-3 position-relative overflow-hidden">
@@ -474,6 +474,7 @@
 
             for (let i = 0; i < fileInput.files.length; i++) {
                 let file = fileInput.files[i];
+                let localPreviewUrl = URL.createObjectURL(file);
                 if (window.ImageOptimizer && window.ImageOptimizer.isOptimizable(file)) {
                     file = await window.ImageOptimizer.compressAndConvertToWebP(file, { maxWidth: 1920, maxHeight: 1080, quality: 0.82 });
                 }
@@ -493,6 +494,7 @@
                         const isPrimary = mediaList.length === 0;
                         mediaList.push({
                             url: res.url,
+                            previewUrl: localPreviewUrl,
                             mediaType: "photo",
                             sourceType: "file",
                             isPrimary: isPrimary

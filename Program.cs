@@ -137,6 +137,16 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+// Serve static files (including runtime-uploaded property photos, packages, and avatars)
+var contentTypeProvider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+contentTypeProvider.Mappings[".webp"] = "image/webp";
+contentTypeProvider.Mappings[".avif"] = "image/avif";
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    ContentTypeProvider = contentTypeProvider
+});
+
 app.UseRouting();
 
 app.UseAuthentication();

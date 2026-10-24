@@ -242,7 +242,7 @@
                 col.className = "col";
                 col.innerHTML = `
                     <div class="card h-100 border shadow-sm rounded-3">
-                        <img src="${m.url}" class="card-img-top object-fit-cover" style="height: 120px;" onerror="this.src='/images/property-placeholder.jpg';" />
+                        <img src="${m.previewUrl || m.url}" class="card-img-top object-fit-cover" style="height: 120px;" onerror="this.src='/images/property-placeholder.jpg';" />
                         <div class="card-body p-2 d-flex justify-content-between align-items-center">
                             <span class="badge bg-secondary small">${m.mediaType}</span>
                             <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 btn-del" data-index="${idx}"><i class="bi bi-trash"></i></button>
@@ -274,6 +274,7 @@
             btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Optimizing & Uploading...`;
             for (let i = 0; i < fi.files.length; i++) {
                 let file = fi.files[i];
+                let localPreviewUrl = URL.createObjectURL(file);
                 if (window.ImageOptimizer && window.ImageOptimizer.isOptimizable(file)) {
                     file = await window.ImageOptimizer.compressAndConvertToWebP(file, { maxWidth: 1920, maxHeight: 1080, quality: 0.82 });
                 }
@@ -283,7 +284,7 @@
                 fd.append("__RequestVerificationToken", document.querySelector('input[name="__RequestVerificationToken"]')?.value || '');
                 const res = await (await fetch("/api/media/upload-file", { method: "POST", body: fd })).json();
                 if (res.success) {
-                    mediaList.push({ url: res.url, mediaType: res.mediaType, sourceType: "file" });
+                    mediaList.push({ url: res.url, previewUrl: localPreviewUrl, mediaType: res.mediaType, sourceType: "file" });
                     if (!primaryInput.value && res.mediaType === "photo") primaryInput.value = res.url;
                 }
             }
