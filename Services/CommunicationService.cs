@@ -18,6 +18,8 @@ namespace BookMyFun.Services
         Task<bool> SendKycRejectionNotificationAsync(string toEmail, string clientName, string? rejectionReason, int clientId, string? documentType = null) => Task.FromResult(true);
         Task<bool> SendCancellationCustomerNotificationAsync(int clientId, string clientEmail, string? clientPhone, bool whatsappOptIn, int bookingId, string propertyTitle, int ruleApplied, decimal refundAmount, string timeline = "5 to 7 business days") => Task.FromResult(true);
         Task<bool> SendCancellationOwnerNotificationAsync(int ownerId, string ownerEmail, int bookingId, string propertyTitle, decimal amountReceivedOrLost, bool isReceived, string reason) => Task.FromResult(true);
+        Task DispatchConfirmedBookingNotificationsAsync(BookMyFun.Models.Entities.Booking booking, BookMyFun.Models.Entities.Property property, BookMyFun.Models.Entities.User client, BookMyFun.Models.Entities.User? owner, BookMyFun.Models.Entities.User? eventManager, string? baseUrl = null) => Task.CompletedTask;
+        Task DispatchCancellationNotificationsAsync(BookMyFun.Models.Entities.Booking booking, BookMyFun.Models.Entities.Property property, BookMyFun.Models.Entities.User client, BookMyFun.Models.Entities.User? owner, BookMyFun.Models.Entities.User? eventManager, int ruleApplied, decimal amountPaid, decimal gatewayDeduction, decimal netRefund, string expectedTimeline, string cancellationReason, decimal ownerPayoutAdjustment, decimal heldBalanceChange, string? baseUrl = null) => Task.CompletedTask;
     }
 
     public interface IWhatsAppService
@@ -955,6 +957,267 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
             }
 
             return true;
+        }
+
+        public async Task DispatchConfirmedBookingNotificationsAsync(
+            BookMyFun.Models.Entities.Booking booking, 
+            BookMyFun.Models.Entities.Property property, 
+            BookMyFun.Models.Entities.User client, 
+            BookMyFun.Models.Entities.User? owner, 
+            BookMyFun.Models.Entities.User? eventManager, 
+            string? baseUrl = null)
+        {
+            baseUrl ??= "https://bookmyfun.in";
+            string bookingUrl = $"{baseUrl}/Booking/Receipt/{booking.BookingID}";
+            int guests = property.MaxGuests > 0 ? property.MaxGuests : 1;
+            decimal ownerPayout = booking.OwnerPayoutAmount > 0 
+                ? booking.OwnerPayoutAmount 
+                : Math.Max(0, (booking.TotalAmount - (booking.IsEventBooking ? booking.EventPackagePriceSnapshot : 0m) - booking.PlatformCommissionAmount));
+            string holdStatus = "Held until guest check-in";
+
+            // 1. Client Notifications (In-App, Email, WhatsApp)
+            // 1a. In-App
+            try
+            {
+                string key = $"booking_{booking.BookingID}_client_inapp";
+                if (_emailQueue.TryAcquireNotificationKey(key))
+                {
+                    _emailQueue.AddInAppNotification(
+                        client.UserID,
+                        "Booking Confirmed!",
+                        $"Your booking #{booking.BookingID} for '{property.Title}' is confirmed! Check-in: {booking.CheckInDate:dd MMM yyyy}, Check-out: {booking.CheckOutDate:dd MMM yyyy}, Guests: {guests}, Paid: ₹{booking.TotalAmount:N2}.",
+                        "BookingConfirmation",
+                        bookingUrl);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to dispatch client in-app notification for booking {BookingId}", booking.BookingID);
+            }
+
+            // 1b. Email
+            try
+            {
+                string key = $"booking_{booking.BookingID}_client_email";
+                if (!string.IsNullOrWhiteSpace(client.Email) && _emailQueue.TryAcquireNotificationKey(key))
+                {
+                    string subject = $"Booking Confirmed: {property.Title} (Ref #{booking.BookingID})";
+                    string bodyHtml = $@"
+<div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
+    <div style=""border-bottom: 2px solid #0284c7; padding-bottom: 16px; margin-bottom: 20px;"">
+        <h2 style=""color: #0284c7; margin: 0 0 6px 0; font-size: 20px;"">Booking Confirmed!</h2>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">Thank you for booking with BookMyFun</p>
+    </div>
+    <p style=""font-size: 15px; line-height: 1.6;"">Dear <strong>{WebUtility.HtmlEncode(client.FullName)}</strong>,</p>
+    <p style=""font-size: 14px; line-height: 1.6; color: #334155;"">Your reservation for <strong>{WebUtility.HtmlEncode(property.Title)}</strong> has been confirmed.</p>
+    <div style=""background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;"">
+        <div style=""margin-bottom: 8px;""><strong>Booking Reference:</strong> #{booking.BookingID}</div>
+        <div style=""margin-bottom: 8px;""><strong>Property:</strong> {WebUtility.HtmlEncode(property.Title)}</div>
+        <div style=""margin-bottom: 8px;""><strong>Check-In:</strong> {booking.CheckInDate:dd MMM yyyy}</div>
+        <div style=""margin-bottom: 8px;""><strong>Check-Out:</strong> {booking.CheckOutDate:dd MMM yyyy}</div>
+        <div style=""margin-bottom: 8px;""><strong>Guests:</strong> {guests}</div>
+        <div><strong>Amount Paid:</strong> <span style=""color: #16a34a; font-weight: bold;"">₹{booking.TotalAmount:N2}</span></div>
+    </div>
+    <div style=""text-align: center; margin: 25px 0;"">
+        <a href=""{bookingUrl}"" style=""background-color: #0284c7; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;"">View Booking &amp; Gate Pass</a>
+    </div>
+</div>";
+                    await EnqueueEmailAsync(client.Email.Trim(), subject, bodyHtml, "BookingConfirmation");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to dispatch client email notification for booking {BookingId}", booking.BookingID);
+            }
+
+            // 1c. WhatsApp
+            try
+            {
+                string key = $"booking_{booking.BookingID}_client_whatsapp";
+                if (!string.IsNullOrWhiteSpace(client.Phone) && _emailQueue.TryAcquireNotificationKey(key))
+                {
+                    string msg = $"🎉 *Booking Confirmed!*\n\n" +
+                                 $"Dear {client.FullName},\n" +
+                                 $"Your booking for *{property.Title}* is confirmed!\n\n" +
+                                 $"• Booking Ref: #{booking.BookingID}\n" +
+                                 $"• Property: {property.Title}\n" +
+                                 $"• Check-In: {booking.CheckInDate:dd MMM yyyy}\n" +
+                                 $"• Check-Out: {booking.CheckOutDate:dd MMM yyyy}\n" +
+                                 $"• Guests: {guests}\n" +
+                                 $"• Amount Paid: ₹{booking.TotalAmount:N2}\n\n" +
+                                 $"View your booking & pass: {bookingUrl}\n— Team BookMyFun";
+                    await EnqueueWhatsAppAsync(client.Phone.Trim(), msg, "BookingConfirmation");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to dispatch client WhatsApp notification for booking {BookingId}", booking.BookingID);
+            }
+
+            // 2. Owner Notifications (In-App, Email, WhatsApp if enabled)
+            if (owner != null)
+            {
+                // 2a. In-App
+                try
+                {
+                    string key = $"booking_{booking.BookingID}_owner_inapp";
+                    if (_emailQueue.TryAcquireNotificationKey(key))
+                    {
+                        _emailQueue.AddInAppNotification(
+                            owner.UserID,
+                            "New Confirmed Reservation!",
+                            $"New booking #{booking.BookingID} for '{property.Title}'! Dates: {booking.CheckInDate:dd MMM yyyy} to {booking.CheckOutDate:dd MMM yyyy}, Guests: {guests}, Guest: {client.FullName} ({client.Phone ?? "N/A"}), Payout: ₹{ownerPayout:N2} ({holdStatus}).",
+                            "OwnerBookingAlert",
+                            "/Owner/Bookings");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to dispatch owner in-app notification for booking {BookingId}", booking.BookingID);
+                }
+
+                // 2b. Email
+                try
+                {
+                    string key = $"booking_{booking.BookingID}_owner_email";
+                    if (!string.IsNullOrWhiteSpace(owner.Email) && _emailQueue.TryAcquireNotificationKey(key))
+                    {
+                        string subject = $"New Confirmed Reservation #{booking.BookingID} - {property.Title}";
+                        string bodyHtml = $@"
+<div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
+    <div style=""border-bottom: 2px solid #16a34a; padding-bottom: 16px; margin-bottom: 20px;"">
+        <h2 style=""color: #16a34a; margin: 0 0 6px 0; font-size: 20px;"">New Confirmed Reservation</h2>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">BookMyFun Host Partner Network</p>
+    </div>
+    <p style=""font-size: 15px; line-height: 1.6;"">Hello <strong>{WebUtility.HtmlEncode(owner.FullName)}</strong>,</p>
+    <p style=""font-size: 14px; line-height: 1.6; color: #334155;"">A new confirmed booking has been made for your listing <strong>{WebUtility.HtmlEncode(property.Title)}</strong>.</p>
+    <div style=""background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;"">
+        <div style=""margin-bottom: 8px;""><strong>Booking Reference:</strong> #{booking.BookingID}</div>
+        <div style=""margin-bottom: 8px;""><strong>Dates:</strong> {booking.CheckInDate:dd MMM yyyy} to {booking.CheckOutDate:dd MMM yyyy}</div>
+        <div style=""margin-bottom: 8px;""><strong>Guests Count:</strong> {guests}</div>
+        <div style=""margin-bottom: 8px;""><strong>Client Name:</strong> {WebUtility.HtmlEncode(client.FullName)}</div>
+        <div style=""margin-bottom: 8px;""><strong>Client Phone:</strong> {WebUtility.HtmlEncode(client.Phone ?? "N/A")}</div>
+        <div style=""margin-bottom: 8px;""><strong>Owner Payout Amount:</strong> <span style=""color: #16a34a; font-weight: bold;"">₹{ownerPayout:N2}</span></div>
+        <div><strong>Payout Hold Status:</strong> <span style=""color: #d97706; font-weight: bold;"">{holdStatus}</span></div>
+    </div>
+</div>";
+                        await EnqueueEmailAsync(owner.Email.Trim(), subject, bodyHtml, "OwnerBookingAlert");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to dispatch owner email notification for booking {BookingId}", booking.BookingID);
+                }
+
+                // 2c. WhatsApp (only if owner has WhatsApp updates on)
+                try
+                {
+                    string key = $"booking_{booking.BookingID}_owner_whatsapp";
+                    if (owner.WhatsAppNotificationsEnabled && !string.IsNullOrWhiteSpace(owner.Phone) && _emailQueue.TryAcquireNotificationKey(key))
+                    {
+                        string msg = $"🏡 *New Reservation Confirmed!*\n\n" +
+                                     $"Hello {owner.FullName},\n" +
+                                     $"A new reservation has been confirmed for *{property.Title}*.\n\n" +
+                                     $"• Booking Ref: #{booking.BookingID}\n" +
+                                     $"• Dates: {booking.CheckInDate:dd MMM yyyy} to {booking.CheckOutDate:dd MMM yyyy}\n" +
+                                     $"• Guests: {guests}\n" +
+                                     $"• Client: {client.FullName} ({client.Phone ?? "N/A"})\n" +
+                                     $"• Owner Payout: ₹{ownerPayout:N2}\n" +
+                                     $"• Hold Status: {holdStatus}\n\n" +
+                                     $"Please check your Host Dashboard to prepare for arrival.\n— Team BookMyFun";
+                        await EnqueueWhatsAppAsync(owner.Phone.Trim(), msg, "OwnerBookingAlert");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to dispatch owner WhatsApp notification for booking {BookingId}", booking.BookingID);
+                }
+            }
+
+            // 3. EventManager Notifications (only if an event package was selected and eventManager is not null)
+            if (booking.IsEventBooking && booking.EventPackagePriceSnapshot > 0 && eventManager != null)
+            {
+                string packageName = booking.EventPackageName ?? "Selected Décor Package";
+                string venue = !string.IsNullOrWhiteSpace(property.FormattedAddress)
+                    ? $"{property.Title}, {property.FormattedAddress}"
+                    : $"{property.Title}, {property.Location}";
+                DateTime eventDate = booking.EventDate ?? booking.CheckInDate;
+                DateTime setupDeadline = eventDate.AddHours(-2);
+                string deadlineStr = $"{setupDeadline:dd MMM yyyy, hh:mm tt} (2 hours prior to start)";
+
+                // 3a. In-App
+                try
+                {
+                    string key = $"booking_{booking.BookingID}_eventmanager_inapp";
+                    if (_emailQueue.TryAcquireNotificationKey(key))
+                    {
+                        _emailQueue.AddInAppNotification(
+                            eventManager.UserID,
+                            "New Event Décor Setup Order!",
+                            $"New event setup for #{booking.BookingID}: {packageName} at {venue}. Event Date: {eventDate:dd MMM yyyy}, Setup Deadline: {deadlineStr}.",
+                            "EventManagerSetupAlert",
+                            "/EventManager/Dashboard");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to dispatch event manager in-app notification for booking {BookingId}", booking.BookingID);
+                }
+
+                // 3b. Email
+                try
+                {
+                    string key = $"booking_{booking.BookingID}_eventmanager_email";
+                    if (!string.IsNullOrWhiteSpace(eventManager.Email) && _emailQueue.TryAcquireNotificationKey(key))
+                    {
+                        string subject = $"New Event Décor Order #{booking.BookingID} - {packageName}";
+                        string bodyHtml = $@"
+<div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
+    <div style=""border-bottom: 2px solid #8b5cf6; padding-bottom: 16px; margin-bottom: 20px;"">
+        <h2 style=""color: #8b5cf6; margin: 0 0 6px 0; font-size: 20px;"">New Event Décor Staging Order</h2>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">BookMyFun Event Services</p>
+    </div>
+    <p style=""font-size: 15px; line-height: 1.6;"">Hello <strong>{WebUtility.HtmlEncode(eventManager.FullName)}</strong>,</p>
+    <p style=""font-size: 14px; line-height: 1.6; color: #334155;"">A new event package has been booked on BookMyFun.</p>
+    <div style=""background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;"">
+        <div style=""margin-bottom: 8px;""><strong>Booking Reference:</strong> #{booking.BookingID}</div>
+        <div style=""margin-bottom: 8px;""><strong>Package Name:</strong> {WebUtility.HtmlEncode(packageName)}</div>
+        <div style=""margin-bottom: 8px;""><strong>Date:</strong> {eventDate:dd MMM yyyy}</div>
+        <div style=""margin-bottom: 8px;""><strong>Venue:</strong> {WebUtility.HtmlEncode(venue)}</div>
+        <div><strong>Setup Deadline:</strong> <span style=""color: #dc2626; font-weight: bold;"">{WebUtility.HtmlEncode(deadlineStr)}</span></div>
+    </div>
+</div>";
+                        await EnqueueEmailAsync(eventManager.Email.Trim(), subject, bodyHtml, "EventManagerSetupAlert");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to dispatch event manager email notification for booking {BookingId}", booking.BookingID);
+                }
+
+                // 3c. WhatsApp
+                try
+                {
+                    string key = $"booking_{booking.BookingID}_eventmanager_whatsapp";
+                    if (!string.IsNullOrWhiteSpace(eventManager.Phone) && _emailQueue.TryAcquireNotificationKey(key))
+                    {
+                        string msg = $"🎪 *New Event Staging Order!*\n\n" +
+                                     $"Hello {eventManager.FullName},\n" +
+                                     $"A new event package order is booked on BookMyFun.\n\n" +
+                                     $"• Booking Ref: #{booking.BookingID}\n" +
+                                     $"• Package: {packageName}\n" +
+                                     $"• Date: {eventDate:dd MMM yyyy}\n" +
+                                     $"• Venue: {venue}\n" +
+                                     $"• Setup Deadline: {deadlineStr}\n\n" +
+                                     $"Please log in to your Event Manager portal to coordinate staging.\n— Team BookMyFun";
+                        await EnqueueWhatsAppAsync(eventManager.Phone.Trim(), msg, "EventManagerSetupAlert");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to dispatch event manager WhatsApp notification for booking {BookingId}", booking.BookingID);
+                }
+            }
         }
     }
 }

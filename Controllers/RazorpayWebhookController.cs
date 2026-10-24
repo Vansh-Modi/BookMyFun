@@ -275,11 +275,33 @@ namespace BookMyFun.Controllers
                 {
                     var client = await _userRepo.GetByIdAsync(booking.ClientID);
                     var property = await _propRepo.GetByIdAsync(booking.PropertyID);
+                    var owner = property != null ? await _userRepo.GetByIdAsync(property.OwnerID) : null;
+                    User? eventManager = null;
+                    if (booking.IsEventBooking && booking.EventPackagePriceSnapshot > 0)
+                    {
+                        if (booking.DecoratorAssignedID.HasValue)
+                        {
+                            eventManager = await _userRepo.GetByIdAsync(booking.DecoratorAssignedID.Value);
+                        }
+                        if (eventManager == null && _eventPackageRepo != null)
+                        {
+                            var decorators = await _eventPackageRepo.GetDecoratorsAsync();
+                            eventManager = decorators.FirstOrDefault();
+                        }
+                    }
 
                     if (client != null && property != null)
                     {
                         try
                         {
+                            string baseUrl = Request != null && Request.Host.HasValue 
+                                ? $"{Request.Scheme}://{Request.Host}" 
+                                : "https://bookmyfun.in";
+
+                            if (_emailService != null)
+                            {
+                                await _emailService.DispatchConfirmedBookingNotificationsAsync(booking, property, client, owner, eventManager, baseUrl);
+                            }
                             await DispatchConfirmedBookingAlertsAsync(booking, property, client, paymentId, "Razorpay");
                         }
                         catch (Exception ex)

@@ -15,6 +15,7 @@ namespace BookMyFun.Models.Entities
         public string AuthProvider { get; set; } = "Local"; // 'Local', 'Google', etc.
         public string? AuthProviderKey { get; set; }
         public string? ProfilePictureUrl { get; set; }
+        public bool WhatsAppNotificationsEnabled { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 

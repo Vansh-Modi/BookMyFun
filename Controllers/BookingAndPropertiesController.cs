@@ -536,8 +536,45 @@ namespace BookMyFun.Controllers
                 }
 
                 // Payment signature verified on client return.
-                // Booking and payment status updates are handled exclusively via verified Razorpay webhook events.
-                TempData["Success"] = "Payment verified! Your booking confirmation is being finalized via our secure webhook.";
+                if (booking.Status != "Confirmed")
+                {
+                    await _bookingRepo.RecordPaymentAsync(new Payment
+                    {
+                        BookingID = booking.BookingID,
+                        GatewayTransactionID = $"RAZORPAY_{razorpay_payment_id}",
+                        Amount = booking.TotalAmount,
+                        PaymentStatus = "Success"
+                    });
+                    await _bookingRepo.UpdateBookingStatusAsync(booking.BookingID, "Confirmed");
+                    booking.Status = "Confirmed";
+
+                    var property = await _propRepo.GetByIdAsync(booking.PropertyID);
+                    var client = await _userRepo.GetByIdAsync(booking.ClientID);
+                    var owner = property != null ? await _userRepo.GetByIdAsync(property.OwnerID) : null;
+                    User? eventManager = null;
+                    if (booking.IsEventBooking && booking.EventPackagePriceSnapshot > 0)
+                    {
+                        if (booking.DecoratorAssignedID.HasValue)
+                        {
+                            eventManager = await _userRepo.GetByIdAsync(booking.DecoratorAssignedID.Value);
+                        }
+                        if (eventManager == null)
+                        {
+                            var decorators = await _eventPackageRepo.GetDecoratorsAsync();
+                            eventManager = decorators.FirstOrDefault();
+                        }
+                    }
+
+                    if (property != null && client != null)
+                    {
+                        string baseUrl = Request != null && Request.Host.HasValue 
+                            ? $"{Request.Scheme}://{Request.Host}" 
+                            : "https://bookmyfun.in";
+                        await _emailService.DispatchConfirmedBookingNotificationsAsync(booking, property, client, owner, eventManager, baseUrl);
+                    }
+                }
+
+                TempData["Success"] = "Payment verified! Your booking is confirmed.";
                 return RedirectToAction("Confirmation", new { id = bookingId });
             }
             catch (Exception ex)

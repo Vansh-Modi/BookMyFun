@@ -38,6 +38,8 @@ namespace BookMyFun.Services
         void AddInAppNotification(int userId, string title, string message, string type = "KycRejection", string? actionUrl = null);
         List<InAppNotificationItem> GetInAppNotifications(int userId);
         void MarkInAppNotificationRead(int notificationId);
+        bool TryAcquireNotificationKey(string notificationKey) => true;
+        bool HasNotificationKey(string notificationKey) => false;
     }
 
     public class EmailQueueService : IEmailQueueService
@@ -45,8 +47,21 @@ namespace BookMyFun.Services
         private readonly Channel<EmailQueueMessage> _channel;
         private readonly ILogger<EmailQueueService> _logger;
         private readonly ConcurrentDictionary<int, List<InAppNotificationItem>> _inAppNotifications = new();
+        private readonly ConcurrentDictionary<string, DateTime> _dispatchedNotificationKeys = new();
         private int _count = 0;
         private int _notificationIdCounter = 0;
+
+        public bool TryAcquireNotificationKey(string notificationKey)
+        {
+            if (string.IsNullOrWhiteSpace(notificationKey)) return false;
+            return _dispatchedNotificationKeys.TryAdd(notificationKey, DateTime.UtcNow);
+        }
+
+        public bool HasNotificationKey(string notificationKey)
+        {
+            if (string.IsNullOrWhiteSpace(notificationKey)) return false;
+            return _dispatchedNotificationKeys.ContainsKey(notificationKey);
+        }
 
         public EmailQueueService(ILogger<EmailQueueService> logger)
         {

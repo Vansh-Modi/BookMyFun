@@ -76,6 +76,11 @@ BEGIN
         ALTER TABLE Users ADD ProfilePictureUrl NVARCHAR(500) NULL;
     END
 
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'WhatsAppNotificationsEnabled')
+    BEGIN
+        ALTER TABLE Users ADD WhatsAppNotificationsEnabled BIT NOT NULL DEFAULT 1 WITH VALUES;
+    END
+
     -- Ensure Role CHECK constraint supports all 5 roles (Admin, Employee, Owner, Client, EventManager)
     DECLARE @RoleConstraint NVARCHAR(200);
     SELECT @RoleConstraint = cc.name 
@@ -774,6 +779,15 @@ BEGIN
     CREATE INDEX IX_PolicyAcceptances_User ON PolicyAcceptances(UserID, DocumentType);
     CREATE INDEX IX_PolicyAcceptances_Lead ON PolicyAcceptances(LeadID, DocumentType);
     CREATE INDEX IX_PolicyAcceptances_Type_Version ON PolicyAcceptances(DocumentType, Version);
+END
+
+-- 31. NotificationDispatches Table (Idempotent Notification Deduplication)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'NotificationDispatches')
+BEGIN
+    CREATE TABLE NotificationDispatches (
+        NotificationKey NVARCHAR(200) PRIMARY KEY,
+        DispatchedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+    );
 END
 ";
 
