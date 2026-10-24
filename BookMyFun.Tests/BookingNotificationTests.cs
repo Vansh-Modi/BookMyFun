@@ -382,8 +382,8 @@ namespace BookMyFun.Tests
 
             // Assert: Event manager gets zero messages across all channels
             Assert.Empty(queue.GetInAppNotifications(eventManager.UserID));
-            Assert.Empty(queue.EnqueuedMessages.Where(m => m.ToEmail == eventManager.Email));
-            Assert.Empty(queue.EnqueuedMessages.Where(m => m.ToPhone == eventManager.Phone));
+            Assert.DoesNotContain(queue.EnqueuedMessages, m => m.ToEmail == eventManager.Email);
+            Assert.DoesNotContain(queue.EnqueuedMessages, m => m.ToPhone == eventManager.Phone);
         }
 
         [Fact]
@@ -425,8 +425,8 @@ namespace BookMyFun.Tests
             // Assert
             // Owner gets in-app and email, but NO WhatsApp
             Assert.Single(queue.GetInAppNotifications(owner.UserID));
-            Assert.Single(queue.EnqueuedMessages.Where(m => m.ToEmail == owner.Email && m.Channel == "Email"));
-            Assert.Empty(queue.EnqueuedMessages.Where(m => m.ToPhone == owner.Phone && m.Channel == "WhatsApp"));
+            Assert.Single(queue.EnqueuedMessages, m => m.ToEmail == owner.Email && m.Channel == "Email");
+            Assert.DoesNotContain(queue.EnqueuedMessages, m => m.ToPhone == owner.Phone && m.Channel == "WhatsApp");
         }
 
         [Fact]
