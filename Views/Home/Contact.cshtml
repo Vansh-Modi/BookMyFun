@@ -1,6 +1,8 @@
+@inject BookMyFun.Services.ISiteSettingsService SettingsService
 @model BookMyFun.Models.Entities.ContactUs
 @{
     ViewData["Title"] = "Contact Customer Support - BookMyFun";
+    var site = await SettingsService.GetSettingsAsync();
 }
 
 <!-- Contact Hero Banner -->
@@ -65,57 +67,96 @@
             <h4 class="fw-bold mb-3 text-dark">Instant Customer Assistance</h4>
             <p class="text-muted small mb-4">Connect directly with our helpline executives for rapid assistance or real-time availability inquiries.</p>
 
-            <div class="d-flex align-items-center mb-3 p-3 bg-white rounded-3 shadow-xs">
-                <div class="bg-success text-white rounded-circle p-3 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
-                    <i class="bi bi-whatsapp fs-4"></i>
+            @if (!string.IsNullOrWhiteSpace(site.WhatsAppNumber))
+            {
+                var cleanWa = site.WhatsAppNumber.Replace("+", "").Replace(" ", "").Replace("(", "").Replace(")", "").Replace("-", "");
+                <div class="d-flex align-items-center mb-3 p-3 bg-white rounded-3 shadow-xs">
+                    <div class="bg-success text-white rounded-circle p-3 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                        <i class="bi bi-whatsapp fs-4"></i>
+                    </div>
+                    <div>
+                        <span class="text-muted small d-block">Instant WhatsApp Support</span>
+                        <a href="https://wa.me/@cleanWa?text=Hi%20@Uri.EscapeDataString(site.SiteName),%20I%20need%20assistance%20with%20booking%20a%20property" target="_blank" rel="noopener noreferrer" class="fw-bold text-success text-decoration-none">
+                            @site.WhatsAppNumber <i class="bi bi-arrow-up-right-square"></i>
+                        </a>
+                    </div>
                 </div>
-                <div>
-                    <span class="text-muted small d-block">Instant WhatsApp Support</span>
-                    <a href="https://wa.me/919999900001?text=Hi%20BookMyFun,%20I%20need%20assistance%20with%20booking%20a%20property" target="_blank" class="fw-bold text-success text-decoration-none">
-                        +91 99999 00001 <i class="bi bi-arrow-up-right-square"></i>
-                    </a>
-                </div>
-            </div>
+            }
 
-            <div class="d-flex align-items-center mb-3 p-3 bg-white rounded-3 shadow-xs">
-                <div class="bg-primary text-white rounded-circle p-3 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
-                    <i class="bi bi-telephone-fill fs-4"></i>
+            @if (!string.IsNullOrWhiteSpace(site.SupportPhone))
+            {
+                <div class="d-flex align-items-center mb-3 p-3 bg-white rounded-3 shadow-xs">
+                    <div class="bg-primary text-white rounded-circle p-3 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                        <i class="bi bi-telephone-fill fs-4"></i>
+                    </div>
+                    <div>
+                        <span class="text-muted small d-block">Toll-Free Helpline</span>
+                        <a href="tel:@site.SupportPhone" class="fw-bold text-primary text-decoration-none">@site.SupportPhone</a>
+                    </div>
                 </div>
-                <div>
-                    <span class="text-muted small d-block">Toll-Free Helpline</span>
-                    <span class="fw-bold text-primary">+91 (020) 4567-8900</span>
-                </div>
-            </div>
+            }
 
-            <div class="d-flex align-items-center p-3 bg-white rounded-3 shadow-xs">
-                <div class="bg-dark text-white rounded-circle p-3 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
-                    <i class="bi bi-envelope-fill fs-4"></i>
+            @if (!string.IsNullOrWhiteSpace(site.SupportEmail))
+            {
+                <div class="d-flex align-items-center mb-3 p-3 bg-white rounded-3 shadow-xs">
+                    <div class="bg-dark text-white rounded-circle p-3 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                        <i class="bi bi-envelope-fill fs-4"></i>
+                    </div>
+                    <div>
+                        <span class="text-muted small d-block">Official Email Support</span>
+                        <a href="mailto:@site.SupportEmail" class="fw-bold text-dark text-decoration-none">@site.SupportEmail</a>
+                    </div>
                 </div>
-                <div>
-                    <span class="text-muted small d-block">Official Email Support</span>
-                    <span class="fw-bold text-dark">support@bookmyfun.com</span>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(site.Address))
+            {
+                <div class="d-flex align-items-center p-3 bg-white rounded-3 shadow-xs">
+                    <div class="bg-warning text-dark rounded-circle p-3 me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                        <i class="bi bi-geo-alt-fill fs-4"></i>
+                    </div>
+                    <div>
+                        <span class="text-muted small d-block">Corporate Office Address</span>
+                        <span class="fw-bold text-dark">@site.Address</span>
+                    </div>
                 </div>
-            </div>
+            }
         </div>
 
-        <!-- Social Media Channels Card -->
-        <div class="card border-0 shadow-sm p-4 text-center">
-            <h5 class="fw-bold mb-2">Follow Our Community</h5>
-            <p class="text-muted small mb-3">Explore trending farmhouses, weekend reels & exclusive deals:</p>
-            <div class="d-flex justify-content-center gap-3">
-                <a href="https://instagram.com" target="_blank" class="btn btn-outline-danger btn-lg rounded-circle p-2" style="width: 48px; height: 48px;" title="Instagram">
-                    <i class="bi bi-instagram"></i>
-                </a>
-                <a href="https://facebook.com" target="_blank" class="btn btn-outline-primary btn-lg rounded-circle p-2" style="width: 48px; height: 48px;" title="Facebook">
-                    <i class="bi bi-facebook"></i>
-                </a>
-                <a href="https://wa.me/919999900001" target="_blank" class="btn btn-outline-success btn-lg rounded-circle p-2" style="width: 48px; height: 48px;" title="WhatsApp Channel">
-                    <i class="bi bi-whatsapp"></i>
-                </a>
-                <a href="https://youtube.com" target="_blank" class="btn btn-outline-danger btn-lg rounded-circle p-2" style="width: 48px; height: 48px;" title="YouTube">
-                    <i class="bi bi-youtube"></i>
-                </a>
+        @if (!string.IsNullOrWhiteSpace(site.InstagramUrl) || !string.IsNullOrWhiteSpace(site.FacebookUrl) || !string.IsNullOrWhiteSpace(site.WhatsAppNumber) || !string.IsNullOrWhiteSpace(site.YouTubeUrl))
+        {
+            <!-- Social Media Channels Card -->
+            <div class="card border-0 shadow-sm p-4 text-center">
+                <h5 class="fw-bold mb-2">Follow Our Community</h5>
+                <p class="text-muted small mb-3">Explore trending farmhouses, weekend reels &amp; exclusive deals:</p>
+                <div class="d-flex justify-content-center gap-3">
+                    @if (!string.IsNullOrWhiteSpace(site.InstagramUrl))
+                    {
+                        <a href="@site.InstagramUrl" target="_blank" rel="noopener noreferrer" class="btn btn-outline-danger btn-lg rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;" title="Instagram">
+                            <i class="bi bi-instagram"></i>
+                        </a>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(site.FacebookUrl))
+                    {
+                        <a href="@site.FacebookUrl" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary btn-lg rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;" title="Facebook">
+                            <i class="bi bi-facebook"></i>
+                        </a>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(site.WhatsAppNumber))
+                    {
+                        var cleanWa = site.WhatsAppNumber.Replace("+", "").Replace(" ", "").Replace("(", "").Replace(")", "").Replace("-", "");
+                        <a href="https://wa.me/@cleanWa" target="_blank" rel="noopener noreferrer" class="btn btn-outline-success btn-lg rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;" title="WhatsApp Channel">
+                            <i class="bi bi-whatsapp"></i>
+                        </a>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(site.YouTubeUrl))
+                    {
+                        <a href="@site.YouTubeUrl" target="_blank" rel="noopener noreferrer" class="btn btn-outline-danger btn-lg rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;" title="YouTube">
+                            <i class="bi bi-youtube"></i>
+                        </a>
+                    }
+                </div>
             </div>
-        </div>
+        }
     </div>
 </div>
