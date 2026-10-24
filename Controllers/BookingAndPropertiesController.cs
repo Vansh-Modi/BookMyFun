@@ -1,9 +1,11 @@
+using System.Collections.Concurrent;
 using System.Security.Claims;
 using BookMyFun.Models.Entities;
 using BookMyFun.Models.ViewModels;
 using BookMyFun.Repositories;
 using BookMyFun.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
@@ -13,14 +15,33 @@ namespace BookMyFun.Controllers
     {
         private readonly IPropertyRepository _propRepo;
         private readonly IBookingRepository _bookingRepo;
+        private readonly IAvailabilitySuggestionService _availabilityService;
 
-        public PropertiesController(IPropertyRepository propRepo, IBookingRepository bookingRepo)
+        private static readonly ConcurrentDictionary<string, (int Count, DateTime WindowStart)> _rateLimits = new();
+
+        public static void ResetRateLimits() => _rateLimits.Clear();
+
+        public PropertiesController(
+            IPropertyRepository propRepo, 
+            IBookingRepository bookingRepo,
+            IAvailabilitySuggestionService? availabilityService = null)
         {
             _propRepo = propRepo;
             _bookingRepo = bookingRepo;
+            _availabilityService = availabilityService ?? new AvailabilitySuggestionService(bookingRepo);
         }
 
-        public async Task<IActionResult> Index(string? location, int? typeId, int? occasionId, decimal? minPrice, decimal? maxPrice, int? guests, int page = 1, int pageSize = 12)
+        public async Task<IActionResult> Index(
+            string? location, 
+            int? typeId, 
+            int? occasionId, 
+            decimal? minPrice, 
+            decimal? maxPrice, 
+            int? guests, 
+            DateTime? checkIn = null,
+            DateTime? checkOut = null,
+            int page = 1, 
+            int pageSize = 12)
         {
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 100);
@@ -35,23 +56,102 @@ namespace BookMyFun.Controllers
             ViewBag.SelectedMinPrice = minPrice;
             ViewBag.SelectedMaxPrice = maxPrice;
             ViewBag.SelectedGuests = guests;
+            ViewBag.SelectedCheckIn = checkIn?.ToString("yyyy-MM-dd");
+            ViewBag.SelectedCheckOut = checkOut?.ToString("yyyy-MM-dd");
             ViewBag.CurrentPage = page;
             ViewBag.PageSize = pageSize;
             ViewBag.TotalCount = totalCount;
             ViewBag.TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
 
+            if (checkIn.HasValue && checkOut.HasValue && checkOut.Value.Date > checkIn.Value.Date)
+            {
+                var availabilityMap = new Dictionary<int, AvailabilitySuggestionResult>();
+                foreach (var p in properties)
+                {
+                    var avail = await _availabilityService.GetNearestSuggestionsAsync(p.PropertyID, checkIn.Value, checkOut.Value);
+                    availabilityMap[p.PropertyID] = avail;
+                }
+                ViewBag.PropertyAvailability = availabilityMap;
+            }
+
             return View(properties);
         }
 
-        public async Task<IActionResult> Details(int id)
+        public async Task<IActionResult> Details(int id, DateTime? checkIn = null, DateTime? checkOut = null)
         {
             var property = await _propRepo.GetByIdAsync(id);
             if (property == null) return NotFound();
 
             var reviews = await _bookingRepo.GetReviewsByPropertyIdAsync(id);
             ViewBag.Reviews = reviews;
+            ViewBag.SelectedCheckIn = checkIn?.ToString("yyyy-MM-dd");
+            ViewBag.SelectedCheckOut = checkOut?.ToString("yyyy-MM-dd");
+
+            if (checkIn.HasValue && checkOut.HasValue && checkOut.Value.Date > checkIn.Value.Date)
+            {
+                var avail = await _availabilityService.GetNearestSuggestionsAsync(id, checkIn.Value, checkOut.Value);
+                ViewBag.AvailabilityResult = avail;
+            }
 
             return View(property);
+        }
+
+        [HttpGet("/api/properties/{id}/availability/suggestions")]
+        public async Task<IActionResult> GetAvailabilitySuggestions(
+            int id,
+            [FromQuery] DateTime? checkIn,
+            [FromQuery] DateTime? checkOut,
+            [FromQuery] string bookingType = "FullDay",
+            [FromQuery] string? slotType = null)
+        {
+            // Rate-limiting check: 60 requests per minute per IP / User
+            string clientKey = User?.Identity?.IsAuthenticated == true
+                ? $"user_{User.FindFirstValue(ClaimTypes.NameIdentifier)}"
+                : $"ip_{HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "anon"}";
+
+            var now = DateTime.UtcNow;
+            var rateEntry = _rateLimits.AddOrUpdate(
+                clientKey,
+                _ => (1, now),
+                (_, current) => (now - current.WindowStart).TotalMinutes < 1.0
+                    ? (current.Count + 1, current.WindowStart)
+                    : (1, now));
+
+            if (rateEntry.Count > 60)
+            {
+                return StatusCode(StatusCodes.Status429TooManyRequests, new
+                {
+                    error = "Rate limit exceeded. Please try again in a moment.",
+                    retryAfterSeconds = 60
+                });
+            }
+
+            // Input validation
+            if (id <= 0)
+            {
+                return BadRequest(new { error = "Invalid property ID." });
+            }
+
+            var prop = await _propRepo.GetByIdAsync(id);
+            if (prop == null)
+            {
+                return NotFound(new { error = "Property not found." });
+            }
+
+            if (!checkIn.HasValue || !checkOut.HasValue)
+            {
+                return BadRequest(new { error = "Both checkIn and checkOut dates are required." });
+            }
+
+            if (checkOut.Value.Date <= checkIn.Value.Date)
+            {
+                return BadRequest(new { error = "CheckOut date must be strictly after CheckIn date." });
+            }
+
+            var suggestions = await _availabilityService.GetNearestSuggestionsAsync(
+                id, checkIn.Value, checkOut.Value, bookingType, slotType);
+
+            return Ok(suggestions);
         }
     }
 
@@ -112,7 +212,13 @@ namespace BookMyFun.Controllers
 
         [Authorize]
         [HttpGet]
-        public async Task<IActionResult> Checkout(int propertyId, string bookingType = "FullDay", string? slotType = null, int daysOrHours = 1)
+        public async Task<IActionResult> Checkout(
+            int propertyId, 
+            string bookingType = "FullDay", 
+            string? slotType = null, 
+            int daysOrHours = 1,
+            DateTime? checkIn = null,
+            DateTime? checkOut = null)
         {
             if (propertyId <= 0)
             {
@@ -125,6 +231,16 @@ namespace BookMyFun.Controllers
             {
                 TempData["Error"] = "The requested property could not be found. Please browse available stays.";
                 return RedirectToAction("Index", "Properties");
+            }
+
+            var effectiveIn = checkIn?.Date ?? DateTime.Today;
+            var effectiveOut = checkOut.HasValue && checkOut.Value.Date > effectiveIn 
+                ? checkOut.Value.Date 
+                : (bookingType == "FullDay" ? effectiveIn.AddDays(Math.Max(1, daysOrHours)) : effectiveIn);
+
+            if (bookingType == "FullDay" && checkIn.HasValue && checkOut.HasValue)
+            {
+                daysOrHours = Math.Max(1, (effectiveOut - effectiveIn).Days);
             }
 
             decimal calculatedAmount = _pricingService.CalculatePrice(property.PricePerNight, bookingType, slotType, daysOrHours);
@@ -149,8 +265,8 @@ namespace BookMyFun.Controllers
                 BookingType = bookingType,
                 SlotType = slotType,
                 HourlyDuration = bookingType == "Hourly" ? daysOrHours : null,
-                CheckInDate = DateTime.Today,
-                CheckOutDate = bookingType == "FullDay" ? DateTime.Today.AddDays(daysOrHours) : DateTime.Today,
+                CheckInDate = effectiveIn,
+                CheckOutDate = effectiveOut,
                 CalculatedAmount = calculatedAmount,
                 AvailableOccasions = await _propRepo.GetOccasionsAsync(),
                 AvailableEventPackages = activePackages,

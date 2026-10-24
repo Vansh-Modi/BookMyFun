@@ -251,6 +251,37 @@
         z-index: 2;
     }
 
+    /* Unavailable Property Card Styles (Dimmed, grey overlay, visible badge) */
+    .property-card-unavailable {
+        opacity: 0.72 !important;
+        position: relative;
+        filter: grayscale(15%);
+        border-color: #cbd5e1 !important;
+    }
+    .property-card-unavailable .property-card-img-wrap::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.28);
+        z-index: 2;
+        pointer-events: none;
+    }
+    .property-unavailable-badge {
+        position: absolute;
+        top: 48px;
+        left: 14px;
+        background: #dc2626;
+        color: #ffffff;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 0.3rem 0.75rem;
+        border-radius: 9999px;
+        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.45);
+        z-index: 3;
+    }
+
     /* Card Content Area */
     .luxe-card-body {
         padding: 1.5rem;
@@ -534,14 +565,26 @@
 
     <!-- Concierge Floating Search Bar: Generous padding, 1px solid #E2E8F0, soft ambient shadow -->
     <div class="luxe-search-card">
-        <form method="get" asp-action="Index" class="row g-3 align-items-end">
+        <form method="get" asp-action="Index" class="row g-2 g-md-3 align-items-end">
             <div class="col-lg-3 col-md-6">
                 <label class="luxe-field-label">
                     <i class="bi bi-geo-alt-fill text-danger"></i> Location / Keyword
                 </label>
                 <input type="text" name="location" value="@ViewBag.SelectedLocation" class="form-control luxe-control" placeholder="City, landmark, or region..." />
             </div>
-            <div class="col-lg-3 col-md-6">
+            <div class="col-lg-2 col-md-3 col-6">
+                <label class="luxe-field-label">
+                    <i class="bi bi-calendar-event text-primary"></i> Check-In
+                </label>
+                <input type="date" name="checkIn" value="@ViewBag.SelectedCheckIn" class="form-control luxe-control" />
+            </div>
+            <div class="col-lg-2 col-md-3 col-6">
+                <label class="luxe-field-label">
+                    <i class="bi bi-calendar-check text-primary"></i> Check-Out
+                </label>
+                <input type="date" name="checkOut" value="@ViewBag.SelectedCheckOut" class="form-control luxe-control" />
+            </div>
+            <div class="col-lg-2 col-md-4 col-6">
                 <label class="luxe-field-label">
                     <i class="bi bi-building" style="color: var(--brand-sky);"></i> Property Type
                 </label>
@@ -553,25 +596,13 @@
                     }
                 </select>
             </div>
-            <div class="col-lg-3 col-md-6">
-                <label class="luxe-field-label">
-                    <i class="bi bi-balloon-heart-fill" style="color: var(--brand-gold);"></i> Occasion
-                </label>
-                <select name="occasionId" class="form-select luxe-control">
-                    <option value="">Any Occasion</option>
-                    @foreach (var o in occasions)
-                    {
-                        <option value="@o.OccasionID" selected="@(ViewBag.SelectedOccasionId == o.OccasionID)">@o.OccasionName</option>
-                    }
-                </select>
-            </div>
-            <div class="col-lg-1 col-md-3 col-6">
+            <div class="col-lg-1 col-md-2 col-6">
                 <label class="luxe-field-label">
                     <i class="bi bi-people-fill" style="color: var(--brand-navy);"></i> Guests
                 </label>
                 <input type="number" name="guests" value="@ViewBag.SelectedGuests" class="form-control luxe-control" placeholder="1+" />
             </div>
-            <div class="col-lg-2 col-md-3 col-6">
+            <div class="col-lg-2 col-md-6 col-12">
                 <button type="submit" class="btn luxe-search-btn w-100">
                     <i class="bi bi-search"></i> Search
                 </button>
@@ -625,10 +656,16 @@
         }
         else
         {
+            var availMap = ViewBag.PropertyAvailability as Dictionary<int, BookMyFun.Services.AvailabilitySuggestionResult>;
+
             @foreach (var p in Model)
             {
+                BookMyFun.Services.AvailabilitySuggestionResult? pAvail = null;
+                availMap?.TryGetValue(p.PropertyID, out pAvail);
+                bool isUnavailable = pAvail != null && !pAvail.IsRequestedAvailable;
+
             <div class="col">
-                <div class="property-card h-100 position-relative" data-card-url="@Url.Action("Details", "Properties", new { id = p.PropertyID })">
+                <div class="property-card h-100 position-relative @(isUnavailable ? "property-card-unavailable" : "")" data-card-url="@Url.Action("Details", "Properties", new { id = p.PropertyID, checkIn = ViewBag.SelectedCheckIn, checkOut = ViewBag.SelectedCheckOut })">
                     <!-- Property Image with Type & Verified Badges -->
                     <div class="property-card-img-wrap">
                         <img src="@p.PrimaryImageUrl" alt="@p.Title" loading="lazy" decoding="async" onerror="this.src='/images/placeholder.jpg';" />
@@ -638,19 +675,43 @@
                             @(string.IsNullOrWhiteSpace(p.PropertyTypeName) ? "Cottage" : p.PropertyTypeName)
                         </span>
 
-                        <!-- 100% Verified Badge (top-right) -->
-                        <span class="property-badge-verified">
-                            <i class="bi bi-patch-check-fill text-success"></i> 100% Verified
-                        </span>
+                        @if (isUnavailable)
+                        {
+                            <!-- Unavailable Badge on dim overlay -->
+                            <span class="property-unavailable-badge">
+                                <i class="bi bi-calendar-x me-1"></i> Not available for these dates
+                            </span>
+                        }
+                        else
+                        {
+                            <!-- 100% Verified Badge (top-right) -->
+                            <span class="property-badge-verified">
+                                <i class="bi bi-patch-check-fill text-success"></i> 100% Verified
+                            </span>
+                        }
                     </div>
 
                     <!-- Card Body: Left Column (Name, Location, Guests) & Right Column (Amenities, Price) -->
                     <div class="property-card-body">
+                        @if (isUnavailable)
+                        {
+                            <div class="alert alert-warning py-1 px-2 mb-2 small rounded-3" style="font-size: 0.78rem;">
+                                <i class="bi bi-info-circle me-1"></i>
+                                @if (pAvail!.Suggestions.Any())
+                                {
+                                    <span><strong>Nearest available:</strong> @pAvail.Suggestions.First().FormattedRange</span>
+                                }
+                                else
+                                {
+                                    <span>No nearby dates available. Try a different range.</span>
+                                }
+                            </div>
+                        }
                         <div class="row g-2 align-items-start mb-3">
                             <!-- Left: Name, Location, Guests -->
                             <div class="col-7 pe-1">
                                 <h3 class="property-title text-truncate" title="@p.Title">
-                                    <a asp-action="Details" asp-route-id="@p.PropertyID" class="stretched-link text-decoration-none">
+                                    <a asp-action="Details" asp-route-id="@p.PropertyID" asp-route-checkIn="@ViewBag.SelectedCheckIn" asp-route-checkOut="@ViewBag.SelectedCheckOut" class="stretched-link text-decoration-none">
                                         @p.Title
                                     </a>
                                 </h3>

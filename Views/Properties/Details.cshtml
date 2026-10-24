@@ -22,7 +22,31 @@
         photoUrls.Add("/images/property-placeholder.jpg");
     }
     var videos = Model.MediaList?.Where(m => m.MediaType == "video").ToList() ?? new();
+
+    var avail = ViewBag.AvailabilityResult as BookMyFun.Services.AvailabilitySuggestionResult;
+    bool isUnavailable = avail != null && !avail.IsRequestedAvailable;
+    string selectedIn = ViewBag.SelectedCheckIn as string ?? DateTime.Today.ToString("yyyy-MM-dd");
+    string selectedOut = ViewBag.SelectedCheckOut as string ?? DateTime.Today.AddDays(1).ToString("yyyy-MM-dd");
 }
+
+<style>
+    .property-detail-unavailable {
+        border: 2px solid #ef4444 !important;
+        opacity: 0.88;
+    }
+    .property-detail-unavailable .card-body {
+        background: linear-gradient(180deg, rgba(254, 242, 242, 0.5) 0%, #ffffff 100%);
+    }
+    .suggestion-chip-btn {
+        transition: all 0.2s ease;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .suggestion-chip-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px rgba(11, 79, 108, 0.15);
+    }
+</style>
 
 <div class="container py-4">
     <!-- Breadcrumb -->
@@ -246,14 +270,75 @@
 
         <!-- Sticky Booking Widget -->
         <div class="col-lg-4">
-            <div class="card border-0 shadow-lg rounded-4 sticky-top" style="top: 5rem;">
+            <div class="card border-0 shadow-lg rounded-4 sticky-top @(isUnavailable ? "property-detail-unavailable" : "")" id="bookingWidgetCard" style="top: 5rem;">
                 <div class="card-body p-4">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div>
                             <span class="text-muted small">Starting from</span>
                             <h3 class="fw-bold text-success mb-0">₹@Model.PricePerNight.ToString("N0") <small class="text-muted fs-6">/ night</small></h3>
                         </div>
-                        <span class="badge bg-success p-2 px-3 rounded-pill">Available</span>
+                        <div id="availabilityBadgeContainer">
+                            @if (isUnavailable)
+                            {
+                                <span class="badge bg-danger p-2 px-3 rounded-pill" id="availBadge">
+                                    <i class="bi bi-calendar-x me-1"></i> Not available for these dates
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-success p-2 px-3 rounded-pill" id="availBadge">
+                                    <i class="bi bi-check-circle me-1"></i> Available
+                                </span>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Stay Dates Selector -->
+                    <div class="mb-3 p-3 bg-light rounded-3 border">
+                        <label class="form-label fw-bold small text-muted text-uppercase mb-2">
+                            <i class="bi bi-calendar-range text-primary me-1"></i> Your Stay Dates
+                        </label>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="small text-muted mb-1" for="widgetCheckIn">Check-In</label>
+                                <input type="date" id="widgetCheckIn" class="form-control form-control-sm" value="@selectedIn" min="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                            </div>
+                            <div class="col-6">
+                                <label class="small text-muted mb-1" for="widgetCheckOut">Check-Out</label>
+                                <input type="date" id="widgetCheckOut" class="form-control form-control-sm" value="@selectedOut" min="@DateTime.Today.AddDays(1).ToString("yyyy-MM-dd")" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Nearest Available Date Suggestions (Visible when unavailable) -->
+                    <div id="suggestionsSection" class="@(isUnavailable ? "" : "d-none") mb-3">
+                        <div class="alert alert-warning border-0 p-3 rounded-3 mb-0" id="suggestionAlert">
+                            <div class="fw-bold text-dark small mb-1" id="suggestionTitle">
+                                @if (avail != null && avail.Suggestions.Any())
+                                {
+                                    <i class="bi bi-calendar-event text-warning me-1"></i>
+                                    <span>Nearest available dates: @avail.Suggestions.First().FormattedRange (@avail.Nights @(avail.Nights == 1 ? "night" : "nights"))</span>
+                                }
+                                else if (isUnavailable)
+                                {
+                                    <span>No nearby dates available. Try a different range.</span>
+                                }
+                            </div>
+                            <div class="small text-muted mb-2" id="suggestionSubtext" style="@(avail?.Suggestions.Any() == true ? "" : "display:none;")">Tap a suggestion to fill these dates:</div>
+                            <div class="d-flex flex-wrap gap-2" id="suggestionChipsContainer">
+                                @if (avail != null && avail.Suggestions.Any())
+                                {
+                                    @foreach (var s in avail.Suggestions)
+                                    {
+                                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill suggestion-chip-btn"
+                                                data-in="@s.CheckInDate.ToString("yyyy-MM-dd")"
+                                                data-out="@s.CheckOutDate.ToString("yyyy-MM-dd")">
+                                            <i class="bi bi-calendar-check me-1"></i>@s.FormattedRange
+                                        </button>
+                                    }
+                                }
+                            </div>
+                        </div>
                     </div>
 
                     @if (Model.SecurityDepositAmount > 0)
@@ -269,7 +354,7 @@
                     </div>
 
                     <div class="d-grid gap-2">
-                        <a asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@Model.PropertyID" class="btn btn-warning btn-lg fw-bold py-3 shadow-sm rounded-pill">
+                        <a id="checkoutBtn" asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@Model.PropertyID" class="btn btn-warning btn-lg fw-bold py-3 shadow-sm rounded-pill">
                             <i class="bi bi-calendar-check me-1"></i> Book Flexible Stay Now
                         </a>
                     </div>
@@ -291,7 +376,7 @@
                     ₹@Model.PricePerNight.ToString("N0") <span class="text-muted fw-normal" style="font-size: 0.8rem;">/ night</span>
                 </div>
             </div>
-            <a asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@Model.PropertyID" class="btn btn-warning fw-bold px-4 py-2 rounded-pill shadow-sm flex-shrink-0">
+            <a id="mobileCheckoutBtn" asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@Model.PropertyID" class="btn btn-warning fw-bold px-4 py-2 rounded-pill shadow-sm flex-shrink-0">
                 <i class="bi bi-calendar-check me-1"></i> Book Stay Now
             </a>
         </div>
@@ -422,6 +507,108 @@
                 }
             }
         }, { passive: true });
+    })();
+
+    // Property Date Availability & Nearest Suggestions Engine (Item 7)
+    (function () {
+        const propId = @Model.PropertyID;
+        const checkInInput = document.getElementById('widgetCheckIn');
+        const checkOutInput = document.getElementById('widgetCheckOut');
+        const widgetCard = document.getElementById('bookingWidgetCard');
+        const badgeContainer = document.getElementById('availabilityBadgeContainer');
+        const suggestionsSection = document.getElementById('suggestionsSection');
+        const suggestionTitle = document.getElementById('suggestionTitle');
+        const suggestionSubtext = document.getElementById('suggestionSubtext');
+        const suggestionChipsContainer = document.getElementById('suggestionChipsContainer');
+        const checkoutBtn = document.getElementById('checkoutBtn');
+        const mobileCheckoutBtn = document.getElementById('mobileCheckoutBtn');
+
+        if (!checkInInput || !checkOutInput) return;
+
+        function updateCheckoutLinks(inVal, outVal) {
+            const baseUri = '/Booking/Checkout?propertyId=' + propId + '&checkIn=' + encodeURIComponent(inVal) + '&checkOut=' + encodeURIComponent(outVal);
+            if (checkoutBtn) checkoutBtn.href = baseUri;
+            if (mobileCheckoutBtn) mobileCheckoutBtn.href = baseUri;
+        }
+
+        function bindSuggestionChips() {
+            const chips = document.querySelectorAll('.suggestion-chip-btn');
+            chips.forEach(btn => {
+                btn.onclick = function () {
+                    const inDate = this.getAttribute('data-in');
+                    const outDate = this.getAttribute('data-out');
+                    if (inDate && outDate) {
+                        checkInInput.value = inDate;
+                        checkOutInput.value = outDate;
+                        updateCheckoutLinks(inDate, outDate);
+                        fetchAvailability(inDate, outDate);
+                    }
+                };
+            });
+        }
+
+        async function fetchAvailability(inDate, outDate) {
+            if (!inDate || !outDate || outDate <= inDate) return;
+
+            updateCheckoutLinks(inDate, outDate);
+
+            try {
+                const res = await fetch('/api/properties/' + propId + '/availability/suggestions?checkIn=' + encodeURIComponent(inDate) + '&checkOut=' + encodeURIComponent(outDate));
+                if (!res.ok) return;
+
+                const data = await res.json();
+                if (data.isRequestedAvailable) {
+                    if (widgetCard) widgetCard.classList.remove('property-detail-unavailable');
+                    if (badgeContainer) {
+                        badgeContainer.innerHTML = '<span class="badge bg-success p-2 px-3 rounded-pill" id="availBadge"><i class="bi bi-check-circle me-1"></i> Available</span>';
+                    }
+                    if (suggestionsSection) suggestionsSection.classList.add('d-none');
+                } else {
+                    if (widgetCard) widgetCard.classList.add('property-detail-unavailable');
+                    if (badgeContainer) {
+                        badgeContainer.innerHTML = '<span class="badge bg-danger p-2 px-3 rounded-pill" id="availBadge"><i class="bi bi-calendar-x me-1"></i> Not available for these dates</span>';
+                    }
+                    if (suggestionsSection) {
+                        suggestionsSection.classList.remove('d-none');
+                        if (data.suggestions && data.suggestions.length > 0) {
+                            suggestionTitle.innerHTML = '<i class="bi bi-calendar-event text-warning me-1"></i> Nearest available dates: ' + data.suggestions[0].formattedRange + ' (' + data.nights + (data.nights === 1 ? ' night)' : ' nights)');
+                            if (suggestionSubtext) suggestionSubtext.style.display = 'block';
+
+                            let chipsHtml = '';
+                            data.suggestions.forEach(s => {
+                                const inStr = s.checkInDate ? s.checkInDate.substring(0, 10) : '';
+                                const outStr = s.checkOutDate ? s.checkOutDate.substring(0, 10) : '';
+                                chipsHtml += '<button type="button" class="btn btn-sm btn-outline-primary rounded-pill suggestion-chip-btn" data-in="' + inStr + '" data-out="' + outStr + '"><i class="bi bi-calendar-check me-1"></i>' + s.formattedRange + '</button>';
+                            });
+                            suggestionChipsContainer.innerHTML = chipsHtml;
+                            bindSuggestionChips();
+                        } else {
+                            suggestionTitle.innerHTML = 'No nearby dates available. Try a different range.';
+                            if (suggestionSubtext) suggestionSubtext.style.display = 'none';
+                            suggestionChipsContainer.innerHTML = '';
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Availability check failed:', e);
+            }
+        }
+
+        checkInInput.addEventListener('change', () => {
+            if (checkOutInput.value <= checkInInput.value) {
+                const nextDay = new Date(checkInInput.value);
+                nextDay.setDate(nextDay.getDate() + 1);
+                checkOutInput.value = nextDay.toISOString().split('T')[0];
+            }
+            fetchAvailability(checkInInput.value, checkOutInput.value);
+        });
+
+        checkOutInput.addEventListener('change', () => {
+            fetchAvailability(checkInInput.value, checkOutInput.value);
+        });
+
+        bindSuggestionChips();
+        updateCheckoutLinks(checkInInput.value, checkOutInput.value);
     })();
 </script>
 }

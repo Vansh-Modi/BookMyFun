@@ -25,6 +25,7 @@ namespace BookMyFun.Repositories
         Task<List<CustomerReview>> GetReviewsByPropertyIdAsync(int propertyId);
         Task<int> AddReviewAsync(CustomerReview review);
         Task<bool> UpdateBookingEventCommissionAsync(int bookingId, decimal newEventCommissionRate);
+        Task<List<Booking>> GetBookingsByPropertyIdAsync(int propertyId) => Task.FromResult(new List<Booking>());
     }
 
     public class BookingRepository : IBookingRepository
@@ -119,6 +120,23 @@ namespace BookMyFun.Repositories
                 ORDER BY b.CreatedAt DESC";
 
             return await _db.ExecuteReaderListAsync(sql, MapBooking);
+        }
+
+        public async Task<List<Booking>> GetBookingsByPropertyIdAsync(int propertyId)
+        {
+            const string sql = @"
+                SELECT b.*, p.Title AS PropertyTitle, u.FullName AS ClientName, u.Email AS ClientEmail, u.Phone AS ClientPhone, o.OccasionName,
+                       ep.Name AS EventPackageName, dec.FullName AS DecoratorName
+                FROM Bookings b
+                JOIN Properties p ON b.PropertyID = p.PropertyID
+                JOIN Users u ON b.ClientID = u.UserID
+                LEFT JOIN Occasions o ON b.OccasionID = o.OccasionID
+                LEFT JOIN EventPackages ep ON b.EventPackageID = ep.PackageID
+                LEFT JOIN Users dec ON b.DecoratorAssignedID = dec.UserID
+                WHERE b.PropertyID = @PropertyID
+                ORDER BY b.CheckInDate ASC";
+
+            return await _db.ExecuteReaderListAsync(sql, MapBooking, new SqlParameter("@PropertyID", propertyId));
         }
 
         public async Task<int> CreateBookingAsync(Booking booking)
