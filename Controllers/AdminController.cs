@@ -2371,6 +2371,12 @@ namespace BookMyFun.Controllers
                 _ => "PrivacyPolicy"
             };
 
+            if (_legalService == null)
+            {
+                TempData["Error"] = "Legal document service is unavailable.";
+                return RedirectToAction(nameof(Index));
+            }
+
             var current = await _legalService.GetCurrentDocumentAsync(docType);
             var history = await _legalService.GetDocumentHistoryAsync(docType);
 
@@ -2404,7 +2410,13 @@ namespace BookMyFun.Controllers
             DateTime effectiveDate,
             bool isDraft)
         {
-            var previousDoc = _legalService != null ? await _legalService.GetCurrentDocumentAsync(documentType) : null;
+            if (_legalService == null)
+            {
+                TempData["Error"] = "Legal document service is unavailable.";
+                return RedirectToAction(nameof(LegalPages));
+            }
+
+            var previousDoc = await _legalService.GetCurrentDocumentAsync(documentType);
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
             var created = await _legalService.SaveNewVersionAsync(
@@ -2431,6 +2443,12 @@ namespace BookMyFun.Controllers
         [HttpGet]
         public async Task<IActionResult> ViewLegalVersion(int id)
         {
+            if (_legalService == null)
+            {
+                TempData["Error"] = "Legal document service is unavailable.";
+                return RedirectToAction(nameof(LegalPages));
+            }
+
             var doc = await _legalService.GetDocumentByIdAsync(id);
             if (doc == null)
             {

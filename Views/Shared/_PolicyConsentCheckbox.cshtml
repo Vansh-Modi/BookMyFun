@@ -1,8 +1,10 @@
 @inject BookMyFun.Services.ILegalDocumentService LegalService
-@model string?
+@model object?
 @{
-    bool privacyOnly = string.Equals(Model, "PrivacyOnly", StringComparison.OrdinalIgnoreCase) || 
-                       (ViewBag.PrivacyOnly as bool? == true);
+    var mode = Model as string ?? ViewData["Mode"] as string;
+    bool privacyOnly = string.Equals(mode, "PrivacyOnly", StringComparison.OrdinalIgnoreCase) || 
+                       (ViewBag.PrivacyOnly as bool? == true) ||
+                       (ViewData["PrivacyOnly"] as bool? == true);
 
     bool isPublished = privacyOnly 
         ? await LegalService.HasContentAsync("PrivacyPolicy")

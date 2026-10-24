@@ -39,7 +39,7 @@
         <input type="hidden" name="dir" value="@dir" />
 
         <div class="btn-group rounded-pill p-1 bg-white shadow-sm flex-wrap" role="group">
-            <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="All" asp-route-search="@search" class="btn btn-sm rounded-pill px-3 fw-semibold @(selectedStatus == "All" ? "btn-dark" : "btn-light text-muted border-0")">All (@(selectedStatus == "All" ? totalCount : Model.Count()))</a>
+            <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="All" asp-route-search="@search" class="btn btn-sm rounded-pill px-3 fw-semibold @(selectedStatus == "All" ? "btn-dark" : "btn-light text-muted border-0")">All (@(selectedStatus == "All" ? totalCount : (Model?.Count() ?? 0)))</a>
             <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="Confirmed" asp-route-search="@search" class="btn btn-sm rounded-pill px-3 fw-semibold @(selectedStatus == "Confirmed" ? "btn-success" : "btn-light text-muted border-0")">Confirmed</a>
             <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="Pending" asp-route-search="@search" class="btn btn-sm rounded-pill px-3 fw-semibold @(selectedStatus == "Pending" ? "btn-warning text-dark" : "btn-light text-muted border-0")">Pending</a>
             <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="Cancelled" asp-route-search="@search" class="btn btn-sm rounded-pill px-3 fw-semibold @(selectedStatus == "Cancelled" ? "btn-danger" : "btn-light text-muted border-0")">Cancelled</a>
@@ -94,7 +94,7 @@
                 </tr>
             </thead>
             <tbody>
-                @if (!Model.Any())
+                @if (Model == null || !Model.Any())
                 {
                     <tr>
                         <td colspan="7" class="text-center py-5">
@@ -113,8 +113,10 @@
                         </td>
                     </tr>
                 }
-                @foreach (var b in Model)
+                @if (Model != null)
                 {
+                    @foreach (var b in Model)
+                    {
                     var statusBadgeClass = b.Status switch
                     {
                         "Confirmed" => "bg-success-subtle text-success border border-success-subtle",
@@ -202,6 +204,7 @@
                             </div>
                         </td>
                     </tr>
+                }
                 }
             </tbody>
         </table>
