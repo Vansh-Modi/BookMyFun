@@ -83,6 +83,9 @@ namespace BookMyFun.Services
     {
         private readonly IConfigRepository _configRepo;
         private readonly DBHelper? _db;
+        private readonly IBookingRepository? _bookingRepo;
+        private readonly IPropertyRepository? _propRepo;
+
         private static SiteSettingsModel? _cachedSettings;
         private static DateTime _cacheExpiry = DateTime.MinValue;
 
@@ -99,10 +102,16 @@ namespace BookMyFun.Services
             new PopularStayItem { PropertyID = 0, Title = "Karjat Riverfront Stays", Location = "Karjat" }
         };
 
-        public SiteSettingsService(IConfigRepository configRepo, DBHelper? db = null)
+        public SiteSettingsService(
+            IConfigRepository configRepo, 
+            DBHelper? db = null,
+            IBookingRepository? bookingRepo = null,
+            IPropertyRepository? propRepo = null)
         {
             _configRepo = configRepo;
             _db = db;
+            _bookingRepo = bookingRepo;
+            _propRepo = propRepo;
         }
 
         public async Task<SiteSettingsModel> GetSettingsAsync()
@@ -252,13 +261,18 @@ namespace BookMyFun.Services
             }
         }
 
-        public void InvalidatePopularStaysCache()
+        public static void InvalidatePopularStaysCacheStatic()
         {
             lock (_lock)
             {
                 _cachedPopularStays = null;
                 _popularStaysCacheExpiry = DateTime.MinValue;
             }
+        }
+
+        public void InvalidatePopularStaysCache()
+        {
+            InvalidatePopularStaysCacheStatic();
         }
 
         public async Task<List<PopularStayItem>> GetPopularStaysFallbackAsync()
@@ -316,6 +330,8 @@ namespace BookMyFun.Services
             var result = new List<PopularStayItem>();
 
             // 1. Fetch top properties by confirmed/completed bookings in last 30 days
+            var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
+
             if (_db != null)
             {
                 try
@@ -345,6 +361,45 @@ namespace BookMyFun.Services
                 catch
                 {
                     // Fall back gracefully if DB fails or table unavailable
+                }
+            }
+
+            // In-memory / Repository fallback if DB didn't return results and repositories are supplied
+            if (result.Count == 0 && _bookingRepo != null && _propRepo != null)
+            {
+                try
+                {
+                    var allBookings = await _bookingRepo.GetAllBookingsAsync();
+                    var allProps = await _propRepo.GetAllPropertiesAsync();
+
+                    var topGroups = allBookings
+                        .Where(b => (string.Equals(b.Status, "Confirmed", StringComparison.OrdinalIgnoreCase) ||
+                                     string.Equals(b.Status, "Completed", StringComparison.OrdinalIgnoreCase)) &&
+                                    b.CreatedAt >= thirtyDaysAgo)
+                        .GroupBy(b => b.PropertyID)
+                        .Select(g => new { PropertyID = g.Key, Count = g.Count() })
+                        .OrderByDescending(x => x.Count)
+                        .Take(5)
+                        .ToList();
+
+                    foreach (var tg in topGroups)
+                    {
+                        var prop = allProps.FirstOrDefault(p => p.PropertyID == tg.PropertyID)
+                                   ?? await _propRepo.GetByIdAsync(tg.PropertyID);
+                        if (prop != null)
+                        {
+                            result.Add(new PopularStayItem
+                            {
+                                PropertyID = prop.PropertyID,
+                                Title = prop.Title,
+                                Location = prop.Location
+                            });
+                        }
+                    }
+                }
+                catch
+                {
+                    // Fall back gracefully
                 }
             }
 

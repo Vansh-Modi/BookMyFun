@@ -270,6 +270,9 @@ namespace BookMyFun.Controllers
 
                 await _bookingRepo.UpdateBookingStatusAsync(booking.BookingID, "Confirmed");
 
+                // Invalidate popular stays 15-minute cache immediately upon confirmed booking (Item 9b)
+                SiteSettingsService.InvalidatePopularStaysCacheStatic();
+
                 // Dispatch multi-stakeholder alerts
                 if (_userRepo != null && _propRepo != null)
                 {

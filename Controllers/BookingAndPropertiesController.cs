@@ -705,6 +705,9 @@ namespace BookMyFun.Controllers
                     await _bookingRepo.UpdateBookingStatusAsync(booking.BookingID, "Confirmed");
                     booking.Status = "Confirmed";
 
+                    // Invalidate popular stays 15-minute cache immediately upon confirmed booking (Item 9b)
+                    SiteSettingsService.InvalidatePopularStaysCacheStatic();
+
                     var property = await _propRepo.GetByIdAsync(booking.PropertyID);
                     var client = await _userRepo.GetByIdAsync(booking.ClientID);
                     var owner = property != null ? await _userRepo.GetByIdAsync(property.OwnerID) : null;
