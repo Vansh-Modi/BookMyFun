@@ -872,6 +872,20 @@ namespace BookMyFun.Repositories
 
             try
             {
+                int minStayOrd = reader.GetOrdinal("MinStayNights");
+                if (!reader.IsDBNull(minStayOrd)) p.MinStayNights = reader.GetInt32(minStayOrd);
+            }
+            catch { p.MinStayNights = 1; }
+
+            try
+            {
+                int maxStayOrd = reader.GetOrdinal("MaxStayNights");
+                if (!reader.IsDBNull(maxStayOrd)) p.MaxStayNights = reader.GetInt32(maxStayOrd);
+            }
+            catch { p.MaxStayNights = 30; }
+
+            try
+            {
                 p.PropertyTypeName = reader.GetString(reader.GetOrdinal("PropertyTypeName"));
             }
             catch { }

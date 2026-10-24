@@ -302,6 +302,16 @@ BEGIN
         ALTER TABLE Properties ADD MapUrl NVARCHAR(1000) NULL;
     END
 
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Properties') AND name = 'MinStayNights')
+    BEGIN
+        ALTER TABLE Properties ADD MinStayNights INT NOT NULL DEFAULT 1;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Properties') AND name = 'MaxStayNights')
+    BEGIN
+        ALTER TABLE Properties ADD MaxStayNights INT NOT NULL DEFAULT 30;
+    END
+
     -- Ensure ListingStatus CHECK constraint supports Deactivated and Rejected
     DECLARE @ListingStatusConstraint NVARCHAR(200);
     SELECT @ListingStatusConstraint = cc.name 

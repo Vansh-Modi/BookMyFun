@@ -98,6 +98,8 @@ namespace BookMyFun.Models.Entities
         public string CancellationFeeType { get; set; } = "percentage"; // 'percentage', 'fixed'
         public decimal CancellationFeeValue { get; set; } = 10.00m;
         public int MaxGuests { get; set; }
+        public int MinStayNights { get; set; } = 1;
+        public int MaxStayNights { get; set; } = 30;
         public string ListingStatus { get; set; } = "Draft"; // 'Draft', 'PendingPayment', 'Active', 'Expired'
         public bool IsApproved { get; set; }
         public bool IsFeatured { get; set; }

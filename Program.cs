@@ -64,6 +64,7 @@ builder.Services.AddScoped<IDamageClaimService, DamageClaimService>();
 builder.Services.AddScoped<IIdVerificationService, IdVerificationService>();
 builder.Services.AddScoped<ILegalDocumentService, LegalDocumentService>();
 builder.Services.AddScoped<IAvailabilitySuggestionService, AvailabilitySuggestionService>();
+builder.Services.AddScoped<ICalendarRangeService, CalendarRangeService>();
 builder.Services.AddMemoryCache();
 
 builder.Services.AddAntiforgery(options =>

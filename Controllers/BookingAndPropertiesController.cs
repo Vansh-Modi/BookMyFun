@@ -16,6 +16,7 @@ namespace BookMyFun.Controllers
         private readonly IPropertyRepository _propRepo;
         private readonly IBookingRepository _bookingRepo;
         private readonly IAvailabilitySuggestionService _availabilityService;
+        private readonly ICalendarRangeService _calendarRangeService;
 
         private static readonly ConcurrentDictionary<string, (int Count, DateTime WindowStart)> _rateLimits = new();
 
@@ -24,11 +25,13 @@ namespace BookMyFun.Controllers
         public PropertiesController(
             IPropertyRepository propRepo, 
             IBookingRepository bookingRepo,
-            IAvailabilitySuggestionService? availabilityService = null)
+            IAvailabilitySuggestionService? availabilityService = null,
+            ICalendarRangeService? calendarRangeService = null)
         {
             _propRepo = propRepo;
             _bookingRepo = bookingRepo;
             _availabilityService = availabilityService ?? new AvailabilitySuggestionService(bookingRepo);
+            _calendarRangeService = calendarRangeService ?? new CalendarRangeService(bookingRepo);
         }
 
         public async Task<IActionResult> Index(
@@ -153,6 +156,14 @@ namespace BookMyFun.Controllers
 
             return Ok(suggestions);
         }
+
+        [HttpGet("/api/properties/{id}/booked-dates")]
+        public async Task<IActionResult> GetBookedDates(int id)
+        {
+            if (id <= 0) return BadRequest(new { error = "Invalid property ID." });
+            var blocked = await _calendarRangeService.GetBlockedDatesForPropertyAsync(id);
+            return Ok(blocked);
+        }
     }
 
     public class BookingController : Controller
@@ -173,6 +184,7 @@ namespace BookMyFun.Controllers
         private readonly IConfigRepository? _configRepo;
         private readonly ILogger<BookingController>? _logger;
         private readonly ILegalDocumentService? _legalService;
+        private readonly ICalendarRangeService _calendarRangeService;
 
         public BookingController(
             IPropertyRepository propRepo,
@@ -190,7 +202,8 @@ namespace BookMyFun.Controllers
             IMediaStorageService mediaStorage,
             IConfigRepository? configRepo = null,
             ILogger<BookingController>? logger = null,
-            ILegalDocumentService? legalService = null)
+            ILegalDocumentService? legalService = null,
+            ICalendarRangeService? calendarRangeService = null)
         {
             _propRepo = propRepo;
             _bookingRepo = bookingRepo;
@@ -208,6 +221,7 @@ namespace BookMyFun.Controllers
             _configRepo = configRepo;
             _logger = logger;
             _legalService = legalService;
+            _calendarRangeService = calendarRangeService ?? new CalendarRangeService(bookingRepo);
         }
 
         [Authorize]
@@ -271,7 +285,10 @@ namespace BookMyFun.Controllers
                 AvailableOccasions = await _propRepo.GetOccasionsAsync(),
                 AvailableEventPackages = activePackages,
                 IsEventServiceAvailable = isServiced,
-                IsClientAlreadyVerified = isVerified
+                IsClientAlreadyVerified = isVerified,
+                MinStayNights = property.MinStayNights,
+                MaxStayNights = property.MaxStayNights,
+                BlockedDates = await _calendarRangeService.GetBlockedDatesForPropertyAsync(property.PropertyID)
             };
 
             return View(vm);
@@ -287,6 +304,9 @@ namespace BookMyFun.Controllers
             model.AvailableOccasions = await _propRepo.GetOccasionsAsync();
             model.IsEventServiceAvailable = isServiced;
             model.AvailableEventPackages = isServiced ? await _eventPackageRepo.GetActivePackagesAsync() : new List<EventPackage>();
+            model.MinStayNights = property.MinStayNights;
+            model.MaxStayNights = property.MaxStayNights;
+            model.BlockedDates = await _calendarRangeService.GetBlockedDatesForPropertyAsync(property.PropertyID);
 
             var clientIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (int.TryParse(clientIdStr, out int clientId))
@@ -355,15 +375,36 @@ namespace BookMyFun.Controllers
                     model.CustomEventNotes = null;
                 }
 
-                // Server-side availability check before proceeding
+                // Server-side availability and stay limits check before proceeding (Item 8)
                 if (ModelState.IsValid)
                 {
-                    bool isAvailable = await _bookingRepo.IsSlotAvailableAsync(model.PropertyID, model.CheckInDate, model.CheckOutDate, model.BookingType, model.SlotType);
-                    if (!isAvailable)
+                    var blocked = await _calendarRangeService.GetBlockedDatesForPropertyAsync(property.PropertyID);
+                    var rangeVal = _calendarRangeService.ValidateAndCalculate(
+                        model.CheckInDate,
+                        model.CheckOutDate,
+                        property.MinStayNights,
+                        property.MaxStayNights,
+                        property.PricePerNight,
+                        model.BookingType,
+                        model.SlotType,
+                        model.HourlyDuration,
+                        0,
+                        blocked);
+
+                    if (!rangeVal.IsValid && !string.IsNullOrEmpty(rangeVal.ErrorMessage))
                     {
-                        const string unavailableMsg = "These dates are no longer available. Please choose different dates.";
-                        ModelState.AddModelError("", unavailableMsg);
-                        TempData["Error"] = unavailableMsg;
+                        ModelState.AddModelError("", rangeVal.ErrorMessage);
+                        TempData["Error"] = rangeVal.ErrorMessage;
+                    }
+                    else
+                    {
+                        bool isAvailable = await _bookingRepo.IsSlotAvailableAsync(model.PropertyID, model.CheckInDate, model.CheckOutDate, model.BookingType, model.SlotType);
+                        if (!isAvailable)
+                        {
+                            const string unavailableMsg = "These dates are no longer available. Please choose different dates.";
+                            ModelState.AddModelError("", unavailableMsg);
+                            TempData["Error"] = unavailableMsg;
+                        }
                     }
                 }
 

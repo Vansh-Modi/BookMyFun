@@ -169,6 +169,11 @@ namespace BookMyFun.Models.ViewModels
         public TimeSpan CheckInTime { get; set; } = new TimeSpan(11, 0, 0); // Default 11:00 AM
         public TimeSpan CheckOutTime { get; set; } = new TimeSpan(10, 0, 0); // Default 10:00 AM next day
 
+        // Property Stay Limits & Availability (Item 8)
+        public int MinStayNights { get; set; } = 1;
+        public int MaxStayNights { get; set; } = 30;
+        public List<string> BlockedDates { get; set; } = new();
+
         public int? OccasionID { get; set; }
         public decimal CalculatedAmount { get; set; }
 

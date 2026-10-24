@@ -3,6 +3,141 @@
     ViewData["Title"] = "Flexible Booking & Checkout";
 }
 
+<style>
+    .single-cal-card {
+        border: 1px solid var(--border-subtle, #e2e8f0);
+        border-radius: 16px;
+        background: #ffffff;
+        padding: 1.25rem;
+        user-select: none;
+        transition: border-color 0.2s ease;
+    }
+    .single-cal-card:focus-within {
+        border-color: #0B4F6C;
+        box-shadow: 0 0 0 3px rgba(11, 79, 108, 0.1);
+    }
+    .cal-months-wrap {
+        display: flex;
+        gap: 1.5rem;
+    }
+    .cal-month-box {
+        flex: 1;
+        min-width: 0;
+    }
+    .cal-month-title {
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #0B4F6C;
+        text-align: center;
+        margin-bottom: 0.75rem;
+    }
+    .cal-weekdays {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        text-align: center;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: #64748b;
+        margin-bottom: 0.35rem;
+        text-transform: uppercase;
+    }
+    .cal-days-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 3px;
+    }
+    .cal-day-cell {
+        aspect-ratio: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.82rem;
+        font-weight: 600;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        position: relative;
+        color: #1e293b;
+        border: 1px solid transparent;
+    }
+    .cal-day-cell:hover:not(.cal-disabled):not(.cal-range-start):not(.cal-range-end) {
+        background: #e0f2fe;
+        color: #0369a1;
+    }
+    .cal-day-cell.cal-disabled-past {
+        opacity: 0.28;
+        cursor: not-allowed;
+        pointer-events: none;
+        color: #94a3b8;
+    }
+    .cal-day-cell.cal-disabled-blocked {
+        opacity: 0.45;
+        background: #f1f5f9;
+        color: #94a3b8;
+        text-decoration: line-through;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+    .cal-day-cell.cal-range-start {
+        background: #0B4F6C !important;
+        color: #ffffff !important;
+        font-weight: 700;
+        border-radius: 6px 0 0 6px !important;
+    }
+    .cal-day-cell.cal-range-end {
+        background: #0B4F6C !important;
+        color: #ffffff !important;
+        font-weight: 700;
+        border-radius: 0 6px 6px 0 !important;
+    }
+    .cal-day-cell.cal-range-start.cal-range-end {
+        border-radius: 6px !important;
+    }
+    .cal-day-cell.cal-range-mid {
+        background: rgba(1, 186, 239, 0.22) !important;
+        color: #075985 !important;
+        border-radius: 0 !important;
+    }
+    .cal-day-cell.cal-range-hover {
+        background: rgba(1, 186, 239, 0.14);
+        border-radius: 0;
+    }
+    .cal-day-cell.cal-focused {
+        outline: 2px solid #0284c7;
+        outline-offset: 1px;
+    }
+    .cal-day-cell.cal-today::after {
+        content: "";
+        position: absolute;
+        bottom: 2px;
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: #2E933C;
+    }
+    .cal-legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        display: inline-block;
+        margin-right: 4px;
+        vertical-align: middle;
+    }
+    .cal-legend-dot.avail { border: 1px solid #cbd5e1; background: #fff; }
+    .cal-legend-dot.selected { background: #0B4F6C; }
+    .cal-legend-dot.blocked { background: #cbd5e1; text-decoration: line-through; }
+    .cal-legend-dot.past { background: #e2e8f0; opacity: 0.5; }
+
+    @@media (max-width: 767.98px) {
+        .cal-months-wrap {
+            flex-direction: column;
+        }
+        .desktop-second-month {
+            display: none !important;
+        }
+    }
+</style>
+
 <div class="row justify-content-center">
     <div class="col-md-8">
         <div class="card shadow-sm border-0">
@@ -90,14 +225,110 @@
                         </select>
                     </div>
 
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">Check-In Date</label>
-                            <input asp-for="CheckInDate" type="date" class="form-control" id="checkIn" onchange="updatePricing()" required />
+                    <!-- Single-Calendar Date Range Picker (Item 8) -->
+                    <div class="mb-4" id="calendarSection">
+                        <label class="form-label fw-bold d-flex justify-content-between align-items-center mb-2">
+                            <span><i class="bi bi-calendar3 text-primary me-1"></i> 2. Stay Date Range</span>
+                            <span class="badge bg-light text-dark border fw-normal" id="stayRulesBadge">
+                                Min: @Model.MinStayNights @(Model.MinStayNights == 1 ? "night" : "nights") · Max: @Model.MaxStayNights nights
+                            </span>
+                        </label>
+
+                        <!-- Hidden fields submitting with form -->
+                        <input asp-for="CheckInDate" type="hidden" id="checkIn" value="@Model.CheckInDate.ToString("yyyy-MM-dd")" required />
+                        <input asp-for="CheckOutDate" type="hidden" id="checkOut" value="@Model.CheckOutDate.ToString("yyyy-MM-dd")" required />
+
+                        <!-- Interactive Range Picker Container -->
+                        <div class="single-cal-card" id="calendarPickerRoot"
+                             tabindex="0"
+                             role="region"
+                             aria-label="Date range calendar"
+                             data-min-stay="@Model.MinStayNights"
+                             data-max-stay="@Model.MaxStayNights"
+                             data-base-price="@Model.PricePerNight"
+                             data-blocked='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.BlockedDates ?? new List<string>()))'>
+
+                            <!-- Navigation Header -->
+                            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" id="calPrevMonthBtn" aria-label="Previous month" style="width: 32px; height: 32px; padding: 0;">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                                <div class="text-center">
+                                    <span class="fw-bold text-dark" id="calSelectedDatesSummary">@Model.CheckInDate.ToString("dd MMM yyyy") &ndash; @Model.CheckOutDate.ToString("dd MMM yyyy")</span>
+                                    <span class="badge bg-primary ms-2" id="calNightsCountBadge">@(Math.Max(1, (Model.CheckOutDate - Model.CheckInDate).Days)) @((Model.CheckOutDate - Model.CheckInDate).Days == 1 ? "night" : "nights")</span>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" id="calNextMonthBtn" aria-label="Next month" style="width: 32px; height: 32px; padding: 0;">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </div>
+
+                            <!-- Validation Warning Alert -->
+                            <div class="alert alert-warning py-2 px-3 small rounded-3 d-none mb-3" id="calWarningBox">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i> <span id="calWarningText"></span>
+                            </div>
+
+                            <!-- Months Grid (Desktop: 2 months side-by-side; Mobile: 1 month) -->
+                            <div class="cal-months-wrap" id="calMonthsWrap">
+                                <!-- Rendered dynamically by JS -->
+                            </div>
+
+                            <!-- Live Price Summary Below Calendar (Item 8) -->
+                            <div class="mt-3 p-3 bg-light rounded-3 border d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="text-muted small">Selected Duration:</div>
+                                    <strong class="text-dark" id="calLiveDurationText">@(Math.Max(1, (Model.CheckOutDate - Model.CheckInDate).Days)) nights</strong>
+                                </div>
+                                <div class="text-end">
+                                    <div class="text-muted small">Estimated Stay Total:</div>
+                                    <h4 class="mb-0 text-success fw-bold" id="calLivePriceText">₹@Model.CalculatedAmount.ToString("N2")</h4>
+                                </div>
+                            </div>
+
+                            <!-- Legend and Clear Control -->
+                            <div class="calendar-legend d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3 pt-2 border-top small text-muted">
+                                <div class="d-flex flex-wrap gap-3">
+                                    <span><span class="cal-legend-dot avail"></span> Available</span>
+                                    <span><span class="cal-legend-dot selected"></span> Selected</span>
+                                    <span><span class="cal-legend-dot blocked"></span> <del>Unavailable</del></span>
+                                    <span><span class="cal-legend-dot past"></span> Past</span>
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-link btn-sm text-decoration-none p-0 text-secondary" id="calClearInlineBtn">
+                                        <i class="bi bi-arrow-counterclockwise"></i> Reset Selection
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">Check-Out Date</label>
-                            <input asp-for="CheckOutDate" type="date" class="form-control" id="checkOut" onchange="updatePricing()" required />
+
+                        <!-- Mobile Sheet Trigger (Visible < 768px) -->
+                        <div class="d-md-none mt-2">
+                            <button type="button" class="btn btn-outline-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#mobileCalendarModal">
+                                <i class="bi bi-arrows-fullscreen me-1"></i> Open Full-Screen Calendar Sheet
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Mobile Full-screen Calendar Sheet / Modal (Item 8) -->
+                    <div class="modal fade" id="mobileCalendarModal" tabindex="-1" aria-labelledby="mobileCalendarModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-fullscreen">
+                            <div class="modal-content">
+                                <div class="modal-header border-bottom">
+                                    <h5 class="modal-title fw-bold" id="mobileCalendarModalLabel"><i class="bi bi-calendar-range text-primary me-2"></i>Select Stay Dates</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body p-3">
+                                    <div class="p-2 mb-3 bg-light rounded text-center small text-muted">
+                                        Tap a check-in date, then tap a check-out date.
+                                    </div>
+                                    <div id="mobileCalendarMount">
+                                        <!-- Mobile month mounted here -->
+                                    </div>
+                                </div>
+                                <div class="modal-footer border-top d-flex justify-content-between">
+                                    <button type="button" class="btn btn-outline-secondary px-4" id="modalClearBtn">Clear</button>
+                                    <button type="button" class="btn btn-warning fw-bold px-4" id="modalApplyBtn" data-bs-dismiss="modal">Apply Dates</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -239,19 +470,387 @@
 
 @section Scripts {
 <script>
+    (function () {
+        const root = document.getElementById('calendarPickerRoot');
+        if (!root) return;
+
+        const minStay = parseInt(root.getAttribute('data-min-stay')) || 1;
+        const maxStay = parseInt(root.getAttribute('data-max-stay')) || 30;
+        const baseRate = parseFloat(root.getAttribute('data-base-price')) || 0;
+        let blockedDates = [];
+        try {
+            blockedDates = JSON.parse(root.getAttribute('data-blocked') || '[]');
+        } catch (e) {
+            blockedDates = [];
+        }
+        const blockedSet = new Set(blockedDates);
+
+        const checkInInput = document.getElementById('checkIn');
+        const checkOutInput = document.getElementById('checkOut');
+        const monthsWrap = document.getElementById('calMonthsWrap');
+        const prevBtn = document.getElementById('calPrevMonthBtn');
+        const nextBtn = document.getElementById('calNextMonthBtn');
+        const summaryText = document.getElementById('calSelectedDatesSummary');
+        const nightsBadge = document.getElementById('calNightsCountBadge');
+        const liveDurationText = document.getElementById('calLiveDurationText');
+        const livePriceText = document.getElementById('calLivePriceText');
+        const warningBox = document.getElementById('calWarningBox');
+        const warningText = document.getElementById('calWarningText');
+        const clearBtn = document.getElementById('calClearInlineBtn');
+        const mobileMount = document.getElementById('mobileCalendarMount');
+        const modalClearBtn = document.getElementById('modalClearBtn');
+
+        let startDate = checkInInput.value ? parseIsoDate(checkInInput.value) : new Date();
+        let endDate = checkOutInput.value ? parseIsoDate(checkOutInput.value) : addDays(new Date(), Math.max(1, minStay));
+        let hoverDate = null;
+        let viewMonth = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+        let keyboardFocusedDate = new Date(startDate);
+
+        function parseIsoDate(str) {
+            const parts = str.split('-');
+            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        }
+
+        function formatIso(d) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
+        function formatDisplay(d) {
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${String(d.getDate()).padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
+        }
+
+        function addDays(d, n) {
+            const res = new Date(d);
+            res.setDate(res.getDate() + n);
+            return res;
+        }
+
+        function diffDays(d1, d2) {
+            const ms = Math.abs(d2.setHours(0,0,0,0) - d1.setHours(0,0,0,0));
+            return Math.round(ms / (1000 * 60 * 60 * 24));
+        }
+
+        function isSameDay(d1, d2) {
+            if (!d1 || !d2) return false;
+            return d1.getFullYear() === d2.getFullYear() &&
+                   d1.getMonth() === d2.getMonth() &&
+                   d1.getDate() === d2.getDate();
+        }
+
+        function showWarning(msg) {
+            if (!warningBox || !warningText) return;
+            warningText.innerText = msg;
+            warningBox.classList.remove('d-none');
+            setTimeout(() => {
+                warningBox.classList.add('d-none');
+            }, 4500);
+        }
+
+        function clearWarning() {
+            if (warningBox) warningBox.classList.add('d-none');
+        }
+
+        function renderCalendar() {
+            monthsWrap.innerHTML = '';
+
+            const isMobile = window.innerWidth < 768;
+            const monthsToRender = isMobile ? 1 : 2;
+
+            for (let i = 0; i < monthsToRender; i++) {
+                const mDate = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + i, 1);
+                const monthBox = createMonthElement(mDate, i > 0);
+                monthsWrap.appendChild(monthBox);
+            }
+
+            if (mobileMount) {
+                mobileMount.innerHTML = '';
+                const mobileMonth = createMonthElement(viewMonth, false);
+                mobileMount.appendChild(mobileMonth);
+            }
+
+            updateSummaryAndPricing();
+        }
+
+        function createMonthElement(targetMonth, isSecondMonth) {
+            const box = document.createElement('div');
+            box.className = 'cal-month-box' + (isSecondMonth ? ' desktop-second-month' : '');
+
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const title = document.createElement('div');
+            title.className = 'cal-month-title';
+            title.innerText = `${monthNames[targetMonth.getMonth()]} ${targetMonth.getFullYear()}`;
+            box.appendChild(title);
+
+            const weekdays = document.createElement('div');
+            weekdays.className = 'cal-weekdays';
+            ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].forEach(w => {
+                const sp = document.createElement('span');
+                sp.innerText = w;
+                weekdays.appendChild(sp);
+            });
+            box.appendChild(weekdays);
+
+            const grid = document.createElement('div');
+            grid.className = 'cal-days-grid';
+
+            const firstDayIndex = targetMonth.getDay();
+            const daysInMonth = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0).getDate();
+
+            // Leading empty slots
+            for (let e = 0; e < firstDayIndex; e++) {
+                const empty = document.createElement('div');
+                empty.className = 'cal-day-cell cal-disabled';
+                empty.style.visibility = 'hidden';
+                grid.appendChild(empty);
+            }
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const cellDate = new Date(targetMonth.getFullYear(), targetMonth.getMonth(), day);
+                cellDate.setHours(0, 0, 0, 0);
+
+                const cell = document.createElement('div');
+                cell.className = 'cal-day-cell';
+                cell.innerText = day;
+                cell.setAttribute('data-date', formatIso(cellDate));
+                cell.setAttribute('tabindex', '-1');
+
+                const iso = formatIso(cellDate);
+
+                if (isSameDay(cellDate, today)) {
+                    cell.classList.add('cal-today');
+                }
+
+                if (cellDate < today) {
+                    cell.classList.add('cal-disabled-past', 'cal-disabled');
+                } else if (blockedSet.has(iso)) {
+                    cell.classList.add('cal-disabled-blocked', 'cal-disabled');
+                    cell.setAttribute('title', 'Unavailable / Booked');
+                } else {
+                    cell.classList.add('cal-available');
+                    cell.addEventListener('click', () => handleDateClick(cellDate));
+                    cell.addEventListener('mouseenter', () => handleDateHover(cellDate));
+                }
+
+                // Selected range classes
+                if (startDate && isSameDay(cellDate, startDate)) {
+                    cell.classList.add('cal-range-start');
+                }
+                if (endDate && isSameDay(cellDate, endDate)) {
+                    cell.classList.add('cal-range-end');
+                }
+                if (startDate && endDate && cellDate > startDate && cellDate < endDate) {
+                    cell.classList.add('cal-range-mid');
+                } else if (startDate && !endDate && hoverDate && cellDate > startDate && cellDate <= hoverDate) {
+                    cell.classList.add('cal-range-hover');
+                }
+
+                if (isSameDay(cellDate, keyboardFocusedDate)) {
+                    cell.classList.add('cal-focused');
+                }
+
+                grid.appendChild(cell);
+            }
+
+            box.appendChild(grid);
+            return box;
+        }
+
+        function handleDateClick(clickedDate) {
+            clearWarning();
+
+            if (!startDate || (startDate && endDate)) {
+                // First click: select start date
+                startDate = new Date(clickedDate);
+                endDate = null;
+                hoverDate = null;
+                keyboardFocusedDate = new Date(clickedDate);
+                renderCalendar();
+            } else if (startDate && !endDate) {
+                // Second click: select end date
+                if (clickedDate <= startDate) {
+                    // Clicked earlier or same date: restart with new start date
+                    startDate = new Date(clickedDate);
+                    endDate = null;
+                    keyboardFocusedDate = new Date(clickedDate);
+                    renderCalendar();
+                    return;
+                }
+
+                // Check for blocked dates inside candidate range
+                let hasBlocked = false;
+                for (let d = addDays(startDate, 0); d <= clickedDate; d = addDays(d, 1)) {
+                    if (blockedSet.has(formatIso(d))) {
+                        hasBlocked = true;
+                        break;
+                    }
+                }
+
+                if (hasBlocked) {
+                    showWarning('Selected range includes unavailable dates. Please choose an available window.');
+                    startDate = new Date(clickedDate);
+                    endDate = null;
+                    renderCalendar();
+                    return;
+                }
+
+                const nights = diffDays(startDate, clickedDate);
+
+                if (minStay > 0 && nights < minStay) {
+                    showWarning(`Minimum stay for this stay is ${minStay} ${(minStay === 1 ? 'night' : 'nights')}.`);
+                    return;
+                }
+
+                if (maxStay > 0 && nights > maxStay) {
+                    showWarning(`Maximum stay for this stay is ${maxStay} nights.`);
+                    return;
+                }
+
+                endDate = new Date(clickedDate);
+                keyboardFocusedDate = new Date(clickedDate);
+
+                checkInInput.value = formatIso(startDate);
+                checkOutInput.value = formatIso(endDate);
+
+                renderCalendar();
+                window.updatePricing();
+            }
+        }
+
+        function handleDateHover(hDate) {
+            if (startDate && !endDate && hDate > startDate) {
+                hoverDate = new Date(hDate);
+                // Update only hover classes across rendered cells
+                document.querySelectorAll('.cal-day-cell.cal-available').forEach(cell => {
+                    const iso = cell.getAttribute('data-date');
+                    if (!iso) return;
+                    const cDate = parseIsoDate(iso);
+                    if (cDate > startDate && cDate <= hoverDate) {
+                        cell.classList.add('cal-range-hover');
+                    } else {
+                        cell.classList.remove('cal-range-hover');
+                    }
+                });
+            }
+        }
+
+        function updateSummaryAndPricing() {
+            if (startDate && endDate) {
+                const nights = diffDays(startDate, endDate);
+                if (summaryText) summaryText.innerText = `${formatDisplay(startDate)} – ${formatDisplay(endDate)}`;
+                if (nightsBadge) {
+                    nightsBadge.innerText = `${nights} ${(nights === 1 ? 'night' : 'nights')}`;
+                    nightsBadge.className = 'badge bg-primary ms-2';
+                }
+                if (liveDurationText) liveDurationText.innerText = `${nights} ${(nights === 1 ? 'night' : 'nights')}`;
+
+                const stayTotal = baseRate * nights;
+                if (livePriceText) livePriceText.innerText = '₹' + stayTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+            } else if (startDate) {
+                if (summaryText) summaryText.innerText = `${formatDisplay(startDate)} – Select check-out date`;
+                if (nightsBadge) {
+                    nightsBadge.innerText = 'Select end date';
+                    nightsBadge.className = 'badge bg-warning text-dark ms-2';
+                }
+                if (liveDurationText) liveDurationText.innerText = 'Pending check-out';
+            } else {
+                if (summaryText) summaryText.innerText = 'Select stay dates';
+                if (nightsBadge) {
+                    nightsBadge.innerText = '0 nights';
+                    nightsBadge.className = 'badge bg-secondary ms-2';
+                }
+                if (liveDurationText) liveDurationText.innerText = '0 nights';
+            }
+        }
+
+        function resetDates() {
+            startDate = new Date();
+            endDate = addDays(new Date(), Math.max(1, minStay));
+            hoverDate = null;
+            checkInInput.value = formatIso(startDate);
+            checkOutInput.value = formatIso(endDate);
+            clearWarning();
+            renderCalendar();
+            window.updatePricing();
+        }
+
+        prevBtn.addEventListener('click', () => {
+            viewMonth.setMonth(viewMonth.getMonth() - 1);
+            renderCalendar();
+        });
+
+        nextBtn.addEventListener('click', () => {
+            viewMonth.setMonth(viewMonth.getMonth() + 1);
+            renderCalendar();
+        });
+
+        if (clearBtn) clearBtn.addEventListener('click', resetDates);
+        if (modalClearBtn) modalClearBtn.addEventListener('click', resetDates);
+
+        // Keyboard Accessibility (Item 8)
+        root.addEventListener('keydown', (e) => {
+            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'Escape'].includes(e.key)) {
+                e.preventDefault();
+            }
+
+            if (e.key === 'Escape') {
+                resetDates();
+                return;
+            }
+
+            if (e.key === 'ArrowLeft') {
+                keyboardFocusedDate = addDays(keyboardFocusedDate, -1);
+            } else if (e.key === 'ArrowRight') {
+                keyboardFocusedDate = addDays(keyboardFocusedDate, 1);
+            } else if (e.key === 'ArrowUp') {
+                keyboardFocusedDate = addDays(keyboardFocusedDate, -7);
+            } else if (e.key === 'ArrowDown') {
+                keyboardFocusedDate = addDays(keyboardFocusedDate, 7);
+            } else if (e.key === 'Enter') {
+                const iso = formatIso(keyboardFocusedDate);
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                if (keyboardFocusedDate >= today && !blockedSet.has(iso)) {
+                    handleDateClick(keyboardFocusedDate);
+                }
+                return;
+            }
+
+            // Keep view in month
+            if (keyboardFocusedDate.getMonth() !== viewMonth.getMonth() && keyboardFocusedDate.getMonth() !== ((viewMonth.getMonth() + 1) % 12)) {
+                viewMonth = new Date(keyboardFocusedDate.getFullYear(), keyboardFocusedDate.getMonth(), 1);
+            }
+            renderCalendar();
+        });
+
+        window.addEventListener('resize', () => {
+            renderCalendar();
+        });
+
+        renderCalendar();
+    })();
+
     function toggleEventSection() {
-        const isEvent = document.getElementById('toggleEventBooking').checked;
+        const isEvent = document.getElementById('toggleEventBooking')?.checked;
         const container = document.getElementById('eventPackageContainer');
-        container.style.display = isEvent ? 'block' : 'none';
+        if (container) container.style.display = isEvent ? 'block' : 'none';
         if (!isEvent) {
-            document.getElementById('eventPackageSelect').value = '';
+            const pkgSelect = document.getElementById('eventPackageSelect');
+            if (pkgSelect) pkgSelect.value = '';
         }
         updatePricing();
     }
 
-    function updatePricing() {
-        const type = document.querySelector('input[name="BookingType"]:checked').value;
-        const baseRate = parseFloat(document.getElementById('basePrice').value) || 0;
+    window.updatePricing = function() {
+        const typeEl = document.querySelector('input[name="BookingType"]:checked');
+        const type = typeEl ? typeEl.value : 'FullDay';
+        const baseRate = parseFloat(document.getElementById('basePrice')?.value) || 0;
         const slotContainer = document.getElementById('slotTypeContainer');
         const hourlyContainer = document.getElementById('hourlyContainer');
         const checkOut = document.getElementById('checkOut');
@@ -260,20 +859,20 @@
         let total = baseRate;
 
         if (type === 'FullDay') {
-            slotContainer.style.display = 'none';
-            hourlyContainer.style.display = 'none';
-            const inDate = new Date(checkIn.value);
-            const outDate = new Date(checkOut.value);
+            if (slotContainer) slotContainer.style.display = 'none';
+            if (hourlyContainer) hourlyContainer.style.display = 'none';
+            const inDate = checkIn ? new Date(checkIn.value) : new Date();
+            const outDate = checkOut ? new Date(checkOut.value) : new Date();
             const diffDays = Math.max(1, Math.round((outDate - inDate) / (1000 * 60 * 60 * 24)));
             total = baseRate * diffDays;
         } else if (type === 'HalfDay') {
-            slotContainer.style.display = 'block';
-            hourlyContainer.style.display = 'none';
+            if (slotContainer) slotContainer.style.display = 'block';
+            if (hourlyContainer) hourlyContainer.style.display = 'none';
             total = Math.round(baseRate * 0.55);
         } else if (type === 'Hourly') {
-            slotContainer.style.display = 'none';
-            hourlyContainer.style.display = 'block';
-            const hours = parseInt(document.getElementById('hourlySelect').value) || 4;
+            if (slotContainer) slotContainer.style.display = 'none';
+            if (hourlyContainer) hourlyContainer.style.display = 'block';
+            const hours = parseInt(document.getElementById('hourlySelect')?.value) || 4;
             total = Math.round((baseRate / 10) * hours);
         }
 
@@ -287,11 +886,14 @@
             }
         }
 
-        document.getElementById('totalAmountText').innerText = '₹' + total.toLocaleString('en-IN', { minimumFractionDigits: 2 });
-    }
+        const totalEl = document.getElementById('totalAmountText');
+        if (totalEl) {
+            totalEl.innerText = '₹' + total.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+        }
+    };
 
     document.addEventListener("DOMContentLoaded", function() {
-        updatePricing();
+        window.updatePricing();
     });
 </script>
 }
