@@ -187,6 +187,81 @@ namespace BookMyFun.Tests
             Assert.Contains("image/webp", content);
         }
 
+        [Fact]
+        public void WebConfig_ContainsWebpAndAvifMimeTypes()
+        {
+            string webConfigPath = TestPathHelper.GetPath("web.config");
+            Assert.True(File.Exists(webConfigPath), "web.config must exist in root");
+
+            string content = File.ReadAllText(webConfigPath);
+            Assert.Contains("fileExtension=\".webp\"", content);
+            Assert.Contains("mimeType=\"image/webp\"", content);
+            Assert.Contains("fileExtension=\".avif\"", content);
+            Assert.Contains("mimeType=\"image/avif\"", content);
+            Assert.Contains("AspNetCoreModuleV2", content);
+        }
+
+        [Fact]
+        public void Program_RegistersUseStaticFilesWithModernMimeMappings()
+        {
+            string programPath = TestPathHelper.GetPath("Program.cs");
+            Assert.True(File.Exists(programPath), "Program.cs must exist");
+
+            string content = File.ReadAllText(programPath);
+            Assert.Contains("app.UseStaticFiles(", content);
+            Assert.Contains("ContentTypeProvider", content);
+            Assert.Contains("\".webp\"] = \"image/webp\"", content);
+            Assert.Contains("\".avif\"] = \"image/avif\"", content);
+        }
+
+        [Fact]
+        public async Task MediaStorageService_WhenWebRootIsNull_ResolvesToContentRootWwwroot()
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), "BookMyFun_NullWebRoot_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            var env = new TestWebHostEnvironment
+            {
+                WebRootPath = null!, // Simulate IIS where WebRootPath may be uninitialized
+                ContentRootPath = tempDir
+            };
+
+            var config = new ConfigurationBuilder().Build();
+            var service = new MediaStorageService(
+                env,
+                config,
+                NullLogger<MediaStorageService>.Instance,
+                _imageOptimizer);
+
+            byte[] webpBytes = new byte[32];
+            webpBytes[0] = 0x52; webpBytes[1] = 0x49; webpBytes[2] = 0x46; webpBytes[3] = 0x46; // RIFF
+            webpBytes[8] = 0x57; webpBytes[9] = 0x45; webpBytes[10] = 0x42; webpBytes[11] = 0x50; // WEBP
+
+            var webpFile = CreateMockFormFile("property.webp", "image/webp", webpBytes);
+            var (publicUrl, _) = await service.SaveMediaFileAsync(webpFile, "photo");
+
+            Assert.StartsWith("/uploads/photos/", publicUrl);
+            string expectedPath = Path.Combine(tempDir, "wwwroot", "uploads", "photos", Path.GetFileName(publicUrl));
+            Assert.True(File.Exists(expectedPath), $"File should be saved to {expectedPath}");
+
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+
+        [Fact]
+        public void PropertyViews_ContainInstantClientSidePreview()
+        {
+            string ownerView = TestPathHelper.GetPath("Views", "Owner", "CreateProperty.cshtml");
+            Assert.True(File.Exists(ownerView));
+            string ownerContent = File.ReadAllText(ownerView);
+            Assert.Contains("createObjectURL", ownerContent);
+            Assert.Contains("m.previewUrl || m.url", ownerContent);
+
+            string adminView = TestPathHelper.GetPath("Views", "Admin", "CreateProperty.cshtml");
+            Assert.True(File.Exists(adminView));
+            string adminContent = File.ReadAllText(adminView);
+            Assert.Contains("createObjectURL", adminContent);
+            Assert.Contains("m.previewUrl || m.url", adminContent);
+        }
+
         private static IFormFile CreateMockFormFile(string fileName, string contentType, byte[] content)
         {
             var stream = new MemoryStream(content);
