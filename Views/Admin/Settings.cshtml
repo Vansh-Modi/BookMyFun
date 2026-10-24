@@ -1,824 +1,480 @@
 @model BookMyFun.Services.SiteSettingsModel
 @{
-    ViewData["Title"] = "Platform Settings & Branding";
-    var configs = ViewBag.Configs as List<BookMyFun.Models.Entities.ApiConfiguration> ?? new();
-    var settings = ViewBag.Settings as List<BookMyFun.Models.Entities.SiteSetting> ?? new();
+    ViewData["Title"] = "Platform Settings";
+    string activeSection = ViewBag.ActiveSection as string ?? "sec-commission";
 }
 
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+<div class="dash-page-header">
     <div>
-        <h2 class="fw-bold mb-1"><i class="bi bi-sliders2 text-primary me-2"></i>Platform Settings & Branding</h2>
-        <p class="text-muted mb-0">Manage website brand identity, crisp logo, support contact details, social links, and external API gateways.</p>
+        <p class="dash-eyebrow">Admin Portal · Configuration</p>
+        <h1 class="dash-title"><i class="bi bi-sliders text-primary me-2"></i>Platform Settings</h1>
+        <p class="dash-subtitle">Manage commission rates, refund rules, payment gateways, notifications, footer details, legal compliance, and feature toggles.</p>
     </div>
-    <div class="d-flex gap-2">
-        <a asp-action="Reports" class="btn btn-outline-success"><i class="bi bi-graph-up-arrow me-1"></i> Financial Reports</a>
-        <a asp-action="Index" class="btn btn-outline-dark"><i class="bi bi-arrow-left me-1"></i> Dashboard</a>
-    </div>
-</div>
-
-<!-- Section Switcher Dropdown & Quick Navigator -->
-<div class="card shadow-sm border-0 mb-4 bg-light">
-    <div class="card-body p-3">
-        <div class="row align-items-center g-3">
-            <div class="col-lg-5">
-                <label for="settingsCategorySelect" class="form-label fw-bold text-dark mb-1">
-                    <i class="bi bi-folder2-open text-primary me-1"></i> Select Settings Category to Configure:
-                </label>
-                <select id="settingsCategorySelect" class="form-select form-select-lg fw-semibold border-primary shadow-sm">
-                    <option value="all">🌟 All Categories (Complete Overview)</option>
-                    <option value="sec-brand">🏢 1. Brand Identity & Crisp Logo</option>
-                    <option value="sec-contact">📞 2. Official Contact & Helpdesk Information</option>
-                    <option value="sec-social">🌐 3. Social Media & Community Channels</option>
-                    <option value="sec-commission">💰 4. Platform Commission & Financial Rules</option>
-                    <option value="sec-thirdparty">🔑 5. Third-Party Service Credentials (APIs)</option>
-                    <option value="sec-popularstays">🏖️ 6. Popular Stays (Footer Recommendations & Fallback)</option>
-                </select>
-            </div>
-            <div class="col-lg-7 d-none d-md-flex flex-wrap gap-2 justify-content-lg-end">
-                <button type="button" class="btn btn-sm btn-outline-primary category-pill active" data-target="all">All</button>
-                <button type="button" class="btn btn-sm btn-outline-primary category-pill" data-target="sec-brand">Brand & Logo</button>
-                <button type="button" class="btn btn-sm btn-outline-primary category-pill" data-target="sec-contact">Contact Info</button>
-                <button type="button" class="btn btn-sm btn-outline-primary category-pill" data-target="sec-social">Social Media</button>
-                <button type="button" class="btn btn-sm btn-outline-primary category-pill" data-target="sec-commission">Commission</button>
-                <button type="button" class="btn btn-sm btn-outline-primary category-pill" data-target="sec-thirdparty">Third-Party APIs</button>
-                <button type="button" class="btn btn-sm btn-outline-primary category-pill" data-target="sec-popularstays">Popular Stays</button>
-            </div>
-        </div>
+    <div class="dash-actions">
+        <a asp-action="Index" class="dash-btn dash-btn-outline"><i class="bi bi-arrow-left me-1"></i> Dashboard</a>
+        <a asp-action="AuditLog" class="dash-btn dash-btn-outline"><i class="bi bi-journal-text me-1"></i> Audit Trail</a>
     </div>
 </div>
 
-<div class="row g-4">
-    <!-- Left Column: Site Branding, Contact, Social & Commission Form -->
-    <div class="col-lg-7" id="brandingSettingsContainer">
-        <form asp-controller="Admin" asp-action="SaveSiteBranding" method="post" enctype="multipart/form-data">
-            @Html.AntiForgeryToken()
+<!-- Section Navigation Pills for Quick Access -->
+<div class="d-flex flex-wrap gap-2 mb-4">
+    <a href="#sec-commission" class="btn btn-sm btn-outline-primary rounded-pill px-3 @(activeSection == "sec-commission" ? "active" : "")" onclick="openSection('collapseCommission')">
+        <i class="bi bi-percent me-1"></i> Commission
+    </a>
+    <a href="#sec-refunds" class="btn btn-sm btn-outline-info rounded-pill px-3 @(activeSection == "sec-refunds" ? "active" : "")" onclick="openSection('collapseRefunds')">
+        <i class="bi bi-arrow-counterclockwise me-1"></i> Refunds
+    </a>
+    <a href="#sec-payments" class="btn btn-sm btn-outline-success rounded-pill px-3 @(activeSection == "sec-payments" ? "active" : "")" onclick="openSection('collapsePayments')">
+        <i class="bi bi-credit-card me-1"></i> Payments
+    </a>
+    <a href="#sec-notifications" class="btn btn-sm btn-outline-warning rounded-pill px-3 @(activeSection == "sec-notifications" ? "active" : "")" onclick="openSection('collapseNotifications')">
+        <i class="bi bi-bell me-1"></i> Notifications
+    </a>
+    <a href="#sec-footer" class="btn btn-sm btn-outline-secondary rounded-pill px-3 @(activeSection == "sec-footer" ? "active" : "")" onclick="openSection('collapseFooter')">
+        <i class="bi bi-layout-text-window-reverse me-1"></i> Footer
+    </a>
+    <a href="#sec-legal" class="btn btn-sm btn-outline-dark rounded-pill px-3 @(activeSection == "sec-legal" ? "active" : "")" onclick="openSection('collapseLegal')">
+        <i class="bi bi-file-earmark-text me-1"></i> Legal
+    </a>
+    <a href="#sec-features" class="btn btn-sm btn-outline-danger rounded-pill px-3 @(activeSection == "sec-features" ? "active" : "")" onclick="openSection('collapseFeatures')">
+        <i class="bi bi-toggle-on me-1"></i> Feature Flags
+    </a>
+</div>
 
-            <!-- 1. Brand Identity & Crisp Logo -->
-            <div class="card shadow-sm border-0 mb-4 config-card" id="sec-brand">
-                <div class="card-header bg-dark text-white fw-bold py-3 d-flex align-items-center justify-content-between">
-                    <span><i class="bi bi-brush text-warning me-2"></i>1. Brand Identity & Crisp Logo</span>
-                    <span class="badge bg-primary">Identity</span>
+<!-- Collapsible Accordion: Single Open Section at a Time (Item 1 STRICT) -->
+<div class="accordion shadow-sm rounded-4 overflow-hidden" id="settingsAccordion">
+
+    <!-- 1. COMMISSION SECTION -->
+    <div class="accordion-item border-0 border-bottom" id="sec-commission">
+        <h2 class="accordion-header">
+            <button class="accordion-button @(activeSection == "sec-commission" ? "" : "collapsed") fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCommission" aria-expanded="@(activeSection == "sec-commission" ? "true" : "false")" aria-controls="collapseCommission">
+                <i class="bi bi-percent text-primary fs-5 me-2"></i>
+                <div class="d-flex flex-column text-start">
+                    <span>1. Platform Commission &amp; Financial Cuts</span>
+                    <small class="text-muted fw-normal">Configure baseline commission percentages retained from stays and event packages.</small>
                 </div>
-                <div class="card-body p-4">
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">Website Brand Name</label>
-                            <input asp-for="SiteName" class="form-control" placeholder="BookMyFun" required />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">Brand Tagline</label>
-                            <input asp-for="SiteTagline" class="form-control" placeholder="Farmhouse, Villa & Resort Rentals" />
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">Bootstrap Brand Icon</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi @Model.SiteIcon"></i></span>
-                                <input asp-for="SiteIcon" class="form-control" placeholder="bi-house-heart-fill" />
-                            </div>
-                            <small class="text-muted">Used when no image logo is uploaded (e.g. bi-house-heart-fill, bi-tree-fill).</small>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">Platform Currency Symbol</label>
-                            <input asp-for="CurrencySymbol" class="form-control" placeholder="₹" required />
-                        </div>
-                    </div>
-
-                    <!-- Crisp Logo Upload Section -->
-                    <div class="p-3 rounded-3 bg-light border mb-3">
-                        <h6 class="fw-bold text-dark mb-2">
-                            <i class="bi bi-image text-success me-1"></i> Brand Logo Management (Crisp & High-Res)
-                        </h6>
-                        <div class="alert alert-info py-2 px-3 small mb-3">
-                            <i class="bi bi-info-circle-fill me-1"></i>
-                            <strong>Zero-Blur Recommendation:</strong> For crystal-clear sharpness on Retina & 4K screens, upload a 
-                            <strong>Vector SVG (.svg)</strong> file, or a <strong>High-Resolution PNG/WebP (512x512px or larger)</strong> with transparent background.
-                        </div>
-
-                        <!-- Live Logo Preview Box -->
-                        <div class="d-flex align-items-center gap-3 p-3 bg-white border rounded mb-3">
-                            <div class="text-center p-2 rounded border bg-dark" style="min-width: 140px; min-height: 70px; display: flex; align-items: center; justify-content: center;">
-                                @if (!string.IsNullOrEmpty(Model.LogoUrl))
-                                {
-                                    <img id="logoPreviewImg" src="@Model.LogoUrl" alt="Brand Logo Preview" 
-                                         style="max-height: 55px; max-width: 130px; object-fit: contain; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;" />
-                                }
-                                else
-                                {
-                                    <div id="logoPreviewPlaceholder" class="text-warning text-center">
-                                        <i class="bi @Model.SiteIcon fs-2"></i>
-                                        <div class="small text-white-50">No Image Logo</div>
-                                    </div>
-                                    <img id="logoPreviewImg" src="" alt="Brand Logo Preview" 
-                                         style="max-height: 55px; max-width: 130px; object-fit: contain; display: none; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;" />
-                                }
-                            </div>
-                            <div>
-                                <div class="fw-bold text-dark mb-1">Active Logo Preview</div>
-                                <div class="small text-muted mb-2">Current path: <code class="text-primary">@(string.IsNullOrEmpty(Model.LogoUrl) ? "Default Bootstrap Icon" : Model.LogoUrl)</code></div>
-                                <span class="badge bg-success-subtle text-success border border-success-subtle">
-                                    <i class="bi bi-check2-circle me-1"></i>Crisp rendering applied
-                                </span>
-                            </div>
-                        </div>
-
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">
-                                    Option A: Upload File (.svg, .png, .webp, .jpg)
-                                </label>
-                                <input type="file" name="logoFile" id="logoFileInput" 
-                                       accept=".svg,.png,.webp,.jpg,.jpeg,.ico" class="form-control"
-                                       onchange="if(window.ImageOptimizer && this.files && this.files.length) { const inp = this; ImageOptimizer.compressAndConvertToWebP(this.files[0], { maxWidth: 800, maxHeight: 800, quality: 0.9 }).then(f => { const dt = new DataTransfer(); dt.items.add(f); inp.files = dt.files; }); }" />
-                                <small class="text-muted">Files are stored securely in <code>/uploads</code> with automatic WebP compression &amp; optimization.</small>
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">
-                                    Option B: Or Enter External / CDN URL
-                                </label>
-                                <input asp-for="LogoUrl" id="logoUrlInput" class="form-control" placeholder="https://cdn.example.com/logo.svg" />
-                                <small class="text-muted">Remote image URL or hosted SVG link.</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 2. Official Contact & Support Details -->
-            <div class="card shadow-sm border-0 mb-4 config-card" id="sec-contact">
-                <div class="card-header bg-dark text-white fw-bold py-3 d-flex align-items-center justify-content-between">
-                    <span><i class="bi bi-headset text-warning me-2"></i>2. Official Contact & Helpdesk Information</span>
-                    <span class="badge bg-info text-dark">Contact</span>
-                </div>
-                <div class="card-body p-4">
-                    <p class="text-muted small mb-3">These details dynamically update the website top-bar, footer, and Contact Us query page across the whole application.</p>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">Customer Helpline Phone Number</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-telephone-fill text-primary"></i></span>
-                                <input asp-for="SupportPhone" class="form-control" placeholder="+91 (020) 4567-8900" required />
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">Official WhatsApp Number</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-whatsapp text-success"></i></span>
-                                <input asp-for="WhatsAppNumber" class="form-control" placeholder="+91 99999 00001" required />
-                            </div>
-                            <small class="text-muted">Used for the floating WhatsApp button and automated messaging.</small>
-                        </div>
-                        <div class="col-md-12">
-                            <label class="form-label fw-semibold">Official Support Email Address</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-envelope-fill text-danger"></i></span>
-                                <input asp-for="SupportEmail" type="email" class="form-control" placeholder="support@bookmyfun.com" required />
-                            </div>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label fw-semibold">Corporate Office / Headquarters Address</label>
-                            <textarea asp-for="Address" class="form-control" rows="2" placeholder="Suite / Tower, Street, City, State, PIN Code"></textarea>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 3. Social Media Channels -->
-            <div class="card shadow-sm border-0 mb-4 config-card" id="sec-social">
-                <div class="card-header bg-dark text-white fw-bold py-3 d-flex align-items-center justify-content-between">
-                    <span><i class="bi bi-share text-warning me-2"></i>3. Social Media & Community Channels</span>
-                    <span class="badge bg-secondary">Social</span>
-                </div>
-                <div class="card-body p-4">
-                    <p class="text-muted small mb-3">Social handles and official company links displayed in the website header, footer, and emails.</p>
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <label class="form-label fw-semibold"><i class="bi bi-facebook text-primary me-1"></i> Facebook URL</label>
-                            <input asp-for="FacebookUrl" class="form-control" placeholder="https://facebook.com/bookmyfun" />
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label fw-semibold"><i class="bi bi-instagram text-danger me-1"></i> Instagram URL</label>
-                            <input asp-for="InstagramUrl" class="form-control" placeholder="https://instagram.com/bookmyfun" />
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label fw-semibold"><i class="bi bi-youtube text-danger me-1"></i> YouTube Channel</label>
-                            <input asp-for="YouTubeUrl" class="form-control" placeholder="https://youtube.com/bookmyfun" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 4. Platform Commission & Financial Policies -->
-            <div class="card shadow-sm border-0 mb-4 config-card" id="sec-commission">
-                <div class="card-header bg-dark text-white fw-bold py-3 d-flex align-items-center justify-content-between">
-                    <span><i class="bi bi-percent text-warning me-2"></i>4. Platform Commission & Financial Rules</span>
-                    <span class="badge bg-success">Commission</span>
-                </div>
-                <div class="card-body p-4">
-                    <div class="row g-4 align-items-center">
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">Standard Host Stay Commission (%)</label>
-                            <div class="input-group">
-                                <input asp-for="PlatformCommissionPercent" type="number" step="0.5" min="0" max="100" class="form-control form-control-lg fw-bold" required />
-                                <span class="input-group-text fw-bold">%</span>
-                            </div>
-                            <small class="text-muted">Default is 10.0%. Levied on gross property stay reservations upon booking.</small>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold">Standing Event Commission for All Events (%)</label>
-                            <div class="input-group">
-                                <input asp-for="EventPlatformCommissionPercent" id="standingEventCommInput" type="number" step="0.5" min="0" max="100" class="form-control form-control-lg fw-bold" required />
-                                <span class="input-group-text fw-bold">%</span>
-                            </div>
-                            <small class="text-muted">Standing baseline commission for all celebration &amp; décor events, unless a specific event override is configured below.</small>
-                        </div>
-
-                        <!-- SPECIFIC EVENT COMMISSION OVERRIDES SECTION -->
-                        <div class="col-12">
-                            <div class="card border rounded-3 bg-light-subtle shadow-none">
-                                <div class="card-header bg-white py-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
-                                    <div>
-                                        <h6 class="fw-bold mb-1 text-dark">
-                                            <i class="bi bi-balloon-heart-fill text-warning me-2"></i>Specific Event Commission Overrides
-                                        </h6>
-                                        <div class="small text-muted">
-                                            Standing commission applies across all events. When you need to change the commission for a specific event, configure custom rates below.
-                                        </div>
-                                    </div>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <a asp-action="EventCommissions" class="btn btn-sm btn-warning fw-semibold text-dark rounded-pill">
-                                            <i class="bi bi-sliders me-1"></i> Dedicated Commission Console
-                                        </a>
-                                        <span class="badge bg-warning-subtle text-dark border border-warning-subtle px-3 py-2 rounded-pill">
-                                            <i class="bi bi-sliders me-1"></i> Per-Event Options
-                                        </span>
-                                    </div>
-                                </div>
-                                <div class="card-body p-3">
-                                    @{
-                                        var eventPackages = ViewBag.EventPackages as List<BookMyFun.Models.Entities.EventPackage> ?? new();
-                                    }
-                                    @if (!eventPackages.Any())
-                                    {
-                                        <div class="alert alert-secondary py-2 small mb-0">
-                                            <i class="bi bi-info-circle me-1"></i> No active event packages found. Packages created in the Event Manager catalog will automatically appear here.
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                                            <div class="input-group input-group-sm" style="max-width: 320px;">
-                                                <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
-                                                <input type="text" id="eventSearchInput" class="form-control" placeholder="Search specific event or category..." onkeyup="filterEventTable()" />
-                                            </div>
-                                            <div class="small text-muted">
-                                                <span class="fw-bold text-dark">@eventPackages.Count</span> total events available &bull; 
-                                                <span class="text-warning fw-bold" id="customOverrideCount">@eventPackages.Count(p => p.CommissionRate.HasValue)</span> custom overrides
-                                            </div>
-                                        </div>
-
-                                        <div class="table-responsive bg-white rounded border">
-                                            <table class="table table-sm table-hover align-middle mb-0" id="eventCommissionTable">
-                                                <thead class="table-light small text-uppercase">
-                                                    <tr>
-                                                        <th>Event / Package Name</th>
-                                                        <th>Category</th>
-                                                        <th>Base Price</th>
-                                                        <th>Current Commission Mode</th>
-                                                        <th style="min-width: 180px;">Custom Rate (%)</th>
-                                                        <th class="text-end pe-3">Action</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    @foreach (var pkg in eventPackages)
-                                                    {
-                                                        var hasCustom = pkg.CommissionRate.HasValue;
-                                                        <tr class="event-pkg-row" data-name="@pkg.Name.ToLower()" data-category="@pkg.Category.ToLower()">
-                                                            <td class="fw-semibold text-dark">
-                                                                <i class="bi bi-palette text-primary me-2"></i>@pkg.Name
-                                                            </td>
-                                                            <td>
-                                                                <span class="badge bg-secondary-subtle text-dark border">@pkg.Category</span>
-                                                            </td>
-                                                            <td class="fw-semibold text-dark">
-                                                                ₹@pkg.BasePrice.ToString("N0")
-                                                            </td>
-                                                            <td id="status_cell_@pkg.PackageID">
-                                                                @if (hasCustom)
-                                                                {
-                                                                    <span class="badge bg-warning-subtle text-dark border border-warning">
-                                                                        <i class="bi bi-star-fill text-warning me-1"></i>Custom: @pkg.CommissionRate!.Value.ToString("0.##")%
-                                                                    </span>
-                                                                }
-                                                                else
-                                                                {
-                                                                    <span class="badge bg-light text-muted border">
-                                                                        Standing Default (@Model.EventPlatformCommissionPercent%)
-                                                                    </span>
-                                                                }
-                                                            </td>
-                                                            <td>
-                                                                <div class="input-group input-group-sm">
-                                                                    <input type="number" 
-                                                                           step="0.1" 
-                                                                           min="0" 
-                                                                           max="100" 
-                                                                           name="eventPkgComm_@pkg.PackageID" 
-                                                                           id="input_pkg_@pkg.PackageID" 
-                                                                           class="form-control form-control-sm" 
-                                                                           placeholder="Standing default" 
-                                                                           value="@(hasCustom ? pkg.CommissionRate!.Value.ToString("0.##") : "")" />
-                                                                    <span class="input-group-text">%</span>
-                                                                </div>
-                                                            </td>
-                                                            <td class="text-end pe-3">
-                                                                <div class="btn-group btn-group-sm">
-                                                                    <button type="button" 
-                                                                            class="btn btn-outline-primary btn-sm" 
-                                                                            title="Save this specific event commission instantly"
-                                                                            onclick="saveSpecificEventComm(@pkg.PackageID, '@pkg.Name')">
-                                                                        <i class="bi bi-check2"></i> Save
-                                                                    </button>
-                                                                    <button type="button" 
-                                                                            class="btn btn-outline-secondary btn-sm" 
-                                                                            title="Reset to Standing Default"
-                                                                            onclick="resetSpecificEventComm(@pkg.PackageID, '@pkg.Name')">
-                                                                        <i class="bi bi-x-circle"></i>
-                                                                    </button>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    }
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                        <div class="form-text small text-muted mt-2">
-                                            <i class="bi bi-lightbulb text-warning me-1"></i>Tip: Leave any specific event input blank to inherit the standing commission for all events. Click "Save" per event for instant updates, or use the main button below to batch-save all settings.
-                                        </div>
-                                    }
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-12">
-                            <div class="p-3 bg-light rounded border">
-                                <div class="fw-bold text-dark"><i class="bi bi-shield-check text-success me-1"></i> Multi-Tier Commission Hierarchy</div>
-                                <div class="small text-muted mt-1">
-                                    Commission precedence: <strong>Per-Event Property Override &gt; Property Event Rate &gt; Specific Event Package Custom Rate &gt; Standing Event Commission (above)</strong>. Stay commissions similarly follow Property Override &gt; Owner Tier &gt; Standard Stay Commission.
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Submit Button for Branding Form -->
-            <div class="d-grid mb-4">
-                <button type="submit" class="btn btn-warning btn-lg fw-bold py-3 shadow text-dark">
-                    <i class="bi bi-check-circle-fill me-2"></i> Save All Identity, Contact & Commission Settings
-                </button>
-            </div>
-        </form>
-
-        <!-- 6. Popular Stays (Footer Recommendations & Fallback) -->
-        @{
-            var fallbacks = ViewBag.PopularStaysFallback as List<BookMyFun.Services.PopularStayItem> ?? new();
-            var liveStays = ViewBag.CurrentPopularStays as List<BookMyFun.Services.PopularStayItem> ?? new();
-            while (fallbacks.Count < 5)
-            {
-                fallbacks.Add(new BookMyFun.Services.PopularStayItem());
-            }
-        }
-        <div class="card shadow-sm border-0 mb-4 config-card" id="sec-popularstays">
-            <div class="card-header bg-dark text-white fw-bold py-3 d-flex align-items-center justify-content-between">
-                <span><i class="bi bi-geo-alt-fill text-warning me-2"></i>6. Popular Stays (Footer Recommendations &amp; Fallback)</span>
-                <span class="badge bg-info text-dark">15m Cache</span>
-            </div>
-            <div class="card-body p-4">
-                <div class="alert alert-primary py-2 px-3 small mb-3">
-                    <i class="bi bi-info-circle-fill me-1"></i>
-                    <strong>Dynamic Selection Algorithm:</strong> The footer automatically shows the top 5 properties with the highest confirmed bookings in the last 30 days. When fewer than 5 properties have bookings, the platform fills the remaining slots using the admin-configured fallback list below. Cached in memory for 15 minutes.
-                </div>
-
-                <div class="mb-4">
-                    <h6 class="fw-bold text-dark mb-2"><i class="bi bi-broadcast text-success me-1"></i> Currently Displayed in Footer (Live 15-Minute Cache)</h6>
-                    <div class="d-flex flex-wrap gap-2">
-                        @if (liveStays.Any())
-                        {
-                            foreach (var stay in liveStays)
-                            {
-                                <span class="badge bg-light text-dark border p-2">
-                                    <i class="bi bi-house-door-fill text-primary me-1"></i>
-                                    <strong>@stay.Title</strong>
-                                    <span class="text-muted">(@stay.Location)</span>
-                                    @if (stay.PropertyID > 0)
-                                    {
-                                        <span class="badge bg-success-subtle text-success ms-1">ID: #@stay.PropertyID</span>
-                                    }
-                                </span>
-                            }
-                        }
-                        else
-                        {
-                            <span class="text-muted small">No items currently cached.</span>
-                        }
-                    </div>
-                </div>
-
-                <h6 class="fw-bold text-dark mb-3"><i class="bi bi-pencil-square text-warning me-1"></i> Edit Fallback Stays List</h6>
-                <form asp-controller="Admin" asp-action="SavePopularStaysFallback" method="post">
+            </button>
+        </h2>
+        <div id="collapseCommission" class="accordion-collapse collapse @(activeSection == "sec-commission" ? "show" : "")" data-bs-parent="#settingsAccordion">
+            <div class="accordion-body p-4 bg-body">
+                <form asp-action="SaveCommissionSettings" method="post">
                     @Html.AntiForgeryToken()
-                    <div class="table-responsive">
-                        <table class="table table-sm table-bordered align-middle">
-                            <thead class="table-light small">
-                                <tr>
-                                    <th style="width: 45px;">#</th>
-                                    <th>Title (Label shown in footer)</th>
-                                    <th>Location (Search filter)</th>
-                                    <th style="width: 120px;">Property ID (0 for all)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @for (int i = 0; i < 5; i++)
-                                {
-                                    <tr>
-                                        <td class="text-center fw-bold text-muted">@(i + 1)</td>
-                                        <td>
-                                            <input type="text" name="fallbackItems[@i].Title" class="form-control form-control-sm" value="@fallbacks[i].Title" placeholder="e.g. Lonavala Luxury Villas" required />
-                                        </td>
-                                        <td>
-                                            <input type="text" name="fallbackItems[@i].Location" class="form-control form-control-sm" value="@fallbacks[i].Location" placeholder="e.g. Lonavala" required />
-                                        </td>
-                                        <td>
-                                            <input type="number" name="fallbackItems[@i].PropertyID" class="form-control form-control-sm" value="@fallbacks[i].PropertyID" min="0" placeholder="0" />
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
+                    <div class="alert alert-info py-2 px-3 small mb-4">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        Commission applies automatically at booking checkout. Individual hosts and event packages can have custom rate overrides.
                     </div>
-                    <button type="submit" class="btn btn-primary fw-bold btn-sm mt-2">
-                        <i class="bi bi-save me-1"></i> Save Fallback Popular Stays
-                    </button>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">Standard Property Commission (%)</label>
+                            <div class="input-group">
+                                <input type="number" step="0.01" min="0" max="100" name="platformCommission" value="@Model.PlatformCommissionPercent" class="form-control" required />
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <small class="text-muted">Standard cut deducted from property host gross reservation payout (Default: 10%).</small>
+                        </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">Event Décor Package Commission (%)</label>
+                            <div class="input-group">
+                                <input type="number" step="0.01" min="0" max="100" name="eventCommission" value="@Model.EventPlatformCommissionPercent" class="form-control" required />
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <small class="text-muted">Platform fee retained from event decorator package price (Default: 10%).</small>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary px-4 fw-semibold shadow-sm">
+                            <i class="bi bi-check2-circle me-1"></i> Save Commission Settings
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
     </div>
 
-    <!-- Right Column: Third-Party Service Credentials (APIs) -->
-    <div class="col-lg-5 config-card" id="sec-thirdparty">
-        <div class="card shadow-sm border-0 sticky-top" style="top: 85px; z-index: 10;">
-            <div class="card-header bg-dark text-white fw-bold py-3 d-flex align-items-center justify-content-between">
-                <span><i class="bi bi-cpu text-warning me-2"></i>5. Third-Party Service Credentials</span>
-                <span class="badge bg-warning text-dark">API Gateways</span>
+    <!-- 2. REFUNDS SECTION -->
+    <div class="accordion-item border-0 border-bottom" id="sec-refunds">
+        <h2 class="accordion-header">
+            <button class="accordion-button @(activeSection == "sec-refunds" ? "" : "collapsed") fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRefunds" aria-expanded="@(activeSection == "sec-refunds" ? "true" : "false")" aria-controls="collapseRefunds">
+                <i class="bi bi-arrow-counterclockwise text-info fs-5 me-2"></i>
+                <div class="d-flex flex-column text-start">
+                    <span>2. Refunds, Cancellations &amp; Policy Matrix</span>
+                    <small class="text-muted fw-normal">Configure free cancellation windows, penalty deductions, and refund parameters.</small>
+                </div>
+            </button>
+        </h2>
+        <div id="collapseRefunds" class="accordion-collapse collapse @(activeSection == "sec-refunds" ? "show" : "")" data-bs-parent="#settingsAccordion">
+            <div class="accordion-body p-4 bg-body">
+                <form asp-action="SaveRefundSettings" method="post">
+                    @Html.AntiForgeryToken()
+                    <p class="text-muted small mb-3">Enforces cancellation quotes generated by the 6-scenario automated Refund Engine.</p>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">Free Cancellation Grace Window (Hours before check-in)</label>
+                            <div class="input-group">
+                                <input type="number" min="0" name="freeCancelHours" value="@Model.FreeCancellationWindowHours" class="form-control" required />
+                                <span class="input-group-text">Hours</span>
+                            </div>
+                            <small class="text-muted">Guests receive 100% refund (minus 2% gateway fee) before this cutoff (Default: 48 hours).</small>
+                        </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">Hard Cancellation Cutoff (Hours before check-in)</label>
+                            <div class="input-group">
+                                <input type="number" min="0" name="cutoffHours" value="@Model.CancellationCutoffHours" class="form-control" required />
+                                <span class="input-group-text">Hours</span>
+                            </div>
+                            <small class="text-muted">Cancellations closer than this window are non-refundable (Default: 24 hours).</small>
+                        </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">Default Cancellation Penalty Type</label>
+                            <select name="feeType" class="form-select">
+                                <option value="percentage" selected="@(Model.CancellationFeeType == "percentage")">Percentage (%)</option>
+                                <option value="fixed" selected="@(Model.CancellationFeeType == "fixed")">Fixed Amount (₹)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">Default Cancellation Penalty Value</label>
+                            <input type="number" step="0.01" min="0" name="feeValue" value="@Model.CancellationFeeValue" class="form-control" required />
+                        </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">Standard Processing Timeline</label>
+                            <input type="text" name="timeline" value="@Model.RefundProcessingTimeline" class="form-control" placeholder="5 to 7 business days" required />
+                            <small class="text-muted">Shown in client confirmation alerts and refund queue.</small>
+                        </div>
+                    </div>
+
+                    <!-- Open Decisions Placeholders (D1, D2, D3) -->
+                    <div class="card border-warning border-opacity-50 bg-warning bg-opacity-10 rounded-3 p-3 mb-4">
+                        <h6 class="fw-bold text-dark mb-2"><i class="bi bi-clock-history text-warning me-1"></i> Open Policy Decisions (Pending Platform Decision)</h6>
+                        <div class="row g-3 small">
+                            <div class="col-md-4 col-12">
+                                <label class="fw-semibold text-dark">D1: Partial Refund Commission Policy</label>
+                                <input type="text" name="d1Policy" value="@Model.D1_PartialCancellationCommissionPolicy" class="form-control form-control-sm bg-white" />
+                                <span class="text-muted">Placeholder: KeepOnPaidHalf</span>
+                            </div>
+                            <div class="col-md-4 col-12">
+                                <label class="fw-semibold text-dark">D2: Under 72h Host Policy Override</label>
+                                <input type="text" name="d2Policy" value="@Model.D2_Under72hOwnerPolicyOverride" class="form-control form-control-sm bg-white" />
+                                <span class="text-muted">Placeholder: NoRefundAll</span>
+                            </div>
+                            <div class="col-md-4 col-12">
+                                <label class="fw-semibold text-dark">D3: Host Cancellation Penalty (₹)</label>
+                                <input type="number" step="0.01" name="d3Penalty" value="@Model.D3_OwnerCancellationPenaltyAmount" class="form-control form-control-sm bg-white" />
+                                <span class="text-muted">Placeholder: ₹500.00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-info text-white px-4 fw-semibold shadow-sm">
+                            <i class="bi bi-check2-circle me-1"></i> Save Refund Settings
+                        </button>
+                    </div>
+                </form>
             </div>
-            <div class="card-body p-4">
-                <p class="text-muted small mb-3">Configure external payment processors, Meta WhatsApp messaging, and SMTP mail servers.</p>
+        </div>
+    </div>
 
-                <ul class="nav nav-pills mb-3" id="configTabs">
-                    <li class="nav-item">
-                        <button class="nav-link active fw-semibold" data-bs-toggle="pill" data-bs-target="#tabRazorpay">
-                            <i class="bi bi-credit-card me-1"></i> Razorpay
-                        </button>
-                    </li>
-                    <li class="nav-item">
-                        <button class="nav-link fw-semibold" data-bs-toggle="pill" data-bs-target="#tabGoogle">
-                            <i class="bi bi-google me-1"></i> Google OAuth
-                        </button>
-                    </li>
-                    <li class="nav-item">
-                        <button class="nav-link fw-semibold" data-bs-toggle="pill" data-bs-target="#tabWhatsApp">
-                            <i class="bi bi-whatsapp me-1"></i> WhatsApp
-                        </button>
-                    </li>
-                    <li class="nav-item">
-                        <button class="nav-link fw-semibold" data-bs-toggle="pill" data-bs-target="#tabSMTP">
-                            <i class="bi bi-envelope me-1"></i> SMTP
-                        </button>
-                    </li>
-                    <li class="nav-item">
-                        <button class="nav-link fw-semibold" data-bs-toggle="pill" data-bs-target="#tabCashfree">
-                            <i class="bi bi-wallet me-1"></i> Cashfree
-                        </button>
-                    </li>
-                </ul>
-
-                <div class="tab-content border rounded p-3 bg-light">
-                    <!-- Razorpay Form -->
-                    @{
-                        var rzp = configs.FirstOrDefault(c => c.ServiceProvider == "Razorpay") ?? new BookMyFun.Models.Entities.ApiConfiguration { ServiceProvider = "Razorpay" };
-                    }
-                    <div class="tab-pane fade show active" id="tabRazorpay">
-                        <div class="alert alert-info border-info d-flex align-items-start gap-2 mb-3 py-2 px-3 small">
-                            <i class="bi bi-info-circle-fill text-primary fs-5 mt-1"></i>
-                            <div>
-                                <strong>Razorpay Gateway Credentials Guide:</strong>
-                                Retrieve your <code>Key ID</code> and <code>Key Secret</code> from your <a href="https://dashboard.razorpay.com/app/keys" target="_blank" class="fw-bold text-decoration-underline">Razorpay Merchant Dashboard &rarr; API Keys</a>.
-                                Enter your <code>rzp_test_...</code> or <code>rzp_live_...</code> keys to process through official Razorpay servers. If empty or left on demo, BookMyFun provides a fully interactive Razorpay Sandbox simulation with test cards, QR codes, and simulated 3D Secure verification.
-                            </div>
+    <!-- 3. PAYMENTS SECTION -->
+    <div class="accordion-item border-0 border-bottom" id="sec-payments">
+        <h2 class="accordion-header">
+            <button class="accordion-button @(activeSection == "sec-payments" ? "" : "collapsed") fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePayments" aria-expanded="@(activeSection == "sec-payments" ? "true" : "false")" aria-controls="collapsePayments">
+                <i class="bi bi-credit-card text-success fs-5 me-2"></i>
+                <div class="d-flex flex-column text-start">
+                    <span>3. Payment Gateways &amp; Currency</span>
+                    <small class="text-muted fw-normal">Configure Razorpay credentials, sandbox keys, and transaction currency symbol.</small>
+                </div>
+            </button>
+        </h2>
+        <div id="collapsePayments" class="accordion-collapse collapse @(activeSection == "sec-payments" ? "show" : "")" data-bs-parent="#settingsAccordion">
+            <div class="accordion-body p-4 bg-body">
+                <form asp-action="SavePaymentSettings" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">Platform Currency Symbol</label>
+                            <input type="text" name="currencySymbol" value="@Model.CurrencySymbol" class="form-control" placeholder="₹" required />
                         </div>
-                        <form asp-controller="Admin" asp-action="SaveApiConfig" method="post">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="ServiceProvider" value="Razorpay" />
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">Razorpay Key ID</label>
-                                <input name="ApiKey" class="form-control" value="@rzp.ApiKey" placeholder="rzp_test_..." required />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">Razorpay Key Secret</label>
-                                <input name="ApiSecret" type="password" class="form-control" value="" placeholder="@(!string.IsNullOrWhiteSpace(rzp.ApiSecret) ? "•••••••••••• (configured - leave empty to keep current)" : "rzp_secret_...")" autocomplete="new-password" />
-                                <small class="text-muted">Sensitive credentials are never transmitted back to the browser once configured.</small>
-                            </div>
-                            <div class="form-check form-switch mb-3">
-                                <input class="form-check-input" type="checkbox" name="IsActive" value="true" id="rzpActive" @(rzp.IsActive ? "checked" : "")>
-                                <label class="form-check-label fw-semibold" for="rzpActive">Enable Razorpay Processing</label>
-                            </div>
-                            <button type="submit" class="btn btn-warning fw-bold w-100">
-                                <i class="bi bi-save me-1"></i> Update Razorpay Keys
-                            </button>
-                        </form>
-                    </div>
-
-                    <!-- Google OAuth Form -->
-                    @{
-                        var google = configs.FirstOrDefault(c => c.ServiceProvider == "Google") ?? new BookMyFun.Models.Entities.ApiConfiguration { ServiceProvider = "Google", ExtraParams = "{\"ProjectEmail\":\"showsgarage@gmail.com\"}" };
-                    }
-                    <div class="tab-pane fade" id="tabGoogle">
-                        <div class="alert alert-info border-info d-flex align-items-start gap-2 mb-3 py-2 px-3 small">
-                            <i class="bi bi-google text-danger fs-5 mt-1"></i>
-                            <div>
-                                <strong>Google OAuth 2.0 Client Credentials:</strong>
-                                Configure your OAuth credentials created under the active project email (<code>showsgarage@gmail.com</code>) via <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="fw-bold text-decoration-underline">Google Cloud Console</a>.
-                                Authorized redirect URI: <code>/signin-google</code>.
-                            </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">Razorpay Key ID</label>
+                            <input type="text" name="razorpayKeyId" value="@Model.RazorpayKeyId" class="form-control" placeholder="rzp_live_... or rzp_test_..." />
                         </div>
-                        <form asp-controller="Admin" asp-action="SaveApiConfig" method="post">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="ServiceProvider" value="Google" />
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">Google Client ID</label>
-                                <input name="ApiKey" class="form-control" value="@google.ApiKey" placeholder="e.g. 123456789-abc.apps.googleusercontent.com" required />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">Google Client Secret</label>
-                                <input name="ApiSecret" type="password" class="form-control" value="" placeholder="@(!string.IsNullOrWhiteSpace(google.ApiSecret) ? "•••••••••••• (configured - leave empty to keep current)" : "Client Secret")" autocomplete="new-password" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">Active Project Email / Parameters (JSON)</label>
-                                <input name="ExtraParams" class="form-control" value="@(google.ExtraParams ?? "{\"ProjectEmail\":\"showsgarage@gmail.com\"}")" placeholder='{"ProjectEmail":"showsgarage@gmail.com"}' />
-                            </div>
-                            <div class="form-check form-switch mb-3">
-                                <input class="form-check-input" type="checkbox" name="IsActive" value="true" id="googleActive" @(google.IsActive ? "checked" : "")>
-                                <label class="form-check-label fw-semibold" for="googleActive">Enable Google OAuth Sign-in</label>
-                            </div>
-                            <button type="submit" class="btn btn-danger fw-bold w-100">
-                                <i class="bi bi-save me-1"></i> Update Google OAuth Keys
-                            </button>
-                        </form>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">Razorpay Key Secret</label>
+                            <input type="password" name="razorpayKeySecret" value="@(string.IsNullOrEmpty(Model.RazorpayKeySecret) ? "" : "••••••••••••••••")" class="form-control" placeholder="Leave empty to retain existing secret" />
+                            <small class="text-muted">Encrypted on persistence. Secrets are never rendered plaintext.</small>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-success px-4 fw-semibold shadow-sm">
+                            <i class="bi bi-check2-circle me-1"></i> Save Payment Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. NOTIFICATIONS SECTION -->
+    <div class="accordion-item border-0 border-bottom" id="sec-notifications">
+        <h2 class="accordion-header">
+            <button class="accordion-button @(activeSection == "sec-notifications" ? "" : "collapsed") fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseNotifications" aria-expanded="@(activeSection == "sec-notifications" ? "true" : "false")" aria-controls="collapseNotifications">
+                <i class="bi bi-bell text-warning fs-5 me-2"></i>
+                <div class="d-flex flex-column text-start">
+                    <span>4. Notifications &amp; Messaging Gateways</span>
+                    <small class="text-muted fw-normal">Manage automated SMTP email delivery and Meta/WhatsApp alert dispatch parameters.</small>
+                </div>
+            </button>
+        </h2>
+        <div id="collapseNotifications" class="accordion-collapse collapse @(activeSection == "sec-notifications" ? "show" : "")" data-bs-parent="#settingsAccordion">
+            <div class="accordion-body p-4 bg-body">
+                <form asp-action="SaveNotificationSettings" method="post">
+                    @Html.AntiForgeryToken()
+                    <h6 class="fw-bold text-primary mb-3"><i class="bi bi-envelope-at me-1"></i> SMTP Email Configuration</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">SMTP Host / Server</label>
+                            <input type="text" name="smtpServer" value="@Model.SmtpServer" class="form-control" placeholder="smtp.gmail.com" />
+                        </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">SMTP Port</label>
+                            <input type="number" name="smtpPort" value="@Model.SmtpPort" class="form-control" placeholder="587" />
+                        </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">SMTP Username</label>
+                            <input type="text" name="smtpUsername" value="@Model.SmtpUsername" class="form-control" placeholder="noreply@bookmyfun.com" />
+                        </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">SMTP Password</label>
+                            <input type="password" name="smtpPassword" value="@(string.IsNullOrEmpty(Model.SmtpPassword) ? "" : "••••••••••••••••")" class="form-control" placeholder="Leave empty to retain existing password" />
+                        </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">Sender Display Email</label>
+                            <input type="email" name="smtpSenderEmail" value="@Model.SmtpSenderEmail" class="form-control" placeholder="bookings@bookmyfun.com" />
+                        </div>
                     </div>
 
-                    <!-- WhatsApp Form -->
-                    @{
-                        var wa = configs.FirstOrDefault(c => c.ServiceProvider == "WhatsApp") ?? new BookMyFun.Models.Entities.ApiConfiguration { ServiceProvider = "WhatsApp" };
-                    }
-                    <div class="tab-pane fade" id="tabWhatsApp">
-                        <form asp-controller="Admin" asp-action="SaveApiConfig" method="post">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="ServiceProvider" value="WhatsApp" />
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">Meta Cloud API Access Token</label>
-                                <input name="ApiKey" class="form-control" value="@wa.ApiKey" placeholder="Bearer EAAG..." required />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">Phone Number ID / Secret</label>
-                                <input name="ApiSecret" type="password" class="form-control" value="" placeholder="@(!string.IsNullOrWhiteSpace(wa.ApiSecret) ? "•••••••••••• (configured - leave empty to keep current)" : "e.g. 109823482716")" autocomplete="new-password" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">Webhook Secret / Parameters (JSON)</label>
-                                <input name="ExtraParams" class="form-control" value="@wa.ExtraParams" placeholder='{"WabaId": "..."}' />
-                            </div>
-                            <div class="form-check form-switch mb-3">
-                                <input class="form-check-input" type="checkbox" name="IsActive" value="true" id="waActive" @(wa.IsActive ? "checked" : "")>
-                                <label class="form-check-label fw-semibold" for="waActive">Enable Automated WhatsApp Alerts</label>
-                            </div>
-                            <button type="submit" class="btn btn-success fw-bold w-100">
-                                <i class="bi bi-save me-1"></i> Update WhatsApp API
-                            </button>
-                        </form>
+                    <h6 class="fw-bold text-success mb-3"><i class="bi bi-whatsapp me-1"></i> WhatsApp Business API Settings</h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">WhatsApp Cloud API Key / Token</label>
+                            <input type="text" name="whatsAppApiKey" value="@Model.WhatsAppApiKey" class="form-control" placeholder="EAAB..." />
+                        </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">WhatsApp Verified Sender Number ID</label>
+                            <input type="text" name="whatsAppSenderPhone" value="@Model.WhatsAppSenderPhone" class="form-control" placeholder="+91 99999 00001" />
+                        </div>
                     </div>
 
-                    <!-- SMTP Form -->
-                    @{
-                        var smtp = configs.FirstOrDefault(c => c.ServiceProvider == "SMTP") ?? new BookMyFun.Models.Entities.ApiConfiguration { ServiceProvider = "SMTP" };
-                    }
-                    <div class="tab-pane fade" id="tabSMTP">
-                        <form asp-controller="Admin" asp-action="SaveApiConfig" method="post">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="ServiceProvider" value="SMTP" />
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">SMTP Username / Email</label>
-                                <input name="ApiKey" class="form-control" value="@smtp.ApiKey" placeholder="notifications@bookmyfun.com" required />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">SMTP Password / App Password</label>
-                                <input name="ApiSecret" type="password" class="form-control" value="" placeholder="@(!string.IsNullOrWhiteSpace(smtp.ApiSecret) ? "•••••••••••• (configured - leave empty to keep current)" : "App Password")" autocomplete="new-password" />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">SMTP Host & Port (JSON)</label>
-                                <input name="ExtraParams" class="form-control" value="@(smtp.ExtraParams ?? "{\"Host\":\"smtp.gmail.com\",\"Port\":587}")" />
-                            </div>
-                            <div class="form-check form-switch mb-3">
-                                <input class="form-check-input" type="checkbox" name="IsActive" value="true" id="smtpActive" @(smtp.IsActive ? "checked" : "")>
-                                <label class="form-check-label fw-semibold" for="smtpActive">Enable SMTP Email Service</label>
-                            </div>
-                            <button type="submit" class="btn btn-primary fw-bold w-100">
-                                <i class="bi bi-save me-1"></i> Update SMTP Server
-                            </button>
-                        </form>
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-warning text-dark px-4 fw-semibold shadow-sm">
+                            <i class="bi bi-check2-circle me-1"></i> Save Notification Settings
+                        </button>
                     </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
-                    <!-- Cashfree Form -->
-                    @{
-                        var cashfree = configs.FirstOrDefault(c => c.ServiceProvider == "Cashfree") ?? new BookMyFun.Models.Entities.ApiConfiguration { ServiceProvider = "Cashfree" };
-                    }
-                    <div class="tab-pane fade" id="tabCashfree">
-                        <form asp-controller="Admin" asp-action="SaveApiConfig" method="post">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="ServiceProvider" value="Cashfree" />
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">Cashfree App ID</label>
-                                <input name="ApiKey" class="form-control" value="@cashfree.ApiKey" placeholder="CF_TEST_..." required />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">Cashfree Secret Key</label>
-                                <input name="ApiSecret" type="password" class="form-control" value="" placeholder="@(!string.IsNullOrWhiteSpace(cashfree.ApiSecret) ? "•••••••••••• (configured - leave empty to keep current)" : "Secret Key")" autocomplete="new-password" />
-                            </div>
-                            <div class="form-check form-switch mb-3">
-                                <input class="form-check-input" type="checkbox" name="IsActive" value="true" id="cfActive" @(cashfree.IsActive ? "checked" : "")>
-                                <label class="form-check-label fw-semibold" for="cfActive">Enable Cashfree Processing</label>
-                            </div>
-                            <button type="submit" class="btn btn-dark fw-bold w-100">
-                                <i class="bi bi-save me-1"></i> Update Cashfree Keys
-                            </button>
-                        </form>
+    <!-- 5. FOOTER SECTION -->
+    <div class="accordion-item border-0 border-bottom" id="sec-footer">
+        <h2 class="accordion-header">
+            <button class="accordion-button @(activeSection == "sec-footer" ? "" : "collapsed") fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFooter" aria-expanded="@(activeSection == "sec-footer" ? "true" : "false")" aria-controls="collapseFooter">
+                <i class="bi bi-layout-text-window-reverse text-secondary fs-5 me-2"></i>
+                <div class="d-flex flex-column text-start">
+                    <span>5. Footer &amp; Official Contact Coordinates</span>
+                    <small class="text-muted fw-normal">Configure business address, phone, email, and social media links displayed in the footer.</small>
+                </div>
+            </button>
+        </h2>
+        <div id="collapseFooter" class="accordion-collapse collapse @(activeSection == "sec-footer" ? "show" : "")" data-bs-parent="#settingsAccordion">
+            <div class="accordion-body p-4 bg-body">
+                <form asp-action="SaveFooterSettings" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="alert alert-warning py-2 px-3 small mb-4">
+                        <i class="bi bi-exclamation-circle-fill me-1"></i>
+                        <strong>Hide If Empty Rule:</strong> If the Business Address or any social/contact field is left empty, its respective block is completely hidden from the footer on all pages.
                     </div>
+                    <div class="row g-3 mb-4">
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Corporate Business Office Address</label>
+                            <textarea name="address" class="form-control" rows="2" placeholder="Leave empty to hide the address block from footer completely">@Model.Address</textarea>
+                            <small class="text-muted">Leave empty to completely hide the physical address block from the public footer.</small>
+                        </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">Support Phone Helpline</label>
+                            <input type="text" name="supportPhone" value="@Model.SupportPhone" class="form-control" placeholder="+91 (020) 4567-8900" />
+                        </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">WhatsApp Customer Support Number</label>
+                            <input type="text" name="whatsAppNumber" value="@Model.WhatsAppNumber" class="form-control" placeholder="+91 99999 00001" />
+                        </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">Official Support Email</label>
+                            <input type="email" name="supportEmail" value="@Model.SupportEmail" class="form-control" placeholder="support@bookmyfun.com" />
+                        </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">Facebook Page URL</label>
+                            <input type="url" name="facebookUrl" value="@Model.FacebookUrl" class="form-control" placeholder="https://facebook.com/..." />
+                        </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">Instagram Profile URL</label>
+                            <input type="url" name="instagramUrl" value="@Model.InstagramUrl" class="form-control" placeholder="https://instagram.com/..." />
+                        </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold">YouTube Channel URL</label>
+                            <input type="url" name="youtubeUrl" value="@Model.YouTubeUrl" class="form-control" placeholder="https://youtube.com/..." />
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-secondary px-4 fw-semibold shadow-sm">
+                            <i class="bi bi-check2-circle me-1"></i> Save Footer Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. LEGAL SECTION -->
+    <div class="accordion-item border-0 border-bottom" id="sec-legal">
+        <h2 class="accordion-header">
+            <button class="accordion-button @(activeSection == "sec-legal" ? "" : "collapsed") fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseLegal" aria-expanded="@(activeSection == "sec-legal" ? "true" : "false")" aria-controls="collapseLegal">
+                <i class="bi bi-file-earmark-text text-dark fs-5 me-2"></i>
+                <div class="d-flex flex-column text-start">
+                    <span>6. Legal Documents &amp; Policy Versions</span>
+                    <small class="text-muted fw-normal">Preview and access the rich text Legal Pages editor for Terms, Privacy, and Refunds.</small>
+                </div>
+            </button>
+        </h2>
+        <div id="collapseLegal" class="accordion-collapse collapse @(activeSection == "sec-legal" ? "show" : "")" data-bs-parent="#settingsAccordion">
+            <div class="accordion-body p-4 bg-body">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4 col-12">
+                        <div class="card p-3 border-0 bg-light rounded-3 text-center">
+                            <i class="bi bi-shield-check text-primary fs-2 mb-2"></i>
+                            <h6 class="fw-bold mb-1">Privacy Policy</h6>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle mb-2">v@(Model.PrivacyPolicyVersion) Active</span>
+                            <a asp-controller="Home" asp-action="Privacy" target="_blank" class="small text-decoration-none">View Public Page &raquo;</a>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-12">
+                        <div class="card p-3 border-0 bg-light rounded-3 text-center">
+                            <i class="bi bi-file-earmark-ruled text-success fs-2 mb-2"></i>
+                            <h6 class="fw-bold mb-1">Terms of Service</h6>
+                            <span class="badge bg-success-subtle text-success border border-success-subtle mb-2">v@(Model.TermsOfServiceVersion) Active</span>
+                            <a href="/terms" target="_blank" class="small text-decoration-none">View Public Page &raquo;</a>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-12">
+                        <div class="card p-3 border-0 bg-light rounded-3 text-center">
+                            <i class="bi bi-arrow-counterclockwise text-warning fs-2 mb-2"></i>
+                            <h6 class="fw-bold mb-1">Refund &amp; Cancellation</h6>
+                            <span class="badge bg-warning-subtle text-warning border border-warning-subtle mb-2">v@(Model.RefundPolicyVersion) Active</span>
+                            <a href="/refund-policy" target="_blank" class="small text-decoration-none">View Public Page &raquo;</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 bg-light rounded-3 border">
+                    <div>
+                        <div class="fw-bold text-dark">Need to edit policy text, effective dates, or publish new versions?</div>
+                        <div class="small text-muted">Use the dedicated Legal Pages editor to draft, version, and publish legally binding policies.</div>
+                    </div>
+                    <a asp-action="LegalPages" class="btn btn-dark fw-semibold px-4 shadow-sm">
+                        <i class="bi bi-pencil-square me-1"></i> Open Legal Pages Editor
+                    </a>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- 7. FEATURE FLAGS SECTION -->
+    <div class="accordion-item border-0" id="sec-features">
+        <h2 class="accordion-header">
+            <button class="accordion-button @(activeSection == "sec-features" ? "" : "collapsed") fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFeatures" aria-expanded="@(activeSection == "sec-features" ? "true" : "false")" aria-controls="collapseFeatures">
+                <i class="bi bi-toggle-on text-danger fs-5 me-2"></i>
+                <div class="d-flex flex-column text-start">
+                    <span>7. Platform Feature Flags &amp; Runtime Toggles</span>
+                    <small class="text-muted fw-normal">Enable or disable authentication providers, instant checkout, and real-time alerts.</small>
+                </div>
+            </button>
+        </h2>
+        <div id="collapseFeatures" class="accordion-collapse collapse @(activeSection == "sec-features" ? "show" : "")" data-bs-parent="#settingsAccordion">
+            <div class="accordion-body p-4 bg-body">
+                <form asp-action="SaveFeatureFlags" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6 col-12">
+                            <div class="card p-3 border rounded-3 h-100">
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="googleLoginSwitch" name="googleLoginEnabled" value="true" checked="@(Model.GoogleLoginEnabled)" />
+                                    <label class="form-check-label fw-bold text-dark" for="googleLoginSwitch">Enable Google OAuth Sign-In</label>
+                                </div>
+                                <small class="text-muted">Displays "Sign in with Google" button on login &amp; registration portals.</small>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 col-12">
+                            <div class="card p-3 border rounded-3 h-100">
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="instantBookingSwitch" name="instantOnlineBookingEnabled" value="true" checked="@(Model.InstantOnlineBookingEnabled)" />
+                                    <label class="form-check-label fw-bold text-dark" for="instantBookingSwitch">Enable Instant Online Checkout</label>
+                                </div>
+                                <small class="text-muted">Allows guests to complete reservations immediately via Razorpay without waiting for host pre-approval.</small>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 col-12">
+                            <div class="card p-3 border rounded-3 h-100">
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="whatsappSwitch" name="whatsAppNotificationsEnabled" value="true" checked="@(Model.WhatsAppNotificationsEnabled)" />
+                                    <label class="form-check-label fw-bold text-dark" for="whatsappSwitch">Enable Real-Time WhatsApp Alerts</label>
+                                </div>
+                                <small class="text-muted">Automatically triggers transactional WhatsApp receipts on booking confirmations &amp; cancellations.</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-danger px-4 fw-semibold shadow-sm">
+                            <i class="bi bi-check2-circle me-1"></i> Save Feature Flags
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 @section Scripts {
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        const categorySelect = document.getElementById("settingsCategorySelect");
-        const categoryPills = document.querySelectorAll(".category-pill");
-        const cards = document.querySelectorAll(".config-card");
-
-        function filterCategory(targetId) {
-            if (targetId === "all") {
-                cards.forEach(card => card.style.display = "");
-            } else {
-                cards.forEach(card => {
-                    if (card.id === targetId) {
-                        card.style.display = "";
-                        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    } else {
-                        card.style.display = "none";
-                    }
-                });
-            }
-
-            // Sync pill active state
-            categoryPills.forEach(pill => {
-                if (pill.getAttribute("data-target") === targetId) {
-                    pill.classList.add("active", "btn-primary");
-                    pill.classList.remove("btn-outline-primary");
-                } else {
-                    pill.classList.remove("active", "btn-primary");
-                    pill.classList.add("btn-outline-primary");
-                }
-            });
-
-            // Sync select value
-            if (categorySelect.value !== targetId) {
-                categorySelect.value = targetId;
+    <script>
+        function openSection(collapseId) {
+            const el = document.getElementById(collapseId);
+            if (el) {
+                const bsCollapse = bootstrap.Collapse.getOrCreateInstance(el);
+                bsCollapse.show();
             }
         }
 
-        categorySelect.addEventListener("change", function () {
-            filterCategory(this.value);
-        });
-
-        categoryPills.forEach(pill => {
-            pill.addEventListener("click", function () {
-                const target = this.getAttribute("data-target");
-                filterCategory(target);
-            });
-        });
-
-        // Real-time Logo Preview handling
-        const fileInput = document.getElementById("logoFileInput");
-        const urlInput = document.getElementById("logoUrlInput");
-        const previewImg = document.getElementById("logoPreviewImg");
-        const placeholder = document.getElementById("logoPreviewPlaceholder");
-
-        if (fileInput) {
-            fileInput.addEventListener("change", function () {
-                if (this.files && this.files[0]) {
-                    const reader = new FileReader();
-                    reader.onload = function (e) {
-                        previewImg.src = e.target.result;
-                        previewImg.style.display = "block";
-                        if (placeholder) placeholder.style.display = "none";
-                    };
-                    reader.readAsDataURL(this.files[0]);
+        // On load check hash or active section
+        document.addEventListener("DOMContentLoaded", function () {
+            const hash = window.location.hash;
+            if (hash) {
+                const targetMap = {
+                    '#sec-commission': 'collapseCommission',
+                    '#sec-refunds': 'collapseRefunds',
+                    '#sec-payments': 'collapsePayments',
+                    '#sec-notifications': 'collapseNotifications',
+                    '#sec-footer': 'collapseFooter',
+                    '#sec-legal': 'collapseLegal',
+                    '#sec-features': 'collapseFeatures'
+                };
+                if (targetMap[hash]) {
+                    openSection(targetMap[hash]);
                 }
-            });
-        }
-
-        if (urlInput) {
-            urlInput.addEventListener("input", function () {
-                if (this.value.trim().length > 5) {
-                    previewImg.src = this.value.trim();
-                    previewImg.style.display = "block";
-                    if (placeholder) placeholder.style.display = "none";
-                }
-            });
-        }
-    });
-
-    function filterEventTable() {
-        const query = (document.getElementById("eventSearchInput")?.value || "").toLowerCase().trim();
-        const rows = document.querySelectorAll(".event-pkg-row");
-        rows.forEach(r => {
-            const name = r.getAttribute("data-name") || "";
-            const category = r.getAttribute("data-category") || "";
-            if (!query || name.includes(query) || category.includes(query)) {
-                r.style.display = "";
-            } else {
-                r.style.display = "none";
             }
         });
-    }
-
-    async function saveSpecificEventComm(packageId, packageName) {
-        const input = document.getElementById(`input_pkg_${packageId}`);
-        const statusCell = document.getElementById(`status_cell_${packageId}`);
-        const standingInput = document.getElementById("standingEventCommInput");
-        const standingVal = standingInput ? standingInput.value : "10";
-        const val = input.value.trim();
-        const rate = val !== "" ? parseFloat(val) : null;
-
-        if (rate !== null && (isNaN(rate) || rate < 0 || rate > 100)) {
-            alert("Please enter a valid commission percentage between 0 and 100.");
-            return;
-        }
-
-        try {
-            const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-            const resp = await fetch(`/Admin/UpdateEventCommission`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
-                body: JSON.stringify({ packageId: packageId, commissionRate: rate })
-            });
-            const data = await resp.json();
-            if (data.success) {
-                if (rate !== null) {
-                    statusCell.innerHTML = `<span class="badge bg-warning-subtle text-dark border border-warning"><i class="bi bi-star-fill text-warning me-1"></i>Custom: ${rate.toFixed(1)}%</span>`;
-                } else {
-                    statusCell.innerHTML = `<span class="badge bg-light text-muted border">Standing Default (${standingVal}%)</span>`;
-                }
-                showCommissionToast(`Commission for '${packageName}' updated to ${rate !== null ? rate + '%' : 'standing default (' + standingVal + '%)'}!`, true);
-            } else {
-                showCommissionToast(data.message || "Failed to update event commission.", false);
-            }
-        } catch (e) {
-            showCommissionToast("Error updating event commission.", false);
-        }
-    }
-
-    async function resetSpecificEventComm(packageId, packageName) {
-        const input = document.getElementById(`input_pkg_${packageId}`);
-        if (input) input.value = "";
-        await saveSpecificEventComm(packageId, packageName);
-    }
-
-    function showCommissionToast(message, isSuccess) {
-        let toastContainer = document.getElementById("commissionToastContainer");
-        if (!toastContainer) {
-            toastContainer = document.createElement("div");
-            toastContainer.id = "commissionToastContainer";
-            toastContainer.style.position = "fixed";
-            toastContainer.style.bottom = "20px";
-            toastContainer.style.right = "20px";
-            toastContainer.style.zIndex = "9999";
-            document.body.appendChild(toastContainer);
-        }
-        const toast = document.createElement("div");
-        toast.className = `alert alert-${isSuccess ? 'success' : 'danger'} alert-dismissible fade show shadow-lg py-2 px-3 mb-2`;
-        toast.innerHTML = `<i class="bi bi-${isSuccess ? 'check-circle-fill' : 'exclamation-circle-fill'} me-2"></i>${message}<button type="button" class="btn-close p-2" data-bs-dismiss="alert"></button>`;
-        toastContainer.appendChild(toast);
-        setTimeout(() => toast.remove(), 4000);
-    }
-</script>
+    </script>
 }

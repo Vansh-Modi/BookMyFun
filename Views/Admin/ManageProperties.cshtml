@@ -3,40 +3,83 @@
     ViewData["Title"] = "Manage Properties - Staff Oversight";
     var isEmployee = User.IsInRole("Employee");
     var controllerName = isEmployee ? "Employee" : "Admin";
-    var totalCount = Model?.Count() ?? 0;
-    var approvedCount = Model?.Count(p => p.IsApproved && p.ListingStatus == "Active") ?? 0;
-    var deactivatedCount = Model?.Count(p => p.ListingStatus == "Deactivated") ?? 0;
-    var pendingCount = Model?.Count(p => !p.IsApproved && p.ListingStatus != "Rejected" && p.ListingStatus != "Deactivated") ?? 0;
-    var rejectedCount = Model?.Count(p => p.ListingStatus == "Rejected") ?? 0;
+
+    var selectedStatus = ViewBag.SelectedStatus as string ?? "all";
+    var search = ViewBag.Search as string ?? "";
+    var sort = ViewBag.Sort as string ?? "id";
+    var dir = ViewBag.Dir as string ?? "desc";
+    var currentPage = ViewBag.CurrentPage as int? ?? 1;
+    var pageSize = ViewBag.PageSize as int? ?? 25;
+    var totalCount = ViewBag.TotalCount as int? ?? (Model?.Count() ?? 0);
+    var totalPages = ViewBag.TotalPages as int? ?? Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
 }
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small">
+                <li class="breadcrumb-item"><a asp-controller="@controllerName" asp-action="Index">Dashboard</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Properties</li>
+            </ol>
+        </nav>
         <h2 class="fw-bold mb-1"><i class="bi bi-building text-primary me-2"></i>Property Listings Management</h2>
-        <p class="text-muted mb-0">Create, edit, approve, deactivate, or permanently delete properties across hosts on the platform.</p>
+        <p class="text-muted mb-0">Create, review, approve, deactivate, or delete platform properties across all registered hosts.</p>
     </div>
     <a asp-controller="@controllerName" asp-action="CreateProperty" class="btn btn-primary px-3 rounded-pill fw-semibold shadow-sm">
         <i class="bi bi-plus-circle me-1"></i> Add Property for Owner
     </a>
 </div>
 
-<!-- Status Filters -->
-<div class="d-flex flex-wrap gap-2 mb-4">
-    <button type="button" class="btn btn-primary rounded-pill px-3 filter-prop-btn active" data-filter="all" onclick="filterProps('all', this)">
-        All Properties <span class="badge bg-white text-primary ms-1">@totalCount</span>
-    </button>
-    <button type="button" class="btn btn-light border rounded-pill px-3 filter-prop-btn text-success" data-filter="approved" onclick="filterProps('approved', this)">
-        <i class="bi bi-check-circle-fill me-1"></i> Active &amp; Live <span class="badge bg-success text-white ms-1">@approvedCount</span>
-    </button>
-    <button type="button" class="btn btn-light border rounded-pill px-3 filter-prop-btn text-secondary" data-filter="deactivated" onclick="filterProps('deactivated', this)">
-        <i class="bi bi-pause-circle-fill me-1"></i> Deactivated <span class="badge bg-secondary text-white ms-1">@deactivatedCount</span>
-    </button>
-    <button type="button" class="btn btn-light border rounded-pill px-3 filter-prop-btn text-warning" data-filter="waiting" onclick="filterProps('waiting', this)">
-        <i class="bi bi-clock-fill me-1"></i> Waiting Review <span class="badge bg-warning text-dark ms-1">@pendingCount</span>
-    </button>
-    <button type="button" class="btn btn-light border rounded-pill px-3 filter-prop-btn text-danger" data-filter="rejected" onclick="filterProps('rejected', this)">
-        <i class="bi bi-x-circle-fill me-1"></i> Rejected <span class="badge bg-danger text-white ms-1">@rejectedCount</span>
-    </button>
+<!-- Filter Pills -->
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <a asp-controller="@controllerName" asp-action="ManageProperties" asp-route-status="all" asp-route-search="@search" class="btn rounded-pill px-3 @(selectedStatus == "all" ? "btn-primary" : "btn-light border")">
+        All Properties
+    </a>
+    <a asp-controller="@controllerName" asp-action="ManageProperties" asp-route-status="approved" asp-route-search="@search" class="btn rounded-pill px-3 @(selectedStatus == "approved" ? "btn-success fw-bold text-white" : "btn-light border text-success")">
+        <i class="bi bi-check-circle-fill me-1"></i> Active &amp; Live
+    </a>
+    <a asp-controller="@controllerName" asp-action="ManageProperties" asp-route-status="waiting" asp-route-search="@search" class="btn rounded-pill px-3 @(selectedStatus == "waiting" ? "btn-warning fw-bold text-dark" : "btn-light border text-warning")">
+        <i class="bi bi-clock-fill me-1"></i> Waiting Review
+    </a>
+    <a asp-controller="@controllerName" asp-action="ManageProperties" asp-route-status="deactivated" asp-route-search="@search" class="btn rounded-pill px-3 @(selectedStatus == "deactivated" ? "btn-secondary fw-bold text-white" : "btn-light border text-secondary")">
+        <i class="bi bi-pause-circle-fill me-1"></i> Deactivated
+    </a>
+    <a asp-controller="@controllerName" asp-action="ManageProperties" asp-route-status="rejected" asp-route-search="@search" class="btn rounded-pill px-3 @(selectedStatus == "rejected" ? "btn-danger fw-bold text-white" : "btn-light border text-danger")">
+        <i class="bi bi-x-circle-fill me-1"></i> Rejected
+    </a>
+</div>
+
+<!-- Search & Controls Card -->
+<div class="card shadow-sm border-0 rounded-4 mb-4">
+    <div class="card-body p-3">
+        <form method="get" asp-controller="@controllerName" asp-action="ManageProperties" class="row g-2 align-items-center">
+            <input type="hidden" name="status" value="@selectedStatus" />
+            <input type="hidden" name="sort" value="@sort" />
+            <input type="hidden" name="dir" value="@dir" />
+
+            <div class="col-md-8 col-sm-12">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" name="search" class="form-control border-start-0" placeholder="Search by title, location, ID or owner name..." value="@search" />
+                </div>
+            </div>
+            <div class="col-md-2 col-6">
+                <select name="pageSize" class="form-select" onchange="this.form.submit()">
+                    <option value="10" selected="@(pageSize == 10)">10 per page</option>
+                    <option value="25" selected="@(pageSize == 25)">25 per page</option>
+                    <option value="50" selected="@(pageSize == 50)">50 per page</option>
+                    <option value="100" selected="@(pageSize == 100)">100 per page</option>
+                </select>
+            </div>
+            <div class="col-md-2 col-6 d-flex gap-2">
+                <button type="submit" class="btn btn-primary w-100 fw-semibold">Filter</button>
+                @if (!string.IsNullOrWhiteSpace(search) || selectedStatus != "all")
+                {
+                    <a asp-controller="@controllerName" asp-action="ManageProperties" class="btn btn-outline-secondary" title="Clear Filters"><i class="bi bi-x-lg"></i></a>
+                }
+            </div>
+        </form>
+    </div>
 </div>
 
 <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
@@ -44,11 +87,23 @@
         <table class="table table-hover align-middle mb-0" id="propertiesTable">
             <thead class="table-light">
                 <tr>
-                    <th class="ps-3">Property</th>
+                    <th class="ps-3">
+                        <a asp-controller="@controllerName" asp-action="ManageProperties" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-pageSize="@pageSize" asp-route-sort="title" asp-route-dir="@(sort == "title" && dir == "asc" ? "desc" : "asc")" class="text-decoration-none text-dark d-inline-flex align-items-center">
+                            Property @(sort == "title" ? (dir == "asc" ? "▲" : "▼") : "")
+                        </a>
+                    </th>
                     <th>Type</th>
                     <th>Owner</th>
-                    <th>Location</th>
-                    <th>Price/Night</th>
+                    <th>
+                        <a asp-controller="@controllerName" asp-action="ManageProperties" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-pageSize="@pageSize" asp-route-sort="location" asp-route-dir="@(sort == "location" && dir == "asc" ? "desc" : "asc")" class="text-decoration-none text-dark d-inline-flex align-items-center">
+                            Location @(sort == "location" ? (dir == "asc" ? "▲" : "▼") : "")
+                        </a>
+                    </th>
+                    <th>
+                        <a asp-controller="@controllerName" asp-action="ManageProperties" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-pageSize="@pageSize" asp-route-sort="price" asp-route-dir="@(sort == "price" && dir == "asc" ? "desc" : "asc")" class="text-decoration-none text-dark d-inline-flex align-items-center">
+                            Price/Night @(sort == "price" ? (dir == "asc" ? "▲" : "▼") : "")
+                        </a>
+                    </th>
                     <th>Status</th>
                     <th class="text-end pe-3">Actions</th>
                 </tr>
@@ -59,7 +114,8 @@
                     <tr>
                         <td colspan="7" class="text-center py-5 text-muted">
                             <i class="bi bi-building fs-1 d-block mb-2 text-muted opacity-50"></i>
-                            No properties found.
+                            <h5 class="text-dark">No properties found</h5>
+                            <p class="small text-muted mb-0">Try adjusting your filters or search keywords.</p>
                         </td>
                     </tr>
                 }
@@ -73,69 +129,62 @@
                                 <div class="d-flex align-items-center">
                                     <img src="@p.PrimaryImageUrl" class="rounded me-2" style="width: 50px; height: 50px; object-fit: cover;" onerror="this.src='/images/placeholder.jpg';" />
                                     <div>
-                                        <div class="fw-bold text-dark">@p.Title</div>
-                                        <small class="text-muted"><i class="bi bi-people me-1"></i>Max @p.MaxGuests Guests</small>
+                                        <div class="fw-bold text-dark">
+                                            <a asp-controller="Properties" asp-action="Details" asp-route-id="@p.PropertyID" class="text-dark text-decoration-none" target="_blank">
+                                                @p.Title
+                                            </a>
+                                        </div>
+                                        <small class="text-muted"><i class="bi bi-people me-1"></i>Max @p.MaxGuests Guests &bull; #@p.PropertyID</small>
                                     </div>
                                 </div>
                             </td>
-                            <td><span class="badge bg-light text-dark border">@p.PropertyTypeName</span></td>
-                            <td class="fw-medium">@p.OwnerName</td>
-                            <td><small class="text-muted"><i class="bi bi-geo-alt text-danger me-1"></i>@p.Location</small></td>
-                            <td><strong class="text-dark">₹@p.PricePerNight.ToString("N0")</strong></td>
+                            <td>
+                                <span class="badge bg-light text-dark border">@(p.PropertyTypeName ?? "Stay")</span>
+                            </td>
+                            <td>
+                                <div class="fw-semibold">@(p.OwnerName ?? "Host #" + p.OwnerID)</div>
+                                <small class="text-muted">Host ID: #@p.OwnerID</small>
+                            </td>
+                            <td>
+                                <div><i class="bi bi-geo-alt text-danger me-1"></i>@p.Location</div>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-primary">₹@p.PricePerNight.ToString("N0")</div>
+                            </td>
                             <td>
                                 @if (p.ListingStatus == "Deactivated")
                                 {
-                                    <span class="badge bg-secondary"><i class="bi bi-pause-circle-fill me-1"></i>Deactivated</span>
+                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">Deactivated</span>
                                 }
                                 else if (p.ListingStatus == "Rejected")
                                 {
-                                    <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Rejected</span>
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">Rejected</span>
                                 }
                                 else if (p.IsApproved && p.ListingStatus == "Active")
                                 {
-                                    <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Active &amp; Live</span>
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">Active &amp; Live</span>
                                 }
                                 else
                                 {
-                                    <span class="badge bg-warning text-dark"><i class="bi bi-clock-fill me-1"></i>Pending Review</span>
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1">Waiting Review</span>
                                 }
                             </td>
                             <td class="text-end pe-3">
-                                <!-- Deactivate / Activate Button -->
-                                @if (p.ListingStatus == "Deactivated")
-                                {
-                                    <form asp-controller="@controllerName" asp-action="DeactivateProperty" asp-route-id="@p.PropertyID" asp-route-deactivate="false" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1">
-                                        @Html.AntiForgeryToken()
-                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Reactivate property for guest booking">
-                                            <i class="bi bi-play-circle me-1"></i> Activate
-                                        </button>
-                                    </form>
-                                }
-                                else
-                                {
-                                    <form asp-controller="@controllerName" asp-action="DeactivateProperty" asp-route-id="@p.PropertyID" asp-route-deactivate="true" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1" onsubmit="return confirm('Deactivate property #@p.PropertyID (@p.Title)? It will be hidden from guests.');">
-                                        @Html.AntiForgeryToken()
-                                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="Deactivate property">
-                                            <i class="bi bi-pause-circle me-1"></i> Deactivate
-                                        </button>
-                                    </form>
-                                }
-
-                                <!-- Approve / Reject / Revoke Buttons -->
-                                @if (!p.IsApproved || p.ListingStatus != "Active")
+                                @if (!p.IsApproved)
                                 {
                                     <form asp-controller="@controllerName" asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="true" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1">
                                         @Html.AntiForgeryToken()
-                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Approve & Publish Listing">
-                                            <i class="bi bi-check-circle me-1"></i> Approve
+                                        <button type="submit" class="btn btn-sm btn-success" title="Approve & Publish Live">
+                                            <i class="bi bi-check-lg me-1"></i> Approve
                                         </button>
                                     </form>
+
                                     @if (p.ListingStatus != "Rejected")
                                     {
-                                        <form asp-controller="@controllerName" asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="false" asp-route-status="Rejected" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1" onsubmit="return confirm('Reject listing for property #@p.PropertyID?');">
+                                        <form asp-controller="@controllerName" asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="false" asp-route-status="Rejected" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1" onsubmit="return confirm('Reject property #@p.PropertyID? The owner will need to revise it.');">
                                             @Html.AntiForgeryToken()
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Reject Property Listing">
-                                                <i class="bi bi-x-circle me-1"></i> Reject
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Reject Listing">
+                                                <i class="bi bi-x-lg me-1"></i> Reject
                                             </button>
                                         </form>
                                     }
@@ -169,24 +218,37 @@
             </tbody>
         </table>
     </div>
-</div>
 
-<script>
-    function filterProps(status, btn) {
-        document.querySelectorAll('.filter-prop-btn').forEach(b => {
-            b.classList.remove('active', 'btn-primary');
-            b.classList.add('btn-light', 'border');
-        });
-        btn.classList.add('active', 'btn-primary');
-        btn.classList.remove('btn-light', 'border');
-
-        const rows = document.querySelectorAll('.prop-row');
-        rows.forEach(r => {
-            if (status === 'all' || r.getAttribute('data-status') === status) {
-                r.style.display = '';
-            } else {
-                r.style.display = 'none';
-            }
-        });
+    <!-- Pagination Footer -->
+    @if (totalPages > 1)
+    {
+        <div class="card-footer bg-white border-top d-flex flex-wrap justify-content-between align-items-center py-3">
+            <div class="small text-muted">
+                Showing @(((currentPage - 1) * pageSize) + 1) to @(Math.Min(currentPage * pageSize, totalCount)) of @totalCount properties
+            </div>
+            <nav aria-label="Properties pagination">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                        <a class="page-link" asp-controller="@controllerName" asp-action="ManageProperties" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-sort="@sort" asp-route-dir="@dir" asp-route-page="@(currentPage - 1)" asp-route-pageSize="@pageSize">Previous</a>
+                    </li>
+                    @for (int i = 1; i <= totalPages; i++)
+                    {
+                        if (i == 1 || i == totalPages || (i >= currentPage - 2 && i <= currentPage + 2))
+                        {
+                            <li class="page-item @(i == currentPage ? "active" : "")">
+                                <a class="page-link" asp-controller="@controllerName" asp-action="ManageProperties" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-sort="@sort" asp-route-dir="@dir" asp-route-page="@i" asp-route-pageSize="@pageSize">@i</a>
+                            </li>
+                        }
+                        else if (i == currentPage - 3 || i == currentPage + 3)
+                        {
+                            <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+                        }
+                    }
+                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                        <a class="page-link" asp-controller="@controllerName" asp-action="ManageProperties" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-sort="@sort" asp-route-dir="@dir" asp-route-page="@(currentPage + 1)" asp-route-pageSize="@pageSize">Next</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
     }
-</script>
+</div>

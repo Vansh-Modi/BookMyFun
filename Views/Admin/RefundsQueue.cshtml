@@ -3,7 +3,15 @@
     var isEmployee = User.IsInRole("Employee");
     var controllerName = isEmployee ? "Employee" : "Admin";
     ViewData["Title"] = "Refund Operations Queue";
-    var selectedStatus = ViewBag.SelectedStatus as string;
+
+    var selectedStatus = ViewBag.SelectedStatus as string ?? "All";
+    var search = ViewBag.Search as string ?? "";
+    var sort = ViewBag.Sort as string ?? "id";
+    var dir = ViewBag.Dir as string ?? "desc";
+    var currentPage = ViewBag.CurrentPage as int? ?? 1;
+    var pageSize = ViewBag.PageSize as int? ?? 25;
+    var totalCount = ViewBag.TotalCount as int? ?? (Model?.Count() ?? 0);
+    var totalPages = ViewBag.TotalPages as int? ?? Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
 }
 
 <div class="container-fluid py-4 px-lg-4">
@@ -11,7 +19,7 @@
     <div class="card border-0 shadow-sm rounded-4 mb-4 bg-gradient text-white p-4" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
             <div>
-                <span class="badge bg-white text-primary px-3 py-2 rounded-pill fw-bold mb-2">Finance & Triage</span>
+                <span class="badge bg-white text-primary px-3 py-2 rounded-pill fw-bold mb-2">Finance &amp; Triage</span>
                 <h2 class="fw-bold mb-1"><i class="bi bi-arrow-counterclockwise me-2"></i>Refund Operations Queue</h2>
                 <p class="mb-0 text-white-50">Review automated policy window quotes, audit gateway fees, and execute manual overrides or gateway refund dispatches.</p>
             </div>
@@ -22,22 +30,55 @@
     </div>
 
     <!-- Filter Pills -->
-    <div class="d-flex flex-wrap gap-2 mb-4">
-        <a asp-controller="@controllerName" asp-action="RefundsQueue" class="btn rounded-pill px-3 @(string.IsNullOrEmpty(selectedStatus) ? "btn-primary" : "btn-light border")">
+    <div class="d-flex flex-wrap gap-2 mb-3">
+        <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-search="@search" class="btn rounded-pill px-3 @(string.IsNullOrEmpty(selectedStatus) || selectedStatus == "All" ? "btn-primary" : "btn-light border")">
             All Refunds
         </a>
-        <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="Pending" class="btn rounded-pill px-3 @(selectedStatus == "Pending" ? "btn-warning text-dark fw-bold" : "btn-light border")">
+        <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="Pending" asp-route-search="@search" class="btn rounded-pill px-3 @(selectedStatus == "Pending" ? "btn-warning text-dark fw-bold" : "btn-light border")">
             <i class="bi bi-clock-history me-1"></i> Pending Review
         </a>
-        <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="Approved" class="btn rounded-pill px-3 @(selectedStatus == "Approved" ? "btn-success fw-bold" : "btn-light border")">
+        <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="Approved" asp-route-search="@search" class="btn rounded-pill px-3 @(selectedStatus == "Approved" ? "btn-success fw-bold text-white" : "btn-light border")">
             <i class="bi bi-check-circle me-1"></i> Approved
         </a>
-        <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="Processed" class="btn rounded-pill px-3 @(selectedStatus == "Processed" ? "btn-info text-dark fw-bold" : "btn-light border")">
+        <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="Processed" asp-route-search="@search" class="btn rounded-pill px-3 @(selectedStatus == "Processed" ? "btn-info text-dark fw-bold" : "btn-light border")">
             <i class="bi bi-check-all me-1"></i> Processed via Gateway
         </a>
-        <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="Rejected" class="btn rounded-pill px-3 @(selectedStatus == "Rejected" ? "btn-danger fw-bold" : "btn-light border")">
+        <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="Rejected" asp-route-search="@search" class="btn rounded-pill px-3 @(selectedStatus == "Rejected" ? "btn-danger fw-bold text-white" : "btn-light border")">
             <i class="bi bi-x-circle me-1"></i> Rejected
         </a>
+    </div>
+
+    <!-- Search & Pagination Controls -->
+    <div class="card shadow-sm border-0 rounded-4 mb-4">
+        <div class="card-body p-3">
+            <form method="get" asp-controller="@controllerName" asp-action="RefundsQueue" class="row g-2 align-items-center">
+                <input type="hidden" name="status" value="@selectedStatus" />
+                <input type="hidden" name="sort" value="@sort" />
+                <input type="hidden" name="dir" value="@dir" />
+
+                <div class="col-md-8 col-sm-12">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" name="search" class="form-control border-start-0" placeholder="Search by refund #, booking #, guest name, property, or reason..." value="@search" />
+                    </div>
+                </div>
+                <div class="col-md-2 col-6">
+                    <select name="pageSize" class="form-select" onchange="this.form.submit()">
+                        <option value="10" selected="@(pageSize == 10)">10 per page</option>
+                        <option value="25" selected="@(pageSize == 25)">25 per page</option>
+                        <option value="50" selected="@(pageSize == 50)">50 per page</option>
+                        <option value="100" selected="@(pageSize == 100)">100 per page</option>
+                    </select>
+                </div>
+                <div class="col-md-2 col-6 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary w-100 fw-semibold">Filter</button>
+                    @if (!string.IsNullOrWhiteSpace(search) || (!string.IsNullOrEmpty(selectedStatus) && selectedStatus != "All"))
+                    {
+                        <a asp-controller="@controllerName" asp-action="RefundsQueue" class="btn btn-outline-secondary" title="Clear Filters"><i class="bi bi-x-lg"></i></a>
+                    }
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Data Table -->
@@ -49,89 +90,129 @@
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th class="ps-4">Refund #</th>
-                                <th>Booking Ref</th>
+                                <th class="ps-4">
+                                    <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-pageSize="@pageSize" asp-route-sort="id" asp-route-dir="@(sort == "id" && dir == "asc" ? "desc" : "asc")" class="text-decoration-none text-dark d-inline-flex align-items-center">
+                                        Refund # @(sort == "id" ? (dir == "asc" ? "▲" : "▼") : "")
+                                    </a>
+                                </th>
+                                <th>
+                                    <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-pageSize="@pageSize" asp-route-sort="booking" asp-route-dir="@(sort == "booking" && dir == "asc" ? "desc" : "asc")" class="text-decoration-none text-dark d-inline-flex align-items-center">
+                                        Booking Ref @(sort == "booking" ? (dir == "asc" ? "▲" : "▼") : "")
+                                    </a>
+                                </th>
                                 <th>Guest Details</th>
                                 <th>Total Paid</th>
                                 <th>Gateway Fee</th>
                                 <th>Cancellation Fee</th>
-                                <th>Calculated Refund</th>
+                                <th>
+                                    <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-pageSize="@pageSize" asp-route-sort="amount" asp-route-dir="@(sort == "amount" && dir == "asc" ? "desc" : "asc")" class="text-decoration-none text-dark d-inline-flex align-items-center">
+                                        Calculated Refund @(sort == "amount" ? (dir == "asc" ? "▲" : "▼") : "")
+                                    </a>
+                                </th>
                                 <th>Host / Penalty</th>
                                 <th>Policy Rule</th>
-                                <th>Status</th>
-                                <th>Date Requested</th>
-                                <th class="pe-4 text-end">Action</th>
+                                <th>
+                                    <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-pageSize="@pageSize" asp-route-sort="status" asp-route-dir="@(sort == "status" && dir == "asc" ? "desc" : "asc")" class="text-decoration-none text-dark d-inline-flex align-items-center">
+                                        Status @(sort == "status" ? (dir == "asc" ? "▲" : "▼") : "")
+                                    </a>
+                                </th>
+                                <th class="text-end pe-4">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach (var r in Model)
                             {
-                                var badgeClass = r.Status switch
-                                {
-                                    "Pending" => "bg-warning text-dark",
-                                    "Approved" => "bg-success",
-                                    "Processed" => "bg-info text-dark",
-                                    "Completed" => "bg-success",
-                                    "Rejected" => "bg-danger",
-                                    _ => "bg-secondary"
-                                };
                                 <tr>
                                     <td class="ps-4 fw-bold">#@r.RefundID</td>
                                     <td>
-                                        <span class="badge bg-light text-dark border">#@r.BookingID</span>
+                                        <div class="fw-semibold text-primary">#@r.BookingID</div>
+                                        <small class="text-muted">@(r.PropertyTitle ?? "Stay")</small>
                                     </td>
                                     <td>
-                                        <div class="fw-semibold">@r.ClientName</div>
-                                        <span class="text-muted small">@r.PropertyTitle</span>
+                                        <div class="fw-semibold">@(r.ClientName ?? "Guest")</div>
+                                        <small class="text-muted text-truncate d-inline-block" style="max-width: 140px;">@(r.ClientEmail ?? "")</small>
                                     </td>
-                                    <td class="fw-medium">₹@r.GrossBookingAmount.ToString("N2")</td>
-                                    <td class="text-muted small">₹@r.GatewayFeeDeducted.ToString("N2")</td>
-                                    <td class="text-danger small">₹@r.CancellationFeeDeducted.ToString("N2")</td>
-                                    <td class="fw-bold text-success fs-6">₹@r.NetRefundAmount.ToString("N2")</td>
-                                    <td class="small">
-                                        @if (r.ShortfallAmount > 0)
+                                    <td>₹@r.GrossBookingAmount.ToString("N2")</td>
+                                    <td class="text-muted">₹@r.GatewayFeeDeducted.ToString("N2")</td>
+                                    <td class="text-muted">₹@r.CancellationFeeDeducted.ToString("N2")</td>
+                                    <td>
+                                        <span class="fw-bold text-success">₹@r.NetRefundAmount.ToString("N2")</span>
+                                    </td>
+                                    <td>
+                                        @if (r.OwnerShareAmount > 0)
                                         {
-                                            <span class="text-danger fw-bold">Shortfall: ₹@r.ShortfallAmount.ToString("N2")</span>
+                                            <span class="text-dark small">Payout: ₹@r.OwnerShareAmount.ToString("N2")</span>
+                                        }
+                                        else if (r.ShortfallAmount > 0)
+                                        {
+                                            <span class="text-danger small fw-bold">Penalty: ₹@r.ShortfallAmount.ToString("N2")</span>
                                         }
                                         else
                                         {
-                                            <span class="text-dark">₹@r.OwnerShareAmount.ToString("N2")</span>
+                                            <span class="text-muted small">₹0.00</span>
                                         }
                                     </td>
                                     <td>
-                                        <span class="badge bg-light text-primary border small">
-                                            @(r.RuleApplied.HasValue ? $"Rule #{r.RuleApplied}" : "Policy")
-                                        </span>
-                                        <div class="text-muted small" style="font-size: 0.72rem;">@(string.IsNullOrEmpty(r.RefundReason) ? "Standard Policy" : r.RefundReason)</div>
+                                        @if (r.RuleApplied.HasValue)
+                                        {
+                                            <span class="badge bg-light text-dark border">
+                                                Rule #@r.RuleApplied
+                                                @if (r.RuleApplied == 1) { <span class="ms-1 text-success">&gt;72h</span> }
+                                                else if (r.RuleApplied == 2) { <span class="ms-1 text-warning">24-72h</span> }
+                                                else if (r.RuleApplied == 3) { <span class="ms-1 text-danger">&lt;24h</span> }
+                                                else if (r.RuleApplied == 4) { <span class="ms-1 text-danger">Host Cancel</span> }
+                                                else if (r.RuleApplied == 5) { <span class="ms-1 text-primary">Mismatch</span> }
+                                                else if (r.RuleApplied == 6) { <span class="ms-1 text-secondary">Force Majeure</span> }
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">Manual</span>
+                                        }
                                     </td>
                                     <td>
-                                        <span class="badge @badgeClass px-3 py-2 rounded-pill">@r.Status</span>
+                                        @if (r.Status == "Pending" || r.Status == "Initiated")
+                                        {
+                                            <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>Pending</span>
+                                        }
+                                        else if (r.Status == "Approved")
+                                        {
+                                            <span class="badge bg-success"><i class="bi bi-check me-1"></i>Approved</span>
+                                        }
+                                        else if (r.Status == "Processed" || r.Status == "Completed")
+                                        {
+                                            <span class="badge bg-info text-dark"><i class="bi bi-check-all me-1"></i>Processed</span>
+                                        }
+                                        else if (r.Status == "Rejected" || r.Status == "Failed")
+                                        {
+                                            <span class="badge bg-danger"><i class="bi bi-x me-1"></i>Rejected</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">@r.Status</span>
+                                        }
                                     </td>
-                                    <td class="text-muted small">@r.CreatedAt.ToString("MMM dd, yyyy HH:mm")</td>
-                                    <td class="pe-4 text-end">
-                                        <div class="d-inline-flex gap-1">
-                                            @if (r.Status == "Pending" || r.RuleApplied == 5 || r.RuleApplied == 6)
+                                    <td class="text-end pe-4">
+                                        <div class="d-flex justify-content-end gap-1">
+                                            @if (r.RuleApplied == 5 || r.RuleApplied == 6)
                                             {
-                                                <button type="button" class="btn btn-sm btn-warning text-dark fw-bold rounded-pill px-3 btn-adjudicate"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#adjudicateModal"
+                                                <button type="button" class="btn btn-sm btn-warning text-dark fw-bold btn-adjudicate"
+                                                        data-bs-toggle="modal" data-bs-target="#adjudicateModal"
                                                         data-refund-id="@r.RefundID"
                                                         data-booking-id="@r.BookingID"
                                                         data-amount="@r.NetRefundAmount.ToString("N2")"
                                                         data-gross="@r.GrossBookingAmount.ToString("N2")"
-                                                        data-rule="@(r.RuleApplied ?? 5)"
-                                                        data-reason="@r.RefundReason">
-                                                    <i class="bi bi-shield-check me-1"></i> Review / Adjudicate
+                                                        data-rule="@r.RuleApplied"
+                                                        data-reason="@(r.RefundReason ?? "")">
+                                                    <i class="bi bi-shield-check me-1"></i>Adjudicate
                                                 </button>
                                             }
-                                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3 btn-override"
-                                                    data-bs-toggle="modal" 
-                                                    data-bs-target="#overrideModal"
+                                            <button type="button" class="btn btn-sm btn-outline-secondary btn-override"
+                                                    data-bs-toggle="modal" data-bs-target="#overrideModal"
                                                     data-refund-id="@r.RefundID"
                                                     data-booking-id="@r.BookingID"
-                                                    data-amount="@r.NetRefundAmount.ToString("N2")"
-                                                    data-status="@r.Status">
-                                                <i class="bi bi-gear-fill me-1"></i> Override
+                                                    data-amount="@r.NetRefundAmount.ToString("N2")">
+                                                <i class="bi bi-sliders"></i>
                                             </button>
                                         </div>
                                     </td>
@@ -140,13 +221,46 @@
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Pagination Footer -->
+                @if (totalPages > 1)
+                {
+                    <div class="card-footer bg-white border-top d-flex flex-wrap justify-content-between align-items-center py-3 px-4">
+                        <div class="small text-muted">
+                            Showing @(((currentPage - 1) * pageSize) + 1) to @(Math.Min(currentPage * pageSize, totalCount)) of @totalCount refund records
+                        </div>
+                        <nav aria-label="Refunds pagination">
+                            <ul class="pagination pagination-sm mb-0">
+                                <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                                    <a class="page-link" asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-sort="@sort" asp-route-dir="@dir" asp-route-page="@(currentPage - 1)" asp-route-pageSize="@pageSize">Previous</a>
+                                </li>
+                                @for (int i = 1; i <= totalPages; i++)
+                                {
+                                    if (i == 1 || i == totalPages || (i >= currentPage - 2 && i <= currentPage + 2))
+                                    {
+                                        <li class="page-item @(i == currentPage ? "active" : "")">
+                                            <a class="page-link" asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-sort="@sort" asp-route-dir="@dir" asp-route-page="@i" asp-route-pageSize="@pageSize">@i</a>
+                                        </li>
+                                    }
+                                    else if (i == currentPage - 3 || i == currentPage + 3)
+                                    {
+                                        <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+                                    }
+                                }
+                                <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                                    <a class="page-link" asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-sort="@sort" asp-route-dir="@dir" asp-route-page="@(currentPage + 1)" asp-route-pageSize="@pageSize">Next</a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+                }
             }
             else
             {
-                <div class="text-center py-5">
-                    <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
-                    <h5 class="fw-bold text-secondary">No Refunds in this Queue</h5>
-                    <p class="text-muted small mb-0">No booking cancellations matching the selected filter.</p>
+                <div class="p-5 text-center text-muted">
+                    <i class="bi bi-inbox fs-1 d-block mb-3 opacity-50"></i>
+                    <h5>No refund operations found</h5>
+                    <p class="mb-0">There are currently no refund tickets matching your selected criteria.</p>
                 </div>
             }
         </div>

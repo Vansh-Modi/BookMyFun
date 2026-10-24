@@ -13,6 +13,8 @@ namespace BookMyFun.Repositories
         Task<bool> SetSettingValueAsync(string key, string value, bool isEncrypted = false);
         Task<List<SiteSetting>> GetAllSettingsAsync();
         Task LogAuditAsync(int performedByUserId, string action, string entityType, int? entityId, string? details);
+        Task<List<AuditLog>> GetAuditLogsAsync(int limit = 100) => Task.FromResult(new List<AuditLog>());
+        Task<(List<AuditLog> Items, int TotalCount)> GetAuditLogsPagedAsync(string? search = null, string? action = null, string? entityType = null, DateTime? fromDate = null, DateTime? toDate = null, int page = 1, int pageSize = 25) => Task.FromResult((new List<AuditLog>(), 0));
     }
 
     public class ConfigRepository : IConfigRepository
@@ -127,6 +129,107 @@ namespace BookMyFun.Repositories
             catch
             {
                 // Non-blocking fallback
+            }
+        }
+
+        public async Task<List<AuditLog>> GetAuditLogsAsync(int limit = 100)
+        {
+            try
+            {
+                string sql = $@"
+                    SELECT TOP ({limit}) a.*, u.FullName AS PerformedByUserName, u.Email AS PerformedByUserEmail
+                    FROM AuditLogs a
+                    LEFT JOIN Users u ON a.PerformedByUserID = u.UserID
+                    ORDER BY a.Timestamp DESC";
+
+                return await _db.ExecuteReaderListAsync(sql, r => new AuditLog
+                {
+                    AuditID = r.GetInt32(r.GetOrdinal("AuditID")),
+                    PerformedByUserID = r.GetInt32(r.GetOrdinal("PerformedByUserID")),
+                    Action = r.GetString(r.GetOrdinal("Action")),
+                    EntityType = r.GetString(r.GetOrdinal("EntityType")),
+                    EntityID = r.IsDBNull(r.GetOrdinal("EntityID")) ? null : r.GetInt32(r.GetOrdinal("EntityID")),
+                    Details = r.IsDBNull(r.GetOrdinal("Details")) ? null : r.GetString(r.GetOrdinal("Details")),
+                    Timestamp = r.GetDateTime(r.GetOrdinal("Timestamp")),
+                    PerformedByUserName = r.IsDBNull(r.GetOrdinal("PerformedByUserName")) ? null : r.GetString(r.GetOrdinal("PerformedByUserName")),
+                    PerformedByUserEmail = r.IsDBNull(r.GetOrdinal("PerformedByUserEmail")) ? null : r.GetString(r.GetOrdinal("PerformedByUserEmail"))
+                });
+            }
+            catch
+            {
+                return new List<AuditLog>();
+            }
+        }
+
+        public async Task<(List<AuditLog> Items, int TotalCount)> GetAuditLogsPagedAsync(string? search = null, string? action = null, string? entityType = null, DateTime? fromDate = null, DateTime? toDate = null, int page = 1, int pageSize = 25)
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+            int offset = (page - 1) * pageSize;
+
+            try
+            {
+                var whereClauses = new List<string>();
+                var parameters = new List<SqlParameter>();
+
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    whereClauses.Add("(a.Action LIKE @Search OR a.EntityType LIKE @Search OR a.Details LIKE @Search OR u.FullName LIKE @Search OR u.Email LIKE @Search)");
+                    parameters.Add(new SqlParameter("@Search", $"%{search.Trim()}%"));
+                }
+                if (!string.IsNullOrWhiteSpace(action) && !action.Equals("All", StringComparison.OrdinalIgnoreCase))
+                {
+                    whereClauses.Add("a.Action = @ActionFilter");
+                    parameters.Add(new SqlParameter("@ActionFilter", action.Trim()));
+                }
+                if (!string.IsNullOrWhiteSpace(entityType) && !entityType.Equals("All", StringComparison.OrdinalIgnoreCase))
+                {
+                    whereClauses.Add("a.EntityType = @EntityTypeFilter");
+                    parameters.Add(new SqlParameter("@EntityTypeFilter", entityType.Trim()));
+                }
+                if (fromDate.HasValue)
+                {
+                    whereClauses.Add("a.Timestamp >= @FromDate");
+                    parameters.Add(new SqlParameter("@FromDate", fromDate.Value.Date));
+                }
+                if (toDate.HasValue)
+                {
+                    whereClauses.Add("a.Timestamp < @ToDate");
+                    parameters.Add(new SqlParameter("@ToDate", toDate.Value.Date.AddDays(1)));
+                }
+
+                string whereSql = whereClauses.Any() ? " WHERE " + string.Join(" AND ", whereClauses) : "";
+
+                string countSql = $"SELECT COUNT(*) FROM AuditLogs a LEFT JOIN Users u ON a.PerformedByUserID = u.UserID {whereSql}";
+                var countParams = parameters.Select(p => new SqlParameter(p.ParameterName, p.Value)).ToArray();
+                int totalCount = Convert.ToInt32(await _db.ExecuteScalarAsync(countSql, countParams) ?? 0);
+
+                string dataSql = $@"
+                    SELECT a.*, u.FullName AS PerformedByUserName, u.Email AS PerformedByUserEmail
+                    FROM AuditLogs a
+                    LEFT JOIN Users u ON a.PerformedByUserID = u.UserID
+                    {whereSql}
+                    ORDER BY a.Timestamp DESC
+                    OFFSET {offset} ROWS FETCH NEXT {pageSize} ROWS ONLY";
+
+                var items = await _db.ExecuteReaderListAsync(dataSql, r => new AuditLog
+                {
+                    AuditID = r.GetInt32(r.GetOrdinal("AuditID")),
+                    PerformedByUserID = r.GetInt32(r.GetOrdinal("PerformedByUserID")),
+                    Action = r.GetString(r.GetOrdinal("Action")),
+                    EntityType = r.GetString(r.GetOrdinal("EntityType")),
+                    EntityID = r.IsDBNull(r.GetOrdinal("EntityID")) ? null : r.GetInt32(r.GetOrdinal("EntityID")),
+                    Details = r.IsDBNull(r.GetOrdinal("Details")) ? null : r.GetString(r.GetOrdinal("Details")),
+                    Timestamp = r.GetDateTime(r.GetOrdinal("Timestamp")),
+                    PerformedByUserName = r.IsDBNull(r.GetOrdinal("PerformedByUserName")) ? null : r.GetString(r.GetOrdinal("PerformedByUserName")),
+                    PerformedByUserEmail = r.IsDBNull(r.GetOrdinal("PerformedByUserEmail")) ? null : r.GetString(r.GetOrdinal("PerformedByUserEmail"))
+                }, parameters.ToArray());
+
+                return (items, totalCount);
+            }
+            catch
+            {
+                return (new List<AuditLog>(), 0);
             }
         }
 

@@ -73,9 +73,24 @@ namespace BookMyFun.Controllers
             var clients = await _userRepo.GetUsersByRoleAsync("Client");
             var employees = await _userRepo.GetUsersByRoleAsync("Employee");
             var bookings = await _bookingRepo.GetAllBookingsAsync();
+            var refunds = await _refundEngine.GetRefundsQueueAsync();
+            var kycPending = await _idVerificationService.GetAllVerificationsAsync("PendingReview");
+            var partnerLeads = await _partnerLeadService.GetAllLeadsAsync();
+            var contacts = await _contactRepo.GetAllContactsAsync();
 
             decimal totalRevenue = bookings.Where(b => b.Status == "Confirmed").Sum(b => b.TotalAmount);
             decimal platformEarnings = Math.Round(totalRevenue * 0.10m, 2);
+
+            // Item 1: 6 Summary cards calculations
+            DateTime today = DateTime.UtcNow.Date;
+            int bookingsToday = bookings.Count(b => b.CreatedAt.Date == today);
+            int pendingRefunds = refunds.Count(r => string.Equals(r.Status, "Pending", StringComparison.OrdinalIgnoreCase) || string.Equals(r.Status, "Initiated", StringComparison.OrdinalIgnoreCase) || string.Equals(r.Status, "Processing", StringComparison.OrdinalIgnoreCase));
+            int pendingKyc = kycPending.Count;
+            int pendingLeads = partnerLeads.Count(l => string.Equals(l.Status, "New", StringComparison.OrdinalIgnoreCase));
+            decimal heldPayouts = bookings
+                .Where(b => b.Status == "Confirmed" && b.CheckOutDate >= today)
+                .Sum(b => b.OwnerPayoutAmount);
+            int newMessages = contacts.Count(c => string.Equals(c.Status, "New", StringComparison.OrdinalIgnoreCase));
 
             var vm = new AdminDashboardViewModel
             {
@@ -87,18 +102,82 @@ namespace BookMyFun.Controllers
                 TotalBookings = bookings.Count,
                 TotalRevenue = totalRevenue,
                 PlatformEarnings = platformEarnings,
+
+                BookingsTodayCount = bookingsToday,
+                PendingRefundsCount = pendingRefunds,
+                PendingKycCount = pendingKyc,
+                PendingPartnerLeadsCount = pendingLeads,
+                HeldPayoutsTotal = heldPayouts,
+                NewMessagesCount = newMessages,
+
                 RecentProperties = properties.Take(5).ToList(),
-                RecentBookings = bookings.Take(5).ToList()
+                RecentBookings = bookings.Take(5).ToList(),
+                RecentAuditLogs = await _configRepo.GetAuditLogsAsync(10)
             };
 
             return View(vm);
         }
 
         // --- Full CRUD for Owners on their behalf ---
-        public async Task<IActionResult> ManageOwners()
+        public async Task<IActionResult> ManageOwners(
+            string? tier = null,
+            string? status = null,
+            string? search = null,
+            string? sort = null,
+            string? dir = null,
+            int page = 1,
+            int pageSize = 25)
         {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
             var owners = await _userRepo.GetUsersByRoleAsync("Owner");
-            return View(owners);
+
+            if (!string.IsNullOrEmpty(tier) && !string.Equals(tier, "All", StringComparison.OrdinalIgnoreCase))
+            {
+                owners = owners.Where(o => string.Equals(o.SubscriptionTier, tier, StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+            if (!string.IsNullOrEmpty(status) && !string.Equals(status, "All", StringComparison.OrdinalIgnoreCase))
+            {
+                bool activeOnly = status.Equals("active", StringComparison.OrdinalIgnoreCase);
+                owners = owners.Where(o => o.IsActive == activeOnly).ToList();
+            }
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                string q = search.Trim();
+                owners = owners.Where(o =>
+                    o.UserID.ToString().Contains(q) ||
+                    o.FullName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    o.Email.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    (o.Phone != null && o.Phone.Contains(q))
+                ).ToList();
+            }
+
+            bool desc = string.Equals(dir, "desc", StringComparison.OrdinalIgnoreCase);
+            owners = sort switch
+            {
+                "id" => desc ? owners.OrderByDescending(o => o.UserID).ToList() : owners.OrderBy(o => o.UserID).ToList(),
+                "name" => desc ? owners.OrderByDescending(o => o.FullName).ToList() : owners.OrderBy(o => o.FullName).ToList(),
+                "email" => desc ? owners.OrderByDescending(o => o.Email).ToList() : owners.OrderBy(o => o.Email).ToList(),
+                "tier" => desc ? owners.OrderByDescending(o => o.SubscriptionTier).ToList() : owners.OrderBy(o => o.SubscriptionTier).ToList(),
+                _ => owners.OrderByDescending(o => o.UserID).ToList()
+            };
+
+            int totalCount = owners.Count;
+            int totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
+            var paged = owners.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            ViewBag.SelectedTier = tier ?? "All";
+            ViewBag.SelectedStatus = status ?? "All";
+            ViewBag.Search = search;
+            ViewBag.Sort = sort;
+            ViewBag.Dir = dir;
+            ViewBag.CurrentPage = page;
+            ViewBag.PageSize = pageSize;
+            ViewBag.TotalCount = totalCount;
+            ViewBag.TotalPages = totalPages;
+
+            return View(paged);
         }
 
         [HttpGet]
@@ -155,10 +234,51 @@ namespace BookMyFun.Controllers
         }
 
         // --- Full CRUD for Employees ---
-        public async Task<IActionResult> ManageEmployees()
+        public async Task<IActionResult> ManageEmployees(
+            string? search = null,
+            string? sort = null,
+            string? dir = null,
+            int page = 1,
+            int pageSize = 25)
         {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
             var employees = await _userRepo.GetUsersByRoleAsync("Employee");
-            return View(employees);
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                string q = search.Trim();
+                employees = employees.Where(e =>
+                    e.UserID.ToString().Contains(q) ||
+                    e.FullName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    e.Email.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    (e.Phone != null && e.Phone.Contains(q))
+                ).ToList();
+            }
+
+            bool desc = string.Equals(dir, "desc", StringComparison.OrdinalIgnoreCase);
+            employees = sort switch
+            {
+                "id" => desc ? employees.OrderByDescending(e => e.UserID).ToList() : employees.OrderBy(e => e.UserID).ToList(),
+                "name" => desc ? employees.OrderByDescending(e => e.FullName).ToList() : employees.OrderBy(e => e.FullName).ToList(),
+                "email" => desc ? employees.OrderByDescending(e => e.Email).ToList() : employees.OrderBy(e => e.Email).ToList(),
+                _ => employees.OrderByDescending(e => e.UserID).ToList()
+            };
+
+            int totalCount = employees.Count;
+            int totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
+            var paged = employees.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            ViewBag.Search = search;
+            ViewBag.Sort = sort;
+            ViewBag.Dir = dir;
+            ViewBag.CurrentPage = page;
+            ViewBag.PageSize = pageSize;
+            ViewBag.TotalCount = totalCount;
+            ViewBag.TotalPages = totalPages;
+
+            return View(paged);
         }
 
         [HttpGet]
@@ -301,29 +421,144 @@ namespace BookMyFun.Controllers
         }
 
         // --- Full CRUD for Properties on behalf of Owners ---
-        public async Task<IActionResult> ManageProperties()
+        public async Task<IActionResult> ManageProperties(
+            string? status = null,
+            string? search = null,
+            string? sort = null,
+            string? dir = null,
+            int page = 1,
+            int pageSize = 25)
         {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
             var properties = await _propRepo.GetAllPropertiesAsync();
-            return View(properties);
+
+            if (!string.IsNullOrEmpty(status) && !string.Equals(status, "all", StringComparison.OrdinalIgnoreCase))
+            {
+                if (status.Equals("approved", StringComparison.OrdinalIgnoreCase))
+                    properties = properties.Where(p => p.IsApproved && p.ListingStatus == "Active").ToList();
+                else if (status.Equals("deactivated", StringComparison.OrdinalIgnoreCase))
+                    properties = properties.Where(p => p.ListingStatus == "Deactivated").ToList();
+                else if (status.Equals("waiting", StringComparison.OrdinalIgnoreCase))
+                    properties = properties.Where(p => !p.IsApproved && p.ListingStatus != "Rejected" && p.ListingStatus != "Deactivated").ToList();
+                else if (status.Equals("rejected", StringComparison.OrdinalIgnoreCase))
+                    properties = properties.Where(p => p.ListingStatus == "Rejected").ToList();
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                string q = search.Trim();
+                properties = properties.Where(p =>
+                    p.PropertyID.ToString().Contains(q) ||
+                    p.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    p.Location.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    (p.OwnerName != null && p.OwnerName.Contains(q, StringComparison.OrdinalIgnoreCase))
+                ).ToList();
+            }
+
+            bool desc = string.Equals(dir, "desc", StringComparison.OrdinalIgnoreCase);
+            properties = sort switch
+            {
+                "id" => desc ? properties.OrderByDescending(p => p.PropertyID).ToList() : properties.OrderBy(p => p.PropertyID).ToList(),
+                "title" => desc ? properties.OrderByDescending(p => p.Title).ToList() : properties.OrderBy(p => p.Title).ToList(),
+                "price" => desc ? properties.OrderByDescending(p => p.PricePerNight).ToList() : properties.OrderBy(p => p.PricePerNight).ToList(),
+                "location" => desc ? properties.OrderByDescending(p => p.Location).ToList() : properties.OrderBy(p => p.Location).ToList(),
+                _ => properties.OrderByDescending(p => p.PropertyID).ToList()
+            };
+
+            int totalCount = properties.Count;
+            int totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
+            var paged = properties.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            ViewBag.SelectedStatus = status ?? "all";
+            ViewBag.Search = search;
+            ViewBag.Sort = sort;
+            ViewBag.Dir = dir;
+            ViewBag.CurrentPage = page;
+            ViewBag.PageSize = pageSize;
+            ViewBag.TotalCount = totalCount;
+            ViewBag.TotalPages = totalPages;
+
+            return View(paged);
         }
 
         [HttpGet]
-        public async Task<IActionResult> ManageBookings(string? status = null, int page = 1, int pageSize = 20)
+        public async Task<IActionResult> ManageBookings(
+            string? status = null,
+            string? filter = null,
+            string? search = null,
+            DateTime? fromDate = null,
+            DateTime? toDate = null,
+            string? sort = null,
+            string? dir = null,
+            int page = 1,
+            int pageSize = 25)
         {
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 100);
 
             var allBookings = await _bookingRepo.GetAllBookingsAsync();
+
+            // Filter today
+            if (string.Equals(filter, "today", StringComparison.OrdinalIgnoreCase))
+            {
+                allBookings = allBookings.Where(b => b.CreatedAt.Date == DateTime.UtcNow.Date).ToList();
+            }
+
+            // Filter status
             if (!string.IsNullOrEmpty(status) && !string.Equals(status, "All", StringComparison.OrdinalIgnoreCase))
             {
                 allBookings = allBookings.Where(b => string.Equals(b.Status, status, StringComparison.OrdinalIgnoreCase)).ToList();
             }
+
+            // Date range filter
+            if (fromDate.HasValue)
+            {
+                allBookings = allBookings.Where(b => b.CheckInDate >= fromDate.Value.Date).ToList();
+            }
+            if (toDate.HasValue)
+            {
+                allBookings = allBookings.Where(b => b.CheckOutDate <= toDate.Value.Date).ToList();
+            }
+
+            // Search filter
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                string q = search.Trim();
+                allBookings = allBookings.Where(b =>
+                    b.BookingID.ToString().Contains(q) ||
+                    (b.PropertyTitle != null && b.PropertyTitle.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
+                    (b.ClientName != null && b.ClientName.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
+                    (b.ClientEmail != null && b.ClientEmail.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
+                    (b.ClientPhone != null && b.ClientPhone.Contains(q, StringComparison.OrdinalIgnoreCase))
+                ).ToList();
+            }
+
+            // Sort
+            bool desc = string.Equals(dir, "desc", StringComparison.OrdinalIgnoreCase);
+            allBookings = sort switch
+            {
+                "id" => desc ? allBookings.OrderByDescending(b => b.BookingID).ToList() : allBookings.OrderBy(b => b.BookingID).ToList(),
+                "property" => desc ? allBookings.OrderByDescending(b => b.PropertyTitle ?? "").ToList() : allBookings.OrderBy(b => b.PropertyTitle ?? "").ToList(),
+                "client" => desc ? allBookings.OrderByDescending(b => b.ClientName ?? "").ToList() : allBookings.OrderBy(b => b.ClientName ?? "").ToList(),
+                "checkin" => desc ? allBookings.OrderByDescending(b => b.CheckInDate).ToList() : allBookings.OrderBy(b => b.CheckInDate).ToList(),
+                "amount" => desc ? allBookings.OrderByDescending(b => b.TotalAmount).ToList() : allBookings.OrderBy(b => b.TotalAmount).ToList(),
+                "status" => desc ? allBookings.OrderByDescending(b => b.Status).ToList() : allBookings.OrderBy(b => b.Status).ToList(),
+                _ => allBookings.OrderByDescending(b => b.BookingID).ToList()
+            };
 
             int totalCount = allBookings.Count;
             int totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
             var pagedBookings = allBookings.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
             ViewBag.SelectedStatus = status ?? "All";
+            ViewBag.SelectedFilter = filter;
+            ViewBag.Search = search;
+            ViewBag.FromDate = fromDate?.ToString("yyyy-MM-dd");
+            ViewBag.ToDate = toDate?.ToString("yyyy-MM-dd");
+            ViewBag.Sort = sort;
+            ViewBag.Dir = dir;
             ViewBag.CurrentPage = page;
             ViewBag.PageSize = pageSize;
             ViewBag.TotalCount = totalCount;
@@ -637,7 +872,7 @@ namespace BookMyFun.Controllers
         }
 
         // --- System Settings & API Configs ---
-        public async Task<IActionResult> Settings()
+        public async Task<IActionResult> Settings(string? section = null)
         {
             var configs = await _configRepo.GetAllConfigsAsync();
             var settings = await _configRepo.GetAllSettingsAsync();
@@ -651,6 +886,7 @@ namespace BookMyFun.Controllers
             ViewBag.EventManagers = await _userRepo.GetUsersByRoleAsync("EventManager");
             ViewBag.PopularStaysFallback = await _siteSettingsService.GetPopularStaysFallbackAsync();
             ViewBag.CurrentPopularStays = await _siteSettingsService.GetPopularStaysAsync();
+            ViewBag.ActiveSection = section ?? "sec-commission";
 
             return View(branding);
         }
@@ -1443,10 +1679,54 @@ namespace BookMyFun.Controllers
         }
 
         // --- Customer Support Queries Management ---
-        public async Task<IActionResult> SupportQueries()
+        public async Task<IActionResult> SupportQueries(string? status = null, string? search = null, string? sort = null, string? dir = null, int page = 1, int pageSize = 25)
         {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
             var contacts = await _contactRepo.GetAllContactsAsync();
-            return View(contacts);
+
+            if (!string.IsNullOrEmpty(status) && !string.Equals(status, "All", StringComparison.OrdinalIgnoreCase))
+            {
+                contacts = contacts.Where(c => string.Equals(c.Status, status, StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                string q = search.Trim();
+                contacts = contacts.Where(c =>
+                    c.ContactID.ToString().Contains(q) ||
+                    c.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    c.Email.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    (c.Subject != null && c.Subject.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
+                    (c.Message != null && c.Message.Contains(q, StringComparison.OrdinalIgnoreCase))
+                ).ToList();
+            }
+
+            bool desc = string.Equals(dir, "desc", StringComparison.OrdinalIgnoreCase);
+            contacts = sort switch
+            {
+                "id" => desc ? contacts.OrderByDescending(c => c.ContactID).ToList() : contacts.OrderBy(c => c.ContactID).ToList(),
+                "name" => desc ? contacts.OrderByDescending(c => c.Name).ToList() : contacts.OrderBy(c => c.Name).ToList(),
+                "status" => desc ? contacts.OrderByDescending(c => c.Status).ToList() : contacts.OrderBy(c => c.Status).ToList(),
+                "date" => desc ? contacts.OrderByDescending(c => c.CreatedAt).ToList() : contacts.OrderBy(c => c.CreatedAt).ToList(),
+                _ => contacts.OrderByDescending(c => c.ContactID).ToList()
+            };
+
+            int totalCount = contacts.Count;
+            int totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
+            var paged = contacts.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            ViewBag.SelectedStatus = status ?? "All";
+            ViewBag.Search = search;
+            ViewBag.Sort = sort;
+            ViewBag.Dir = dir;
+            ViewBag.CurrentPage = page;
+            ViewBag.PageSize = pageSize;
+            ViewBag.TotalCount = totalCount;
+            ViewBag.TotalPages = totalPages;
+
+            return View(paged);
         }
 
         [HttpPost]
@@ -1461,11 +1741,49 @@ namespace BookMyFun.Controllers
         }
 
         // --- Dedicated Refund Operations Queue ---
-        public async Task<IActionResult> RefundsQueue(string? status)
+        public async Task<IActionResult> RefundsQueue(string? status = null, string? search = null, string? sort = null, string? dir = null, int page = 1, int pageSize = 25)
         {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
             var refunds = await _refundEngine.GetRefundsQueueAsync(status);
-            ViewBag.SelectedStatus = status;
-            return View(refunds);
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                string q = search.Trim();
+                refunds = refunds.Where(r =>
+                    r.RefundID.ToString().Contains(q) ||
+                    r.BookingID.ToString().Contains(q) ||
+                    (r.ClientName != null && r.ClientName.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
+                    (r.RefundReason != null && r.RefundReason.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
+                    (r.PropertyTitle != null && r.PropertyTitle.Contains(q, StringComparison.OrdinalIgnoreCase))
+                ).ToList();
+            }
+
+            bool desc = string.Equals(dir, "desc", StringComparison.OrdinalIgnoreCase);
+            refunds = sort switch
+            {
+                "id" => desc ? refunds.OrderByDescending(r => r.RefundID).ToList() : refunds.OrderBy(r => r.RefundID).ToList(),
+                "booking" => desc ? refunds.OrderByDescending(r => r.BookingID).ToList() : refunds.OrderBy(r => r.BookingID).ToList(),
+                "amount" => desc ? refunds.OrderByDescending(r => r.NetRefundAmount).ToList() : refunds.OrderBy(r => r.NetRefundAmount).ToList(),
+                "status" => desc ? refunds.OrderByDescending(r => r.Status).ToList() : refunds.OrderBy(r => r.Status).ToList(),
+                _ => refunds.OrderByDescending(r => r.RefundID).ToList()
+            };
+
+            int totalCount = refunds.Count;
+            int totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
+            var paged = refunds.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            ViewBag.SelectedStatus = status ?? "All";
+            ViewBag.Search = search;
+            ViewBag.Sort = sort;
+            ViewBag.Dir = dir;
+            ViewBag.CurrentPage = page;
+            ViewBag.PageSize = pageSize;
+            ViewBag.TotalCount = totalCount;
+            ViewBag.TotalPages = totalPages;
+
+            return View(paged);
         }
 
         [HttpPost]
@@ -1508,11 +1826,50 @@ namespace BookMyFun.Controllers
         }
 
         // --- Partner Leads Pipeline ---
-        public async Task<IActionResult> PartnerLeads(string? status)
+        public async Task<IActionResult> PartnerLeads(string? status = null, string? search = null, string? sort = null, string? dir = null, int page = 1, int pageSize = 25)
         {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
             var leads = await _partnerLeadService.GetAllLeadsAsync(status);
-            ViewBag.SelectedStatus = status;
-            return View(leads);
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                string q = search.Trim();
+                leads = leads.Where(l =>
+                    l.LeadID.ToString().Contains(q) ||
+                    l.FullName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    l.PropertyName.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    l.Location.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    l.Email.Contains(q, StringComparison.OrdinalIgnoreCase) ||
+                    l.Phone.Contains(q)
+                ).ToList();
+            }
+
+            bool desc = string.Equals(dir, "desc", StringComparison.OrdinalIgnoreCase);
+            leads = sort switch
+            {
+                "id" => desc ? leads.OrderByDescending(l => l.LeadID).ToList() : leads.OrderBy(l => l.LeadID).ToList(),
+                "name" => desc ? leads.OrderByDescending(l => l.FullName).ToList() : leads.OrderBy(l => l.FullName).ToList(),
+                "property" => desc ? leads.OrderByDescending(l => l.PropertyName).ToList() : leads.OrderBy(l => l.PropertyName).ToList(),
+                "status" => desc ? leads.OrderByDescending(l => l.Status).ToList() : leads.OrderBy(l => l.Status).ToList(),
+                _ => leads.OrderByDescending(l => l.LeadID).ToList()
+            };
+
+            int totalCount = leads.Count;
+            int totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
+            var paged = leads.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            ViewBag.SelectedStatus = status ?? "All";
+            ViewBag.Search = search;
+            ViewBag.Sort = sort;
+            ViewBag.Dir = dir;
+            ViewBag.CurrentPage = page;
+            ViewBag.PageSize = pageSize;
+            ViewBag.TotalCount = totalCount;
+            ViewBag.TotalPages = totalPages;
+
+            return View(paged);
         }
 
         [HttpPost]
@@ -1586,11 +1943,223 @@ namespace BookMyFun.Controllers
         }
 
         // --- Client ID Verification & KYC Governance ---
-        public async Task<IActionResult> IdVerifications(string? status)
+        public async Task<IActionResult> IdVerifications(string? status = null, string? search = null, string? sort = null, string? dir = null, int page = 1, int pageSize = 25)
         {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
             var verifications = await _idVerificationService.GetAllVerificationsAsync(status);
-            ViewBag.SelectedStatus = status;
-            return View(verifications);
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                string q = search.Trim();
+                verifications = verifications.Where(v =>
+                    v.VerificationID.ToString().Contains(q) ||
+                    (v.ClientName != null && v.ClientName.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
+                    (v.DocumentType != null && v.DocumentType.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
+                    (v.MaskedIdentifier != null && v.MaskedIdentifier.Contains(q, StringComparison.OrdinalIgnoreCase))
+                ).ToList();
+            }
+
+            bool desc = string.Equals(dir, "desc", StringComparison.OrdinalIgnoreCase);
+            verifications = sort switch
+            {
+                "id" => desc ? verifications.OrderByDescending(v => v.VerificationID).ToList() : verifications.OrderBy(v => v.VerificationID).ToList(),
+                "client" => desc ? verifications.OrderByDescending(v => v.ClientName ?? "").ToList() : verifications.OrderBy(v => v.ClientName ?? "").ToList(),
+                "type" => desc ? verifications.OrderByDescending(v => v.DocumentType ?? "").ToList() : verifications.OrderBy(v => v.DocumentType ?? "").ToList(),
+                "status" => desc ? verifications.OrderByDescending(v => v.VerificationStatus).ToList() : verifications.OrderBy(v => v.VerificationStatus).ToList(),
+                _ => verifications.OrderByDescending(v => v.VerificationID).ToList()
+            };
+
+            int totalCount = verifications.Count;
+            int totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
+            var paged = verifications.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+            ViewBag.SelectedStatus = status ?? "All";
+            ViewBag.Search = search;
+            ViewBag.Sort = sort;
+            ViewBag.Dir = dir;
+            ViewBag.CurrentPage = page;
+            ViewBag.PageSize = pageSize;
+            ViewBag.TotalCount = totalCount;
+            ViewBag.TotalPages = totalPages;
+
+            return View(paged);
+        }
+
+        // --- Audit Log Viewer ---
+        [HttpGet]
+        public async Task<IActionResult> AuditLog(
+            string? search = null,
+            string? actionFilter = null,
+            string? entityType = null,
+            DateTime? fromDate = null,
+            DateTime? toDate = null,
+            int page = 1,
+            int pageSize = 25)
+        {
+            var (items, totalCount) = await _configRepo.GetAuditLogsPagedAsync(search, actionFilter, entityType, fromDate, toDate, page, pageSize);
+
+            ViewBag.Search = search;
+            ViewBag.ActionFilter = actionFilter ?? "All";
+            ViewBag.EntityType = entityType ?? "All";
+            ViewBag.FromDate = fromDate?.ToString("yyyy-MM-dd");
+            ViewBag.ToDate = toDate?.ToString("yyyy-MM-dd");
+            ViewBag.CurrentPage = page;
+            ViewBag.PageSize = pageSize;
+            ViewBag.TotalCount = totalCount;
+            ViewBag.TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
+
+            return View(items);
+        }
+
+        // --- Section-Specific Site Settings Handlers ---
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveCommissionSettings(decimal platformCommission, decimal eventCommission)
+        {
+            var settings = await _siteSettingsService.GetSettingsAsync();
+            var oldVal = $"Platform: {settings.PlatformCommissionPercent}%, Event: {settings.EventPlatformCommissionPercent}%";
+            var newVal = $"Platform: {platformCommission}%, Event: {eventCommission}%";
+
+            settings.PlatformCommissionPercent = platformCommission;
+            settings.EventPlatformCommissionPercent = eventCommission;
+            await _siteSettingsService.SaveSettingsAsync(settings);
+
+            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _configRepo.LogAuditAsync(currentUserId, "UpdateCommissionSettings", "SiteSettings", null, $"Changed from [{oldVal}] to [{newVal}]");
+
+            TempData["Success"] = "Commission settings saved successfully.";
+            return RedirectToAction(nameof(Settings), new { section = "sec-commission" });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveRefundSettings(
+            int freeCancelHours,
+            int cutoffHours,
+            string feeType,
+            decimal feeValue,
+            string timeline,
+            string d1Policy,
+            string d2Policy,
+            decimal d3Penalty)
+        {
+            var settings = await _siteSettingsService.GetSettingsAsync();
+            settings.FreeCancellationWindowHours = freeCancelHours;
+            settings.CancellationCutoffHours = cutoffHours;
+            settings.CancellationFeeType = feeType;
+            settings.CancellationFeeValue = feeValue;
+            settings.RefundProcessingTimeline = timeline;
+
+            // PENDING DECISION D1, D2, D3
+            settings.D1_PartialCancellationCommissionPolicy = d1Policy;
+            settings.D2_Under72hOwnerPolicyOverride = d2Policy;
+            settings.D3_OwnerCancellationPenaltyAmount = d3Penalty;
+
+            await _siteSettingsService.SaveSettingsAsync(settings);
+
+            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _configRepo.LogAuditAsync(currentUserId, "UpdateRefundSettings", "SiteSettings", null,
+                $"Refund settings updated. Window: {freeCancelHours}h, Cutoff: {cutoffHours}h, Fee: {feeValue} ({feeType}), D1: {d1Policy}, D2: {d2Policy}, D3: {d3Penalty}");
+
+            TempData["Success"] = "Refund settings saved successfully.";
+            return RedirectToAction(nameof(Settings), new { section = "sec-refunds" });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SavePaymentSettings(string currencySymbol, string? razorpayKeyId, string? razorpayKeySecret)
+        {
+            var settings = await _siteSettingsService.GetSettingsAsync();
+            settings.CurrencySymbol = currencySymbol ?? "₹";
+            if (!string.IsNullOrWhiteSpace(razorpayKeyId)) settings.RazorpayKeyId = razorpayKeyId.Trim();
+            if (!string.IsNullOrWhiteSpace(razorpayKeySecret)) settings.RazorpayKeySecret = razorpayKeySecret.Trim();
+
+            await _siteSettingsService.SaveSettingsAsync(settings);
+
+            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _configRepo.LogAuditAsync(currentUserId, "UpdatePaymentSettings", "SiteSettings", null, $"Currency: {currencySymbol}, Razorpay Key: [REDACTED]");
+
+            TempData["Success"] = "Payment settings saved successfully.";
+            return RedirectToAction(nameof(Settings), new { section = "sec-payments" });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveNotificationSettings(
+            string? smtpServer,
+            int smtpPort,
+            string? smtpUsername,
+            string? smtpPassword,
+            string? smtpSenderEmail,
+            string? whatsAppApiKey,
+            string? whatsAppSenderPhone)
+        {
+            var settings = await _siteSettingsService.GetSettingsAsync();
+            settings.SmtpServer = smtpServer ?? "";
+            settings.SmtpPort = smtpPort;
+            settings.SmtpUsername = smtpUsername ?? "";
+            if (!string.IsNullOrWhiteSpace(smtpPassword)) settings.SmtpPassword = smtpPassword;
+            settings.SmtpSenderEmail = smtpSenderEmail ?? "";
+            settings.WhatsAppApiKey = whatsAppApiKey ?? "";
+            settings.WhatsAppSenderPhone = whatsAppSenderPhone ?? "";
+
+            await _siteSettingsService.SaveSettingsAsync(settings);
+
+            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _configRepo.LogAuditAsync(currentUserId, "UpdateNotificationSettings", "SiteSettings", null, "Updated SMTP & WhatsApp notification channels.");
+
+            TempData["Success"] = "Notification settings saved successfully.";
+            return RedirectToAction(nameof(Settings), new { section = "sec-notifications" });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveFooterSettings(
+            string? address,
+            string? supportPhone,
+            string? whatsAppNumber,
+            string? supportEmail,
+            string? facebookUrl,
+            string? instagramUrl,
+            string? youtubeUrl)
+        {
+            var settings = await _siteSettingsService.GetSettingsAsync();
+            settings.Address = address ?? "";
+            settings.SupportPhone = supportPhone ?? "";
+            settings.WhatsAppNumber = whatsAppNumber ?? "";
+            settings.SupportEmail = supportEmail ?? "";
+            settings.FacebookUrl = facebookUrl ?? "";
+            settings.InstagramUrl = instagramUrl ?? "";
+            settings.YouTubeUrl = youtubeUrl ?? "";
+
+            await _siteSettingsService.SaveSettingsAsync(settings);
+
+            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _configRepo.LogAuditAsync(currentUserId, "UpdateFooterSettings", "SiteSettings", null, $"Updated official footer & contact details. Address present: {!string.IsNullOrWhiteSpace(address)}");
+
+            TempData["Success"] = "Footer & contact settings saved successfully.";
+            return RedirectToAction(nameof(Settings), new { section = "sec-footer" });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveFeatureFlags(bool googleLoginEnabled, bool instantOnlineBookingEnabled, bool whatsAppNotificationsEnabled)
+        {
+            var settings = await _siteSettingsService.GetSettingsAsync();
+            settings.GoogleLoginEnabled = googleLoginEnabled;
+            settings.InstantOnlineBookingEnabled = instantOnlineBookingEnabled;
+            settings.WhatsAppNotificationsEnabled = whatsAppNotificationsEnabled;
+
+            await _siteSettingsService.SaveSettingsAsync(settings);
+
+            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _configRepo.LogAuditAsync(currentUserId, "UpdateFeatureFlags", "SiteSettings", null,
+                $"Feature flags: GoogleLogin={googleLoginEnabled}, InstantBooking={instantOnlineBookingEnabled}, WhatsAppNotifications={whatsAppNotificationsEnabled}");
+
+            TempData["Success"] = "Feature flags saved successfully.";
+            return RedirectToAction(nameof(Settings), new { section = "sec-features" });
         }
 
         [HttpPost]

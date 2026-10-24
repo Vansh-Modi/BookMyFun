@@ -1,0 +1,156 @@
+@model IEnumerable<BookMyFun.Models.Entities.AuditLog>
+@{
+    ViewData["Title"] = "System Audit Log - Admin Oversight";
+    int currentPage = ViewBag.CurrentPage ?? 1;
+    int totalPages = ViewBag.TotalPages ?? 1;
+    int totalCount = ViewBag.TotalCount ?? 0;
+    int pageSize = ViewBag.PageSize ?? 25;
+    string search = ViewBag.Search ?? "";
+    string actionFilter = ViewBag.ActionFilter ?? "All";
+    string entityType = ViewBag.EntityType ?? "All";
+    string fromDate = ViewBag.FromDate ?? "";
+    string toDate = ViewBag.ToDate ?? "";
+}
+
+<div class="dash-page-header">
+    <div>
+        <p class="dash-eyebrow">Admin Portal · Oversight &amp; Compliance</p>
+        <h1 class="dash-title">System Audit Log</h1>
+        <p class="dash-subtitle">Immutable audit trail of administrative modifications, refund decisions, KYC adjudications, and settings changes.</p>
+    </div>
+    <div class="dash-actions">
+        <a asp-action="Settings" class="dash-btn dash-btn-outline"><i class="bi bi-sliders me-1"></i> Settings</a>
+        <a asp-action="Index" class="dash-btn dash-btn-outline"><i class="bi bi-arrow-left me-1"></i> Dashboard</a>
+    </div>
+</div>
+
+<!-- Filters Bar -->
+<div class="card shadow-sm border-0 rounded-4 mb-4">
+    <div class="card-body p-3">
+        <form method="get" asp-action="AuditLog" class="row g-2 align-items-center">
+            <div class="col-lg-3 col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text bg-transparent border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" name="search" value="@search" class="form-control border-start-0" placeholder="Search actor, action, details..." />
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-3 col-6">
+                <input type="date" name="fromDate" value="@fromDate" class="form-control" title="From Date" />
+            </div>
+            <div class="col-lg-2 col-md-3 col-6">
+                <input type="date" name="toDate" value="@toDate" class="form-control" title="To Date" />
+            </div>
+            <div class="col-lg-2 col-md-4 col-6">
+                <select name="entityType" class="form-select">
+                    <option value="All" selected="@(entityType == "All")">All Entity Types</option>
+                    <option value="SiteSettings" selected="@(entityType == "SiteSettings")">SiteSettings</option>
+                    <option value="BookingRefund" selected="@(entityType == "BookingRefund")">BookingRefund</option>
+                    <option value="ClientIdVerification" selected="@(entityType == "ClientIdVerification")">KYC Verification</option>
+                    <option value="PartnerLead" selected="@(entityType == "PartnerLead")">Partner Lead</option>
+                    <option value="DamageClaim" selected="@(entityType == "DamageClaim")">Damage Claim</option>
+                    <option value="Property" selected="@(entityType == "Property")">Property</option>
+                    <option value="User" selected="@(entityType == "User")">User / Host</option>
+                </select>
+            </div>
+            <div class="col-lg-3 col-md-8 col-12 d-flex gap-2">
+                <button type="submit" class="btn btn-primary fw-semibold px-3 flex-grow-1"><i class="bi bi-funnel-fill me-1"></i> Apply Filter</button>
+                <a asp-action="AuditLog" class="btn btn-outline-secondary px-3" title="Clear Filters"><i class="bi bi-x-circle"></i></a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+    <div class="card-header bg-transparent py-3 d-flex justify-content-between align-items-center border-bottom">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-list-check text-primary me-2"></i>Audit Records (@totalCount total)</h6>
+        <span class="small text-muted">Showing 25 rows per page</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light small text-uppercase">
+                <tr>
+                    <th class="ps-3" style="width: 70px;">ID</th>
+                    <th style="width: 170px;">Timestamp (UTC)</th>
+                    <th>Performed By</th>
+                    <th>Action</th>
+                    <th>Entity</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model == null || !Model.Any())
+                {
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                            <div class="fw-semibold">No audit logs found matching criteria</div>
+                            <div class="small">Try adjusting search query or clearing date filters.</div>
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    foreach (var log in Model)
+                    {
+                        <tr>
+                            <td class="ps-3 font-monospace small text-muted">#@log.AuditID</td>
+                            <td class="small text-nowrap">
+                                <i class="bi bi-clock text-secondary me-1"></i>
+                                @log.Timestamp.ToString("dd MMM yyyy, HH:mm:ss")
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(log.PerformedByUserName))
+                                {
+                                    <div class="fw-semibold">@log.PerformedByUserName</div>
+                                    <div class="small text-muted">@log.PerformedByUserEmail</div>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-light text-dark border">User #@log.PerformedByUserID</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">@log.Action</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">@log.EntityType</span>
+                                @if (log.EntityID.HasValue)
+                                {
+                                    <span class="small text-muted ms-1">#@log.EntityID</span>
+                                }
+                            </td>
+                            <td class="small text-break">
+                                @(log.Details ?? "-")
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (totalPages > 1)
+    {
+        <div class="card-footer bg-transparent py-3 border-top d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="small text-muted">
+                Showing page <strong>@currentPage</strong> of <strong>@totalPages</strong> (@totalCount entries)
+            </div>
+            <nav aria-label="Audit log navigation">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                        <a class="page-link" asp-action="AuditLog" asp-route-page="@(currentPage - 1)" asp-route-search="@search" asp-route-entityType="@entityType" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate">&laquo; Prev</a>
+                    </li>
+                    @for (int p = Math.Max(1, currentPage - 2); p <= Math.Min(totalPages, currentPage + 2); p++)
+                    {
+                        <li class="page-item @(p == currentPage ? "active" : "")">
+                            <a class="page-link" asp-action="AuditLog" asp-route-page="@p" asp-route-search="@search" asp-route-entityType="@entityType" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate">@p</a>
+                        </li>
+                    }
+                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                        <a class="page-link" asp-action="AuditLog" asp-route-page="@(currentPage + 1)" asp-route-search="@search" asp-route-entityType="@entityType" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate">Next &raquo;</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+</div>

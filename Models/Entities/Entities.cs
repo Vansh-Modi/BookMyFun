@@ -244,6 +244,10 @@ namespace BookMyFun.Models.Entities
         public int? EntityID { get; set; }
         public string? Details { get; set; }
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+
+        // Joined properties
+        public string? PerformedByUserName { get; set; }
+        public string? PerformedByUserEmail { get; set; }
     }
 
     public class OwnerRequest

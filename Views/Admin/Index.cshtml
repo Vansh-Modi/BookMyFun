@@ -41,56 +41,93 @@
     </div>
 </div>
 
-<!-- Stat Cards Grid -->
-<div class="dash-stat-grid">
-    <a asp-action="ManageProperties" class="dash-stat-card text-decoration-none">
+<!-- Stat Cards Grid: 6 Summary Cards linking to filtered lists (Item 1) -->
+<div class="dash-stat-grid mb-4">
+    <!-- 1. Bookings Today -->
+    <a asp-action="ManageBookings" asp-route-filter="today" class="dash-stat-card text-decoration-none">
         <div class="dash-stat-top">
-            <span class="dash-stat-label">Properties</span>
-            <span class="dash-stat-icon icon-blue"><i class="bi bi-house-door-fill"></i></span>
+            <span class="dash-stat-label">Bookings Today</span>
+            <span class="dash-stat-icon icon-blue"><i class="bi bi-calendar-day-fill"></i></span>
         </div>
-        <div class="dash-stat-val">@Model.TotalProperties</div>
+        <div class="dash-stat-val">@Model.BookingsTodayCount</div>
+        <div class="dash-stat-sub text-primary fw-medium"><i class="bi bi-arrow-right-circle me-1"></i>View today's bookings</div>
+    </a>
+
+    <!-- 2. Pending Refunds -->
+    <a asp-action="RefundsQueue" asp-route-status="Pending" class="dash-stat-card text-decoration-none">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">Pending Refunds</span>
+            <span class="dash-stat-icon icon-cyan" style="background: rgba(13, 202, 240, 0.15); color: #0dcaf0;"><i class="bi bi-arrow-counterclockwise"></i></span>
+        </div>
+        <div class="dash-stat-val @(Model.PendingRefundsCount > 0 ? "text-danger" : "")">@Model.PendingRefundsCount</div>
         <div class="dash-stat-sub">
-            @if (Model.PendingApprovals > 0)
+            @if (Model.PendingRefundsCount > 0)
             {
-                <span class="text-warning fw-semibold"><i class="bi bi-exclamation-circle-fill me-1"></i>@Model.PendingApprovals pending review</span>
+                <span class="text-danger fw-semibold"><i class="bi bi-exclamation-triangle-fill me-1"></i>Action required</span>
             }
             else
             {
-                <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>All properties verified</span>
+                <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>All clear</span>
             }
         </div>
     </a>
-    <a asp-action="ManageOwners" class="dash-stat-card text-decoration-none">
+
+    <!-- 3. Pending KYC -->
+    <a asp-action="IdVerifications" asp-route-status="PendingReview" class="dash-stat-card text-decoration-none">
         <div class="dash-stat-top">
-            <span class="dash-stat-label">Listing Owners</span>
-            <span class="dash-stat-icon icon-emerald"><i class="bi bi-person-badge-fill"></i></span>
+            <span class="dash-stat-label">Pending KYC</span>
+            <span class="dash-stat-icon icon-violet"><i class="bi bi-person-vcard-fill"></i></span>
         </div>
-        <div class="dash-stat-val">@Model.TotalOwners</div>
-        <div class="dash-stat-sub"><i class="bi bi-patch-check-fill text-success me-1"></i>Active hosting partners</div>
-    </a>
-    <a asp-action="ManageBookings" class="dash-stat-card text-decoration-none">
-        <div class="dash-stat-top">
-            <span class="dash-stat-label">Registered Guests</span>
-            <span class="dash-stat-icon icon-violet"><i class="bi bi-people-fill"></i></span>
+        <div class="dash-stat-val @(Model.PendingKycCount > 0 ? "text-warning" : "")">@Model.PendingKycCount</div>
+        <div class="dash-stat-sub">
+            @if (Model.PendingKycCount > 0)
+            {
+                <span class="text-warning fw-semibold"><i class="bi bi-clock-fill me-1"></i>Awaiting review</span>
+            }
+            else
+            {
+                <span class="text-success"><i class="bi bi-shield-check me-1"></i>Verified</span>
+            }
         </div>
-        <div class="dash-stat-val">@Model.TotalClients</div>
-        <div class="dash-stat-sub"><i class="bi bi-shield-check text-primary me-1"></i>Verified guest accounts</div>
     </a>
-    <a asp-action="ManageEmployees" class="dash-stat-card text-decoration-none">
+
+    <!-- 4. Pending Partner Leads -->
+    <a asp-action="PartnerLeads" asp-route-status="New" class="dash-stat-card text-decoration-none">
         <div class="dash-stat-top">
-            <span class="dash-stat-label">Operations Staff</span>
-            <span class="dash-stat-icon icon-cyan" style="background: rgba(13, 202, 240, 0.15); color: #0dcaf0;"><i class="bi bi-person-workspace"></i></span>
+            <span class="dash-stat-label">Pending Partner Leads</span>
+            <span class="dash-stat-icon icon-emerald"><i class="bi bi-person-plus-fill"></i></span>
         </div>
-        <div class="dash-stat-val">@Model.TotalEmployees</div>
-        <div class="dash-stat-sub"><i class="bi bi-shield-lock text-info me-1"></i>Active team members</div>
+        <div class="dash-stat-val">@Model.PendingPartnerLeadsCount</div>
+        <div class="dash-stat-sub text-success fw-medium"><i class="bi bi-people-fill me-1"></i>Review host applicants</div>
     </a>
-    <a asp-action="DynamicAnalytics" class="dash-stat-card text-decoration-none">
+
+    <!-- 5. Held Payouts Total -->
+    <a asp-action="ManageBookings" asp-route-status="Confirmed" class="dash-stat-card text-decoration-none">
         <div class="dash-stat-top">
-            <span class="dash-stat-label">Platform Cut (10%)</span>
+            <span class="dash-stat-label">Held Payouts Total</span>
             <span class="dash-stat-icon icon-amber"><i class="bi bi-wallet2"></i></span>
         </div>
-        <div class="dash-stat-val">₹@Model.PlatformEarnings.ToString("N2")</div>
-        <div class="dash-stat-sub">From ₹@Model.TotalRevenue.ToString("N2") total GMV</div>
+        <div class="dash-stat-val">₹@Model.HeldPayoutsTotal.ToString("N2")</div>
+        <div class="dash-stat-sub text-muted small">Confirmed stays prior to checkout</div>
+    </a>
+
+    <!-- 6. New Messages -->
+    <a asp-action="SupportQueries" asp-route-status="New" class="dash-stat-card text-decoration-none">
+        <div class="dash-stat-top">
+            <span class="dash-stat-label">New Messages</span>
+            <span class="dash-stat-icon" style="background: rgba(239, 68, 68, 0.12); color: #ef4444;"><i class="bi bi-headset"></i></span>
+        </div>
+        <div class="dash-stat-val">@Model.NewMessagesCount</div>
+        <div class="dash-stat-sub">
+            @if (Model.NewMessagesCount > 0)
+            {
+                <span class="text-danger fw-semibold"><i class="bi bi-envelope-exclamation-fill me-1"></i>Unresolved queries</span>
+            }
+            else
+            {
+                <span class="text-success"><i class="bi bi-check2-all me-1"></i>Inbox resolved</span>
+            }
+        </div>
     </a>
 </div>
 

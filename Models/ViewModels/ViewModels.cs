@@ -238,9 +238,35 @@ namespace BookMyFun.Models.ViewModels
         public decimal TotalRevenue { get; set; }
         public decimal PlatformEarnings { get; set; }
 
+        // Item 1: Summary Cards
+        public int BookingsTodayCount { get; set; }
+        public int PendingRefundsCount { get; set; }
+        public int PendingKycCount { get; set; }
+        public int PendingPartnerLeadsCount { get; set; }
+        public decimal HeldPayoutsTotal { get; set; }
+        public int NewMessagesCount { get; set; }
+
         public List<Property> RecentProperties { get; set; } = new();
         public List<Booking> RecentBookings { get; set; } = new();
         public List<AuditLog> RecentAuditLogs { get; set; } = new();
+    }
+
+    public class PagedResult<T>
+    {
+        public List<T> Items { get; set; } = new();
+        public int TotalCount { get; set; }
+        public int Page { get; set; } = 1;
+        public int PageSize { get; set; } = 25;
+        public int TotalPages => Math.Max(1, (int)Math.Ceiling((double)TotalCount / Math.Max(1, PageSize)));
+        public bool HasPreviousPage => Page > 1;
+        public bool HasNextPage => Page < TotalPages;
+        public string? Search { get; set; }
+        public string? Status { get; set; }
+        public string? Role { get; set; }
+        public DateTime? FromDate { get; set; }
+        public DateTime? ToDate { get; set; }
+        public string? SortBy { get; set; }
+        public string? SortDir { get; set; } = "desc";
     }
 
     public class OwnerDashboardViewModel

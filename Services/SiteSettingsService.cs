@@ -11,6 +11,8 @@ namespace BookMyFun.Services
         Task<List<PopularStayItem>> GetPopularStaysAsync();
         Task<List<PopularStayItem>> GetPopularStaysFallbackAsync();
         Task SavePopularStaysFallbackAsync(List<PopularStayItem> items);
+        void InvalidatePopularStaysCache();
+        void InvalidateSettingsCache();
     }
 
     public class PopularStayItem
@@ -36,6 +38,45 @@ namespace BookMyFun.Services
         public decimal PlatformCommissionPercent { get; set; } = 10.0m;
         public decimal EventPlatformCommissionPercent { get; set; } = 10.0m;
         public string CurrencySymbol { get; set; } = "₹";
+
+        // Section 2: Refunds
+        public int FreeCancellationWindowHours { get; set; } = 48;
+        public int CancellationCutoffHours { get; set; } = 24;
+        public string CancellationFeeType { get; set; } = "percentage"; // percentage or fixed
+        public decimal CancellationFeeValue { get; set; } = 10.0m;
+        public string RefundProcessingTimeline { get; set; } = "5 to 7 business days";
+
+        // PENDING DECISION D1: Commission setting on 50% partial cancellation (placeholder: keep commission on the 50%)
+        public string D1_PartialCancellationCommissionPolicy { get; set; } = "KeepOnPaidHalf";
+
+        // PENDING DECISION D2: Under 72 hours cancellation owner policy (placeholder: no refund for all owners)
+        public string D2_Under72hOwnerPolicyOverride { get; set; } = "NoRefundAll";
+
+        // PENDING DECISION D3: Owner cancellation penalty amount (placeholder: fixed amount stored in SiteSettings)
+        public decimal D3_OwnerCancellationPenaltyAmount { get; set; } = 500.00m;
+
+        // Section 3: Payments
+        public string RazorpayKeyId { get; set; } = "";
+        public string RazorpayKeySecret { get; set; } = "";
+
+        // Section 4: Notifications
+        public string SmtpServer { get; set; } = "";
+        public int SmtpPort { get; set; } = 587;
+        public string SmtpUsername { get; set; } = "";
+        public string SmtpPassword { get; set; } = "";
+        public string SmtpSenderEmail { get; set; } = "";
+        public string WhatsAppApiKey { get; set; } = "";
+        public string WhatsAppSenderPhone { get; set; } = "";
+
+        // Section 6: Legal
+        public string PrivacyPolicyVersion { get; set; } = "1.0";
+        public string TermsOfServiceVersion { get; set; } = "1.0";
+        public string RefundPolicyVersion { get; set; } = "1.0";
+
+        // Section 7: Feature Flags
+        public bool GoogleLoginEnabled { get; set; } = false;
+        public bool InstantOnlineBookingEnabled { get; set; } = true;
+        public bool WhatsAppNotificationsEnabled { get; set; } = true;
     }
 
     public class SiteSettingsService : ISiteSettingsService
@@ -99,6 +140,41 @@ namespace BookMyFun.Services
                 model.EventPlatformCommissionPercent = ecVal;
             }
 
+            // Refunds
+            if (dict.TryGetValue("Refund:FreeCancellationWindowHours", out var fcw) && int.TryParse(fcw, out var fcwVal)) model.FreeCancellationWindowHours = fcwVal;
+            if (dict.TryGetValue("Refund:CancellationCutoffHours", out var cch) && int.TryParse(cch, out var cchVal)) model.CancellationCutoffHours = cchVal;
+            if (dict.TryGetValue("Refund:CancellationFeeType", out var cft) && !string.IsNullOrWhiteSpace(cft)) model.CancellationFeeType = cft;
+            if (dict.TryGetValue("Refund:CancellationFeeValue", out var cfv) && decimal.TryParse(cfv, out var cfvVal)) model.CancellationFeeValue = cfvVal;
+            if (dict.TryGetValue("Refund:ProcessingTimeline", out var rpt) && !string.IsNullOrWhiteSpace(rpt)) model.RefundProcessingTimeline = rpt;
+
+            // PENDING DECISION D1, D2, D3
+            if (dict.TryGetValue("Refund:D1_PartialCancellationCommissionPolicy", out var d1) && !string.IsNullOrWhiteSpace(d1)) model.D1_PartialCancellationCommissionPolicy = d1;
+            if (dict.TryGetValue("Refund:D2_Under72hOwnerPolicyOverride", out var d2) && !string.IsNullOrWhiteSpace(d2)) model.D2_Under72hOwnerPolicyOverride = d2;
+            if (dict.TryGetValue("Refund:D3_OwnerCancellationPenaltyAmount", out var d3) && decimal.TryParse(d3, out var d3Val)) model.D3_OwnerCancellationPenaltyAmount = d3Val;
+
+            // Payments
+            if (dict.TryGetValue("Payment:RazorpayKeyId", out var rzpKey)) model.RazorpayKeyId = rzpKey;
+            if (dict.TryGetValue("Payment:RazorpayKeySecret", out var rzpSec)) model.RazorpayKeySecret = rzpSec;
+
+            // Notifications
+            if (dict.TryGetValue("Notification:SmtpServer", out var smtpSrv)) model.SmtpServer = smtpSrv;
+            if (dict.TryGetValue("Notification:SmtpPort", out var smtpPrt) && int.TryParse(smtpPrt, out var smtpPrtVal)) model.SmtpPort = smtpPrtVal;
+            if (dict.TryGetValue("Notification:SmtpUsername", out var smtpUsr)) model.SmtpUsername = smtpUsr;
+            if (dict.TryGetValue("Notification:SmtpPassword", out var smtpPwd)) model.SmtpPassword = smtpPwd;
+            if (dict.TryGetValue("Notification:SmtpSenderEmail", out var smtpSnd)) model.SmtpSenderEmail = smtpSnd;
+            if (dict.TryGetValue("Notification:WhatsAppApiKey", out var waKey)) model.WhatsAppApiKey = waKey;
+            if (dict.TryGetValue("Notification:WhatsAppSenderPhone", out var waPh)) model.WhatsAppSenderPhone = waPh;
+
+            // Legal
+            if (dict.TryGetValue("Legal:PrivacyPolicyVersion", out var ppv) && !string.IsNullOrWhiteSpace(ppv)) model.PrivacyPolicyVersion = ppv;
+            if (dict.TryGetValue("Legal:TermsOfServiceVersion", out var tosv) && !string.IsNullOrWhiteSpace(tosv)) model.TermsOfServiceVersion = tosv;
+            if (dict.TryGetValue("Legal:RefundPolicyVersion", out var rpv) && !string.IsNullOrWhiteSpace(rpv)) model.RefundPolicyVersion = rpv;
+
+            // Feature Flags
+            if (dict.TryGetValue("Feature:GoogleLoginEnabled", out var gle) && bool.TryParse(gle, out var gleVal)) model.GoogleLoginEnabled = gleVal;
+            if (dict.TryGetValue("Feature:InstantOnlineBookingEnabled", out var ibe) && bool.TryParse(ibe, out var ibeVal)) model.InstantOnlineBookingEnabled = ibeVal;
+            if (dict.TryGetValue("Feature:WhatsAppNotificationsEnabled", out var wne) && bool.TryParse(wne, out var wneVal)) model.WhatsAppNotificationsEnabled = wneVal;
+
             lock (_lock)
             {
                 _cachedSettings = model;
@@ -125,11 +201,63 @@ namespace BookMyFun.Services
             await _configRepo.SetSettingValueAsync("PlatformCommissionPercent", model.PlatformCommissionPercent.ToString("0.##"));
             await _configRepo.SetSettingValueAsync("EventPlatformCommissionPercent", model.EventPlatformCommissionPercent.ToString("0.##"));
 
+            // Refunds
+            await _configRepo.SetSettingValueAsync("Refund:FreeCancellationWindowHours", model.FreeCancellationWindowHours.ToString());
+            await _configRepo.SetSettingValueAsync("Refund:CancellationCutoffHours", model.CancellationCutoffHours.ToString());
+            await _configRepo.SetSettingValueAsync("Refund:CancellationFeeType", model.CancellationFeeType ?? "percentage");
+            await _configRepo.SetSettingValueAsync("Refund:CancellationFeeValue", model.CancellationFeeValue.ToString("0.##"));
+            await _configRepo.SetSettingValueAsync("Refund:ProcessingTimeline", model.RefundProcessingTimeline ?? "5 to 7 business days");
+
+            // PENDING DECISION D1, D2, D3
+            await _configRepo.SetSettingValueAsync("Refund:D1_PartialCancellationCommissionPolicy", model.D1_PartialCancellationCommissionPolicy ?? "KeepOnPaidHalf");
+            await _configRepo.SetSettingValueAsync("Refund:D2_Under72hOwnerPolicyOverride", model.D2_Under72hOwnerPolicyOverride ?? "NoRefundAll");
+            await _configRepo.SetSettingValueAsync("Refund:D3_OwnerCancellationPenaltyAmount", model.D3_OwnerCancellationPenaltyAmount.ToString("0.##"));
+
+            // Payments
+            if (!string.IsNullOrWhiteSpace(model.RazorpayKeyId))
+                await _configRepo.SetSettingValueAsync("Payment:RazorpayKeyId", model.RazorpayKeyId);
+            if (!string.IsNullOrWhiteSpace(model.RazorpayKeySecret))
+                await _configRepo.SetSettingValueAsync("Payment:RazorpayKeySecret", model.RazorpayKeySecret, isEncrypted: true);
+
+            // Notifications
+            await _configRepo.SetSettingValueAsync("Notification:SmtpServer", model.SmtpServer ?? "");
+            await _configRepo.SetSettingValueAsync("Notification:SmtpPort", model.SmtpPort.ToString());
+            await _configRepo.SetSettingValueAsync("Notification:SmtpUsername", model.SmtpUsername ?? "");
+            if (!string.IsNullOrWhiteSpace(model.SmtpPassword))
+                await _configRepo.SetSettingValueAsync("Notification:SmtpPassword", model.SmtpPassword, isEncrypted: true);
+            await _configRepo.SetSettingValueAsync("Notification:SmtpSenderEmail", model.SmtpSenderEmail ?? "");
+            await _configRepo.SetSettingValueAsync("Notification:WhatsAppApiKey", model.WhatsAppApiKey ?? "");
+            await _configRepo.SetSettingValueAsync("Notification:WhatsAppSenderPhone", model.WhatsAppSenderPhone ?? "");
+
+            // Legal
+            await _configRepo.SetSettingValueAsync("Legal:PrivacyPolicyVersion", model.PrivacyPolicyVersion ?? "1.0");
+            await _configRepo.SetSettingValueAsync("Legal:TermsOfServiceVersion", model.TermsOfServiceVersion ?? "1.0");
+            await _configRepo.SetSettingValueAsync("Legal:RefundPolicyVersion", model.RefundPolicyVersion ?? "1.0");
+
+            // Feature Flags
+            await _configRepo.SetSettingValueAsync("Feature:GoogleLoginEnabled", model.GoogleLoginEnabled.ToString());
+            await _configRepo.SetSettingValueAsync("Feature:InstantOnlineBookingEnabled", model.InstantOnlineBookingEnabled.ToString());
+            await _configRepo.SetSettingValueAsync("Feature:WhatsAppNotificationsEnabled", model.WhatsAppNotificationsEnabled.ToString());
+
             // Immediately invalidate in-memory cache
+            InvalidateSettingsCache();
+        }
+
+        public void InvalidateSettingsCache()
+        {
             lock (_lock)
             {
                 _cachedSettings = null;
                 _cacheExpiry = DateTime.MinValue;
+            }
+        }
+
+        public void InvalidatePopularStaysCache()
+        {
+            lock (_lock)
+            {
+                _cachedPopularStays = null;
+                _popularStaysCacheExpiry = DateTime.MinValue;
             }
         }
 

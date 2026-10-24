@@ -3,7 +3,15 @@
     var isEmployee = User.IsInRole("Employee");
     var controllerName = isEmployee ? "Employee" : "Admin";
     ViewData["Title"] = "Client ID Verification & KYC Governance";
-    var selectedStatus = ViewBag.SelectedStatus as string;
+
+    var selectedStatus = ViewBag.SelectedStatus as string ?? "All";
+    var search = ViewBag.Search as string ?? "";
+    var sort = ViewBag.Sort as string ?? "id";
+    var dir = ViewBag.Dir as string ?? "desc";
+    var currentPage = ViewBag.CurrentPage as int? ?? 1;
+    var pageSize = ViewBag.PageSize as int? ?? 25;
+    var totalCount = ViewBag.TotalCount as int? ?? (Model?.Count() ?? 0);
+    var totalPages = ViewBag.TotalPages as int? ?? Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
 }
 
 <div class="container-fluid py-4 px-lg-4">
@@ -11,7 +19,7 @@
     <div class="card border-0 shadow-sm rounded-4 mb-4 bg-gradient text-white p-4" style="background: linear-gradient(135deg, #4338ca 0%, #312e81 100%);">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
             <div>
-                <span class="badge bg-white text-indigo px-3 py-2 rounded-pill fw-bold mb-2 text-primary">Trust & Safety Governance</span>
+                <span class="badge bg-white text-indigo px-3 py-2 rounded-pill fw-bold mb-2 text-primary">Trust &amp; Safety Governance</span>
                 <h2 class="fw-bold mb-1"><i class="bi bi-person-vcard-fill me-2"></i>Guest ID Verification (KYC) Queue</h2>
                 <p class="mb-0 text-white-50">Private document storage with 15-minute cryptographically signed streaming tokens. Confidential from hosts.</p>
             </div>
@@ -22,19 +30,52 @@
     </div>
 
     <!-- Filter Pills -->
-    <div class="d-flex flex-wrap gap-2 mb-4">
-        <a asp-controller="@controllerName" asp-action="IdVerifications" class="btn rounded-pill px-3 @(string.IsNullOrEmpty(selectedStatus) ? "btn-primary" : "btn-light border")">
+    <div class="d-flex flex-wrap gap-2 mb-3">
+        <a asp-controller="@controllerName" asp-action="IdVerifications" asp-route-search="@search" class="btn rounded-pill px-3 @(string.IsNullOrEmpty(selectedStatus) || selectedStatus == "All" ? "btn-primary" : "btn-light border")">
             All KYC Submissions
         </a>
-        <a asp-controller="@controllerName" asp-action="IdVerifications" asp-route-status="PendingReview" class="btn rounded-pill px-3 @(selectedStatus == "PendingReview" ? "btn-warning text-dark fw-bold" : "btn-light border")">
+        <a asp-controller="@controllerName" asp-action="IdVerifications" asp-route-status="PendingReview" asp-route-search="@search" class="btn rounded-pill px-3 @(selectedStatus == "PendingReview" ? "btn-warning text-dark fw-bold" : "btn-light border")">
             <i class="bi bi-clock-history me-1"></i> Pending Verification
         </a>
-        <a asp-controller="@controllerName" asp-action="IdVerifications" asp-route-status="Verified" class="btn rounded-pill px-3 @(selectedStatus == "Verified" ? "btn-success fw-bold" : "btn-light border")">
+        <a asp-controller="@controllerName" asp-action="IdVerifications" asp-route-status="Verified" asp-route-search="@search" class="btn rounded-pill px-3 @(selectedStatus == "Verified" ? "btn-success fw-bold text-white" : "btn-light border")">
             <i class="bi bi-patch-check-fill me-1"></i> Verified Guests
         </a>
-        <a asp-controller="@controllerName" asp-action="IdVerifications" asp-route-status="Rejected" class="btn rounded-pill px-3 @(selectedStatus == "Rejected" ? "btn-danger fw-bold" : "btn-light border")">
+        <a asp-controller="@controllerName" asp-action="IdVerifications" asp-route-status="Rejected" asp-route-search="@search" class="btn rounded-pill px-3 @(selectedStatus == "Rejected" ? "btn-danger fw-bold text-white" : "btn-light border")">
             <i class="bi bi-x-circle me-1"></i> Rejected KYC
         </a>
+    </div>
+
+    <!-- Search & Controls Card -->
+    <div class="card shadow-sm border-0 rounded-4 mb-4">
+        <div class="card-body p-3">
+            <form method="get" asp-controller="@controllerName" asp-action="IdVerifications" class="row g-2 align-items-center">
+                <input type="hidden" name="status" value="@selectedStatus" />
+                <input type="hidden" name="sort" value="@sort" />
+                <input type="hidden" name="dir" value="@dir" />
+
+                <div class="col-md-8 col-sm-12">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" name="search" class="form-control border-start-0" placeholder="Search by verification #, guest name, email, or masked ID..." value="@search" />
+                    </div>
+                </div>
+                <div class="col-md-2 col-6">
+                    <select name="pageSize" class="form-select" onchange="this.form.submit()">
+                        <option value="10" selected="@(pageSize == 10)">10 per page</option>
+                        <option value="25" selected="@(pageSize == 25)">25 per page</option>
+                        <option value="50" selected="@(pageSize == 50)">50 per page</option>
+                        <option value="100" selected="@(pageSize == 100)">100 per page</option>
+                    </select>
+                </div>
+                <div class="col-md-2 col-6 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary w-100 fw-semibold">Filter</button>
+                    @if (!string.IsNullOrWhiteSpace(search) || (!string.IsNullOrEmpty(selectedStatus) && selectedStatus != "All"))
+                    {
+                        <a asp-controller="@controllerName" asp-action="IdVerifications" class="btn btn-outline-secondary" title="Clear Filters"><i class="bi bi-x-lg"></i></a>
+                    }
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Data Table -->
@@ -46,13 +87,29 @@
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th class="ps-4">KYC #</th>
-                                <th>Guest (User)</th>
+                                <th class="ps-4">
+                                    <a asp-controller="@controllerName" asp-action="IdVerifications" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-pageSize="@pageSize" asp-route-sort="id" asp-route-dir="@(sort == "id" && dir == "asc" ? "desc" : "asc")" class="text-decoration-none text-dark d-inline-flex align-items-center">
+                                        KYC # @(sort == "id" ? (dir == "asc" ? "▲" : "▼") : "")
+                                    </a>
+                                </th>
+                                <th>
+                                    <a asp-controller="@controllerName" asp-action="IdVerifications" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-pageSize="@pageSize" asp-route-sort="client" asp-route-dir="@(sort == "client" && dir == "asc" ? "desc" : "asc")" class="text-decoration-none text-dark d-inline-flex align-items-center">
+                                        Guest (User) @(sort == "client" ? (dir == "asc" ? "▲" : "▼") : "")
+                                    </a>
+                                </th>
                                 <th>Document Type</th>
                                 <th>Masked ID / Details</th>
                                 <th>Secure Vault File</th>
-                                <th>Status</th>
-                                <th>Submitted Date</th>
+                                <th>
+                                    <a asp-controller="@controllerName" asp-action="IdVerifications" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-pageSize="@pageSize" asp-route-sort="status" asp-route-dir="@(sort == "status" && dir == "asc" ? "desc" : "asc")" class="text-decoration-none text-dark d-inline-flex align-items-center">
+                                        Status @(sort == "status" ? (dir == "asc" ? "▲" : "▼") : "")
+                                    </a>
+                                </th>
+                                <th>
+                                    <a asp-controller="@controllerName" asp-action="IdVerifications" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-pageSize="@pageSize" asp-route-sort="date" asp-route-dir="@(sort == "date" && dir == "asc" ? "desc" : "asc")" class="text-decoration-none text-dark d-inline-flex align-items-center">
+                                        Submitted Date @(sort == "date" ? (dir == "asc" ? "▲" : "▼") : "")
+                                    </a>
+                                </th>
                                 <th class="pe-4 text-end">Action</th>
                             </tr>
                         </thead>
@@ -69,50 +126,50 @@
                                 <tr>
                                     <td class="ps-4 fw-bold">#@v.VerificationID</td>
                                     <td>
-                                        <div class="fw-semibold">@v.ClientName</div>
-                                        <span class="text-muted small">Guest #@v.ClientID</span>
+                                        <div class="fw-semibold">@(v.ClientName ?? "Guest #" + v.ClientID)</div>
+                                        <small class="text-muted">@(v.ClientEmail ?? "User ID #" + v.ClientID)</small>
                                     </td>
                                     <td>
                                         <span class="badge bg-light text-dark border">
-                                            <i class="bi bi-card-heading me-1"></i> @v.DocumentType
+                                            <i class="bi bi-file-earmark-lock me-1 text-primary"></i>@v.DocumentType
                                         </span>
                                     </td>
-                                    <td class="font-monospace small text-muted">
-                                        @(string.IsNullOrEmpty(v.MaskedIdentifier) ? "••••••••" : v.MaskedIdentifier)
+                                    <td>
+                                        <span class="font-monospace small bg-light p-1 rounded border">@(v.MaskedIdentifier ?? "Redacted Vault")</span>
                                     </td>
                                     <td>
                                         <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3 btn-view-doc" data-key="@v.DocumentStorageKey">
-                                            <i class="bi bi-shield-lock-fill me-1"></i> Open Signed Doc (15m)
+                                            <i class="bi bi-eye me-1"></i> View Secure Stream
                                         </button>
                                     </td>
                                     <td>
-                                        <span class="badge @badgeClass px-3 py-2 rounded-pill">@v.VerificationStatus</span>
+                                        <span class="badge @badgeClass">@v.VerificationStatus</span>
+                                        @if (!string.IsNullOrEmpty(v.RejectionReason))
+                                        {
+                                            <div class="small text-danger mt-1 text-truncate" style="max-width: 150px;" title="@v.RejectionReason">@v.RejectionReason</div>
+                                        }
                                     </td>
-                                    <td class="text-muted small">@v.CreatedAt.ToString("MMM dd, yyyy HH:mm")</td>
+                                    <td>@v.CreatedAt.ToString("MMM dd, yyyy HH:mm")</td>
                                     <td class="pe-4 text-end">
                                         @if (v.VerificationStatus == "PendingReview")
                                         {
-                                            <div class="btn-group">
+                                            <div class="d-flex justify-content-end gap-1">
                                                 <form asp-controller="@controllerName" asp-action="ReviewIdVerification" method="post" class="d-inline">
                                                     @Html.AntiForgeryToken()
                                                     <input type="hidden" name="verificationId" value="@v.VerificationID" />
                                                     <input type="hidden" name="action" value="Verified" />
-                                                    <button type="submit" class="btn btn-sm btn-success rounded-pill px-3 me-1" onclick="return confirm('Verify this guest ID and assign Verified Guest badge?');">
+                                                    <button type="submit" class="btn btn-sm btn-success rounded-pill px-3" onclick="return confirm('Verify this guest ID document?');">
                                                         <i class="bi bi-check-lg me-1"></i> Verify
                                                     </button>
                                                 </form>
-                                                <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 btn-reject-kyc"
-                                                        data-bs-toggle="modal"
-                                                        data-bs-target="#rejectKycModal"
-                                                        data-id="@v.VerificationID"
-                                                        data-name="@v.ClientName">
-                                                    <i class="bi bi-x-lg"></i>
+                                                <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3 btn-reject-kyc" data-bs-toggle="modal" data-bs-target="#rejectModal" data-id="@v.VerificationID" data-name="@(v.ClientName ?? "Guest")">
+                                                    <i class="bi bi-x-lg me-1"></i> Reject
                                                 </button>
                                             </div>
                                         }
                                         else
                                         {
-                                            <span class="text-muted small">@v.RejectionReason</span>
+                                            <span class="text-muted small fst-italic">Decided</span>
                                         }
                                     </td>
                                 </tr>
@@ -120,25 +177,90 @@
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Pagination Footer -->
+                @if (totalPages > 1)
+                {
+                    <div class="card-footer bg-white border-top d-flex flex-wrap justify-content-between align-items-center py-3 px-4">
+                        <div class="small text-muted">
+                            Showing @(((currentPage - 1) * pageSize) + 1) to @(Math.Min(currentPage * pageSize, totalCount)) of @totalCount verification requests
+                        </div>
+                        <nav aria-label="KYC pagination">
+                            <ul class="pagination pagination-sm mb-0">
+                                <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                                    <a class="page-link" asp-controller="@controllerName" asp-action="IdVerifications" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-sort="@sort" asp-route-dir="@dir" asp-route-page="@(currentPage - 1)" asp-route-pageSize="@pageSize">Previous</a>
+                                </li>
+                                @for (int i = 1; i <= totalPages; i++)
+                                {
+                                    if (i == 1 || i == totalPages || (i >= currentPage - 2 && i <= currentPage + 2))
+                                    {
+                                        <li class="page-item @(i == currentPage ? "active" : "")">
+                                            <a class="page-link" asp-controller="@controllerName" asp-action="IdVerifications" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-sort="@sort" asp-route-dir="@dir" asp-route-page="@i" asp-route-pageSize="@pageSize">@i</a>
+                                        </li>
+                                    }
+                                    else if (i == currentPage - 3 || i == currentPage + 3)
+                                    {
+                                        <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+                                    }
+                                }
+                                <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                                    <a class="page-link" asp-controller="@controllerName" asp-action="IdVerifications" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-sort="@sort" asp-route-dir="@dir" asp-route-page="@(currentPage + 1)" asp-route-pageSize="@pageSize">Next</a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+                }
             }
             else
             {
-                <div class="text-center py-5">
-                    <i class="bi bi-shield-check fs-1 text-success d-block mb-3"></i>
-                    <h5 class="fw-bold text-secondary">No ID Verifications in this Queue</h5>
-                    <p class="text-muted small mb-0">No verification submissions require review.</p>
+                <div class="p-5 text-center text-muted">
+                    <i class="bi bi-shield-x fs-1 d-block mb-3 opacity-50"></i>
+                    <h5>No verification submissions found</h5>
+                    <p class="mb-0">There are currently no ID documents matching your criteria.</p>
                 </div>
             }
         </div>
     </div>
 </div>
 
+<!-- Secure Document Viewer Modal -->
+<div class="modal fade" id="docPreviewModal" tabindex="-1" aria-labelledby="docPreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-dark text-white p-3">
+                <h5 class="modal-title fs-6 fw-bold" id="docPreviewModalLabel">
+                    <i class="bi bi-shield-lock-fill text-warning me-2"></i>Confidential Document Vault Preview (15-min Token)
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0 position-relative" style="min-height: 500px; background: #1a1a1a;">
+                <div id="docViewerLoading" class="text-center py-5 text-white">
+                    <div class="spinner-border text-light mb-3" role="status"></div>
+                    <p>Generating cryptographically signed 15-minute streaming token...</p>
+                </div>
+                <div id="docViewerContent" style="display: none; height: 75vh;">
+                    <iframe id="docViewerIframe" class="w-100 h-100 border-0"></iframe>
+                </div>
+            </div>
+            <div class="modal-footer bg-light p-2 justify-content-between">
+                <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Direct URL expires in 15 minutes. Not accessible by third parties.</small>
+                <div>
+                    <a id="docViewerNewTabBtn" href="#" target="_blank" class="btn btn-sm btn-outline-dark me-2">
+                        <i class="bi bi-box-arrow-up-right me-1"></i> Open Raw
+                    </a>
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Reject KYC Modal -->
-<div class="modal fade" id="rejectKycModal" tabindex="-1" aria-labelledby="rejectKycModalLabel" aria-hidden="true">
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0 shadow">
             <div class="modal-header bg-danger text-white rounded-top-4">
-                <h5 class="modal-title fw-bold" id="rejectKycModalLabel"><i class="bi bi-x-circle me-2"></i>Reject Guest Verification</h5>
+                <h5 class="modal-title fw-bold" id="rejectModalLabel"><i class="bi bi-x-octagon-fill me-2"></i>Reject KYC Verification</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form asp-controller="@controllerName" asp-action="ReviewIdVerification" method="post">
@@ -147,55 +269,17 @@
                 <input type="hidden" name="action" value="Rejected" />
 
                 <div class="modal-body p-4">
-                    <p class="text-muted">You are rejecting the ID verification for <strong id="modalKycGuest"></strong>.</p>
+                    <p class="mb-3 text-muted">You are rejecting the ID document for guest <strong id="modalKycGuest"></strong>. Please provide a clear reason so the guest can re-upload a compliant file.</p>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Reason for Rejection <span class="text-danger">*</span></label>
-                        <select name="reason" class="form-select rounded-3 mb-2" required>
-                            <option value="Document blurry or illegible">Document blurry or illegible</option>
-                            <option value="Expired government identification">Expired government identification</option>
-                            <option value="Name on ID does not match profile">Name on ID does not match profile</option>
-                            <option value="Unsupported document format">Unsupported document format</option>
-                            <option value="Other / Suspected tampering">Other / Suspected tampering</option>
-                        </select>
+                        <label class="form-label fw-semibold">Rejection Reason <span class="text-danger">*</span></label>
+                        <textarea name="reason" class="form-control rounded-3" rows="3" placeholder="e.g. Blurry photo, expired document, name mismatch..." required minlength="5"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer border-0 p-3 bg-light rounded-bottom-4">
                     <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold">Reject Verification</button>
+                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold">Reject Document</button>
                 </div>
             </form>
-        </div>
-    </div>
-</div>
-
-<!-- Secure Document Preview Modal -->
-<div class="modal fade" id="docPreviewModal" tabindex="-1" aria-labelledby="docPreviewModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content rounded-4 border-0 shadow">
-            <div class="modal-header bg-dark text-white rounded-top-4">
-                <h5 class="modal-title fw-bold" id="docPreviewModalLabel">
-                    <i class="bi bi-shield-lock-fill text-warning me-2"></i>Private KYC Document Preview
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-3 text-center bg-light">
-                <div id="docViewerLoading" class="py-4">
-                    <div class="spinner-border text-primary" role="status"></div>
-                    <p class="text-muted small mt-2">Generating secure expiring token & fetching document stream...</p>
-                </div>
-                <div id="docViewerContent" style="display: none;">
-                    <iframe id="docViewerIframe" src="" style="width: 100%; height: 500px; border: none; border-radius: 8px;"></iframe>
-                </div>
-            </div>
-            <div class="modal-footer border-top bg-white d-flex justify-content-between">
-                <span class="text-muted small"><i class="bi bi-clock-history me-1"></i>URL token valid for 15 minutes</span>
-                <div>
-                    <a id="docViewerNewTabBtn" href="#" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3 me-2">
-                        <i class="bi bi-box-arrow-up-right me-1"></i> Open in New Tab
-                    </a>
-                    <button type="button" class="btn btn-sm btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
         </div>
     </div>
 </div>

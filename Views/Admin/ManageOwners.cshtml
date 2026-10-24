@@ -3,52 +3,178 @@
     ViewData["Title"] = "Manage Owners - Staff Oversight";
     var isEmployee = User.IsInRole("Employee");
     var controllerName = isEmployee ? "Employee" : "Admin";
+
+    var selectedTier = ViewBag.SelectedTier as string ?? "All";
+    var selectedStatus = ViewBag.SelectedStatus as string ?? "All";
+    var search = ViewBag.Search as string ?? "";
+    var sort = ViewBag.Sort as string ?? "id";
+    var dir = ViewBag.Dir as string ?? "desc";
+    var currentPage = ViewBag.CurrentPage as int? ?? 1;
+    var pageSize = ViewBag.PageSize as int? ?? 25;
+    var totalCount = ViewBag.TotalCount as int? ?? (Model?.Count() ?? 0);
+    var totalPages = ViewBag.TotalPages as int? ?? Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
     <div>
-        <h2><i class="bi bi-people-fill text-primary"></i> Owner Management</h2>
-        <p class="text-muted mb-0">Create, edit, or delete property owners directly on their behalf.</p>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small">
+                <li class="breadcrumb-item"><a asp-controller="@controllerName" asp-action="Index">Dashboard</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Hosts &amp; Owners</li>
+            </ol>
+        </nav>
+        <h2 class="fw-bold mb-1"><i class="bi bi-people-fill text-primary me-2"></i>Owner &amp; Host Management</h2>
+        <p class="text-muted mb-0">Oversee host accounts, manage subscription tiers, custom commission rates, and credentials.</p>
     </div>
-    <a asp-action="CreateOwner" class="btn btn-primary"><i class="bi bi-person-plus-fill"></i> Add New Owner</a>
+    <a asp-action="CreateOwner" class="btn btn-primary rounded-pill px-3 fw-semibold shadow-sm">
+        <i class="bi bi-person-plus-fill me-1"></i> Add New Owner
+    </a>
 </div>
 
-<div class="card shadow-sm">
+<!-- Search & Filters Card -->
+<div class="card shadow-sm border-0 rounded-4 mb-4">
+    <div class="card-body p-3">
+        <form method="get" asp-controller="@controllerName" asp-action="ManageOwners" class="row g-2 align-items-center">
+            <input type="hidden" name="sort" value="@sort" />
+            <input type="hidden" name="dir" value="@dir" />
+
+            <div class="col-md-5 col-sm-12">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" name="search" class="form-control border-start-0" placeholder="Search by name, email, phone or ID..." value="@search" />
+                </div>
+            </div>
+            <div class="col-md-3 col-6">
+                <select name="tier" class="form-select" onchange="this.form.submit()">
+                    <option value="All" selected="@(selectedTier == "All")">All Subscription Tiers</option>
+                    <option value="Standard" selected="@(selectedTier == "Standard")">Standard Tier</option>
+                    <option value="Premium" selected="@(selectedTier == "Premium")">Premium Tier</option>
+                    <option value="Exclusive" selected="@(selectedTier == "Exclusive")">Exclusive Tier</option>
+                </select>
+            </div>
+            <div class="col-md-2 col-6">
+                <select name="pageSize" class="form-select" onchange="this.form.submit()">
+                    <option value="10" selected="@(pageSize == 10)">10 per page</option>
+                    <option value="25" selected="@(pageSize == 25)">25 per page</option>
+                    <option value="50" selected="@(pageSize == 50)">50 per page</option>
+                    <option value="100" selected="@(pageSize == 100)">100 per page</option>
+                </select>
+            </div>
+            <div class="col-md-2 col-12 d-flex gap-2">
+                <button type="submit" class="btn btn-primary w-100 fw-semibold">Filter</button>
+                @if (!string.IsNullOrWhiteSpace(search) || selectedTier != "All")
+                {
+                    <a asp-controller="@controllerName" asp-action="ManageOwners" class="btn btn-outline-secondary" title="Clear Filters"><i class="bi bi-x-lg"></i></a>
+                }
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 rounded-4 overflow-hidden">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
                 <tr>
-                    <th>Owner ID</th>
-                    <th>Full Name</th>
+                    <th class="ps-3">
+                        <a asp-controller="@controllerName" asp-action="ManageOwners" asp-route-tier="@selectedTier" asp-route-search="@search" asp-route-pageSize="@pageSize" asp-route-sort="id" asp-route-dir="@(sort == "id" && dir == "asc" ? "desc" : "asc")" class="text-decoration-none text-dark d-inline-flex align-items-center">
+                            Owner ID @(sort == "id" ? (dir == "asc" ? "▲" : "▼") : "")
+                        </a>
+                    </th>
+                    <th>
+                        <a asp-controller="@controllerName" asp-action="ManageOwners" asp-route-tier="@selectedTier" asp-route-search="@search" asp-route-pageSize="@pageSize" asp-route-sort="name" asp-route-dir="@(sort == "name" && dir == "asc" ? "desc" : "asc")" class="text-decoration-none text-dark d-inline-flex align-items-center">
+                            Full Name @(sort == "name" ? (dir == "asc" ? "▲" : "▼") : "")
+                        </a>
+                    </th>
                     <th>Email</th>
                     <th>Phone</th>
-                    <th>Registered On</th>
-                    <th class="text-end">Actions</th>
+                    <th>Tier / Commission</th>
+                    <th>
+                        <a asp-controller="@controllerName" asp-action="ManageOwners" asp-route-tier="@selectedTier" asp-route-search="@search" asp-route-pageSize="@pageSize" asp-route-sort="date" asp-route-dir="@(sort == "date" && dir == "asc" ? "desc" : "asc")" class="text-decoration-none text-dark d-inline-flex align-items-center">
+                            Registered On @(sort == "date" ? (dir == "asc" ? "▲" : "▼") : "")
+                        </a>
+                    </th>
+                    <th class="text-end pe-3">Actions</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach (var owner in Model)
+                @if (Model == null || !Model.Any())
                 {
                     <tr>
-                        <td>#@owner.UserID</td>
-                        <td class="fw-semibold">@owner.FullName</td>
-                        <td>@owner.Email</td>
-                        <td>@(owner.Phone ?? "N/A")</td>
-                        <td>@owner.CreatedAt.ToString("MMM dd, yyyy")</td>
-                        <td class="text-end">
-                            <a asp-controller="@controllerName" asp-action="EditOwner" asp-route-id="@owner.UserID" class="btn btn-sm btn-outline-primary me-1">
-                                <i class="bi bi-pencil"></i> Edit
-                            </a>
-                            <form asp-controller="@controllerName" asp-action="DeleteOwner" asp-route-id="@owner.UserID" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete host @owner.FullName (ID #@owner.UserID)? This will deactivate their portal access.');">
-                                @Html.AntiForgeryToken()
-                                <button type="submit" class="btn btn-sm btn-outline-danger">
-                                    <i class="bi bi-trash"></i> Delete
-                                </button>
-                            </form>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="bi bi-people fs-1 d-block mb-2 text-muted opacity-50"></i>
+                            <h5 class="text-dark">No hosts found</h5>
+                            <p class="small text-muted mb-0">No owner accounts matched your criteria.</p>
                         </td>
                     </tr>
+                }
+                else
+                {
+                    @foreach (var owner in Model)
+                    {
+                        <tr>
+                            <td class="ps-3 fw-bold text-muted">#@owner.UserID</td>
+                            <td class="fw-semibold text-dark">@owner.FullName</td>
+                            <td><a href="mailto:@owner.Email" class="text-decoration-none">@owner.Email</a></td>
+                            <td>@(string.IsNullOrWhiteSpace(owner.Phone) ? "N/A" : owner.Phone)</td>
+                            <td>
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                    @(owner.SubscriptionTier ?? "Standard")
+                                </span>
+                                @if (owner.CustomCommissionRate.HasValue)
+                                {
+                                    <small class="text-success ms-1 fw-semibold">(@owner.CustomCommissionRate.Value% rate)</small>
+                                }
+                            </td>
+                            <td>@owner.CreatedAt.ToString("MMM dd, yyyy")</td>
+                            <td class="text-end pe-3">
+                                <a asp-controller="@controllerName" asp-action="EditOwner" asp-route-id="@owner.UserID" class="btn btn-sm btn-outline-primary me-1">
+                                    <i class="bi bi-pencil"></i> Edit
+                                </a>
+                                <form asp-controller="@controllerName" asp-action="DeleteOwner" asp-route-id="@owner.UserID" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete host @owner.FullName (ID #@owner.UserID)? This will deactivate their portal access.');">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>
     </div>
+
+    <!-- Pagination Footer -->
+    @if (totalPages > 1)
+    {
+        <div class="card-footer bg-white border-top d-flex flex-wrap justify-content-between align-items-center py-3">
+            <div class="small text-muted">
+                Showing @(((currentPage - 1) * pageSize) + 1) to @(Math.Min(currentPage * pageSize, totalCount)) of @totalCount hosts
+            </div>
+            <nav aria-label="Owners pagination">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(currentPage <= 1 ? "disabled" : "")">
+                        <a class="page-link" asp-controller="@controllerName" asp-action="ManageOwners" asp-route-tier="@selectedTier" asp-route-search="@search" asp-route-sort="@sort" asp-route-dir="@dir" asp-route-page="@(currentPage - 1)" asp-route-pageSize="@pageSize">Previous</a>
+                    </li>
+                    @for (int i = 1; i <= totalPages; i++)
+                    {
+                        if (i == 1 || i == totalPages || (i >= currentPage - 2 && i <= currentPage + 2))
+                        {
+                            <li class="page-item @(i == currentPage ? "active" : "")">
+                                <a class="page-link" asp-controller="@controllerName" asp-action="ManageOwners" asp-route-tier="@selectedTier" asp-route-search="@search" asp-route-sort="@sort" asp-route-dir="@dir" asp-route-page="@i" asp-route-pageSize="@pageSize">@i</a>
+                            </li>
+                        }
+                        else if (i == currentPage - 3 || i == currentPage + 3)
+                        {
+                            <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+                        }
+                    }
+                    <li class="page-item @(currentPage >= totalPages ? "disabled" : "")">
+                        <a class="page-link" asp-controller="@controllerName" asp-action="ManageOwners" asp-route-tier="@selectedTier" asp-route-search="@search" asp-route-sort="@sort" asp-route-dir="@dir" asp-route-page="@(currentPage + 1)" asp-route-pageSize="@pageSize">Next</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
 </div>

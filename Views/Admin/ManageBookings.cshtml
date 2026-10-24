@@ -3,220 +3,251 @@
     ViewData["Title"] = "Manage Bookings & Reservations";
     var selectedStatus = ViewBag.SelectedStatus as string ?? "All";
     var controllerName = ViewContext.RouteData.Values["controller"]?.ToString() ?? "Admin";
+    int currentPage = ViewBag.CurrentPage ?? 1;
+    int totalPages = ViewBag.TotalPages ?? 1;
+    int totalCount = ViewBag.TotalCount ?? (Model?.Count() ?? 0);
+    int pageSize = ViewBag.PageSize ?? 25;
+    string search = ViewBag.Search ?? "";
+    string sort = ViewBag.Sort ?? "";
+    string dir = ViewBag.Dir ?? "";
+    string fromDate = ViewBag.FromDate ?? "";
+    string toDate = ViewBag.ToDate ?? "";
 }
 @Html.AntiForgeryToken()
 
-<div class="container-fluid py-4 px-lg-4">
-    <!-- Header Banner -->
-    <div class="card border-0 shadow-sm rounded-4 mb-4 bg-gradient text-white p-4" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <div>
-                <span class="badge bg-white text-dark px-3 py-2 rounded-pill fw-bold mb-2">Central Operations</span>
-                <h2 class="fw-bold mb-1"><i class="bi bi-calendar-check me-2 text-warning"></i>Manage Platform Reservations</h2>
-                <p class="mb-0 text-white-50">Review real-time guest bookings, check-in schedules, security deposit holds, and payment statuses.</p>
-            </div>
-            <div class="d-flex flex-wrap gap-2">
-                <a asp-controller="@controllerName" asp-action="RefundsQueue" class="btn btn-outline-light rounded-pill px-3">
-                    <i class="bi bi-arrow-counterclockwise me-1"></i> Refunds Operations
-                </a>
-                <a asp-controller="@controllerName" asp-action="DamageClaims" class="btn btn-warning text-dark fw-bold rounded-pill px-3 shadow-sm">
-                    <i class="bi bi-shield-shaded me-1"></i> Damage Claims
-                </a>
-            </div>
-        </div>
+<div class="dash-page-header">
+    <div>
+        <p class="dash-eyebrow">Admin Portal · Bookings &amp; Refunds</p>
+        <h1 class="dash-title"><i class="bi bi-calendar-check me-2 text-warning"></i>Manage Platform Reservations</h1>
+        <p class="dash-subtitle">Review real-time guest bookings, check-in schedules, security deposit holds, and payment statuses.</p>
     </div>
+    <div class="dash-actions">
+        <a asp-controller="@controllerName" asp-action="RefundsQueue" class="dash-btn dash-btn-outline">
+            <i class="bi bi-arrow-counterclockwise me-1"></i> Refunds Operations
+        </a>
+        <a asp-controller="@controllerName" asp-action="DamageClaims" class="dash-btn dash-btn-primary">
+            <i class="bi bi-shield-shaded me-1"></i> Damage Claims
+        </a>
+    </div>
+</div>
 
-    <!-- Status Filters & Search Bar -->
-    <div class="card border-0 shadow-sm rounded-4 p-3 mb-4 bg-light">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <div class="btn-group rounded-pill p-1 bg-white shadow-sm" role="group">
-                <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="All" class="btn btn-sm rounded-pill px-3 fw-semibold @(selectedStatus == "All" ? "btn-dark" : "btn-light text-muted border-0")">All (@(selectedStatus == "All" ? (ViewBag.TotalCount ?? Model.Count()) : Model.Count()))</a>
-                <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="Confirmed" class="btn btn-sm rounded-pill px-3 fw-semibold @(selectedStatus == "Confirmed" ? "btn-success" : "btn-light text-muted border-0")">Confirmed</a>
-                <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="Pending" class="btn btn-sm rounded-pill px-3 fw-semibold @(selectedStatus == "Pending" ? "btn-warning text-dark" : "btn-light text-muted border-0")">Pending</a>
-                <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="Cancelled" class="btn btn-sm rounded-pill px-3 fw-semibold @(selectedStatus == "Cancelled" ? "btn-danger" : "btn-light text-muted border-0")">Cancelled</a>
-            </div>
+<!-- Status Filters, Search Bar & Date Range -->
+<div class="card border-0 shadow-sm rounded-4 p-3 mb-4 bg-light">
+    <form method="get" asp-controller="@controllerName" asp-action="ManageBookings" class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <input type="hidden" name="status" value="@selectedStatus" />
+        <input type="hidden" name="sort" value="@sort" />
+        <input type="hidden" name="dir" value="@dir" />
 
-            <div class="input-group" style="max-width: 350px;">
+        <div class="btn-group rounded-pill p-1 bg-white shadow-sm flex-wrap" role="group">
+            <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="All" asp-route-search="@search" class="btn btn-sm rounded-pill px-3 fw-semibold @(selectedStatus == "All" ? "btn-dark" : "btn-light text-muted border-0")">All (@(selectedStatus == "All" ? totalCount : Model.Count()))</a>
+            <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="Confirmed" asp-route-search="@search" class="btn btn-sm rounded-pill px-3 fw-semibold @(selectedStatus == "Confirmed" ? "btn-success" : "btn-light text-muted border-0")">Confirmed</a>
+            <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="Pending" asp-route-search="@search" class="btn btn-sm rounded-pill px-3 fw-semibold @(selectedStatus == "Pending" ? "btn-warning text-dark" : "btn-light text-muted border-0")">Pending</a>
+            <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="Cancelled" asp-route-search="@search" class="btn btn-sm rounded-pill px-3 fw-semibold @(selectedStatus == "Cancelled" ? "btn-danger" : "btn-light text-muted border-0")">Cancelled</a>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <input type="date" name="fromDate" value="@fromDate" class="form-control form-control-sm" style="width: 140px;" title="From Check-in Date" />
+            <input type="date" name="toDate" value="@toDate" class="form-control form-control-sm" style="width: 140px;" title="To Check-out Date" />
+            <div class="input-group" style="max-width: 250px;">
                 <span class="input-group-text bg-white border-end-0 rounded-start-pill"><i class="bi bi-search text-muted"></i></span>
-                <input type="text" id="bookingSearchInput" class="form-control border-start-0 rounded-end-pill" placeholder="Search by ID, guest, property..." />
+                <input type="text" name="search" value="@search" id="bookingSearchInput" class="form-control border-start-0 rounded-end-pill" placeholder="Search ID, guest, property..." />
             </div>
+            <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold">Filter</button>
+            <a asp-controller="@controllerName" asp-action="ManageBookings" class="btn btn-sm btn-outline-secondary rounded-pill px-2" title="Reset Filters"><i class="bi bi-arrow-counterclockwise"></i></a>
         </div>
-    </div>
+    </form>
+</div>
 
-    <!-- Bookings Table Card -->
-    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0" id="bookingsTable">
-                <thead class="table-light">
+<!-- Bookings Table Card -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="bookingsTable">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-4">
+                        <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-sort="id" asp-route-dir="@(sort == "id" && dir != "desc" ? "desc" : "asc")" class="text-dark text-decoration-none d-inline-flex align-items-center gap-1">
+                            Booking ID <i class="bi @(sort == "id" ? (dir == "desc" ? "bi-sort-numeric-down-alt text-primary" : "bi-sort-numeric-down text-primary") : "bi-arrow-down-up opacity-25")"></i>
+                        </a>
+                    </th>
+                    <th>
+                        <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-sort="property" asp-route-dir="@(sort == "property" && dir != "desc" ? "desc" : "asc")" class="text-dark text-decoration-none d-inline-flex align-items-center gap-1">
+                            Property &amp; Dates <i class="bi @(sort == "property" ? (dir == "desc" ? "bi-sort-alpha-down-alt text-primary" : "bi-sort-alpha-down text-primary") : "bi-arrow-down-up opacity-25")"></i>
+                        </a>
+                    </th>
+                    <th>
+                        <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-sort="client" asp-route-dir="@(sort == "client" && dir != "desc" ? "desc" : "asc")" class="text-dark text-decoration-none d-inline-flex align-items-center gap-1">
+                            Guest Information <i class="bi @(sort == "client" ? (dir == "desc" ? "bi-sort-alpha-down-alt text-primary" : "bi-sort-alpha-down text-primary") : "bi-arrow-down-up opacity-25")"></i>
+                        </a>
+                    </th>
+                    <th>
+                        <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-sort="amount" asp-route-dir="@(sort == "amount" && dir != "desc" ? "desc" : "asc")" class="text-dark text-decoration-none d-inline-flex align-items-center gap-1">
+                            Total Amount <i class="bi @(sort == "amount" ? (dir == "desc" ? "bi-sort-numeric-down-alt text-primary" : "bi-sort-numeric-down text-primary") : "bi-arrow-down-up opacity-25")"></i>
+                        </a>
+                    </th>
+                    <th>
+                        <a asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-sort="status" asp-route-dir="@(sort == "status" && dir != "desc" ? "desc" : "asc")" class="text-dark text-decoration-none d-inline-flex align-items-center gap-1">
+                            Status <i class="bi @(sort == "status" ? (dir == "desc" ? "bi-sort-alpha-down-alt text-primary" : "bi-sort-alpha-down text-primary") : "bi-arrow-down-up opacity-25")"></i>
+                        </a>
+                    </th>
+                    <th>Security Deposit</th>
+                    <th class="text-end pe-4">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Any())
+                {
                     <tr>
-                        <th class="ps-4">Booking ID</th>
-                        <th>Property &amp; Dates</th>
-                        <th>Guest Information</th>
-                        <th>Total Amount</th>
-                        <th>Status</th>
-                        <th>Security Deposit</th>
-                        <th class="text-end pe-4">Actions</th>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="bi bi-calendar-x fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                            <h5>No bookings found matching criteria</h5>
+                            <p class="small mb-0">Try adjusting your search query, status, or date range.</p>
+                        </td>
                     </tr>
-                </thead>
-                <tbody>
-                    @if (!Model.Any())
+                }
+                @foreach (var b in Model)
+                {
+                    var statusBadgeClass = b.Status switch
                     {
-                        <tr>
-                            <td colspan="7" class="text-center py-5 text-muted">
-                                <i class="bi bi-calendar-x fs-1 d-block mb-2 text-secondary"></i>
-                                <h5>No bookings found matching filter '@selectedStatus'</h5>
-                                <p class="small mb-0">Check back after guests make reservations or clear your filter.</p>
-                            </td>
-                        </tr>
-                    }
-                    @foreach (var b in Model)
-                    {
-                        var statusBadgeClass = b.Status switch
-                        {
-                            "Confirmed" => "bg-success-subtle text-success border border-success-subtle",
-                            "Pending" => "bg-warning-subtle text-warning border border-warning-subtle",
-                            "Cancelled" => "bg-danger-subtle text-danger border border-danger-subtle",
-                            _ => "bg-secondary-subtle text-secondary border"
-                        };
+                        "Confirmed" => "bg-success-subtle text-success border border-success-subtle",
+                        "Pending" => "bg-warning-subtle text-warning border border-warning-subtle",
+                        "Cancelled" => "bg-danger-subtle text-danger border border-danger-subtle",
+                        _ => "bg-secondary-subtle text-secondary border"
+                    };
 
-                        <tr>
-                            <td class="ps-4">
-                                <span class="fw-bold font-monospace text-dark">#@b.BookingID</span>
-                                <div class="text-muted small">@b.CreatedAt.ToString("dd MMM yyyy")</div>
-                            </td>
-                            <td>
-                                <div class="fw-bold text-dark">@b.PropertyTitle</div>
-                                <div class="small text-muted">
-                                    <i class="bi bi-calendar3 text-primary me-1"></i>@b.CheckInDate.ToString("dd MMM") &ndash; @b.CheckOutDate.ToString("dd MMM yyyy")
-                                    <span class="badge bg-light text-dark border ms-1">@b.BookingType</span>
-                                    @if (b.IsEventBooking)
-                                    {
-                                        <span class="badge bg-warning-subtle text-dark border border-warning-subtle ms-1"><i class="bi bi-palette2 me-1"></i>Décor Added</span>
-                                    }
-                                </div>
-                            </td>
-                            <td>
-                                <div class="fw-semibold text-dark">@b.ClientName</div>
-                                <div class="small text-muted"><i class="bi bi-envelope me-1"></i>@b.ClientEmail</div>
-                                @if (!string.IsNullOrEmpty(b.ClientPhone))
+                    <tr>
+                        <td class="ps-4">
+                            <span class="fw-bold font-monospace text-dark">#@b.BookingID</span>
+                            <div class="text-muted small">@b.CreatedAt.ToString("dd MMM yyyy")</div>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-dark">@b.PropertyTitle</div>
+                            <div class="small text-muted">
+                                <i class="bi bi-calendar3 text-primary me-1"></i>@b.CheckInDate.ToString("dd MMM") &ndash; @b.CheckOutDate.ToString("dd MMM yyyy")
+                                <span class="badge bg-light text-dark border ms-1">@b.BookingType</span>
+                                @if (b.IsEventBooking)
                                 {
-                                    <div class="small text-muted"><i class="bi bi-telephone me-1"></i>@b.ClientPhone</div>
+                                    <span class="badge bg-warning-subtle text-dark border border-warning-subtle ms-1"><i class="bi bi-palette2 me-1"></i>Décor Added</span>
                                 }
-                            </td>
-                            <td>
-                                <div class="fw-bold fs-6 text-success">₹@b.TotalAmount.ToString("N2")</div>
-                                @if (b.PlatformCommissionAmount > 0 || b.EventPlatformCommissionAmount > 0)
-                                {
-                                    var totalPlatformCut = b.PlatformCommissionAmount + b.EventPlatformCommissionAmount;
-                                    <div class="small text-muted">Platform Cut: ₹@totalPlatformCut.ToString("N2")</div>
-                                    @if (b.EventPlatformCommissionAmount > 0)
-                                    {
-                                        <div class="text-muted" style="font-size: 0.72rem;">(Stay: ₹@b.PlatformCommissionAmount.ToString("N0") + Event: ₹@b.EventPlatformCommissionAmount.ToString("N0"))</div>
-                                    }
-                                }
-                            </td>
-                            <td>
-                                <span class="badge px-3 py-1 rounded-pill @statusBadgeClass">
-                                    @b.Status
-                                </span>
-                            </td>
-                            <td>
-                                @if (b.SecurityDepositAmount > 0)
-                                {
-                                    <div class="fw-semibold small text-dark">₹@b.SecurityDepositAmount.ToString("N2")</div>
-                                    <span class="badge bg-light text-dark border small">@b.SecurityDepositStatus</span>
-                                }
-                                else
-                                {
-                                    <span class="text-muted small">None</span>
-                                }
-                            </td>
-                            <td class="text-end pe-4">
-                                <div class="btn-group btn-group-sm">
-                                    <a asp-controller="Booking" asp-action="Receipt" asp-route-id="@b.BookingID" target="_blank" class="btn btn-outline-secondary" title="View Official Guest Receipt">
-                                        <i class="bi bi-file-earmark-text"></i>
-                                    </a>
-                                    <a asp-controller="Owner" asp-action="BookingReceipt" asp-route-id="@b.BookingID" target="_blank" class="btn btn-outline-success" title="View Host Settlement Receipt">
-                                        <i class="bi bi-receipt"></i>
-                                    </a>
-                                    <a asp-controller="@controllerName" asp-action="DamageClaims" asp-route-status="All" class="btn btn-outline-danger" title="Damage Claim Operations">
-                                        <i class="bi bi-shield-exclamation"></i>
-                                    </a>
-                                    @if (b.IsEventBooking && (User.IsInRole("Admin") || User.IsInRole("Employee")))
-                                    {
-                                        <button type="button" class="btn btn-outline-warning" title="Adjust Event Commission for Booking #@b.BookingID" 
-                                                onclick="openBookingEventCommissionModal(@b.BookingID, '@(b.PropertyTitle?.Replace("'", "\\'"))', @b.EventPackagePriceSnapshot, @b.EventCommissionRateSnapshot)">
-                                            <i class="bi bi-percent"></i>
-                                        </button>
-                                    }
-                                    @if (b.Status == "Cancelled")
-                                    {
-                                        <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="All" class="btn btn-outline-info" title="Refund Details">
-                                            <i class="bi bi-arrow-counterclockwise"></i>
-                                        </a>
-                                    }
-                                </div>
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-        @if (ViewBag.TotalPages != null && (int)ViewBag.TotalPages > 1)
-        {
-            int currentPage = ViewBag.CurrentPage ?? 1;
-            int totalPages = ViewBag.TotalPages;
-            int totalCount = ViewBag.TotalCount ?? Model.Count();
-            int pageSize = ViewBag.PageSize ?? 20;
-            int startItem = (currentPage - 1) * pageSize + 1;
-            int endItem = Math.Min(currentPage * pageSize, totalCount);
-
-            <div class="card-footer bg-white border-top py-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
-                <div class="small text-muted">
-                    Showing <strong class="text-dark">@startItem&ndash;@endItem</strong> of <strong class="text-dark">@totalCount</strong> reservations (Page @currentPage of @totalPages)
-                </div>
-                <nav aria-label="Bookings pagination">
-                    <ul class="pagination pagination-sm mb-0 gap-1">
-                        @if (currentPage > 1)
-                        {
-                            <li class="page-item">
-                                <a class="page-link rounded-pill px-3 fw-semibold shadow-sm" asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="@selectedStatus" asp-route-page="@(currentPage - 1)">
-                                    &laquo; Previous
-                                </a>
-                            </li>
-                        }
-
-                        @for (int i = 1; i <= totalPages; i++)
-                        {
-                            if (i == 1 || i == totalPages || (i >= currentPage - 2 && i <= currentPage + 2))
+                            </div>
+                        </td>
+                        <td>
+                            <div class="fw-semibold text-dark">@b.ClientName</div>
+                            <div class="small text-muted"><i class="bi bi-envelope me-1"></i>@b.ClientEmail</div>
+                            @if (!string.IsNullOrEmpty(b.ClientPhone))
                             {
-                                <li class="page-item @(i == currentPage ? "active" : "")">
-                                    <a class="page-link rounded-circle d-flex align-items-center justify-content-center fw-bold shadow-sm @(i == currentPage ? "bg-dark border-dark text-white" : "text-dark")" 
-                                       style="width: 34px; height: 34px;"
-                                       asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="@selectedStatus" asp-route-page="@i">
-                                        @i
-                                    </a>
-                                </li>
+                                <div class="small text-muted"><i class="bi bi-telephone me-1"></i>@b.ClientPhone</div>
                             }
-                            else if (i == currentPage - 3 || i == currentPage + 3)
+                        </td>
+                        <td>
+                            <div class="fw-bold fs-6 text-success">₹@b.TotalAmount.ToString("N2")</div>
+                            @if (b.PlatformCommissionAmount > 0 || b.EventPlatformCommissionAmount > 0)
                             {
-                                <li class="page-item disabled"><span class="page-link border-0 text-muted">&hellip;</span></li>
+                                var totalPlatformCut = b.PlatformCommissionAmount + b.EventPlatformCommissionAmount;
+                                <div class="small text-muted">Platform Cut: ₹@totalPlatformCut.ToString("N2")</div>
+                                @if (b.EventPlatformCommissionAmount > 0)
+                                {
+                                    <div class="text-muted" style="font-size: 0.72rem;">(Stay: ₹@b.PlatformCommissionAmount.ToString("N0") + Event: ₹@b.EventPlatformCommissionAmount.ToString("N0"))</div>
+                                }
                             }
-                        }
-
-                        @if (currentPage < totalPages)
-                        {
-                            <li class="page-item">
-                                <a class="page-link rounded-pill px-3 fw-semibold shadow-sm" asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="@selectedStatus" asp-route-page="@(currentPage + 1)">
-                                    Next &raquo;
+                        </td>
+                        <td>
+                            <span class="badge px-3 py-1 rounded-pill @statusBadgeClass">
+                                @b.Status
+                            </span>
+                        </td>
+                        <td>
+                            @if (b.SecurityDepositAmount > 0)
+                            {
+                                <div class="fw-semibold small text-dark">₹@b.SecurityDepositAmount.ToString("N2")</div>
+                                <span class="badge bg-light text-dark border small">@b.SecurityDepositStatus</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted small">None</span>
+                            }
+                        </td>
+                        <td class="text-end pe-4">
+                            <div class="btn-group btn-group-sm">
+                                <a asp-controller="Booking" asp-action="Receipt" asp-route-id="@b.BookingID" target="_blank" class="btn btn-outline-secondary" title="View Official Guest Receipt">
+                                    <i class="bi bi-file-earmark-text"></i>
                                 </a>
-                            </li>
-                        }
-                    </ul>
-                </nav>
-            </div>
-        }
+                                <a asp-controller="Owner" asp-action="BookingReceipt" asp-route-id="@b.BookingID" target="_blank" class="btn btn-outline-success" title="View Host Settlement Receipt">
+                                    <i class="bi bi-receipt"></i>
+                                </a>
+                                <a asp-controller="@controllerName" asp-action="DamageClaims" asp-route-status="All" class="btn btn-outline-danger" title="Damage Claim Operations">
+                                    <i class="bi bi-shield-exclamation"></i>
+                                </a>
+                                @if (b.IsEventBooking && (User.IsInRole("Admin") || User.IsInRole("Employee")))
+                                {
+                                    <button type="button" class="btn btn-outline-warning" title="Adjust Event Commission for Booking #@b.BookingID" 
+                                            onclick="openBookingEventCommissionModal(@b.BookingID, '@(b.PropertyTitle?.Replace("'", "\\'"))', @b.EventPackagePriceSnapshot, @b.EventCommissionRateSnapshot)">
+                                        <i class="bi bi-percent"></i>
+                                    </button>
+                                }
+                                @if (b.Status == "Cancelled")
+                                {
+                                    <a asp-controller="@controllerName" asp-action="RefundsQueue" asp-route-status="All" class="btn btn-outline-info" title="Refund Details">
+                                        <i class="bi bi-arrow-counterclockwise"></i>
+                                    </a>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
     </div>
+
+    @if (totalPages > 1)
+    {
+        int startItem = (currentPage - 1) * pageSize + 1;
+        int endItem = Math.Min(currentPage * pageSize, totalCount);
+
+        <div class="card-footer bg-white border-top py-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div class="small text-muted">
+                Showing <strong class="text-dark">@startItem&ndash;@endItem</strong> of <strong class="text-dark">@totalCount</strong> reservations (Page @currentPage of @totalPages, 25 per page)
+            </div>
+            <nav aria-label="Bookings pagination">
+                <ul class="pagination pagination-sm mb-0 gap-1">
+                    @if (currentPage > 1)
+                    {
+                        <li class="page-item">
+                            <a class="page-link rounded-pill px-3 fw-semibold shadow-sm" asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-sort="@sort" asp-route-dir="@dir" asp-route-page="@(currentPage - 1)">
+                                &laquo; Previous
+                            </a>
+                        </li>
+                    }
+
+                    @for (int i = 1; i <= totalPages; i++)
+                    {
+                        if (i == 1 || i == totalPages || (i >= currentPage - 2 && i <= currentPage + 2))
+                        {
+                            <li class="page-item @(i == currentPage ? "active" : "")">
+                                <a class="page-link rounded-circle d-flex align-items-center justify-content-center fw-bold shadow-sm @(i == currentPage ? "bg-dark border-dark text-white" : "text-dark")" 
+                                   style="width: 34px; height: 34px;"
+                                   asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-sort="@sort" asp-route-dir="@dir" asp-route-page="@i">
+                                    @i
+                                </a>
+                            </li>
+                        }
+                        else if (i == currentPage - 3 || i == currentPage + 3)
+                        {
+                            <li class="page-item disabled"><span class="page-link border-0 text-muted">&hellip;</span></li>
+                        }
+                    }
+
+                    @if (currentPage < totalPages)
+                    {
+                        <li class="page-item">
+                            <a class="page-link rounded-pill px-3 fw-semibold shadow-sm" asp-controller="@controllerName" asp-action="ManageBookings" asp-route-status="@selectedStatus" asp-route-search="@search" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-sort="@sort" asp-route-dir="@dir" asp-route-page="@(currentPage + 1)">
+                                Next &raquo;
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </nav>
+        </div>
+    }
 </div>
 
 <!-- Modal for Adjusting Event Commission on a Specific Booking -->
@@ -270,16 +301,14 @@
                         <strong class="text-dark small" id="modalSplitPlatform">₹0.00</strong>
                     </div>
                     <div class="d-flex justify-content-between">
-                        <span class="text-dark small">New Decorator Net Payout:</span>
-                        <strong class="text-success small" id="modalSplitDecorator">₹0.00</strong>
+                        <span class="text-dark small">New Decorator Payout:</span>
+                        <strong class="text-dark small" id="modalSplitDecorator">₹0.00</strong>
                     </div>
                 </div>
             </div>
-            <div class="modal-footer bg-light py-2">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-warning fw-bold text-dark" onclick="submitBookingEventComm()">
-                    <i class="bi bi-check-circle-fill me-1"></i> Apply &amp; Recalculate Payouts
-                </button>
+            <div class="modal-footer border-0 p-4 pt-0">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning fw-bold px-4" onclick="submitBookingEventComm()">Save Override</button>
             </div>
         </div>
     </div>
@@ -287,16 +316,6 @@
 
 @section Scripts {
 <script>
-    document.getElementById("bookingSearchInput").addEventListener("input", function () {
-        const query = this.value.toLowerCase().trim();
-        const rows = document.querySelectorAll("#bookingsTable tbody tr");
-
-        rows.forEach(row => {
-            const text = row.innerText.toLowerCase();
-            row.style.display = text.includes(query) ? "" : "none";
-        });
-    });
-
     let bookingCommModalInstance = null;
     function openBookingEventCommissionModal(bookingId, propTitle, pkgPrice, currentRate) {
         document.getElementById("modalBookingId").value = bookingId;

@@ -370,3 +370,7 @@ App_Data/PrivateDocuments/
 # Local environment configuration overrides
 appsettings.Development.json
 appsettings.*.local.json
+
+*.zip
+Documents/
+dotnet-tools.json
