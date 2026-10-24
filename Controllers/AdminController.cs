@@ -1482,6 +1482,31 @@ namespace BookMyFun.Controllers
             return RedirectToAction(nameof(RefundsQueue));
         }
 
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AdjudicateRefund(int refundId, string action, decimal refundAmount, string reason, bool issueAsCredit = false)
+        {
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                TempData["Error"] = "A valid reason is required for administrative refund review.";
+                return RedirectToAction(nameof(RefundsQueue));
+            }
+
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            try
+            {
+                var updated = await _refundEngine.AdjudicateAdminRefundAsync(refundId, currentUserId, action, refundAmount, reason, issueAsCredit);
+                await _configRepo.LogAuditAsync(currentUserId, "AdminAdjudicateRefund", "BookingRefund", refundId, $"Adjudication: {action}, Amount: ₹{refundAmount:N2}, Reason: {reason}");
+                TempData["Success"] = $"Refund #{refundId} adjudication completed ({action}).";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Adjudication failed: {ex.Message}";
+            }
+
+            return RedirectToAction(nameof(RefundsQueue));
+        }
+
         // --- Partner Leads Pipeline ---
         public async Task<IActionResult> PartnerLeads(string? status)
         {

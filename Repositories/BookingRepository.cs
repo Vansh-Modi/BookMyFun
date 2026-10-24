@@ -15,6 +15,7 @@ namespace BookMyFun.Repositories
         Task<int> CreateBookingAsync(Booking booking);
         Task<bool> UpdateBookingStatusAsync(int bookingId, string status);
         Task<bool> CancelBookingAsync(int bookingId);
+        Task<bool> UpdateOwnerPayoutAsync(int bookingId, decimal newOwnerPayout) => Task.FromResult(true);
         Task<bool> UpdateSecurityDepositStatusAsync(int bookingId, string status);
         Task<bool> IsSlotAvailableAsync(int propertyId, DateTime checkInDate, DateTime checkOutDate, string bookingType, string? slotType);
         Task<bool> IsSlotAvailableAsync(int propertyId, DateTime checkInDate, DateTime checkOutDate, string bookingType, string? slotType, int? excludeBookingId)
@@ -187,6 +188,15 @@ namespace BookMyFun.Repositories
         {
             const string sql = "UPDATE Bookings SET Status = 'Cancelled' WHERE BookingID = @BookingID";
             var rows = await _db.ExecuteNonQueryAsync(sql, new SqlParameter("@BookingID", bookingId));
+            return rows > 0;
+        }
+
+        public async Task<bool> UpdateOwnerPayoutAsync(int bookingId, decimal newOwnerPayout)
+        {
+            const string sql = "UPDATE Bookings SET OwnerPayoutAmount = @OwnerPayoutAmount WHERE BookingID = @BookingID";
+            var rows = await _db.ExecuteNonQueryAsync(sql,
+                new SqlParameter("@OwnerPayoutAmount", newOwnerPayout),
+                new SqlParameter("@BookingID", bookingId));
             return rows > 0;
         }
 

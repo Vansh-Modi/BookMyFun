@@ -73,15 +73,28 @@ namespace BookMyFun.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> ManageBookings(string? status = null)
+        public async Task<IActionResult> ManageBookings(string? status = null, int page = 1, int pageSize = 20)
         {
-            var bookings = await _bookingRepo.GetAllBookingsAsync();
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var allBookings = await _bookingRepo.GetAllBookingsAsync();
             if (!string.IsNullOrEmpty(status) && !string.Equals(status, "All", StringComparison.OrdinalIgnoreCase))
             {
-                bookings = bookings.Where(b => string.Equals(b.Status, status, StringComparison.OrdinalIgnoreCase)).ToList();
+                allBookings = allBookings.Where(b => string.Equals(b.Status, status, StringComparison.OrdinalIgnoreCase)).ToList();
             }
+
+            int totalCount = allBookings.Count;
+            int totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
+            var pagedBookings = allBookings.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
             ViewBag.SelectedStatus = status ?? "All";
-            return View(bookings);
+            ViewBag.CurrentPage = page;
+            ViewBag.PageSize = pageSize;
+            ViewBag.TotalCount = totalCount;
+            ViewBag.TotalPages = totalPages;
+
+            return View(pagedBookings);
         }
 
         // --- Employee CRUD on Owners ---
@@ -527,6 +540,31 @@ namespace BookMyFun.Controllers
                 await _configRepo.LogAuditAsync(currentUserId, "EmployeeOverrideRefund", "BookingRefund", refundId, $"Refund #{refundId} status set to {status}. Notes: {notes}");
                 TempData["Success"] = $"Refund #{refundId} successfully updated to '{status}'.";
             }
+            return RedirectToAction(nameof(RefundsQueue));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AdjudicateRefund(int refundId, string action, decimal refundAmount, string reason, bool issueAsCredit = false)
+        {
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                TempData["Error"] = "A valid reason is required for administrative refund review.";
+                return RedirectToAction(nameof(RefundsQueue));
+            }
+
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            try
+            {
+                var updated = await _refundEngine.AdjudicateAdminRefundAsync(refundId, currentUserId, action, refundAmount, reason, issueAsCredit);
+                await _configRepo.LogAuditAsync(currentUserId, "EmployeeAdjudicateRefund", "BookingRefund", refundId, $"Adjudication: {action}, Amount: ₹{refundAmount:N2}, Reason: {reason}");
+                TempData["Success"] = $"Refund #{refundId} adjudication completed ({action}).";
+            }
+            catch (Exception ex)
+            {
+                TempData["Error"] = $"Adjudication failed: {ex.Message}";
+            }
+
             return RedirectToAction(nameof(RefundsQueue));
         }
 

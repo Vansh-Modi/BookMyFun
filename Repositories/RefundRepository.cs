@@ -25,11 +25,22 @@ namespace BookMyFun.Repositories
         public async Task<int> InsertRefundAsync(BookingRefund refund)
         {
             const string sql = @"
-                INSERT INTO BookingRefunds 
-                (BookingID, GrossBookingAmount, CancellationFeeDeducted, GatewayFeeDeducted, NetRefundAmount, RefundReason, Status, GatewayRefundID, ProcessedByUserID, ProcessedAt, CreatedAt)
-                OUTPUT INSERTED.RefundID
-                VALUES 
-                (@BookingID, @GrossBookingAmount, @CancellationFeeDeducted, @GatewayFeeDeducted, @NetRefundAmount, @RefundReason, @Status, @GatewayRefundID, @ProcessedByUserID, @ProcessedAt, GETDATE())";
+                IF COL_LENGTH('BookingRefunds', 'RuleApplied') IS NOT NULL
+                BEGIN
+                    INSERT INTO BookingRefunds 
+                    (BookingID, GrossBookingAmount, CancellationFeeDeducted, GatewayFeeDeducted, NetRefundAmount, RefundReason, Status, GatewayRefundID, ProcessedByUserID, ProcessedAt, CreatedAt, RuleApplied, OwnerShareAmount, CommissionAmount, ShortfallAmount)
+                    OUTPUT INSERTED.RefundID
+                    VALUES 
+                    (@BookingID, @GrossBookingAmount, @CancellationFeeDeducted, @GatewayFeeDeducted, @NetRefundAmount, @RefundReason, @Status, @GatewayRefundID, @ProcessedByUserID, @ProcessedAt, GETDATE(), @RuleApplied, @OwnerShareAmount, @CommissionAmount, @ShortfallAmount);
+                END
+                ELSE
+                BEGIN
+                    INSERT INTO BookingRefunds 
+                    (BookingID, GrossBookingAmount, CancellationFeeDeducted, GatewayFeeDeducted, NetRefundAmount, RefundReason, Status, GatewayRefundID, ProcessedByUserID, ProcessedAt, CreatedAt)
+                    OUTPUT INSERTED.RefundID
+                    VALUES 
+                    (@BookingID, @GrossBookingAmount, @CancellationFeeDeducted, @GatewayFeeDeducted, @NetRefundAmount, @RefundReason, @Status, @GatewayRefundID, @ProcessedByUserID, @ProcessedAt, GETDATE());
+                END";
 
             var result = await _db.ExecuteScalarAsync(sql,
                 new SqlParameter("@BookingID", refund.BookingID),
@@ -41,7 +52,11 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@Status", refund.Status),
                 new SqlParameter("@GatewayRefundID", DBHelper.ToDbValue(refund.GatewayRefundID)),
                 new SqlParameter("@ProcessedByUserID", DBHelper.ToDbValue(refund.ProcessedByUserID)),
-                new SqlParameter("@ProcessedAt", DBHelper.ToDbValue(refund.ProcessedAt)));
+                new SqlParameter("@ProcessedAt", DBHelper.ToDbValue(refund.ProcessedAt)),
+                new SqlParameter("@RuleApplied", (object?)refund.RuleApplied ?? DBNull.Value),
+                new SqlParameter("@OwnerShareAmount", refund.OwnerShareAmount),
+                new SqlParameter("@CommissionAmount", refund.CommissionAmount),
+                new SqlParameter("@ShortfallAmount", refund.ShortfallAmount));
 
             return result != null ? Convert.ToInt32(result) : 0;
         }
@@ -134,6 +149,34 @@ namespace BookMyFun.Repositories
                 ClientEmail = reader.IsDBNull(reader.GetOrdinal("ClientEmail")) ? null : reader.GetString(reader.GetOrdinal("ClientEmail")),
                 ProcessedByUserName = reader.IsDBNull(reader.GetOrdinal("ProcessedByUserName")) ? null : reader.GetString(reader.GetOrdinal("ProcessedByUserName"))
             };
+
+            try
+            {
+                int ruleOrd = reader.GetOrdinal("RuleApplied");
+                if (!reader.IsDBNull(ruleOrd)) refund.RuleApplied = reader.GetInt32(ruleOrd);
+            }
+            catch { }
+
+            try
+            {
+                int ownerOrd = reader.GetOrdinal("OwnerShareAmount");
+                if (!reader.IsDBNull(ownerOrd)) refund.OwnerShareAmount = reader.GetDecimal(ownerOrd);
+            }
+            catch { }
+
+            try
+            {
+                int commOrd = reader.GetOrdinal("CommissionAmount");
+                if (!reader.IsDBNull(commOrd)) refund.CommissionAmount = reader.GetDecimal(commOrd);
+            }
+            catch { }
+
+            try
+            {
+                int shortOrd = reader.GetOrdinal("ShortfallAmount");
+                if (!reader.IsDBNull(shortOrd)) refund.ShortfallAmount = reader.GetDecimal(shortOrd);
+            }
+            catch { }
 
             return refund;
         }

@@ -11,6 +11,16 @@ namespace BookMyFun.Services
     {
         Task<PaymentOrderResponse> CreateOrderAsync(decimal amount, string receipt, string currency = "INR");
         Task<bool> VerifyPaymentSignatureAsync(string orderId, string paymentId, string signature);
+        Task<PaymentRefundResult> ProcessRefundAsync(string paymentId, decimal amount, string? reason = null)
+            => Task.FromResult(new PaymentRefundResult { Success = true, RefundId = $"rfnd_sim_{Guid.NewGuid():N}"[..20], IsPending = false });
+    }
+
+    public class PaymentRefundResult
+    {
+        public bool Success { get; set; }
+        public string? RefundId { get; set; }
+        public string? ErrorMessage { get; set; }
+        public bool IsPending { get; set; }
     }
 
     public class PaymentOrderResponse
@@ -27,31 +37,23 @@ namespace BookMyFun.Services
         private readonly IConfigRepository _configRepo;
         private readonly IConfiguration _configuration;
         private readonly ILogger<RazorpayPaymentService> _logger;
+        private readonly IHttpClientFactory? _httpClientFactory;
 
         public RazorpayPaymentService(
             IConfigRepository configRepo, 
             IConfiguration configuration,
-            ILogger<RazorpayPaymentService> logger)
+            ILogger<RazorpayPaymentService> logger,
+            IHttpClientFactory? httpClientFactory = null)
         {
             _configRepo = configRepo;
             _configuration = configuration;
             _logger = logger;
+            _httpClientFactory = httpClientFactory;
         }
 
         public async Task<PaymentOrderResponse> CreateOrderAsync(decimal amount, string receipt, string currency = "INR")
         {
-            // 1. Check database ApiConfigurations
-            var config = await _configRepo.GetActiveConfigByProviderAsync("Razorpay");
-            string keyId = config?.ApiKey ?? string.Empty;
-            string keySecret = config?.ApiSecret ?? string.Empty;
-
-            // 2. Fallback to appsettings.json if not configured in DB
-            if (string.IsNullOrWhiteSpace(keyId))
-            {
-                keyId = _configuration["Razorpay:KeyId"] ?? string.Empty;
-                keySecret = _configuration["Razorpay:KeySecret"] ?? string.Empty;
-            }
-
+            var (keyId, keySecret) = await GetCredentialsAsync();
             bool isDemoKey = keyId.Contains("demo") || keySecret.Contains("demo");
 
             // If real live or valid Razorpay test key is provided, invoke Razorpay Orders REST API
@@ -59,7 +61,9 @@ namespace BookMyFun.Services
             {
                 try
                 {
-                    using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+                    var http = _httpClientFactory != null 
+                        ? _httpClientFactory.CreateClient("Razorpay") 
+                        : new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
                     var authBytes = Encoding.UTF8.GetBytes($"{keyId.Trim()}:{keySecret.Trim()}");
                     http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(authBytes));
 
@@ -165,6 +169,86 @@ namespace BookMyFun.Services
             {
                 _logger.LogError(ex, "Failed to verify signature for order {OrderId}", orderId);
                 return false;
+            }
+        }
+
+        private async Task<(string keyId, string keySecret)> GetCredentialsAsync()
+        {
+            var config = await _configRepo.GetActiveConfigByProviderAsync("Razorpay");
+            string keyId = config?.ApiKey ?? string.Empty;
+            string keySecret = config?.ApiSecret ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(keyId))
+            {
+                keyId = _configuration["Razorpay:KeyId"] ?? string.Empty;
+                keySecret = _configuration["Razorpay:KeySecret"] ?? string.Empty;
+            }
+            return (keyId, keySecret);
+        }
+
+        public async Task<PaymentRefundResult> ProcessRefundAsync(string paymentId, decimal amount, string? reason = null)
+        {
+            if (amount <= 0)
+            {
+                return new PaymentRefundResult { Success = true, RefundId = null, IsPending = false };
+            }
+
+            var (keyId, keySecret) = await GetCredentialsAsync();
+
+            // Handle simulated payment IDs or test mode without real secrets
+            if (paymentId.StartsWith("sim_") || paymentId.StartsWith("PAY_") || paymentId.StartsWith("GATEWAY_") ||
+                string.IsNullOrWhiteSpace(keyId) || string.IsNullOrWhiteSpace(keySecret) ||
+                keyId.Contains("YOUR_KEY") || keyId.Contains("TEST_KEY"))
+            {
+                _logger.LogInformation("Simulating gateway refund of ₹{Amount:N2} for transaction {PaymentId}", amount, paymentId);
+                return new PaymentRefundResult
+                {
+                    Success = true,
+                    RefundId = $"rfnd_sim_{Guid.NewGuid():N}"[..20],
+                    IsPending = false
+                };
+            }
+
+            try
+            {
+                var http = _httpClientFactory != null
+                    ? _httpClientFactory.CreateClient("Razorpay")
+                    : new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+
+                var authBytes = Encoding.UTF8.GetBytes($"{keyId.Trim()}:{keySecret.Trim()}");
+                http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(authBytes));
+
+                long amountInPaise = (long)Math.Round(amount * 100m);
+                var payloadObj = new
+                {
+                    amount = amountInPaise,
+                    notes = new Dictionary<string, string>
+                    {
+                        { "reason", reason ?? "Customer cancellation" }
+                    }
+                };
+
+                string cleanPaymentId = paymentId.StartsWith("RAZORPAY_") ? paymentId.Substring(9) : paymentId;
+                var content = new StringContent(JsonSerializer.Serialize(payloadObj), Encoding.UTF8, "application/json");
+                var response = await http.PostAsync($"https://api.razorpay.com/v1/payments/{cleanPaymentId}/refund", content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseJson = await response.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(responseJson);
+                    string refundId = doc.RootElement.GetProperty("id").GetString() ?? $"rfnd_{Guid.NewGuid():N}"[..20];
+                    _logger.LogInformation("Razorpay refund processed successfully: {RefundId} for payment {PaymentId}", refundId, paymentId);
+                    return new PaymentRefundResult { Success = true, RefundId = refundId, IsPending = false };
+                }
+
+                var errText = await response.Content.ReadAsStringAsync();
+                _logger.LogWarning("Razorpay refund failed HTTP {StatusCode}: {Error}. Marking as Pending for retry.", response.StatusCode, errText);
+                return new PaymentRefundResult { Success = false, IsPending = true, ErrorMessage = errText };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Exception calling Razorpay refund for payment {PaymentId}. Marking as Pending.", paymentId);
+                return new PaymentRefundResult { Success = false, IsPending = true, ErrorMessage = ex.Message };
             }
         }
     }

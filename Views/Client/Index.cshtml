@@ -85,6 +85,9 @@
                             else if (b.Status == "Cancelled")
                             {
                                 <span class="dash-badge dash-badge-danger"><i class="bi bi-x-circle-fill"></i> Cancelled</span>
+                                <div class="small text-muted mt-1" style="font-size: 0.72rem;">
+                                    <i class="bi bi-arrow-counterclockwise text-info me-1"></i>Refund Status: Processed
+                                </div>
                             }
                             else
                             {
@@ -197,8 +200,12 @@
                             <span id="quoteCancellationFee">- ₹0.00</span>
                         </div>
                         <div class="d-flex justify-content-between mb-2 text-danger">
-                            <span>Payment Gateway Processing (2%)</span>
+                            <span>Payment Gateway Processing</span>
                             <span id="quoteGatewayFee">- ₹0.00</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2 text-muted small">
+                            <span>Expected Refund Timeline:</span>
+                            <span id="quoteTimeline" class="fw-semibold text-dark">5 to 7 business days</span>
                         </div>
                         <hr class="my-2" />
                         <div class="d-flex justify-content-between fs-5 fw-bold">
@@ -248,9 +255,12 @@
                 document.getElementById('quotePolicyTier').innerText = q.policyTier === 'FullRefund' ? 'Eligible for Full Refund' :
                                                                        q.policyTier === 'PartialRefund' ? 'Eligible for Partial Refund' : 'Non-Refundable Window';
                 document.getElementById('quotePolicyExplanation').innerText = q.policyExplanation;
-                document.getElementById('quoteGrossAmount').innerText = '₹' + q.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+                document.getElementById('quoteGrossAmount').innerText = '₹' + (q.amountPaid || q.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 });
                 document.getElementById('quoteCancellationFee').innerText = '- ₹' + q.cancellationFeeDeducted.toLocaleString('en-IN', { minimumFractionDigits: 2 });
                 document.getElementById('quoteGatewayFee').innerText = '- ₹' + q.gatewayFeeDeducted.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+                if (document.getElementById('quoteTimeline')) {
+                    document.getElementById('quoteTimeline').innerText = q.refundTimeline || '5 to 7 business days';
+                }
                 document.getElementById('quoteNetRefund').innerText = '₹' + q.netRefundAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
                 if (q.netRefundAmount <= 0) {

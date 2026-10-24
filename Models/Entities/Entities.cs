@@ -309,6 +309,10 @@ namespace BookMyFun.Models.Entities
         public string? RefundReason { get; set; }
         public string Status { get; set; } = "Initiated"; // 'Initiated', 'Processing', 'Completed', 'Failed', 'Overridden'
         public string? GatewayRefundID { get; set; }
+        public int? RuleApplied { get; set; } // Scenario 1 to 6
+        public decimal OwnerShareAmount { get; set; } = 0.00m;
+        public decimal CommissionAmount { get; set; } = 0.00m;
+        public decimal ShortfallAmount { get; set; } = 0.00m;
         public int? ProcessedByUserID { get; set; }
         public DateTime? ProcessedAt { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

@@ -384,6 +384,32 @@ namespace BookMyFun.Models.ViewModels
         public bool IsEligibleForRefund { get; set; }
         public string PolicyTier { get; set; } = string.Empty; // 'FullRefund', 'PartialRefund', 'NonRefundable'
         public string PolicyExplanation { get; set; } = string.Empty;
+        public int RuleApplied { get; set; } = 1; // Scenario 1 to 6
+        public decimal CustomerRefundAmount { get; set; }
+        public decimal OwnerShareAmount { get; set; }
+        public decimal CommissionAmount { get; set; }
+        public decimal AmountPaid { get; set; }
+        public string RefundTimeline { get; set; } = "5 to 7 business days";
+    }
+
+    public class RefundAdminReviewViewModel
+    {
+        [Required]
+        public int BookingID { get; set; }
+
+        [Required, Range(5, 6, ErrorMessage = "Rule scenario must be 5 (Listing Mismatch) or 6 (Force Majeure)")]
+        public int RuleScenario { get; set; } // 5 or 6
+
+        [Required]
+        public string Action { get; set; } = "Approve"; // 'Approve', 'Reject'
+
+        [Range(0, 1000000, ErrorMessage = "Refund amount must be zero or positive")]
+        public decimal RefundAmount { get; set; }
+
+        [Required(ErrorMessage = "A specific reason is required for administrative refund adjudications"), MinLength(5)]
+        public string Reason { get; set; } = string.Empty;
+
+        public bool IssueAsCredit { get; set; } = false; // For row 6 credit option
     }
 
     public class ProcessCancellationRequest

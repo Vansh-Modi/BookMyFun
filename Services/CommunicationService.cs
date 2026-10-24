@@ -16,6 +16,8 @@ namespace BookMyFun.Services
         Task<bool> SendBookingReceiptEmailAsync(string toEmail, string clientName, BookingReceiptViewModel receipt, string receiptUrl) => Task.FromResult(true);
         Task<bool> SendOwnerSettlementReceiptEmailAsync(string toEmail, string ownerName, BookingReceiptViewModel receipt, string settlementReceiptUrl) => Task.FromResult(true);
         Task<bool> SendKycRejectionNotificationAsync(string toEmail, string clientName, string? rejectionReason, int clientId, string? documentType = null) => Task.FromResult(true);
+        Task<bool> SendCancellationCustomerNotificationAsync(int clientId, string clientEmail, string? clientPhone, bool whatsappOptIn, int bookingId, string propertyTitle, int ruleApplied, decimal refundAmount, string timeline = "5 to 7 business days") => Task.FromResult(true);
+        Task<bool> SendCancellationOwnerNotificationAsync(int ownerId, string ownerEmail, int bookingId, string propertyTitle, decimal amountReceivedOrLost, bool isReceived, string reason) => Task.FromResult(true);
     }
 
     public interface IWhatsAppService
@@ -857,6 +859,101 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
             });
 
             _logger.LogInformation("KYC rejection email and in-app notification enqueued for Client #{ClientId} ({Email})", clientId, toEmail);
+            return true;
+        }
+
+        public async Task<bool> SendCancellationCustomerNotificationAsync(
+            int clientId,
+            string clientEmail,
+            string? clientPhone,
+            bool whatsappOptIn,
+            int bookingId,
+            string propertyTitle,
+            int ruleApplied,
+            decimal refundAmount,
+            string timeline = "5 to 7 business days")
+        {
+            // 1. In-App Notification
+            _emailQueue.AddInAppNotification(
+                clientId,
+                "Booking Cancelled",
+                $"Booking #{bookingId} for {propertyTitle} has been cancelled (Rule #{ruleApplied}). Net refund of ₹{refundAmount:N2} will be credited within {timeline}.",
+                "BookingCancellation",
+                "/Client/Index");
+
+            // 2. Transactional Email
+            if (!string.IsNullOrWhiteSpace(clientEmail))
+            {
+                string subject = $"Booking #{bookingId} Cancellation & Refund Confirmation - BookMyFun";
+                string bodyHtml = $@"
+<div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
+    <div style=""border-bottom: 2px solid #ef4444; padding-bottom: 16px; margin-bottom: 20px;"">
+        <h2 style=""color: #dc2626; margin: 0 0 6px 0; font-size: 20px;"">Booking Cancellation Notice</h2>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">BookMyFun Reservation Transparency</p>
+    </div>
+    <p style=""font-size: 15px; line-height: 1.6;"">Your reservation for <strong>{WebUtility.HtmlEncode(propertyTitle)}</strong> (Booking #{bookingId}) has been cancelled.</p>
+    <div style=""background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;"">
+        <div style=""margin-bottom: 8px;""><strong>Cancellation Policy Applied:</strong> Scenario #{ruleApplied}</div>
+        <div style=""margin-bottom: 8px;""><strong>Net Refund Amount:</strong> <span style=""color: #16a34a; font-weight: bold;"">₹{refundAmount:N2}</span></div>
+        <div><strong>Expected Timeline:</strong> {WebUtility.HtmlEncode(timeline)}</div>
+    </div>
+    <p style=""font-size: 13px; color: #64748b;"">Refunds are processed back to the original payment source. You can view full financial breakdown anytime from your client dashboard.</p>
+</div>";
+                string plainText = $"Booking #{bookingId} for {propertyTitle} cancelled under Policy Rule #{ruleApplied}. Net refund: Rs. {refundAmount:N2}. Expected timeline: {timeline}.";
+                await EnqueueEmailAsync(clientEmail.Trim(), subject, bodyHtml, "BookingCancellation");
+            }
+
+            // 3. WhatsApp if opted in
+            if (whatsappOptIn && !string.IsNullOrWhiteSpace(clientPhone))
+            {
+                string waMsg = $"Your booking #{bookingId} for {propertyTitle} was cancelled (Policy Rule #{ruleApplied}). Net refund of ₹{refundAmount:N2} will be credited to your account in {timeline}.";
+                await EnqueueWhatsAppAsync(clientPhone, waMsg, "BookingCancellation");
+            }
+
+            return true;
+        }
+
+        public async Task<bool> SendCancellationOwnerNotificationAsync(
+            int ownerId,
+            string ownerEmail,
+            int bookingId,
+            string propertyTitle,
+            decimal amountReceivedOrLost,
+            bool isReceived,
+            string reason)
+        {
+            string impactText = isReceived
+                ? $"You will receive ₹{amountReceivedOrLost:N2} per the cancellation policy."
+                : $"You will lose / owe ₹{amountReceivedOrLost:N2}.";
+
+            // 1. In-App Notification
+            _emailQueue.AddInAppNotification(
+                ownerId,
+                "Booking Cancelled by Guest or Host",
+                $"Booking #{bookingId} for {propertyTitle} was cancelled. {impactText} Reason: {reason}.",
+                "BookingCancellation",
+                "/Owner/Index");
+
+            // 2. Transactional Email
+            if (!string.IsNullOrWhiteSpace(ownerEmail))
+            {
+                string subject = $"Booking #{bookingId} Cancelled - Host Update - BookMyFun";
+                string bodyHtml = $@"
+<div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
+    <div style=""border-bottom: 2px solid #3b82f6; padding-bottom: 16px; margin-bottom: 20px;"">
+        <h2 style=""color: #1e40af; margin: 0 0 6px 0; font-size: 20px;"">Host Booking Update</h2>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">BookMyFun Host Settlement</p>
+    </div>
+    <p style=""font-size: 15px; line-height: 1.6;"">Booking #{bookingId} for your listing <strong>{WebUtility.HtmlEncode(propertyTitle)}</strong> has been cancelled.</p>
+    <div style=""background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;"">
+        <div style=""margin-bottom: 8px;""><strong>Financial Settlement:</strong> {impactText}</div>
+        <div><strong>Reason:</strong> {WebUtility.HtmlEncode(reason)}</div>
+    </div>
+    <p style=""font-size: 13px; color: #64748b;"">Check your host dashboard for updated settlement and ledger records.</p>
+</div>";
+                await EnqueueEmailAsync(ownerEmail.Trim(), subject, bodyHtml, "OwnerBookingCancellation");
+            }
+
             return true;
         }
     }

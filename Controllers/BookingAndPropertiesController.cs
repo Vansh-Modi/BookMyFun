@@ -714,12 +714,17 @@ namespace BookMyFun.Controllers
             if (booking == null) return NotFound(new { success = false, message = "Booking not found." });
 
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            if (booking.ClientID != currentUserId && !User.IsInRole("Admin") && !User.IsInRole("Employee"))
+            var property = await _propRepo.GetByIdAsync(booking.PropertyID);
+            bool isClient = booking.ClientID == currentUserId;
+            bool isOwner = property != null && property.OwnerID == currentUserId;
+            bool isStaff = User.IsInRole("Admin") || User.IsInRole("Employee");
+
+            if (!isClient && !isOwner && !isStaff)
             {
                 return Forbid();
             }
 
-            var quote = _refundEngine.CalculateCancellationQuote(booking);
+            var quote = await _refundEngine.CalculateCancellationQuoteAsync(booking, DateTime.UtcNow, isOwner);
             return Json(new { success = true, quote });
         }
 
@@ -732,32 +737,25 @@ namespace BookMyFun.Controllers
             if (booking == null) return NotFound();
 
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var userRole = User.FindFirstValue(ClaimTypes.Role) ?? "Client";
+            var property = await _propRepo.GetByIdAsync(booking.PropertyID);
+            bool isClient = booking.ClientID == currentUserId;
+            bool isOwner = property != null && property.OwnerID == currentUserId;
+            bool isStaff = User.IsInRole("Admin") || User.IsInRole("Employee");
 
-            if (booking.ClientID != currentUserId && !User.IsInRole("Admin") && !User.IsInRole("Employee"))
+            if (!isClient && !isOwner && !isStaff)
             {
                 return Forbid();
             }
 
+            var userRole = isOwner ? "Owner" : (isStaff ? (User.FindFirstValue(ClaimTypes.Role) ?? "Admin") : "Client");
+
             if (booking.Status == "Cancelled")
             {
                 TempData["Error"] = "This booking is already cancelled.";
-                return RedirectToAction("Index", "Client");
+                return isOwner ? RedirectToAction("Index", "Owner") : RedirectToAction("Index", "Client");
             }
 
             var refund = await _refundEngine.ProcessCancellationAndRefundAsync(bookingId, currentUserId, userRole, reason, forceOverride);
-
-            // Dispatch cancellation notices
-            var client = await _userRepo.GetByIdAsync(booking.ClientID);
-            if (client != null)
-            {
-                string msg = $"Your booking #{bookingId} has been cancelled. Net refund amount: ₹{refund.NetRefundAmount:N2} (Deductions: Fee ₹{refund.CancellationFeeDeducted:N2}, Gateway ₹{refund.GatewayFeeDeducted:N2}).";
-                if (!string.IsNullOrEmpty(client.Phone))
-                {
-                    _ = _whatsAppService.SendWhatsAppMessageAsync(client.Phone, msg);
-                }
-                await _emailService.EnqueueEmailAsync(client.Email, $"Booking Cancellation #{bookingId} - BookMyFun", $"<p>{msg}</p>", "CancellationNotice");
-            }
 
             if (Request.Headers["X-Requested-With"] == "XMLHttpRequest")
             {
@@ -765,7 +763,7 @@ namespace BookMyFun.Controllers
             }
 
             TempData["Success"] = $"Booking #{bookingId} has been cancelled successfully. Net refund: ₹{refund.NetRefundAmount:N2}";
-            return RedirectToAction("Index", "Client");
+            return isOwner ? RedirectToAction("Index", "Owner") : RedirectToAction("Index", "Client");
         }
 
         [Authorize]

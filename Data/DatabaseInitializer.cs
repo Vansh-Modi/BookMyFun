@@ -115,6 +115,42 @@ BEGIN
     VALUES ('PlatformCommissionPercent', '10.0', 0, GETDATE());
 END
 
+-- Seed Refund Rules & Decision Placeholders (D1, D2, D3)
+-- PENDING DECISION D1: Commission setting on 50% partial cancellation (placeholder: keep commission on the 50%)
+IF NOT EXISTS (SELECT 1 FROM SiteSettings WHERE SettingKey = 'Refund:D1_PartialCancellationCommissionPolicy')
+BEGIN
+    INSERT INTO SiteSettings (SettingKey, SettingValue, IsEncrypted, UpdatedAt)
+    VALUES ('Refund:D1_PartialCancellationCommissionPolicy', 'KeepOnPaidHalf', 0, GETDATE());
+END
+
+-- PENDING DECISION D2: Under 72 hours cancellation owner policy (placeholder: no refund for all owners)
+IF NOT EXISTS (SELECT 1 FROM SiteSettings WHERE SettingKey = 'Refund:D2_Under72hOwnerPolicyOverride')
+BEGIN
+    INSERT INTO SiteSettings (SettingKey, SettingValue, IsEncrypted, UpdatedAt)
+    VALUES ('Refund:D2_Under72hOwnerPolicyOverride', 'NoRefundAll', 0, GETDATE());
+END
+
+-- PENDING DECISION D3: Owner cancellation penalty amount (placeholder: fixed amount stored in SiteSettings)
+IF NOT EXISTS (SELECT 1 FROM SiteSettings WHERE SettingKey = 'Refund:D3_OwnerCancellationPenaltyAmount')
+BEGIN
+    INSERT INTO SiteSettings (SettingKey, SettingValue, IsEncrypted, UpdatedAt)
+    VALUES ('Refund:D3_OwnerCancellationPenaltyAmount', '500.00', 0, GETDATE());
+END
+
+-- Payment Gateway Fee Percentage (Customer cancels 7+ days)
+IF NOT EXISTS (SELECT 1 FROM SiteSettings WHERE SettingKey = 'Refund:GatewayFeePercentage')
+BEGIN
+    INSERT INTO SiteSettings (SettingKey, SettingValue, IsEncrypted, UpdatedAt)
+    VALUES ('Refund:GatewayFeePercentage', '2.0', 0, GETDATE());
+END
+
+-- Expected Refund Timeline
+IF NOT EXISTS (SELECT 1 FROM SiteSettings WHERE SettingKey = 'Refund:ExpectedTimeline')
+BEGIN
+    INSERT INTO SiteSettings (SettingKey, SettingValue, IsEncrypted, UpdatedAt)
+    VALUES ('Refund:ExpectedTimeline', '5 to 7 business days', 0, GETDATE());
+END
+
 -- 3. ApiConfigurations Table
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ApiConfigurations')
 BEGIN
@@ -600,12 +636,44 @@ BEGIN
         GatewayFeeDeducted DECIMAL(18,2) NOT NULL,
         NetRefundAmount DECIMAL(18,2) NOT NULL,
         RefundReason NVARCHAR(500) NULL,
-        Status NVARCHAR(30) CHECK (Status IN ('Initiated', 'Processing', 'Completed', 'Failed', 'Overridden')) DEFAULT 'Initiated',
+        Status NVARCHAR(30) CHECK (Status IN ('Initiated', 'Processing', 'Completed', 'Failed', 'Overridden', 'Pending')) DEFAULT 'Initiated',
         GatewayRefundID NVARCHAR(100) NULL,
         ProcessedByUserID INT NULL FOREIGN KEY REFERENCES Users(UserID),
         ProcessedAt DATETIME2 NULL,
-        CreatedAt DATETIME2 DEFAULT GETDATE()
+        CreatedAt DATETIME2 DEFAULT GETDATE(),
+        RuleApplied INT NULL,
+        OwnerShareAmount DECIMAL(18,2) NULL DEFAULT 0.00,
+        CommissionAmount DECIMAL(18,2) NULL DEFAULT 0.00,
+        ShortfallAmount DECIMAL(18,2) NULL DEFAULT 0.00
     );
+END
+ELSE
+BEGIN
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('BookingRefunds') AND name = 'RuleApplied')
+    BEGIN
+        ALTER TABLE BookingRefunds ADD RuleApplied INT NULL;
+    END
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('BookingRefunds') AND name = 'OwnerShareAmount')
+    BEGIN
+        ALTER TABLE BookingRefunds ADD OwnerShareAmount DECIMAL(18,2) NULL DEFAULT 0.00;
+    END
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('BookingRefunds') AND name = 'CommissionAmount')
+    BEGIN
+        ALTER TABLE BookingRefunds ADD CommissionAmount DECIMAL(18,2) NULL DEFAULT 0.00;
+    END
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('BookingRefunds') AND name = 'ShortfallAmount')
+    BEGIN
+        ALTER TABLE BookingRefunds ADD ShortfallAmount DECIMAL(18,2) NULL DEFAULT 0.00;
+    END
+
+    DECLARE @chkName NVARCHAR(200);
+    SELECT @chkName = name FROM sys.check_constraints 
+    WHERE parent_object_id = OBJECT_ID('BookingRefunds') AND definition NOT LIKE '%Pending%';
+    IF @chkName IS NOT NULL
+    BEGIN
+        EXEC('ALTER TABLE BookingRefunds DROP CONSTRAINT [' + @chkName + '];');
+        ALTER TABLE BookingRefunds ADD CONSTRAINT CK_BookingRefunds_Status CHECK (Status IN ('Initiated', 'Processing', 'Completed', 'Failed', 'Overridden', 'Pending'));
+    END
 END
 
 -- 26. DamageClaims Table
