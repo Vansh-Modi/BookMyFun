@@ -134,15 +134,10 @@ namespace BookMyFun.Controllers
                 }
 
                 _logger.LogInformation("Sent OTP to {Contact} for {Purpose} (expires in 150s)", contact, purpose);
-                if (_env?.IsDevelopment() == true)
-                {
-                    _logger.LogInformation(">>> [DEV OTP] Code for {Contact} ({Purpose}): {Otp} <<<", contact, purpose, otp);
-                }
 
                 return Json(new { 
                     success = true, 
                     expirySeconds = 150,
-                    devOtp = _env?.IsDevelopment() == true ? otp : null,
                     message = contact.Contains("@") 
                         ? "Verification code sent to your email! Valid for 2 minutes 30 seconds." 
                         : "Verification code sent to your mobile number! Valid for 2 minutes 30 seconds."
@@ -427,8 +422,7 @@ namespace BookMyFun.Controllers
                 return View(model);
             }
 
-            bool isDevBypass = _env?.IsDevelopment() == true && (cleanOtp == "123456" || cleanOtp == "000000");
-            bool isOtpValid = isDevBypass || await _otpRepo.ValidateOtpAsync(cleanEmail, cleanOtp, "ForgotPassword");
+            bool isOtpValid = await _otpRepo.ValidateOtpAsync(cleanEmail, cleanOtp, "ForgotPassword");
             if (!isOtpValid)
             {
                 ModelState.AddModelError("OtpCode", "Invalid or expired OTP code.");
@@ -482,8 +476,7 @@ namespace BookMyFun.Controllers
 
             // Verify OTP against email (or phone if preferred)
             var contactToVerify = !string.IsNullOrWhiteSpace(cleanEmail) ? cleanEmail : model.Phone?.Trim();
-            bool isDevBypass = _env?.IsDevelopment() == true && (cleanOtp == "123456" || cleanOtp == "000000");
-            bool isOtpValid = isDevBypass || await _otpRepo.ValidateOtpAsync(contactToVerify!, cleanOtp, "Registration");
+            bool isOtpValid = await _otpRepo.ValidateOtpAsync(contactToVerify!, cleanOtp, "Registration");
 
             if (!isOtpValid)
             {

@@ -219,25 +219,15 @@
             }
 
             if (response.ok && data.success) {
-                let devInfo = '';
-                if (data.devOtp) {
-                    devInfo = `<div class="mt-1 small text-dark fw-bold"><i class="bi bi-info-circle-fill text-warning me-1"></i> Development OTP: <code>${data.devOtp}</code> (Auto-filled below)</div>`;
-                    const otpInput = document.getElementById('otpCodeInput');
-                    if (otpInput) {
-                        otpInput.value = data.devOtp;
-                    }
-                }
-
                 // Prominent success notification
                 statusDiv.innerHTML = `
                     <div class="alert alert-success alert-dismissible fade show shadow-sm py-2 px-3 mb-0" role="alert">
                         <i class="bi bi-check-circle-fill me-2"></i> <strong>OTP Sent!</strong> ${data.message}
-                        ${devInfo}
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>`;
 
                 const otpInput = document.getElementById('otpCodeInput');
-                if (otpInput && !data.devOtp) {
+                if (otpInput) {
                     otpInput.value = '';
                     otpInput.focus();
                 }
