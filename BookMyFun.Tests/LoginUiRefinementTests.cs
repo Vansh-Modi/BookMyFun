@@ -30,6 +30,7 @@ namespace BookMyFun.Tests
             public Task<bool> LinkAuthProviderAsync(int userId, string provider, string providerKey, string? email = null) => Task.FromResult(true);
         }
 
+        [Fact]
         public void LoginViewModel_RejectsNonEmailFormat()
         {
             var invalidModel1 = new LoginViewModel
@@ -75,6 +76,7 @@ namespace BookMyFun.Tests
             }
         }
 
+        [Fact]
         public void LoginViewModel_RequiresEmailAddress()
         {
             var emptyModel = new LoginViewModel
@@ -102,6 +104,7 @@ namespace BookMyFun.Tests
             }
         }
 
+        [Fact]
         public void LoginViewModel_MetadataHasNoUserIdRemnants()
         {
             var property = typeof(LoginViewModel).GetProperty(nameof(LoginViewModel.Email));
@@ -129,6 +132,7 @@ namespace BookMyFun.Tests
             }
         }
 
+        [Fact]
         public void LoginView_TemplateIsStandardizedOnEmailOnly()
         {
             var viewPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "Views", "Account", "Login.cshtml");
@@ -180,6 +184,7 @@ namespace BookMyFun.Tests
             }
         }
 
+        [Fact]
         public async Task AccountController_LoginFailedMessage_StandardizedOnEmailOnly()
         {
             var userRepo = new StubUserRepo();
@@ -227,6 +232,22 @@ namespace BookMyFun.Tests
             {
                 throw new Exception($"Expected 'Invalid email or password.', but got: '{errorMessage}'");
             }
+        }
+
+        [Fact]
+        public void VerifyPassword_ValidatesBothSha256AndLegacyPlainText()
+        {
+            // SHA256 hashed password verification
+            string plain = "Admin@123";
+            string hashed = AccountController.HashPassword(plain);
+
+            Assert.True(AccountController.VerifyPassword(plain, hashed));
+            Assert.False(AccountController.VerifyPassword("WrongPassword", hashed));
+
+            // Legacy plain text password verification
+            string legacyPlainTextInDb = "admin123";
+            Assert.True(AccountController.VerifyPassword("admin123", legacyPlainTextInDb));
+            Assert.False(AccountController.VerifyPassword("wrong", legacyPlainTextInDb));
         }
     }
 }

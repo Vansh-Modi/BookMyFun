@@ -8,33 +8,31 @@ namespace BookMyFun.Data
     {
         public static async Task SeedInitialDataAsync(DBHelper db)
         {
-            // 1. Seed Default Users across all 5 roles if empty
-            var countResult = await db.ExecuteScalarAsync("SELECT COUNT(*) FROM Users");
-            int userCount = countResult != null ? Convert.ToInt32(countResult) : 0;
+            // 1. Seed or Ensure Default Users across all 5 roles
+            string adminHash = AccountController.HashPassword("Admin@123");
+            string empHash = AccountController.HashPassword("Emp@123");
+            string ownerHash = AccountController.HashPassword("Owner@123");
+            string clientHash = AccountController.HashPassword("Client@123");
+            string eventHash = AccountController.HashPassword("Event@123");
 
-            if (userCount == 0)
-            {
-                string adminHash = AccountController.HashPassword("Admin@123");
-                string empHash = AccountController.HashPassword("Emp@123");
-                string ownerHash = AccountController.HashPassword("Owner@123");
-                string clientHash = AccountController.HashPassword("Client@123");
-                string eventHash = AccountController.HashPassword("Event@123");
+            var seedUsersSql = @"
+                IF NOT EXISTS (SELECT 1 FROM Users WHERE Email = 'admin@bookmyfun.com')
+                    INSERT INTO Users (FullName, Email, PasswordHash, Phone, Role) VALUES ('Super Admin', 'admin@bookmyfun.com', @AdminHash, '+919999900001', 'Admin');
+                IF NOT EXISTS (SELECT 1 FROM Users WHERE Email = 'employee@bookmyfun.com')
+                    INSERT INTO Users (FullName, Email, PasswordHash, Phone, Role) VALUES ('Operations Staff', 'employee@bookmyfun.com', @EmpHash, '+919999900002', 'Employee');
+                IF NOT EXISTS (SELECT 1 FROM Users WHERE Email = 'owner@bookmyfun.com')
+                    INSERT INTO Users (FullName, Email, PasswordHash, Phone, Role) VALUES ('Rajesh Farmhouse Owner', 'owner@bookmyfun.com', @OwnerHash, '+919999900003', 'Owner');
+                IF NOT EXISTS (SELECT 1 FROM Users WHERE Email = 'client@bookmyfun.com')
+                    INSERT INTO Users (FullName, Email, PasswordHash, Phone, Role) VALUES ('Vipul Guest', 'client@bookmyfun.com', @ClientHash, '+919999900004', 'Client');
+                IF NOT EXISTS (SELECT 1 FROM Users WHERE Email = 'eventmanager@bookmyfun.com')
+                    INSERT INTO Users (FullName, Email, PasswordHash, Phone, Role) VALUES ('Creative Event Decorator', 'eventmanager@bookmyfun.com', @EventHash, '+919999900005', 'EventManager');";
 
-                var seedUsersSql = @"
-                    INSERT INTO Users (FullName, Email, PasswordHash, Phone, Role) VALUES
-                    ('Super Admin', 'admin@bookmyfun.com', @AdminHash, '+919999900001', 'Admin'),
-                    ('Operations Staff', 'employee@bookmyfun.com', @EmpHash, '+919999900002', 'Employee'),
-                    ('Rajesh Farmhouse Owner', 'owner@bookmyfun.com', @OwnerHash, '+919999900003', 'Owner'),
-                    ('Vipul Guest', 'client@bookmyfun.com', @ClientHash, '+919999900004', 'Client'),
-                    ('Creative Event Decorator', 'eventmanager@bookmyfun.com', @EventHash, '+919999900005', 'EventManager');";
-
-                await db.ExecuteNonQueryAsync(seedUsersSql,
-                    new SqlParameter("@AdminHash", adminHash),
-                    new SqlParameter("@EmpHash", empHash),
-                    new SqlParameter("@OwnerHash", ownerHash),
-                    new SqlParameter("@ClientHash", clientHash),
-                    new SqlParameter("@EventHash", eventHash));
-            }
+            await db.ExecuteNonQueryAsync(seedUsersSql,
+                new SqlParameter("@AdminHash", adminHash),
+                new SqlParameter("@EmpHash", empHash),
+                new SqlParameter("@OwnerHash", ownerHash),
+                new SqlParameter("@ClientHash", clientHash),
+                new SqlParameter("@EventHash", eventHash));
 
             // 2. Seed PropertyTypes
             var typeCount = await db.ExecuteScalarAsync("SELECT COUNT(*) FROM PropertyTypes");
