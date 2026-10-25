@@ -3467,7 +3467,7 @@ body:has(.mobile-booking-bottom-bar) .mobile-bottom-bar {
    ============================================================ */
 .dashboard-root {
     display: flex;
-    min-height: 100vh;
+    min-height: calc(100vh - 70px);
     background-color: var(--bg-body);
     color: var(--text-main);
 }
@@ -3480,9 +3480,9 @@ body:has(.mobile-booking-bottom-bar) .mobile-bottom-bar {
     display: flex;
     flex-direction: column;
     position: sticky;
-    top: 0;
-    height: 100vh;
-    z-index: 1020;
+    top: 60px;
+    height: calc(100vh - 60px);
+    z-index: 1010;
     transition: width 0.25s ease, transform 0.25s ease;
 }
 
@@ -3553,8 +3553,8 @@ body:has(.mobile-booking-bottom-bar) .mobile-bottom-bar {
 
 .dashboard-topbar {
     position: sticky;
-    top: 0;
-    z-index: 1010;
+    top: 60px;
+    z-index: 1005;
     background-color: var(--bg-card);
     border-bottom: 1px solid var(--border-subtle);
     padding: 0.75rem 1.5rem;
