@@ -40,7 +40,9 @@ namespace BookMyFun.Repositories
         public async Task<Booking?> GetByIdAsync(int bookingId)
         {
             const string sql = @"
-                SELECT b.*, p.Title AS PropertyTitle, u.FullName AS ClientName, u.Email AS ClientEmail, u.Phone AS ClientPhone, o.OccasionName,
+                SELECT b.*, p.Title AS PropertyTitle, p.Location AS PropertyLocation,
+                       (SELECT TOP 1 StorageUrl FROM PropertyMedia WHERE PropertyID = p.PropertyID AND MediaType = 'photo' ORDER BY IsPrimary DESC, MediaID ASC) AS PropertyImageUrl,
+                       u.FullName AS ClientName, u.Email AS ClientEmail, u.Phone AS ClientPhone, o.OccasionName,
                        ep.Name AS EventPackageName, dec.FullName AS DecoratorName
                 FROM Bookings b
                 JOIN Properties p ON b.PropertyID = p.PropertyID

@@ -282,6 +282,21 @@ BEGIN
 END
 ELSE
 BEGIN
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Properties') AND name = 'FormattedAddress')
+    BEGIN
+        ALTER TABLE Properties ADD FormattedAddress NVARCHAR(500) NULL;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Properties') AND name = 'Latitude')
+    BEGIN
+        ALTER TABLE Properties ADD Latitude DECIMAL(9,6) NULL;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Properties') AND name = 'Longitude')
+    BEGIN
+        ALTER TABLE Properties ADD Longitude DECIMAL(9,6) NULL;
+    END
+
     IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Properties') AND name = 'FreeCancellationWindowHours')
     BEGIN
         ALTER TABLE Properties ADD FreeCancellationWindowHours INT DEFAULT 48;
@@ -291,9 +306,6 @@ BEGIN
         ALTER TABLE Properties ADD SecurityDepositAmount DECIMAL(18,2) DEFAULT 0.00;
         ALTER TABLE Properties ADD CommissionRate DECIMAL(5,2) NULL;
         ALTER TABLE Properties ADD EventCommissionRate DECIMAL(5,2) NULL;
-        ALTER TABLE Properties ADD FormattedAddress NVARCHAR(500) NULL;
-        ALTER TABLE Properties ADD Latitude DECIMAL(9,6) NULL;
-        ALTER TABLE Properties ADD Longitude DECIMAL(9,6) NULL;
         ALTER TABLE Properties ADD IsFeatured BIT DEFAULT 0;
     END
 
@@ -486,6 +498,76 @@ BEGIN
 END
 ELSE
 BEGIN
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Bookings') AND name = 'BookingType')
+    BEGIN
+        ALTER TABLE Bookings ADD BookingType NVARCHAR(30) DEFAULT 'FullDay';
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Bookings') AND name = 'SlotType')
+    BEGIN
+        ALTER TABLE Bookings ADD SlotType NVARCHAR(30) NULL;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Bookings') AND name = 'SlotStartTime')
+    BEGIN
+        ALTER TABLE Bookings ADD SlotStartTime TIME NULL;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Bookings') AND name = 'SlotEndTime')
+    BEGIN
+        ALTER TABLE Bookings ADD SlotEndTime TIME NULL;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Bookings') AND name = 'SecurityDepositAmount')
+    BEGIN
+        ALTER TABLE Bookings ADD SecurityDepositAmount DECIMAL(18,2) DEFAULT 0.00;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Bookings') AND name = 'SecurityDepositStatus')
+    BEGIN
+        ALTER TABLE Bookings ADD SecurityDepositStatus NVARCHAR(30) DEFAULT 'Held';
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Bookings') AND name = 'IdempotencyKey')
+    BEGIN
+        ALTER TABLE Bookings ADD IdempotencyKey NVARCHAR(100) NULL;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Bookings') AND name = 'CommissionRateSnapshot')
+    BEGIN
+        ALTER TABLE Bookings ADD CommissionRateSnapshot DECIMAL(5,2) DEFAULT 10.00;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Bookings') AND name = 'PlatformCommissionAmount')
+    BEGIN
+        ALTER TABLE Bookings ADD PlatformCommissionAmount DECIMAL(18,2) DEFAULT 0.00;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Bookings') AND name = 'OwnerPayoutAmount')
+    BEGIN
+        ALTER TABLE Bookings ADD OwnerPayoutAmount DECIMAL(18,2) DEFAULT 0.00;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Bookings') AND name = 'FreeCancellationWindowHoursSnapshot')
+    BEGIN
+        ALTER TABLE Bookings ADD FreeCancellationWindowHoursSnapshot INT DEFAULT 48;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Bookings') AND name = 'CancellationCutoffHoursSnapshot')
+    BEGIN
+        ALTER TABLE Bookings ADD CancellationCutoffHoursSnapshot INT DEFAULT 24;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Bookings') AND name = 'CancellationFeeTypeSnapshot')
+    BEGIN
+        ALTER TABLE Bookings ADD CancellationFeeTypeSnapshot NVARCHAR(20) DEFAULT 'percentage';
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Bookings') AND name = 'CancellationFeeValueSnapshot')
+    BEGIN
+        ALTER TABLE Bookings ADD CancellationFeeValueSnapshot DECIMAL(18,2) DEFAULT 10.00;
+    END
+
     IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Bookings') AND name = 'IsEventBooking')
     BEGIN
         ALTER TABLE Bookings ADD IsEventBooking BIT DEFAULT 0;

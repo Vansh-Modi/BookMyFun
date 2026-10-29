@@ -1,0 +1,165 @@
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@{
+    bool isSignUp = (ViewData["IsSignUp"] as bool?) == true;
+    string returnUrl = ViewData["ReturnUrl"] as string ?? "";
+    string actionText = isSignUp ? "Sign Up with Google" : "Continue with Google";
+    string dividerText = isSignUp ? "Or register with email" : "Or sign in with email";
+
+    string clientId = Configuration["Authentication:Google:ClientId"]
+        ?? Configuration["GoogleLogin:ClientId"]
+        ?? Configuration["Google:ClientId"]
+        ?? Environment.GetEnvironmentVariable("Google__ClientId")
+        ?? Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID")
+        ?? "";
+}
+
+<!-- Google Identity Services (GSI) Container -->
+<div class="google-auth-wrapper mb-3" data-client-id="@clientId" data-is-signup="@(isSignUp ? "true" : "false")" data-return-url="@returnUrl">
+    <!-- Inline Alert for Google OAuth Feedback / Errors -->
+    <div id="googleAuthAlert" class="alert alert-danger py-2 px-3 small rounded-3 mb-3 d-none" role="alert">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-exclamation-triangle-fill flex-shrink-0 text-danger"></i>
+            <span id="googleAuthAlertMsg">Unable to complete sign-in.</span>
+        </div>
+    </div>
+
+    <!-- Official Google GSI Render Mount Point -->
+    <div id="gsiButtonMount" class="d-flex justify-content-center mb-2" style="min-height: 44px;">
+        <!-- Fallback styled button until GSI loads or if credentials are managed via OAuth redirect -->
+        <a id="btnFallbackGoogleAuth" 
+           href="/Account/ExternalLogin?provider=Google@(string.IsNullOrEmpty(returnUrl) ? "" : "&returnUrl=" + Uri.EscapeDataString(returnUrl))"
+           class="btn btn-outline-secondary w-100 py-2 d-flex align-items-center justify-content-center gap-2 rounded-3 shadow-sm social-auth-btn"
+           style="border-color: var(--border-subtle, #cbd5e1); background: var(--bg-card, #ffffff); min-height: 44px;">
+            <svg width="20" height="20" viewBox="0 0 48 48" class="flex-shrink-0">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                <path fill="none" d="M0 0h48v48H0z"/>
+            </svg>
+            <span class="fw-semibold text-heading" id="googleBtnText">@actionText</span>
+            <span id="googleSpinner" class="spinner-border spinner-border-sm text-primary d-none ms-2" role="status" aria-hidden="true"></span>
+        </a>
+    </div>
+</div>
+
+<!-- Clear Divider with "Or" -->
+<div class="d-flex align-items-center mb-4">
+    <hr class="flex-grow-1 border-secondary opacity-25 m-0" />
+    <span class="px-3 text-muted small fw-semibold text-uppercase" style="letter-spacing: 0.05em;">@dividerText</span>
+    <hr class="flex-grow-1 border-secondary opacity-25 m-0" />
+</div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+    (function () {
+        const wrapper = document.querySelector('.google-auth-wrapper');
+        if (!wrapper) return;
+
+        const clientId = wrapper.getAttribute('data-client-id') || '';
+        const returnUrl = wrapper.getAttribute('data-return-url') || '';
+        const isSignUp = wrapper.getAttribute('data-is-signup') === 'true';
+        const alertBox = document.getElementById('googleAuthAlert');
+        const alertMsg = document.getElementById('googleAuthAlertMsg');
+        const spinner = document.getElementById('googleSpinner');
+        const fallbackBtn = document.getElementById('btnFallbackGoogleAuth');
+
+        function showError(msg) {
+            if (alertMsg) alertMsg.textContent = msg;
+            if (alertBox) {
+                alertBox.classList.remove('d-none');
+                alertBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+            if (spinner) spinner.classList.add('d-none');
+            if (fallbackBtn) fallbackBtn.classList.remove('disabled');
+        }
+
+        function hideError() {
+            if (alertBox) alertBox.classList.add('d-none');
+        }
+
+        async function handleCredentialResponse(response) {
+            hideError();
+            if (spinner) spinner.classList.remove('d-none');
+            if (fallbackBtn) fallbackBtn.classList.add('disabled');
+
+            if (!response || !response.credential) {
+                showError("Google authentication did not return a valid credential. Please try again.");
+                return;
+            }
+
+            try {
+                const res = await fetch('/Account/GoogleCredentialLogin', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        credential: response.credential,
+                        returnUrl: returnUrl
+                    })
+                });
+
+                if (!res.ok) {
+                    const text = await res.text();
+                    showError("Authentication request failed (" + res.status + "). Please try again or use email sign-in.");
+                    return;
+                }
+
+                const data = await res.json();
+                if (data.success && data.redirectUrl) {
+                    window.location.href = data.redirectUrl;
+                } else {
+                    showError(data.message || "Sign-in could not be completed with this Google account.");
+                }
+            } catch (err) {
+                showError("Network error while connecting to authentication service. Please check your connection and try again.");
+            }
+        }
+
+        // Initialize Google Identity Services if client ID is configured
+        function tryInitGsi() {
+            if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
+                setTimeout(tryInitGsi, 150);
+                return;
+            }
+
+            if (!clientId) {
+                // Client ID not explicitly set in config; keep the clean fallback button that routes through ExternalLogin
+                return;
+            }
+
+            try {
+                google.accounts.id.initialize({
+                    client_id: clientId,
+                    callback: handleCredentialResponse,
+                    auto_select: false,
+                    cancel_on_tap_outside: true
+                });
+
+                // Render the official Google Identity Services button
+                const mount = document.getElementById('gsiButtonMount');
+                if (mount) {
+                    mount.innerHTML = '';
+                    google.accounts.id.renderButton(mount, {
+                        type: 'standard',
+                        theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'filled_black' : 'outline',
+                        size: 'large',
+                        text: isSignUp ? 'signup_with' : 'signin_with',
+                        shape: 'rectangular',
+                        logo_alignment: 'left',
+                        width: mount.offsetWidth || 340
+                    });
+                }
+            } catch (e) {
+                console.warn("GSI button initialization fallback:", e);
+            }
+        }
+
+        // Start initialization attempt
+        if (clientId) {
+            tryInitGsi();
+        }
+    })();
+</script>

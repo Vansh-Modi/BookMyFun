@@ -27,6 +27,7 @@ namespace BookMyFun.Controllers
         private readonly IConfigRepository? _configRepo;
         private readonly IConfiguration? _configuration;
         private readonly IWebHostEnvironment? _env;
+        private readonly IHttpClientFactory? _httpClientFactory;
         private readonly ILegalDocumentService? _legalService;
 
         public AccountController(
@@ -44,7 +45,8 @@ namespace BookMyFun.Controllers
             IConfigRepository? configRepo = null,
             IConfiguration? configuration = null,
             IWebHostEnvironment? env = null,
-            ILegalDocumentService? legalService = null)
+            ILegalDocumentService? legalService = null,
+            IHttpClientFactory? httpClientFactory = null)
         {
             _userRepo = userRepo;
             _otpRepo = otpRepo;
@@ -61,6 +63,7 @@ namespace BookMyFun.Controllers
             _configuration = configuration;
             _env = env;
             _legalService = legalService;
+            _httpClientFactory = httpClientFactory;
         }
 
         [HttpPost]
@@ -278,6 +281,81 @@ namespace BookMyFun.Controllers
             }
 
             return await ProcessExternalUserLoginAsync(email, name, "Google", providerKey ?? Guid.NewGuid().ToString("N"), picture, returnUrl);
+        }
+
+        [HttpPost]
+        [IgnoreAntiforgeryToken]
+        public async Task<IActionResult> GoogleCredentialLogin([FromBody] GoogleCredentialLoginRequest? request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.Credential))
+            {
+                return Json(new { success = false, message = "No Google credential token provided. Please try again." });
+            }
+
+            try
+            {
+                var client = _httpClientFactory != null ? _httpClientFactory.CreateClient() : new HttpClient();
+                var tokenInfoUrl = $"https://oauth2.googleapis.com/tokeninfo?id_token={Uri.EscapeDataString(request.Credential)}";
+                var response = await client.GetAsync(tokenInfoUrl);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errContent = await response.Content.ReadAsStringAsync();
+                    _logger.LogWarning("Google token verification failed: {StatusCode} {Error}", response.StatusCode, errContent);
+                    return Json(new { success = false, message = "Google token verification failed or session expired. Please sign in again." });
+                }
+
+                using var jsonDoc = await System.Text.Json.JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+                var root = jsonDoc.RootElement;
+
+                if (!root.TryGetProperty("email", out var emailProp) || string.IsNullOrWhiteSpace(emailProp.GetString()))
+                {
+                    return Json(new { success = false, message = "Google sign-in did not return an email address." });
+                }
+                string email = emailProp.GetString()!;
+
+                bool isVerified = false;
+                if (root.TryGetProperty("email_verified", out var evProp))
+                {
+                    if (evProp.ValueKind == System.Text.Json.JsonValueKind.True) isVerified = true;
+                    else if (evProp.ValueKind == System.Text.Json.JsonValueKind.String && bool.TryParse(evProp.GetString(), out bool b) && b) isVerified = true;
+                }
+
+                if (!isVerified)
+                {
+                    return Json(new { success = false, message = "Your Google email address is not verified. Please verify it with Google first or sign up with email." });
+                }
+
+                string? name = root.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : null;
+                string providerKey = root.TryGetProperty("sub", out var subProp) ? (subProp.GetString() ?? Guid.NewGuid().ToString("N")) : Guid.NewGuid().ToString("N");
+                string? picture = root.TryGetProperty("picture", out var picProp) ? picProp.GetString() : null;
+
+                var result = await ProcessExternalUserLoginAsync(email, name, "Google", providerKey, picture, request.ReturnUrl);
+                if (result is RedirectToActionResult redirectAction)
+                {
+                    string target = Url.Action(redirectAction.ActionName, redirectAction.ControllerName, redirectAction.RouteValues) ?? "/Client";
+                    return Json(new { success = true, redirectUrl = target });
+                }
+                else if (result is RedirectResult rr)
+                {
+                    return Json(new { success = true, redirectUrl = rr.Url });
+                }
+                else
+                {
+                    string target = !string.IsNullOrEmpty(request.ReturnUrl) && Url.IsLocalUrl(request.ReturnUrl) ? request.ReturnUrl : "/Client";
+                    return Json(new { success = true, redirectUrl = target });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error validating Google credential");
+                return Json(new { success = false, message = "Network error while connecting to authentication service. Please check your connection and try again." });
+            }
+        }
+
+        public class GoogleCredentialLoginRequest
+        {
+            public string Credential { get; set; } = string.Empty;
+            public string? ReturnUrl { get; set; }
         }
 
         [NonAction]

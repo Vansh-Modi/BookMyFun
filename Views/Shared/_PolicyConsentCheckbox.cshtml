@@ -11,29 +11,30 @@
         : await LegalService.AreAllStandardPoliciesPublishedAsync();
 }
 
-<div class="mb-3 form-check policy-consent-wrapper p-3 rounded-3 border bg-light-subtle">
+<div class="mb-3 policy-consent-wrapper">
     @if (!isPublished)
     {
-        <input type="checkbox" class="form-check-input" id="policyConsentCheckDisabled" disabled required />
-        <label class="form-check-label text-danger fw-semibold" for="policyConsentCheckDisabled">
-            <i class="bi bi-exclamation-triangle-fill me-1"></i> Policy not yet published. Please contact support.
-        </label>
-        <div class="form-text text-danger small">
-            Submission is blocked until the mandatory policy documents have been published by the administration.
+        <div class="d-flex align-items-start gap-2 text-danger small">
+            <input type="checkbox" class="form-check-input mt-1 flex-shrink-0" id="policyConsentCheckDisabled" disabled required />
+            <label class="form-check-label fw-semibold" for="policyConsentCheckDisabled" style="line-height: 1.45;">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i> Mandatory policy documents not yet published by administration. Submission is temporarily blocked.
+            </label>
         </div>
     }
     else
     {
-        <input type="checkbox" class="form-check-input" name="PolicyConsent" id="policyConsentCheck" value="true" required />
-        <label class="form-check-label small fw-medium" for="policyConsentCheck">
-            @if (privacyOnly)
-            {
-                <span>I have read and agree to the <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" class="text-primary fw-semibold">Privacy Policy</a>. <span class="text-danger">*</span></span>
-            }
-            else
-            {
-                <span>I have read and agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" class="text-primary fw-semibold">Terms of Service</a>, <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" class="text-primary fw-semibold">Privacy Policy</a>, and <a href="/refund-policy" target="_blank" rel="noopener noreferrer" class="text-primary fw-semibold">Refund Policy</a>. <span class="text-danger">*</span></span>
-            }
-        </label>
+        <div class="d-flex align-items-start gap-2">
+            <input type="checkbox" class="form-check-input mt-1 flex-shrink-0" name="PolicyConsent" id="policyConsentCheck" value="true" required />
+            <label class="form-check-label small text-muted mb-0" for="policyConsentCheck" style="line-height: 1.45;">
+                @if (privacyOnly)
+                {
+                    <span>I have read and agree to the <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" class="text-primary text-decoration-none fw-semibold">Privacy Policy</a>. <span class="text-danger">*</span></span>
+                }
+                else
+                {
+                    <span>I have read and agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" class="text-primary text-decoration-none fw-semibold">Terms of Service</a>, <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" class="text-primary text-decoration-none fw-semibold">Privacy Policy</a>, and <a href="/refund-policy" target="_blank" rel="noopener noreferrer" class="text-primary text-decoration-none fw-semibold">Refund Policy</a>. <span class="text-danger">*</span></span>
+                }
+            </label>
+        </div>
     }
 </div>

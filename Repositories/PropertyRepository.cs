@@ -10,7 +10,18 @@ namespace BookMyFun.Repositories
         Task<List<Property>> GetAllPropertiesAsync(bool onlyApproved = false);
         Task<List<Property>> GetPropertiesByOwnerIdAsync(int ownerId);
         Task<List<Property>> SearchPropertiesAsync(string? location, int? propertyTypeId, int? occasionId, decimal? minPrice, decimal? maxPrice, int? guests);
-        async Task<(List<Property> Items, int TotalCount)> SearchPropertiesPagedAsync(string? location, int? propertyTypeId, int? occasionId, decimal? minPrice, decimal? maxPrice, int? guests, int page = 1, int pageSize = 12)
+        async Task<(List<Property> Items, int TotalCount)> SearchPropertiesPagedAsync(
+            string? location, 
+            int? propertyTypeId, 
+            int? occasionId, 
+            decimal? minPrice, 
+            decimal? maxPrice, 
+            int? guests, 
+            int page = 1, 
+            int pageSize = 12,
+            string? sortBy = "popular",
+            List<int>? typeIds = null,
+            List<int>? amenityIds = null)
         {
             var all = await SearchPropertiesAsync(location, propertyTypeId, occasionId, minPrice, maxPrice, guests);
             page = Math.Max(1, page);
@@ -178,7 +189,18 @@ namespace BookMyFun.Repositories
             return properties;
         }
 
-        public async Task<(List<Property> Items, int TotalCount)> SearchPropertiesPagedAsync(string? location, int? propertyTypeId, int? occasionId, decimal? minPrice, decimal? maxPrice, int? guests, int page = 1, int pageSize = 12)
+        public async Task<(List<Property> Items, int TotalCount)> SearchPropertiesPagedAsync(
+            string? location, 
+            int? propertyTypeId, 
+            int? occasionId, 
+            decimal? minPrice, 
+            decimal? maxPrice, 
+            int? guests, 
+            int page = 1, 
+            int pageSize = 12,
+            string? sortBy = "popular",
+            List<int>? typeIds = null,
+            List<int>? amenityIds = null)
         {
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 100);
@@ -189,11 +211,22 @@ namespace BookMyFun.Repositories
 
             if (!string.IsNullOrWhiteSpace(location))
             {
-                whereSql += " AND (p.Location LIKE @Location OR p.Title LIKE @Location OR p.FormattedAddress LIKE @Location) ";
+                whereSql += " AND (p.Location LIKE @Location OR p.Title LIKE @Location) ";
                 parameters.Add(new SqlParameter("@Location", $"%{location}%"));
             }
 
-            if (propertyTypeId.HasValue && propertyTypeId.Value > 0)
+            if (typeIds != null && typeIds.Any())
+            {
+                var typeParams = new List<string>();
+                for (int i = 0; i < typeIds.Count; i++)
+                {
+                    var pName = $"@TypeID_{i}";
+                    typeParams.Add(pName);
+                    parameters.Add(new SqlParameter(pName, typeIds[i]));
+                }
+                whereSql += $" AND p.PropertyTypeID IN ({string.Join(", ", typeParams)}) ";
+            }
+            else if (propertyTypeId.HasValue && propertyTypeId.Value > 0)
             {
                 whereSql += " AND p.PropertyTypeID = @PropertyTypeID ";
                 parameters.Add(new SqlParameter("@PropertyTypeID", propertyTypeId.Value));
@@ -201,7 +234,7 @@ namespace BookMyFun.Repositories
 
             if (occasionId.HasValue && occasionId.Value > 0)
             {
-                whereSql += " AND po.OccasionID = @OccasionID ";
+                whereSql += " AND EXISTS (SELECT 1 FROM PropertyOccasions po WHERE po.PropertyID = p.PropertyID AND po.OccasionID = @OccasionID) ";
                 parameters.Add(new SqlParameter("@OccasionID", occasionId.Value));
             }
 
@@ -223,23 +256,63 @@ namespace BookMyFun.Repositories
                 parameters.Add(new SqlParameter("@Guests", guests.Value));
             }
 
+            if (amenityIds != null && amenityIds.Any())
+            {
+                var amParams = new List<string>();
+                for (int i = 0; i < amenityIds.Count; i++)
+                {
+                    var pName = $"@AmenityID_{i}";
+                    amParams.Add(pName);
+                    parameters.Add(new SqlParameter(pName, amenityIds[i]));
+                }
+                whereSql += $" AND p.PropertyID IN (SELECT pam.PropertyID FROM PropertyAmenitiesMapping pam WHERE pam.AmenityID IN ({string.Join(", ", amParams)})) ";
+            }
+
+            string orderBySql;
+            switch (sortBy?.ToLower())
+            {
+                case "price_desc":
+                    orderBySql = " ORDER BY p.PricePerNight DESC, p.CreatedAt DESC ";
+                    break;
+                case "price_asc":
+                    orderBySql = " ORDER BY p.PricePerNight ASC, p.CreatedAt DESC ";
+                    break;
+                case "rating":
+                    orderBySql = @" ORDER BY 
+                        (SELECT ISNULL(AVG(CAST(cr.Rating AS FLOAT)), 0) FROM CustomerReviews cr WHERE cr.PropertyID = p.PropertyID) DESC,
+                        (SELECT COUNT(cr.ReviewID) FROM CustomerReviews cr WHERE cr.PropertyID = p.PropertyID) DESC,
+                        p.CreatedAt DESC ";
+                    break;
+                case "popular":
+                default:
+                    orderBySql = @" ORDER BY 
+                        CASE 
+                            WHEN u.SubscriptionTier LIKE '%Platinum%' OR u.SubscriptionTier LIKE '%Enterprise%' THEN 4
+                            WHEN u.SubscriptionTier LIKE '%Gold%' THEN 3
+                            WHEN u.SubscriptionTier LIKE '%Starter%' OR u.SubscriptionTier LIKE '%Silver%' THEN 2
+                            ELSE 1
+                        END DESC,
+                        (SELECT ISNULL(AVG(CAST(cr.Rating AS FLOAT)), 0) FROM CustomerReviews cr WHERE cr.PropertyID = p.PropertyID) DESC,
+                        (SELECT COUNT(cr.ReviewID) FROM CustomerReviews cr WHERE cr.PropertyID = p.PropertyID) DESC,
+                        p.CreatedAt DESC ";
+                    break;
+            }
+
             var countSql = $@"
-                SELECT COUNT(DISTINCT p.PropertyID)
+                SELECT COUNT(p.PropertyID)
                 FROM Properties p
                 JOIN PropertyTypes pt ON p.PropertyTypeID = pt.PropertyTypeID
                 JOIN Users u ON p.OwnerID = u.UserID
-                LEFT JOIN PropertyOccasions po ON p.PropertyID = po.PropertyID
                 {whereSql}";
 
             var dataSql = $@"
-                SELECT DISTINCT p.*, pt.TypeName AS PropertyTypeName, u.FullName AS OwnerName,
+                SELECT p.*, pt.TypeName AS PropertyTypeName, u.FullName AS OwnerName,
                        (SELECT TOP 1 ImageURL FROM PropertyImages WHERE PropertyID = p.PropertyID ORDER BY IsPrimary DESC, ImageID ASC) AS PrimaryImageUrl
                 FROM Properties p
                 JOIN PropertyTypes pt ON p.PropertyTypeID = pt.PropertyTypeID
                 JOIN Users u ON p.OwnerID = u.UserID
-                LEFT JOIN PropertyOccasions po ON p.PropertyID = po.PropertyID
                 {whereSql}
-                ORDER BY p.CreatedAt DESC
+                {orderBySql}
                 OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
 
             var countParams = parameters.Select(p => new SqlParameter(p.ParameterName, p.Value)).ToArray();

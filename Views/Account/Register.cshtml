@@ -1,8 +1,6 @@
 @model BookMyFun.Models.ViewModels.RegisterViewModel
-@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @{
-    ViewData["Title"] = "Register with OTP Verification";
-    bool isGoogleLoginEnabled = Configuration.GetValue<bool>("GoogleLogin:Enabled", false);
+    ViewData["Title"] = "Create Account";
 }
 
 <div class="row justify-content-center my-4">
@@ -16,26 +14,8 @@
                 <p class="text-muted small mb-0">Create your account to explore stays and manage bookings</p>
             </div>
 
-            @if (isGoogleLoginEnabled)
-            {
-                <!-- Google One-Click Registration & Instant Login -->
-                <div class="mb-4">
-                    <a asp-controller="Account" asp-action="ExternalLogin" asp-route-provider="Google" 
-                       class="btn btn-outline-secondary w-100 py-2 d-flex align-items-center justify-content-center gap-2 rounded-3 shadow-sm social-auth-btn">
-                        <svg width="20" height="20" viewBox="0 0 48 48">
-                            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-                            <path fill="none" d="M0 0h48v48H0z"/>
-                        </svg>
-                        <span class="fw-semibold text-heading">Sign Up with Google</span>
-                    </a>
-                </div>
-
-                <!-- Clean Divider -->
-                <hr class="border-secondary opacity-25 my-4" />
-            }
+            <!-- Shared Google Identity Services Sign-Up -->
+            <partial name="_GoogleAuthButton" view-data='new ViewDataDictionary(ViewData) { { "IsSignUp", true } }' />
 
             <div>
                 <form asp-action="Register" method="post" id="registerForm">
@@ -58,7 +38,7 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Email Address (for OTP Verification)</label>
+                        <label class="form-label fw-semibold">Email Address</label>
                         <div class="input-group">
                             <input asp-for="Email" id="emailInput" type="email" class="form-control" placeholder="name@example.com" required />
                             <button type="button" class="btn btn-outline-warning text-dark fw-bold" id="btnSendOtp" onclick="requestOtp()">
@@ -71,7 +51,7 @@
 
                     <div class="mb-3" id="otpGroup">
                         <div class="d-flex justify-content-between align-items-center mb-1">
-                            <label class="form-label fw-semibold mb-0">Enter 6-Digit Verification OTP</label>
+                            <label class="form-label fw-semibold mb-0">Enter 6-Digit OTP</label>
                             <!-- Visible Countdown Timer -->
                             <div id="otpTimerContainer" class="small fw-semibold text-danger d-none">
                                 <i class="bi bi-clock-history me-1"></i>Expires in: <span id="countdownTimer">02:30</span>
@@ -100,12 +80,12 @@
                         <input asp-for="Password" type="password" class="form-control" required />
                     </div>
 
-                    <!-- Mandatory Legal & Compliance Consent (Item 3e) -->
+                    <!-- Mandatory Legal & Compliance Consent -->
                     <partial name="_PolicyConsentCheckbox" />
 
                     <div class="d-grid mb-3">
                         <button type="submit" id="btnSubmitRegister" class="btn btn-warning fw-bold py-2">
-                            <i class="bi bi-check2-circle"></i> Verify & Create Account
+                            <i class="bi bi-check2-circle"></i> Create Account
                         </button>
                     </div>
 
@@ -159,7 +139,7 @@
                 if (timerContainer) timerContainer.classList.add('d-none');
                 if (expiryNotice) expiryNotice.classList.remove('d-none');
 
-                // When timer reaches zero: disable verify button and show Resend OTP button
+                // When timer reaches zero: disable submit and show Resend OTP
                 if (submitBtn) submitBtn.disabled = true;
                 if (resendBtn) resendBtn.classList.remove('d-none');
                 if (sendBtn) {
@@ -197,7 +177,7 @@
         statusDiv.style.display = 'block';
         statusDiv.innerHTML = `
             <div class="alert alert-info py-2 px-3 mb-0" role="alert">
-                <span class="spinner-border spinner-border-sm me-2"></span> Sending verification OTP...
+                <span class="spinner-border spinner-border-sm me-2"></span> Sending OTP...
             </div>`;
 
         try {
@@ -219,7 +199,6 @@
             }
 
             if (response.ok && data.success) {
-                // Prominent success notification
                 statusDiv.innerHTML = `
                     <div class="alert alert-success alert-dismissible fade show shadow-sm py-2 px-3 mb-0" role="alert">
                         <i class="bi bi-check-circle-fill me-2"></i> <strong>OTP Sent!</strong> ${data.message}
@@ -232,10 +211,9 @@
                     otpInput.focus();
                 }
 
-                // Start 150-second countdown timer
                 startOtpCountdown(data.expirySeconds || OTP_EXPIRY_SECONDS);
             } else {
-                const errMsg = data.message || (data.error && data.error.message) || 'Unable to dispatch verification code.';
+                const errMsg = data.message || (data.error && data.error.message) || 'Unable to dispatch code.';
                 statusDiv.innerHTML = `
                     <div class="alert alert-danger alert-dismissible fade show shadow-sm py-2 px-3 mb-0" role="alert">
                         <i class="bi bi-exclamation-triangle-fill me-2"></i> <strong>Failed to Send OTP:</strong> ${errMsg}

@@ -1,166 +1,323 @@
 @model BookMyFun.Models.ViewModels.ClientDashboardViewModel
 @{
-    ViewData["Title"] = "Traveler Hub";
+    ViewData["Title"] = "My Reservations & Stays";
     var verification = ViewBag.Verification as BookMyFun.Models.Entities.ClientIdVerification;
+    var todayInIst = ViewBag.TodayInIst != null ? (DateTime)ViewBag.TodayInIst : DateTime.Today;
+    var refundMap = ViewBag.RefundMap as Dictionary<int, BookMyFun.Models.Entities.BookingRefund> ?? new Dictionary<int, BookMyFun.Models.Entities.BookingRefund>();
 }
 
-<!-- Page Header -->
-<div class="dash-page-header">
-    <div>
-        <div class="d-flex align-items-center gap-2 mb-1">
-            <span class="dash-eyebrow mb-0">Traveler Hub · My Reservations</span>
-            @if (verification != null && verification.VerificationStatus == "Verified")
-            {
-                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill small">
-                    <i class="bi bi-patch-check-fill me-1"></i>Verified Member
+<style>
+    /* Scoped Client Dashboard Styles (Section 8) */
+    .client-hub-wrap {
+        font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    .client-booking-card {
+        background: var(--bg-card, #ffffff);
+        border: 1px solid var(--border-subtle, #e2e8f0) !important;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .client-booking-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    .booking-card-inner {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    .booking-card-img-wrap {
+        width: 100%;
+        height: 180px;
+        position: relative;
+        overflow: hidden;
+        background: #f1f5f9;
+    }
+
+    .booking-card-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.3s ease;
+    }
+
+    .client-booking-card:hover .booking-card-img {
+        transform: scale(1.04);
+    }
+
+    .booking-status-badge {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding: 4px 10px;
+        border-radius: 20px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+
+    .badge-status-confirmed {
+        background: #10b981;
+        color: #ffffff;
+    }
+
+    .badge-status-cancelled dash-badge-danger {
+        background: #ef4444;
+        color: #ffffff;
+    }
+
+    .badge-status-pending {
+        background: #f59e0b;
+        color: #ffffff;
+    }
+
+    .badge-status-completed {
+        background: #0B4F6C;
+        color: #ffffff;
+    }
+
+    .booking-card-content {
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-width: 0;
+    }
+
+    /* Tablet & Desktop Horizontal Card Layout (Section 8B) */
+    @@media (min-width: 576px) {
+        .booking-card-inner {
+            flex-direction: row;
+        }
+
+        .booking-card-img-wrap {
+            width: 140px;
+            min-width: 140px;
+            height: auto;
+        }
+    }
+
+    [data-theme="dark"] .client-booking-card {
+        background: #1e293b;
+        border-color: #334155 !important;
+    }
+
+    [data-theme="dark"] .booking-dates-box {
+        background: #0f172a !important;
+        border-color: #334155 !important;
+    }
+
+    [data-theme="dark"] .client-booking-card:hover {
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4) !important;
+    }
+</style>
+
+<div class="container py-4 client-hub-wrap">
+    <!-- Hub Header Banner (Full width main layout) (Section 8A) -->
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 pb-3 border-bottom">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1 small">
+                    <i class="bi bi-person-circle me-1"></i>Traveler Hub
                 </span>
-            }
-        </div>
-        <h1 class="dash-title">Traveler Dashboard</h1>
-        <p class="dash-subtitle">Welcome back, <strong>@Model.Client.FullName</strong> · Review past stays, active bookings, and submit reviews.</p>
-    </div>
-    <div class="dash-actions">
-        <a asp-controller="Properties" asp-action="Index" class="dash-btn dash-btn-primary">
-            <i class="bi bi-compass"></i> Book a New Stay
-        </a>
-    </div>
-</div>
-
-<div class="dash-card">
-    <div class="dash-card-header">
-        <h3 class="dash-card-title"><i class="bi bi-calendar-check text-primary me-2"></i>My Bookings &amp; Flexible Stays</h3>
-        <span class="dash-badge dash-badge-neutral">@Model.Bookings.Count bookings</span>
-    </div>
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead>
-                <tr>
-                    <th class="ps-4">Property</th>
-                    <th>Booking Type</th>
-                    <th>Stay Dates</th>
-                    <th>Total Amount</th>
-                    <th>Status</th>
-                    <th class="text-end pe-4">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (!Model.Bookings.Any())
+                @if (verification != null && verification.VerificationStatus == "Verified")
                 {
-                    <tr>
-                        <td colspan="6" class="text-center py-5 text-muted">
-                            <i class="bi bi-calendar-x fs-1 d-block mb-2 text-muted opacity-50"></i>
-                            You have no past or upcoming bookings.<br />
-                            <a asp-controller="Properties" asp-action="Index" class="dash-btn dash-btn-primary mt-3">Explore Available Stays</a>
-                        </td>
-                    </tr>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1 small">
+                        <i class="bi bi-patch-check-fill me-1"></i>KYC Verified Guest
+                    </span>
                 }
-                @foreach (var b in Model.Bookings)
-                {
-                    <tr>
-                        <td class="ps-4">
-                            <a asp-controller="Properties" asp-action="Details" asp-route-id="@b.PropertyID" class="fw-bold text-decoration-none text-heading d-block">
-                                <i class="bi bi-house-door text-primary me-1"></i>@b.PropertyTitle
-                            </a>
-                        </td>
-                        <td>
-                            <span class="badge bg-secondary-subtle text-secondary border px-2 py-1 rounded-pill small">
-                                @b.BookingType
-                            </span>
-                            @if (!string.IsNullOrEmpty(b.SlotType))
-                            {
-                                <small class="d-block text-muted mt-1">@b.SlotType</small>
-                            }
-                        </td>
-                        <td>
-                            <div class="small fw-semibold text-dark">
-                                <i class="bi bi-calendar-event text-secondary me-1"></i>@b.CheckInDate.ToString("MMM dd") &ndash; @b.CheckOutDate.ToString("MMM dd, yyyy")
-                            </div>
-                        </td>
-                        <td><strong class="text-success fs-6">₹@b.TotalAmount.ToString("N2")</strong></td>
-                        <td>
-                            @if (b.Status == "Confirmed")
-                            {
-                                <span class="dash-badge dash-badge-success"><i class="bi bi-check-circle-fill"></i> Confirmed</span>
-                            }
-                            else if (b.Status == "Cancelled")
-                            {
-                                <span class="dash-badge dash-badge-danger"><i class="bi bi-x-circle-fill"></i> Cancelled</span>
-                                <div class="small text-muted mt-1" style="font-size: 0.72rem;">
-                                    <i class="bi bi-arrow-counterclockwise text-info me-1"></i>Refund Status: Processed
-                                </div>
-                            }
-                            else
-                            {
-                                <span class="dash-badge dash-badge-warning"><i class="bi bi-clock-fill"></i> Pending</span>
-                            }
-                        </td>
-                        <td class="text-end pe-4">
-                            <div class="d-inline-flex flex-wrap gap-1 justify-content-end align-items-center">
-                                <a asp-controller="Booking" asp-action="Receipt" asp-route-id="@b.BookingID" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-2.5 py-1" style="font-size: 0.775rem;" title="View Official Reservation Voucher & Tax Receipt">
-                                    <i class="bi bi-file-earmark-text me-1"></i>Receipt
-                                </a>
-                                <button type="button" class="btn btn-sm btn-outline-info rounded-pill px-2.5 py-1" style="font-size: 0.775rem;" onclick="viewPaymentDetails(@b.BookingID)" title="View Payment Gateway & Refund Transparency">
-                                    <i class="bi bi-clock-history me-1"></i>Audit
-                                </button>
-                                @if (b.Status == "Confirmed")
-                                {
-                                    <button type="button" class="btn btn-sm btn-outline-warning text-dark rounded-pill px-2.5 py-1" style="font-size: 0.775rem;" data-bs-toggle="modal" data-bs-target="#reviewModal_@b.BookingID">
-                                        <i class="bi bi-star me-1"></i>Review
-                                    </button>
-                                    <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1" style="font-size: 0.775rem;" onclick="openCancelModal(@b.BookingID)">
-                                        <i class="bi bi-x-circle me-1"></i>Cancel
-                                    </button>
-                                }
-                                else if (b.Status == "Pending")
-                                {
-                                    <a asp-controller="Booking" asp-action="Payment" asp-route-id="@b.BookingID" class="btn btn-sm btn-warning rounded-pill px-3 py-1 fw-bold" style="font-size: 0.775rem;">
-                                        <i class="bi bi-credit-card me-1"></i>Pay Now
-                                    </a>
-                                }
+            </div>
+            <h1 class="h3 fw-bold text-dark mb-1">My Reservations &amp; Stays</h1>
+            <p class="text-muted small mb-0">Welcome back, <strong>@Model.Client.FullName</strong> · View upcoming trips, download tax receipts, and leave host reviews.</p>
+        </div>
+        <div>
+            <a asp-controller="Properties" asp-action="Index" class="btn btn-primary rounded-pill px-4 py-2 fw-semibold shadow-xs">
+                <i class="bi bi-compass me-1"></i> Book a New Stay
+            </a>
+        </div>
+    </div>
+
+    <!-- Empty State -->
+    @if (!Model.Bookings.Any())
+    {
+        <div class="card border-0 shadow-sm rounded-4 text-center py-5 px-3 mb-4">
+            <div class="py-5">
+                <i class="bi bi-calendar-x fs-1 text-muted opacity-50 mb-3 d-block"></i>
+                <h4 class="fw-bold text-dark mb-2">No Reservations Found</h4>
+                <p class="text-muted small mb-4" style="max-width: 420px; margin: 0 auto;">
+                    You haven't booked any farm stays yet. Discover handcrafted countryside villas with private pools and scenic views.
+                </p>
+                <a asp-controller="Properties" asp-action="Index" class="btn btn-warning rounded-pill px-4 py-2 fw-bold shadow-sm">
+                    <i class="bi bi-search me-1"></i> Explore Available Stays
+                </a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Responsive Card Grid: 1 col mobile, 2 cols tablet, 3 cols desktop (Section 8B) -->
+        <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4 mb-4">
+            @foreach (var b in Model.Bookings)
+            {
+                var isConfirmed = b.Status == "Confirmed";
+                var isCancelled = b.Status == "Cancelled";
+                var isPending = b.Status == "Pending";
+                var isCheckInTodayOrPast = b.CheckInDate.Date <= todayInIst;
+                var hasRefund = refundMap.ContainsKey(b.BookingID);
+
+                <div class="col">
+                    <div class="card h-100 border-0 shadow-sm rounded-4 overflow-hidden client-booking-card">
+                        <div class="booking-card-inner">
+                            <!-- Thumbnail Image (Left on desktop/tablet, Top on mobile) -->
+                            <div class="booking-card-img-wrap">
+                                <img src="@(string.IsNullOrEmpty(b.PropertyImageUrl) ? "/images/placeholder.jpg" : b.PropertyImageUrl)"
+                                     class="booking-card-img"
+                                     alt="@b.PropertyTitle"
+                                     onerror="this.src='/images/placeholder.jpg';" />
+                                <span class="booking-status-badge @(isConfirmed ? "badge-status-confirmed" : isCancelled ? "badge-status-cancelled" : isPending ? "badge-status-pending" : "badge-status-completed")">
+                                    @b.Status
+                                </span>
                             </div>
 
-                            <!-- Review Modal -->
-                            <div class="modal fade" id="reviewModal_@b.BookingID" tabindex="-1">
-                                <div class="modal-dialog">
-                                    <div class="modal-content">
-                                        <form asp-action="AddReview" method="post">
-                                            @Html.AntiForgeryToken()
-                                            <input type="hidden" name="bookingId" value="@b.BookingID" />
-                                            <input type="hidden" name="propertyId" value="@b.PropertyID" />
-                                            <div class="modal-header">
-                                                <h5 class="modal-title">Review Stay at @b.PropertyTitle</h5>
-                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                            </div>
-                                            <div class="modal-body">
-                                                <div class="mb-3">
-                                                    <label class="form-label">Rating (1 to 5 Stars)</label>
-                                                    <select name="rating" class="form-select">
-                                                        <option value="5">⭐⭐⭐⭐⭐ 5 - Exceptional</option>
-                                                        <option value="4">⭐⭐⭐⭐ 4 - Very Good</option>
-                                                        <option value="3">⭐⭐⭐ 3 - Average</option>
-                                                        <option value="2">⭐⭐ 2 - Poor</option>
-                                                        <option value="1">⭐ 1 - Terrible</option>
-                                                    </select>
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label class="form-label">Feedback / Comments</label>
-                                                    <textarea name="comment" class="form-control" rows="3" placeholder="Share your experience..."></textarea>
-                                                </div>
-                                            </div>
-                                            <div class="modal-footer">
-                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                                                <button type="submit" class="btn btn-warning">Submit Review</button>
-                                            </div>
-                                        </form>
+                            <!-- Content Details -->
+                            <div class="booking-card-content">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="badge bg-light text-muted border font-monospace" style="font-size: 0.72rem;">#@b.BookingID</span>
+                                    <span class="badge bg-secondary-subtle text-secondary rounded-pill small" style="font-size: 0.72rem;">@b.BookingType</span>
+                                </div>
+
+                                <h5 class="fw-bold mb-1 text-truncate" title="@b.PropertyTitle">
+                                    <a asp-controller="Properties" asp-action="Details" asp-route-id="@b.PropertyID" class="text-decoration-none text-dark">
+                                        @b.PropertyTitle
+                                    </a>
+                                </h5>
+                                <p class="text-muted small text-truncate mb-2" style="font-size: 0.8rem;">
+                                    <i class="bi bi-geo-alt-fill text-danger me-1"></i>@(string.IsNullOrEmpty(b.PropertyLocation) ? "Verified Farm Stay" : b.PropertyLocation)
+                                </p>
+
+                                <!-- Stay Dates & Slot -->
+                                <div class="booking-dates-box p-2 rounded-3 bg-light border mb-3">
+                                    <div class="d-flex align-items-center gap-1.5 small text-dark fw-semibold">
+                                        <i class="bi bi-calendar3 text-primary"></i>
+                                        <span>@b.CheckInDate.ToString("dd MMM yyyy") &ndash; @b.CheckOutDate.ToString("dd MMM yyyy")</span>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(b.SlotType))
+                                    {
+                                        <div class="small text-muted mt-0.5" style="font-size: 0.73rem;">
+                                            <i class="bi bi-clock me-1"></i>@b.SlotType
+                                        </div>
+                                    }
+                                </div>
+
+                                <div class="mt-auto">
+                                    <div class="d-flex justify-content-between align-items-baseline mb-3">
+                                        <span class="text-muted small">Total Paid:</span>
+                                        <strong class="text-success fs-5 fw-bold">₹@b.TotalAmount.ToString("N0")</strong>
+                                    </div>
+
+                                    <!-- Actions Row (Sections 8C & 8D) -->
+                                    <div class="d-flex flex-wrap gap-1.5 align-items-center">
+                                        @if (isConfirmed)
+                                        {
+                                            <!-- Receipt button (Section 8D) -->
+                                            <a asp-controller="Booking" asp-action="Receipt" asp-route-id="@b.BookingID" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-2.5 py-1" style="font-size: 0.78rem;" title="Official Tax Receipt">
+                                                <i class="bi bi-file-earmark-text me-1"></i>Receipt
+                                            </a>
+
+                                            <!-- Cancellation logic (Section 8C) -->
+                                            @if (isCheckInTodayOrPast)
+                                            {
+                                                <span class="badge bg-secondary-subtle text-secondary border px-2.5 py-1.5 rounded-pill small" style="font-size: 0.75rem;" title="Cancellation closed because check-in is today or past in Indian Standard Time">
+                                                    <i class="bi bi-lock-fill me-1"></i>Cancellation closed
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1" style="font-size: 0.78rem;" onclick="openCancelModal(@b.BookingID)">
+                                                    <i class="bi bi-x-circle me-1"></i>Cancel
+                                                </button>
+                                            }
+
+                                            <!-- Review Button -->
+                                            <button type="button" class="btn btn-sm btn-outline-warning text-dark rounded-pill px-2 py-1" style="font-size: 0.78rem;" data-bs-toggle="modal" data-bs-target="#reviewModal_@b.BookingID">
+                                                <i class="bi bi-star me-1"></i>Review
+                                            </button>
+                                        }
+                                        else if (isCancelled)
+                                        {
+                                            <!-- Cancelled booking receipt rules (Section 8D) -->
+                                            @if (hasRefund)
+                                            {
+                                                <a asp-controller="Booking" asp-action="Receipt" asp-route-id="@b.BookingID" target="_blank" class="btn btn-sm btn-outline-info rounded-pill px-2.5 py-1" style="font-size: 0.78rem;" title="Refund Receipt & Credit Voucher">
+                                                    <i class="bi bi-arrow-counterclockwise me-1"></i>Refund receipt
+                                                </a>
+                                            }
+                                            @* Cancelled without a refund: NO receipt button rendered! (Section 8D) *@
+
+                                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2 py-1" style="font-size: 0.78rem;" onclick="viewPaymentDetails(@b.BookingID)" title="View Payment & Refund Audit">
+                                                <i class="bi bi-clock-history me-1"></i>Audit
+                                            </button>
+                                        }
+                                        else if (isPending)
+                                        {
+                                            <a asp-controller="Booking" asp-action="Payment" asp-route-id="@b.BookingID" class="btn btn-sm btn-warning rounded-pill px-3 py-1 fw-bold" style="font-size: 0.78rem;">
+                                                <i class="bi bi-credit-card me-1"></i>Pay Now
+                                            </a>
+                                            <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1" style="font-size: 0.78rem;" onclick="openCancelModal(@b.BookingID)">
+                                                Cancel
+                                            </button>
+                                        }
                                     </div>
                                 </div>
                             </div>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+                        </div>
+
+                        <!-- Review Modal for each booking -->
+                        <div class="modal fade" id="reviewModal_@b.BookingID" tabindex="-1">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content rounded-4 border-0 shadow">
+                                    <form asp-action="AddReview" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="bookingId" value="@b.BookingID" />
+                                        <input type="hidden" name="propertyId" value="@b.PropertyID" />
+                                        <div class="modal-header border-0 pb-0">
+                                            <h5 class="modal-title fw-bold">Review Your Stay</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body p-4">
+                                            <p class="text-muted small mb-3">Share your feedback for <strong>@b.PropertyTitle</strong>.</p>
+                                            <div class="mb-3">
+                                                <label class="form-label small fw-semibold">Rating (1 to 5 Stars)</label>
+                                                <select name="rating" class="form-select">
+                                                    <option value="5">⭐⭐⭐⭐⭐ 5 - Exceptional stay</option>
+                                                    <option value="4">⭐⭐⭐⭐ 4 - Very Good</option>
+                                                    <option value="3">⭐⭐⭐ 3 - Average</option>
+                                                    <option value="2">⭐⭐ 2 - Needs improvement</option>
+                                                    <option value="1">⭐ 1 - Poor experience</option>
+                                                </select>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label small fw-semibold">Feedback Comments</label>
+                                                <textarea name="comment" class="form-control" rows="3" placeholder="Tell other travelers what you enjoyed about the property, host, or amenities..."></textarea>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer border-0 pt-0">
+                                            <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Close</button>
+                                            <button type="submit" class="btn btn-warning rounded-pill px-4 fw-bold">Submit Review</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
 </div>
 
 <!-- Transparent Cancellation & Refund Modal -->
@@ -224,13 +381,84 @@
                         </div>
 
                         <div class="d-flex gap-2 justify-content-end">
-                            <button type="button" class="btn btn-light px-3" data-bs-dismiss="modal">Keep Booking</button>
-                            <button type="submit" class="btn btn-danger fw-bold px-4">
+                            <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Keep Booking</button>
+                            <button type="submit" class="btn btn-danger rounded-pill fw-bold px-4">
                                 <i class="bi bi-x-circle me-1"></i>Confirm Cancellation
                             </button>
                         </div>
                     </form>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment & Refund Transparency Modal -->
+<div class="modal fade" id="paymentDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header bg-dark text-white py-3">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-shield-check text-warning me-2"></i>Payment &amp; Refund Transparency
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="paymentModalLoading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="small text-muted mt-2">Fetching gateway transaction logs...</p>
+                </div>
+
+                <div id="paymentModalContent" style="display: none;">
+                    <div class="mb-3 pb-2 border-bottom">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <h6 class="fw-bold mb-0 text-dark" id="pdBookingRef"></h6>
+                            <span class="badge bg-secondary" id="pdBookingStatus"></span>
+                        </div>
+                        <small class="text-muted" id="pdBookingDates"></small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-uppercase text-muted"><i class="bi bi-credit-card me-1 text-primary"></i>Gateway Transactions</label>
+                        <div id="pdPaymentsList"></div>
+                    </div>
+
+                    <div id="pdRefundBox" class="card border-danger-subtle bg-danger-subtle bg-opacity-10 rounded-3 p-3 mt-3" style="display: none;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong class="text-danger small text-uppercase"><i class="bi bi-arrow-counterclockwise me-1"></i>Refund Audit Record</strong>
+                            <span class="badge bg-danger" id="pdRefundStatus"></span>
+                        </div>
+                        <div class="small mb-2">
+                            <span class="text-muted">Gateway Refund ID:</span>
+                            <code class="text-dark fw-bold" id="pdRefundId"></code>
+                        </div>
+                        <div class="bg-white p-2 rounded border small mb-2">
+                            <div class="d-flex justify-content-between text-muted mb-1">
+                                <span>Gross Booking Total:</span>
+                                <span id="pdGrossAmount"></span>
+                            </div>
+                            <div class="d-flex justify-content-between text-danger mb-1">
+                                <span>Cancellation Policy Fee:</span>
+                                <span id="pdCancelFee"></span>
+                            </div>
+                            <div class="d-flex justify-content-between text-danger mb-1">
+                                <span>Gateway Processing Fee:</span>
+                                <span id="pdGatewayFee"></span>
+                            </div>
+                            <div class="d-flex justify-content-between fw-bold text-success border-top pt-1 mt-1">
+                                <span>Net Refund Credited:</span>
+                                <span id="pdNetRefund" class="fs-6"></span>
+                            </div>
+                        </div>
+                        <div class="small text-muted">
+                            <div><strong>Reason:</strong> <span id="pdRefundReason"></span></div>
+                            <div><strong>Processed:</strong> <span id="pdRefundDate"></span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0 py-2">
+                <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
@@ -272,11 +500,11 @@
                 document.getElementById('cancelModalLoading').style.display = 'none';
                 document.getElementById('cancelModalContent').style.display = 'block';
             } else {
-                alert('Could not retrieve refund quote: ' + (data.message || 'Error'));
+                alert('Cancellation is closed: ' + (data.message || 'Cannot cancel this reservation.'));
                 modal.hide();
             }
         } catch (err) {
-            alert('Failed to connect to refund engine.');
+            alert('Cancellation is closed or failed to connect to refund engine.');
             modal.hide();
         }
     }
@@ -301,7 +529,6 @@
             document.getElementById('pdBookingDates').textContent = `${data.booking.checkIn} — ${data.booking.checkOut}`;
             document.getElementById('pdBookingStatus').textContent = data.booking.status;
 
-            // Render payments list
             const payList = document.getElementById('pdPaymentsList');
             payList.innerHTML = '';
             if (data.payments && data.payments.length > 0) {
@@ -322,7 +549,6 @@
                 payList.innerHTML = `<div class="small text-muted p-2 bg-light rounded">No payment transactions recorded yet.</div>`;
             }
 
-            // Render refund details if any
             const refundBox = document.getElementById('pdRefundBox');
             if (data.refund) {
                 refundBox.style.display = 'block';
@@ -346,77 +572,3 @@
     }
 </script>
 }
-
-<!-- Payment & Refund Transparency Modal -->
-<div class="modal fade" id="paymentDetailsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
-            <div class="modal-header bg-dark text-white py-3">
-                <h5 class="modal-title fw-bold">
-                    <i class="bi bi-shield-check text-warning me-2"></i>Payment &amp; Refund Transparency
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-4">
-                <div id="paymentModalLoading" class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status"></div>
-                    <p class="small text-muted mt-2">Fetching gateway transaction logs...</p>
-                </div>
-
-                <div id="paymentModalContent" style="display: none;">
-                    <!-- Reservation Header -->
-                    <div class="mb-3 pb-2 border-bottom">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <h6 class="fw-bold mb-0 text-dark" id="pdBookingRef"></h6>
-                            <span class="badge bg-secondary" id="pdBookingStatus"></span>
-                        </div>
-                        <small class="text-muted" id="pdBookingDates"></small>
-                    </div>
-
-                    <!-- Payment Gateway Transactions -->
-                    <div class="mb-3">
-                        <label class="form-label fw-bold small text-uppercase text-muted"><i class="bi bi-credit-card me-1 text-primary"></i>Gateway Transactions</label>
-                        <div id="pdPaymentsList"></div>
-                    </div>
-
-                    <!-- Refund Breakdown -->
-                    <div id="pdRefundBox" class="card border-danger-subtle bg-danger-subtle bg-opacity-10 rounded-3 p-3 mt-3" style="display: none;">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <strong class="text-danger small text-uppercase"><i class="bi bi-arrow-counterclockwise me-1"></i>Refund Audit Record</strong>
-                            <span class="badge bg-danger" id="pdRefundStatus"></span>
-                        </div>
-                        <div class="small mb-2">
-                            <span class="text-muted">Gateway Refund ID:</span>
-                            <code class="text-dark fw-bold" id="pdRefundId"></code>
-                        </div>
-                        <div class="bg-white p-2 rounded border small mb-2">
-                            <div class="d-flex justify-content-between text-muted mb-1">
-                                <span>Gross Booking Total:</span>
-                                <span id="pdGrossAmount"></span>
-                            </div>
-                            <div class="d-flex justify-content-between text-danger mb-1">
-                                <span>Cancellation Policy Fee:</span>
-                                <span id="pdCancelFee"></span>
-                            </div>
-                            <div class="d-flex justify-content-between text-danger mb-1">
-                                <span>Gateway Processing Fee (2%):</span>
-                                <span id="pdGatewayFee"></span>
-                            </div>
-                            <div class="d-flex justify-content-between fw-bold text-success border-top pt-1 mt-1">
-                                <span>Net Refund Credited:</span>
-                                <span id="pdNetRefund" class="fs-6"></span>
-                            </div>
-                        </div>
-                        <div class="small text-muted">
-                            <div><strong>Reason:</strong> <span id="pdRefundReason"></span></div>
-                            <div><strong>Processed:</strong> <span id="pdRefundDate"></span></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer bg-light border-0 py-2">
-                <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>

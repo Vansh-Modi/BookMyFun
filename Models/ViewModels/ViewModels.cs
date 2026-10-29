@@ -189,6 +189,8 @@ namespace BookMyFun.Models.ViewModels
 
         // KYC Identity Proof at Booking Time
         public bool IsClientAlreadyVerified { get; set; }
+        public string? GuestFullName { get; set; }
+        public string? GuestPhone { get; set; }
         public string? DocumentType { get; set; } = "Aadhaar"; // 'Aadhaar', 'Passport', 'DrivingLicense', 'VoterID'
         public string? IdDocumentNumber { get; set; }
         public IFormFile? IdDocumentFile { get; set; }
@@ -769,6 +771,7 @@ namespace BookMyFun.Models.ViewModels
         public User? Host { get; set; }
         public Payment? PrimaryPayment { get; set; }
         public List<Payment> PaymentHistory { get; set; } = new();
+        public BookingRefund? RefundRecord { get; set; }
 
         public string ReceiptNumber => $"BMF-REC-{Booking.BookingID:D6}";
         public string HostReceiptNumber => $"BMF-HST-{Booking.BookingID:D6}";

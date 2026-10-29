@@ -4,465 +4,448 @@
 }
 
 <style>
-    .single-cal-card {
+    /* Scoped Checkout & Compact Calendar Styles (Section 7) */
+    .checkout-wrap {
+        font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    /* Segmented Control for Duration Types (Section 7A) */
+    .segmented-control {
+        display: flex;
+        background: #e2e8f0;
+        border-radius: 14px;
+        padding: 4px;
+        gap: 4px;
+        user-select: none;
+    }
+
+    .segmented-btn {
+        flex: 1;
+        padding: 0.65rem 1rem;
+        border-radius: 10px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        border: none;
+        background: transparent;
+        color: #475569;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        cursor: pointer;
+    }
+
+    .segmented-btn.active {
+        background: #ffffff;
+        color: #0B4F6C;
+        font-weight: 700;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    [data-theme="dark"] .segmented-control {
+        background: #1e293b;
+    }
+    [data-theme="dark"] .segmented-btn {
+        color: #94a3b8;
+    }
+    [data-theme="dark"] .segmented-btn.active {
+        background: #0f172a;
+        color: #f1f5f9;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Compact Calendar (~280-300px wide, cells 32-36px) (Section 7A) */
+    .compact-cal-card {
         border: 1px solid var(--border-subtle, #e2e8f0);
         border-radius: 16px;
-        background: #ffffff;
-        padding: 1.25rem;
+        background: var(--bg-card, #ffffff);
+        padding: 1rem;
+        max-width: 320px;
+        margin: 0 auto;
         user-select: none;
-        transition: border-color 0.2s ease;
     }
-    .single-cal-card:focus-within {
-        border-color: #0B4F6C;
-        box-shadow: 0 0 0 3px rgba(11, 79, 108, 0.1);
-    }
-    .cal-months-wrap {
+
+    .compact-cal-header {
         display: flex;
-        gap: 1.5rem;
-    }
-    .cal-month-box {
-        flex: 1;
-        min-width: 0;
-    }
-    .cal-month-title {
-        font-weight: 700;
-        font-size: 0.95rem;
-        color: #0B4F6C;
-        text-align: center;
+        align-items: center;
+        justify-content: space-between;
         margin-bottom: 0.75rem;
     }
-    .cal-weekdays {
+
+    .compact-cal-weekdays {
         display: grid;
         grid-template-columns: repeat(7, 1fr);
         text-align: center;
         font-size: 0.72rem;
         font-weight: 700;
         color: #64748b;
-        margin-bottom: 0.35rem;
         text-transform: uppercase;
+        margin-bottom: 0.35rem;
     }
-    .cal-days-grid {
+
+    .compact-cal-grid {
         display: grid;
         grid-template-columns: repeat(7, 1fr);
-        gap: 3px;
+        gap: 2px;
     }
-    .cal-day-cell {
-        aspect-ratio: 1;
+
+    .compact-cal-cell {
+        width: 34px;
+        height: 34px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 0.82rem;
+        font-size: 0.8rem;
         font-weight: 600;
-        border-radius: 6px;
+        border-radius: 8px;
         cursor: pointer;
         transition: all 0.15s ease;
-        position: relative;
-        color: #1e293b;
+        color: var(--text-main, #1e293b);
         border: 1px solid transparent;
+        margin: 0 auto;
     }
-    .cal-day-cell:hover:not(.cal-disabled):not(.cal-range-start):not(.cal-range-end) {
+
+    .compact-cal-cell:hover:not(.cal-disabled):not(.cal-start):not(.cal-end) {
         background: #e0f2fe;
         color: #0369a1;
     }
-    .cal-day-cell.cal-disabled-past {
+
+    .compact-cal-cell.cal-disabled {
         opacity: 0.28;
         cursor: not-allowed;
         pointer-events: none;
-        color: #94a3b8;
     }
-    .cal-day-cell.cal-disabled-blocked {
-        opacity: 0.45;
-        background: #f1f5f9;
-        color: #94a3b8;
-        text-decoration: line-through;
-        cursor: not-allowed;
-        pointer-events: none;
-    }
-    .cal-day-cell.cal-range-start {
+
+    .compact-cal-cell.cal-start {
         background: #0B4F6C !important;
         color: #ffffff !important;
         font-weight: 700;
-        border-radius: 6px 0 0 6px !important;
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
     }
-    .cal-day-cell.cal-range-end {
+
+    .compact-cal-cell.cal-end {
         background: #0B4F6C !important;
         color: #ffffff !important;
         font-weight: 700;
-        border-radius: 0 6px 6px 0 !important;
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
     }
-    .cal-day-cell.cal-range-start.cal-range-end {
-        border-radius: 6px !important;
+
+    .compact-cal-cell.cal-single {
+        background: #0B4F6C !important;
+        color: #ffffff !important;
+        font-weight: 700;
+        border-radius: 8px !important;
     }
-    .cal-day-cell.cal-range-mid {
-        background: rgba(1, 186, 239, 0.22) !important;
-        color: #075985 !important;
+
+    .compact-cal-cell.cal-mid {
+        background: #e0f2fe !important;
+        color: #0369a1 !important;
         border-radius: 0 !important;
     }
-    .cal-day-cell.cal-range-hover {
-        background: rgba(1, 186, 239, 0.14);
-        border-radius: 0;
-    }
-    .cal-day-cell.cal-focused {
-        outline: 2px solid #0284c7;
-        outline-offset: 1px;
-    }
-    .cal-day-cell.cal-today::after {
-        content: "";
-        position: absolute;
-        bottom: 2px;
-        width: 4px;
-        height: 4px;
-        border-radius: 50%;
-        background: #2E933C;
-    }
-    .cal-legend-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 3px;
-        display: inline-block;
-        margin-right: 4px;
-        vertical-align: middle;
-    }
-    .cal-legend-dot.avail { border: 1px solid #cbd5e1; background: #fff; }
-    .cal-legend-dot.selected { background: #0B4F6C; }
-    .cal-legend-dot.blocked { background: #cbd5e1; text-decoration: line-through; }
-    .cal-legend-dot.past { background: #e2e8f0; opacity: 0.5; }
 
-    @@media (max-width: 767.98px) {
-        .cal-months-wrap {
-            flex-direction: column;
-        }
-        .desktop-second-month {
-            display: none !important;
-        }
+    /* Guest ID Verification & Form Input Error States (Section 7C) */
+    .field-error-highlight {
+        border-color: #ef4444 !important;
+        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2) !important;
+        animation: pulseError 0.4s ease;
+    }
+
+    @@keyframes pulseError {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.02); }
+        100% { transform: scale(1); }
+    }
+
+    .inline-error-text {
+        font-size: 0.78rem;
+        color: #ef4444;
+        margin-top: 0.25rem;
+        display: none;
+        font-weight: 500;
+    }
+
+    .error-anchor-link {
+        color: #ef4444;
+        text-decoration: underline;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .error-anchor-link:hover {
+        color: #b91c1c;
+    }
+
+    [data-theme="dark"] .compact-cal-card {
+        background: #1e293b;
+        border-color: #334155;
+    }
+
+    [data-theme="dark"] #cCalMonthTitle {
+        color: #f8fafc !important;
+    }
+
+    [data-theme="dark"] .compact-cal-cell {
+        color: #f8fafc;
+    }
+
+    [data-theme="dark"] .compact-cal-cell:hover:not(.cal-disabled):not(.cal-start):not(.cal-end) {
+        background: #334155;
+        color: #38bdf8;
     }
 </style>
 
-<div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-dark text-white p-3">
-                <h4 class="mb-0"><i class="bi bi-calendar-check text-warning"></i> Flexible Booking & Instant Checkout</h4>
-            </div>
-            <div class="card-body p-4">
-                <div class="row align-items-center mb-4 pb-3 border-bottom">
-                    <div class="col-md-3">
-                        <img src="@Model.ImageUrl" class="img-fluid rounded" style="height: 100px; width: 100%; object-fit: cover;" onerror="this.src='/images/placeholder.jpg';" />
-                    </div>
-                    <div class="col-md-9">
-                        <h4 class="fw-bold mb-1">@Model.PropertyTitle</h4>
-                        <p class="text-muted small mb-1"><i class="bi bi-geo-alt"></i> @Model.Location</p>
-                        <span class="badge bg-primary fs-6">Base Rate: ₹@Model.PricePerNight.ToString("N0") / night</span>
+<div class="container py-4 checkout-wrap">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Top Error Summary Banner (Anchor links to invalid fields) -->
+            <div id="checkoutErrorBanner" class="alert alert-danger border-0 shadow-sm rounded-3 mb-4 @(ViewData.ModelState.IsValid ? "d-none" : "")" role="alert">
+                <div class="d-flex align-items-start gap-2">
+                    <i class="bi bi-exclamation-triangle-fill fs-5 text-danger flex-shrink-0 mt-0.5"></i>
+                    <div class="flex-grow-1">
+                        <strong id="checkoutErrorTitle">Please resolve the following fields to proceed:</strong>
+                        <ul class="mb-0 mt-2 ps-3 small" id="checkoutErrorList">
+                            @if (!ViewData.ModelState.IsValid)
+                            {
+                                @foreach (var key in ViewData.ModelState.Keys)
+                                {
+                                    @foreach (var err in ViewData.ModelState[key]!.Errors)
+                                    {
+                                        <li>@err.ErrorMessage</li>
+                                    }
+                                }
+                            }
+                        </ul>
                     </div>
                 </div>
+            </div>
 
-                <form asp-action="ConfirmBooking" method="post" id="bookingForm" enctype="multipart/form-data">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" asp-for="PropertyID" />
-                    <input type="hidden" asp-for="PricePerNight" id="basePrice" value="@Model.PricePerNight" />
-
-                    @if (!ViewData.ModelState.IsValid)
-                    {
-                        <div class="alert alert-danger alert-dismissible fade show shadow-sm border-0 rounded-3 mb-4" role="alert">
-                            <div class="d-flex align-items-center mb-1">
-                                <i class="bi bi-exclamation-triangle-fill fs-5 me-2"></i>
-                                <span class="fw-bold">Unable to proceed with booking:</span>
-                            </div>
-                            <div asp-validation-summary="All" class="text-danger small ps-4 mb-0"></div>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    }
-
-                    <!-- Booking Option Tabs / Radio -->
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">1. Select Booking Duration Type</label>
-                        <div class="row g-2">
-                            <div class="col-md-4">
-                                <input type="radio" class="btn-check" name="BookingType" id="typeFullDay" value="FullDay" checked autocomplete="off" onchange="updatePricing()">
-                                <label class="btn btn-outline-primary w-100 py-3" for="typeFullDay">
-                                    <i class="bi bi-sun-fill d-block fs-4 mb-1"></i>
-                                    <strong>Full Day</strong>
-                                    <div class="small">100% standard rate</div>
-                                </label>
-                            </div>
-                            <div class="col-md-4">
-                                <input type="radio" class="btn-check" name="BookingType" id="typeHalfDay" value="HalfDay" autocomplete="off" onchange="updatePricing()">
-                                <label class="btn btn-outline-primary w-100 py-3" for="typeHalfDay">
-                                    <i class="bi bi-brightness-alt-high d-block fs-4 mb-1"></i>
-                                    <strong>Half Day Slot</strong>
-                                    <div class="small">55% of full day rate</div>
-                                </label>
-                            </div>
-                            <div class="col-md-4">
-                                <input type="radio" class="btn-check" name="BookingType" id="typeHourly" value="Hourly" autocomplete="off" onchange="updatePricing()">
-                                <label class="btn btn-outline-primary w-100 py-3" for="typeHourly">
-                                    <i class="bi bi-clock-history d-block fs-4 mb-1"></i>
-                                    <strong>Hourly Slot</strong>
-                                    <div class="small">Flexible 10% / hour rate</div>
-                                </label>
-                            </div>
+            <div class="card shadow-sm border-0 rounded-4 overflow-hidden mb-4">
+                <div class="card-header bg-dark text-white p-3.5 d-flex align-items-center justify-content-between">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-calendar-check text-warning me-2"></i>Reservation &amp; Instant Checkout</h5>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1">100% Verified Stay</span>
+                </div>
+                <div class="card-body p-4">
+                    <!-- Property Summary Strip -->
+                    <div class="d-flex align-items-center gap-3 mb-4 pb-3 border-bottom">
+                        <img src="@Model.ImageUrl" class="rounded-3 shadow-xs" style="height: 80px; width: 100px; object-fit: cover;" onerror="this.src='/images/placeholder.jpg';" />
+                        <div>
+                            <h4 class="fw-bold mb-1 text-dark">@Model.PropertyTitle</h4>
+                            <p class="text-muted small mb-1"><i class="bi bi-geo-alt-fill text-danger me-1"></i>@Model.Location</p>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill">Base Rate: ₹@Model.PricePerNight.ToString("N0") / night</span>
                         </div>
                     </div>
 
-                    <!-- Slot Type selector (Conditional for Half Day) -->
-                    <div class="mb-3" id="slotTypeContainer" style="display: none;">
-                        <label class="form-label fw-semibold">Select Time Slot</label>
-                        <select asp-for="SlotType" class="form-select" id="slotTypeSelect">
-                            <option value="MorningSlot">🌅 Morning Slot (08:00 AM - 02:00 PM)</option>
-                            <option value="EveningSlot">🌆 Evening Slot (03:00 PM - 09:00 PM)</option>
-                            <option value="NightStay">🌙 Night Stay Slot (09:00 PM - 07:00 AM)</option>
-                        </select>
-                    </div>
+                    <form asp-action="ConfirmBooking" method="post" id="checkoutBookingForm" enctype="multipart/form-data" novalidate>
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="PropertyID" />
+                        <input type="hidden" asp-for="PricePerNight" id="basePriceInput" value="@Model.PricePerNight" />
+                        <input type="hidden" asp-for="BookingType" id="bookingTypeField" value="@(string.IsNullOrEmpty(Model.BookingType) ? "FullDay" : Model.BookingType)" />
+                        <input type="hidden" asp-for="CheckInDate" id="checkInField" value="@Model.CheckInDate.ToString("yyyy-MM-dd")" />
+                        <input type="hidden" asp-for="CheckOutDate" id="checkOutField" value="@Model.CheckOutDate.ToString("yyyy-MM-dd")" />
+                        <input type="hidden" asp-for="HourlyDuration" id="hourlyDurationField" value="@(Model.HourlyDuration ?? 4)" />
 
-                    <!-- Hourly duration selector -->
-                    <div class="mb-3" id="hourlyContainer" style="display: none;">
-                        <label class="form-label fw-semibold">Number of Hours</label>
-                        <select asp-for="HourlyDuration" class="form-select" id="hourlySelect" onchange="updatePricing()">
-                            <option value="2">2 Hours</option>
-                            <option value="4" selected>4 Hours</option>
-                            <option value="6">6 Hours</option>
-                            <option value="8">8 Hours</option>
-                        </select>
-                    </div>
-
-                    <!-- Single-Calendar Date Range Picker (Item 8) -->
-                    <div class="mb-4" id="calendarSection">
-                        <label class="form-label fw-bold d-flex justify-content-between align-items-center mb-2">
-                            <span><i class="bi bi-calendar3 text-primary me-1"></i> 2. Stay Date Range</span>
-                            <span class="badge bg-light text-dark border fw-normal" id="stayRulesBadge">
-                                Min: @Model.MinStayNights @(Model.MinStayNights == 1 ? "night" : "nights") · Max: @Model.MaxStayNights nights
-                            </span>
-                        </label>
-
-                        <!-- Hidden fields submitting with form -->
-                        <input asp-for="CheckInDate" type="hidden" id="checkIn" value="@Model.CheckInDate.ToString("yyyy-MM-dd")" required />
-                        <input asp-for="CheckOutDate" type="hidden" id="checkOut" value="@Model.CheckOutDate.ToString("yyyy-MM-dd")" required />
-
-                        <!-- Interactive Range Picker Container -->
-                        <div class="single-cal-card" id="calendarPickerRoot"
-                             tabindex="0"
-                             role="region"
-                             aria-label="Date range calendar"
-                             data-min-stay="@Model.MinStayNights"
-                             data-max-stay="@Model.MaxStayNights"
-                             data-base-price="@Model.PricePerNight"
-                             data-blocked='@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.BlockedDates ?? new List<string>()))'>
-
-                            <!-- Navigation Header -->
-                            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
-                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" id="calPrevMonthBtn" aria-label="Previous month" style="width: 32px; height: 32px; padding: 0;">
-                                    <i class="bi bi-chevron-left"></i>
+                        <!-- 1. DURATION TYPE SEGMENTED CONTROL (Section 7A) -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold small text-muted text-uppercase mb-2">1. Booking Duration Type</label>
+                            <div class="segmented-control" role="radiogroup" aria-label="Duration Type">
+                                <button type="button" class="segmented-btn @(Model.BookingType == "FullDay" || string.IsNullOrEmpty(Model.BookingType) ? "active" : "")" data-type="FullDay">
+                                    <i class="bi bi-sun-fill"></i> Full Day
                                 </button>
-                                <div class="text-center">
-                                    <span class="fw-bold text-dark" id="calSelectedDatesSummary">@Model.CheckInDate.ToString("dd MMM yyyy") &ndash; @Model.CheckOutDate.ToString("dd MMM yyyy")</span>
-                                    <span class="badge bg-primary ms-2" id="calNightsCountBadge">@(Math.Max(1, (Model.CheckOutDate - Model.CheckInDate).Days)) @((Model.CheckOutDate - Model.CheckInDate).Days == 1 ? "night" : "nights")</span>
-                                </div>
-                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" id="calNextMonthBtn" aria-label="Next month" style="width: 32px; height: 32px; padding: 0;">
-                                    <i class="bi bi-chevron-right"></i>
+                                <button type="button" class="segmented-btn @(Model.BookingType == "HalfDay" ? "active" : "")" data-type="HalfDay">
+                                    <i class="bi bi-brightness-alt-high"></i> Half Day
+                                </button>
+                                <button type="button" class="segmented-btn @(Model.BookingType == "Hourly" ? "active" : "")" data-type="Hourly">
+                                    <i class="bi bi-clock-history"></i> Hourly
                                 </button>
                             </div>
+                        </div>
 
-                            <!-- Validation Warning Alert -->
-                            <div class="alert alert-warning py-2 px-3 small rounded-3 d-none mb-3" id="calWarningBox">
-                                <i class="bi bi-exclamation-triangle-fill me-1"></i> <span id="calWarningText"></span>
+                        <!-- 2. DATE & TIME SLOTS SELECTOR (Section 7A) -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold small text-muted text-uppercase mb-2" id="dateSectionTitle">
+                                <i class="bi bi-calendar3 text-primary me-1"></i> 2. Choose Dates &amp; Slots
+                            </label>
+
+                            <!-- Full-Day Explicit Inputs -->
+                            <div id="fullDayInputContainer" class="mb-3 @(Model.BookingType == "FullDay" || string.IsNullOrEmpty(Model.BookingType) ? "" : "d-none")">
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label small fw-semibold text-dark" for="visibleCheckInDate">Check-In Date <span class="text-danger">*</span></label>
+                                        <input type="date" id="visibleCheckInDate" class="form-control form-control-sm" value="@Model.CheckInDate.ToString("yyyy-MM-dd")" min="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                                        <div class="inline-error-text" id="checkInDateError">Please select a valid check-in date.</div>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small fw-semibold text-dark" for="visibleCheckOutDate">Check-Out Date <span class="text-danger">*</span></label>
+                                        <input type="date" id="visibleCheckOutDate" class="form-control form-control-sm" value="@Model.CheckOutDate.ToString("yyyy-MM-dd")" min="@DateTime.Today.AddDays(1).ToString("yyyy-MM-dd")" />
+                                        <div class="inline-error-text" id="checkOutDateError">Check-out date must be after check-in.</div>
+                                    </div>
+                                </div>
                             </div>
 
-                            <!-- Months Grid (Desktop: 2 months side-by-side; Mobile: 1 month) -->
-                            <div class="cal-months-wrap" id="calMonthsWrap">
-                                <!-- Rendered dynamically by JS -->
+                            <!-- Half-Day Explicit Inputs & Slot Selector -->
+                            <div id="halfDaySlotContainer" class="mb-3 @(Model.BookingType == "HalfDay" ? "" : "d-none")">
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold text-dark" for="visibleHalfDayDate">Booking Date <span class="text-danger">*</span></label>
+                                    <input type="date" id="visibleHalfDayDate" class="form-control form-control-sm" value="@Model.CheckInDate.ToString("yyyy-MM-dd")" min="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                                    <div class="inline-error-text" id="halfDayDateError">Please select a valid booking date.</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold text-dark" for="halfDaySlotSelect">Select Slot <span class="text-danger">*</span></label>
+                                    <select asp-for="SlotType" class="form-select form-select-sm" id="halfDaySlotSelect" onchange="calculateLiveTotal()">
+                                        <option value="MorningSlot">🌅 Morning Slot (08:00 AM – 02:00 PM)</option>
+                                        <option value="EveningSlot">🌆 Evening Slot (03:00 PM – 09:00 PM)</option>
+                                        <option value="NightStay">🌙 Night Stay Slot (09:00 PM – 07:00 AM)</option>
+                                    </select>
+                                    <div class="form-text small text-muted">Half day booking is charged at 55% of the standard full-day rate.</div>
+                                    <div class="inline-error-text" id="halfDaySlotError">Please select a valid slot.</div>
+                                </div>
                             </div>
 
-                            <!-- Live Price Summary Below Calendar (Item 8) -->
-                            <div class="mt-3 p-3 bg-light rounded-3 border d-flex justify-content-between align-items-center">
-                                <div>
-                                    <div class="text-muted small">Selected Duration:</div>
-                                    <strong class="text-dark" id="calLiveDurationText">@(Math.Max(1, (Model.CheckOutDate - Model.CheckInDate).Days)) nights</strong>
+                            <!-- Hourly Time Pickers & Calculated Readonly Duration -->
+                            <div id="hourlyTimeContainer" class="mb-3 @(Model.BookingType == "Hourly" ? "" : "d-none")">
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold text-dark" for="visibleHourlyDate">Booking Date <span class="text-danger">*</span></label>
+                                    <input type="date" id="visibleHourlyDate" class="form-control form-control-sm" value="@Model.CheckInDate.ToString("yyyy-MM-dd")" min="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                                    <div class="inline-error-text" id="hourlyDateError">Please select a valid booking date.</div>
                                 </div>
-                                <div class="text-end">
-                                    <div class="text-muted small">Estimated Stay Total:</div>
-                                    <h4 class="mb-0 text-success fw-bold" id="calLivePriceText">₹@Model.CalculatedAmount.ToString("N2")</h4>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label small fw-semibold text-dark" for="hourlyCheckInTime">Check-In Time <span class="text-danger">*</span></label>
+                                        <input type="time" id="hourlyCheckInTime" asp-for="CheckInTime" class="form-control form-control-sm" value="11:00" onchange="validateHourlyTimings()" />
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small fw-semibold text-dark" for="hourlyCheckOutTime">Check-Out Time <span class="text-danger">*</span></label>
+                                        <input type="time" id="hourlyCheckOutTime" asp-for="CheckOutTime" class="form-control form-control-sm" value="15:00" onchange="validateHourlyTimings()" />
+                                    </div>
                                 </div>
+                                <div class="mb-2">
+                                    <label class="form-label small fw-semibold text-muted" for="hourlyDurationReadonly">Calculated Duration (Read-only)</label>
+                                    <input type="text" id="hourlyDurationReadonly" class="form-control form-control-sm bg-light fw-bold text-primary" readonly value="4 hours" />
+                                </div>
+                                <div class="alert alert-info py-2 px-3 small rounded-3 mt-2 d-none" id="hourlyOvernightNote">
+                                    <i class="bi bi-moon-stars me-1 text-warning"></i>
+                                    <strong>Overnight hourly stay:</strong> Check-out crosses midnight into the following morning. Host check-in procedures apply.
+                                </div>
+                                <div class="inline-error-text" id="hourlyErrorText">Hourly booking duration must be between 2 and 12 hours.</div>
                             </div>
 
-                            <!-- Legend and Clear Control -->
-                            <div class="calendar-legend d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3 pt-2 border-top small text-muted">
-                                <div class="d-flex flex-wrap gap-3">
-                                    <span><span class="cal-legend-dot avail"></span> Available</span>
-                                    <span><span class="cal-legend-dot selected"></span> Selected</span>
-                                    <span><span class="cal-legend-dot blocked"></span> <del>Unavailable</del></span>
-                                    <span><span class="cal-legend-dot past"></span> Past</span>
-                                </div>
-                                <div>
-                                    <button type="button" class="btn btn-link btn-sm text-decoration-none p-0 text-secondary" id="calClearInlineBtn">
-                                        <i class="bi bi-arrow-counterclockwise"></i> Reset Selection
+                            <!-- Compact Calendar Box (~280-300px) -->
+                            <div class="compact-cal-card shadow-xs" id="compactCalendarRoot">
+                                <div class="compact-cal-header">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" id="cCalPrevBtn" style="width: 28px; height: 28px; padding: 0;" aria-label="Previous Month">
+                                        <i class="bi bi-chevron-left"></i>
+                                    </button>
+                                    <span class="fw-bold small text-dark" id="cCalMonthTitle"></span>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" id="cCalNextBtn" style="width: 28px; height: 28px; padding: 0;" aria-label="Next Month">
+                                        <i class="bi bi-chevron-right"></i>
                                     </button>
                                 </div>
+
+                                <div class="compact-cal-weekdays">
+                                    <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+                                </div>
+                                <div class="compact-cal-grid" id="cCalDaysGrid"></div>
+
+                                <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top small">
+                                    <span class="text-muted" id="cCalSummaryLabel">1 night selected</span>
+                                    <button type="button" class="btn btn-link btn-sm text-secondary p-0 text-decoration-none" id="cCalResetBtn">Reset</button>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Mobile Sheet Trigger (Visible < 768px) -->
-                        <div class="d-md-none mt-2">
-                            <button type="button" class="btn btn-outline-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#mobileCalendarModal">
-                                <i class="bi bi-arrows-fullscreen me-1"></i> Open Full-Screen Calendar Sheet
+                        <!-- 3. GUEST DETAILS & IDENTITY VERIFICATION (Section 7C) -->
+                        <div class="card border-0 shadow-sm bg-light rounded-4 p-3.5 mb-4" id="guestDetailsCard">
+                            <div class="d-flex align-items-center gap-2 mb-3">
+                                <div class="rounded-circle bg-primary text-white p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
+                                    <i class="bi bi-person-vcard fs-5"></i>
+                                </div>
+                                <div>
+                                    <h6 class="fw-bold mb-0 text-dark">Guest Identity Verification</h6>
+                                    <small class="text-muted">Mandatory for guest safety and seamless farm gate check-in.</small>
+                                </div>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold" for="guestFullName">Guest Full Name <span class="text-danger">*</span></label>
+                                    <input type="text" id="guestFullName" asp-for="GuestFullName" class="form-control form-control-sm" value="@(string.IsNullOrEmpty(Model.GuestFullName) ? (User.Identity?.Name ?? "") : Model.GuestFullName)" placeholder="Full name as per Govt ID" />
+                                    <div class="inline-error-text" id="guestNameError">Please enter guest full name (at least 3 characters).</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-semibold" for="guestPhone">Contact Mobile Number <span class="text-danger">*</span></label>
+                                    <input type="tel" id="guestPhone" asp-for="GuestPhone" class="form-control form-control-sm" placeholder="10-digit mobile number" maxlength="10" />
+                                    <div class="inline-error-text" id="guestPhoneError">Please enter a valid 10-digit mobile number.</div>
+                                </div>
+
+                                <!-- ID Type & Masked Input -->
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-semibold" for="idTypeSelect">ID Type <span class="text-danger">*</span></label>
+                                    <select asp-for="DocumentType" class="form-select form-select-sm" id="idTypeSelect" onchange="adaptIdValidation()">
+                                        <option value="Aadhaar">Aadhaar Card</option>
+                                        <option value="PAN">PAN Card</option>
+                                        <option value="Passport">Passport</option>
+                                        <option value="DrivingLicense">Driving License</option>
+                                        <option value="VoterID">Voter ID</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label small fw-semibold" id="idNumberLabel" for="idNumberInput">
+                                        Document Number <span class="text-danger">*</span>
+                                    </label>
+                                    <input asp-for="IdDocumentNumber" class="form-control form-control-sm" id="idNumberInput" placeholder="1234 5678 9012" oninput="formatAndValidateIdNumber(true)" onblur="formatAndValidateIdNumber(false)" />
+                                    <small class="form-text text-muted d-block" id="idFormatHelperText">Format: 12 digits numeric (e.g. 1234 5678 9012)</small>
+                                    <div class="inline-error-text" id="idNumberError">Invalid ID format. Please check the expected format.</div>
+                                </div>
+
+                                <!-- Optional Document File Upload -->
+                                <div class="col-12 mt-1">
+                                    <label class="form-label small fw-semibold text-muted" for="idFileInput">Attach ID Photo / PDF (Optional if valid ID number is entered)</label>
+                                    <input asp-for="IdDocumentFile" type="file" id="idFileInput" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.webp,.pdf" />
+                                    <small class="text-muted" style="font-size: 0.72rem;"><i class="bi bi-shield-lock me-1"></i>Stored encrypted in compliance vault. Never shared publicly.</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 4. ORDER SUMMARY & BREAKDOWN (No Security Deposit!) (Section 7B) -->
+                        <div class="card border-0 bg-light rounded-4 p-3.5 mb-4">
+                            <h6 class="fw-bold text-dark mb-3"><i class="bi bi-receipt text-primary me-2"></i>Order Summary</h6>
+                            <div class="d-flex justify-content-between mb-2 small">
+                                <span class="text-muted" id="summaryRateLabel">Base stay rate:</span>
+                                <strong class="text-dark" id="summaryStayAmount">₹@Model.PricePerNight.ToString("N0")</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2 small text-muted">
+                                <span>Taxes &amp; Platform Fee</span>
+                                <span>Included</span>
+                            </div>
+                            <hr class="my-2 border-secondary border-opacity-25" />
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="text-muted small d-block">Total Payable Amount</span>
+                                    <h3 class="fw-bold text-success mb-0" id="finalTotalPayable">₹@Model.PricePerNight.ToString("N0")</h3>
+                                </div>
+                                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1.5 small">
+                                    <i class="bi bi-shield-check me-1"></i>No Hidden Fees
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Policy Consent -->
+                        <div class="mb-4">
+                            <partial name="_PolicyConsentCheckbox" />
+                            <div class="inline-error-text" id="policyConsentError">You must agree to the Terms of Service &amp; Policies to proceed.</div>
+                        </div>
+
+                        <!-- Submit Button ENABLED AT ALL TIMES on load (Section 7C) -->
+                        <div class="d-grid">
+                            <button type="submit" id="btnProceedPayment" class="btn btn-warning btn-lg fw-bold py-3 rounded-pill shadow-sm w-100">
+                                <i class="bi bi-credit-card-2-front me-1"></i> Proceed to Payment
                             </button>
                         </div>
-                    </div>
-
-                    <!-- Mobile Full-screen Calendar Sheet / Modal (Item 8) -->
-                    <div class="modal fade" id="mobileCalendarModal" tabindex="-1" aria-labelledby="mobileCalendarModalLabel" aria-hidden="true">
-                        <div class="modal-dialog modal-fullscreen">
-                            <div class="modal-content">
-                                <div class="modal-header border-bottom">
-                                    <h5 class="modal-title fw-bold" id="mobileCalendarModalLabel"><i class="bi bi-calendar-range text-primary me-2"></i>Select Stay Dates</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body p-3">
-                                    <div class="p-2 mb-3 bg-light rounded text-center small text-muted">
-                                        Tap a check-in date, then tap a check-out date.
-                                    </div>
-                                    <div id="mobileCalendarMount">
-                                        <!-- Mobile month mounted here -->
-                                    </div>
-                                </div>
-                                <div class="modal-footer border-top d-flex justify-content-between">
-                                    <button type="button" class="btn btn-outline-secondary px-4" id="modalClearBtn">Clear</button>
-                                    <button type="button" class="btn btn-warning fw-bold px-4" id="modalApplyBtn" data-bs-dismiss="modal">Apply Dates</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Custom Timings Pickers -->
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold"><i class="bi bi-clock-history text-primary"></i> Preferred Check-In Time</label>
-                            <input asp-for="CheckInTime" type="time" class="form-control" value="11:00" required />
-                            <small class="text-muted">Standard: 11:00 AM</small>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold"><i class="bi bi-clock text-danger"></i> Preferred Check-Out Time</label>
-                            <input asp-for="CheckOutTime" type="time" class="form-control" value="10:00" required />
-                            <small class="text-muted">Standard: 10:00 AM</small>
-                        </div>
-                    </div>
-
-                    <div class="mb-4">
-                        <label class="form-label fw-semibold">Occasion (Optional)</label>
-                        <select asp-for="OccasionID" class="form-select">
-                            <option value="">-- General Vacation / Leisure --</option>
-                            @foreach (var occ in Model.AvailableOccasions)
-                            {
-                                <option value="@occ.OccasionID">@occ.OccasionName</option>
-                            }
-                        </select>
-                    </div>
-
-                    <!-- Event Décor & Celebration Add-on (Only available if an Event Manager serves this property's location) -->
-                    @if (Model.IsEventServiceAvailable && Model.AvailableEventPackages.Any())
-                    {
-                        <div class="card border-info mb-4 bg-light shadow-sm">
-                            <div class="card-body">
-                                <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
-                                    <div class="form-check form-switch mb-0">
-                                        <input class="form-check-input" type="checkbox" asp-for="IsEventBooking" id="toggleEventBooking" onchange="toggleEventSection()">
-                                        <label class="form-check-label fw-bold text-dark" for="toggleEventBooking">
-                                            <i class="bi bi-balloon-heart text-danger"></i> Add Event Décor &amp; Celebration Package
-                                        </label>
-                                    </div>
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1 small">
-                                        <i class="bi bi-geo-alt-fill me-1"></i>Decorators Available in @Model.Location
-                                    </span>
-                                </div>
-                                <p class="text-muted small mb-3">Hosting a birthday, anniversary, party, or wedding? Add a managed decoration package curated by professional decorators servicing this area.</p>
-
-                                <div id="eventPackageContainer" style="display: @(Model.IsEventBooking ? "block" : "none");">
-                                    <div class="mb-3">
-                                        <label class="form-label fw-semibold">Select Celebration Package</label>
-                                        <select asp-for="EventPackageID" class="form-select" id="eventPackageSelect" onchange="updatePricing()">
-                                            <option value="" data-price="0">-- Select Décor Package --</option>
-                                            @foreach (var pkg in Model.AvailableEventPackages)
-                                            {
-                                                <option value="@pkg.PackageID" data-price="@pkg.BasePrice">
-                                                    @pkg.Name (@pkg.Category) — ₹@pkg.BasePrice.ToString("N0")
-                                                </option>
-                                            }
-                                        </select>
-                                    </div>
-                                    <div class="mb-2">
-                                        <label class="form-label fw-semibold">Special Instructions / Theme Requests for Decorator</label>
-                                        <textarea asp-for="CustomEventNotes" class="form-control" rows="2" placeholder="e.g., Pink and gold theme, neon happy birthday sign, extra fairy lights on gazebo"></textarea>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    }
-
-                    <!-- KYC Government ID Verification (Only required at booking time) -->
-                    @if (Model.IsClientAlreadyVerified)
-                    {
-                        <div class="alert alert-success d-flex align-items-center mb-4 rounded-3 border-0 bg-success bg-opacity-10 text-success">
-                            <i class="bi bi-shield-fill-check fs-2 me-3"></i>
-                            <div>
-                                <strong class="d-block">Identity Verification On File</strong>
-                                <small class="text-muted">Your verified government identification is safely secured in our vault. No re-upload required for this reservation.</small>
-                            </div>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="card border-primary-subtle bg-light mb-4 rounded-3 shadow-none">
-                            <div class="card-body p-3">
-                                <div class="d-flex align-items-center gap-2 mb-2">
-                                    <i class="bi bi-person-vcard text-primary fs-4"></i>
-                                    <div>
-                                        <h6 class="fw-bold mb-0 text-dark">Guest Identity Verification (Government ID)</h6>
-                                        <small class="text-muted">Required strictly at the time of reservation for farm gate check-in and guest safety.</small>
-                                    </div>
-                                </div>
-                                <div class="row g-2 mt-1">
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold small">Document Type</label>
-                                        <select asp-for="DocumentType" class="form-select form-select-sm">
-                                            <option value="Aadhaar">Aadhaar Card</option>
-                                            <option value="Passport">Passport</option>
-                                            <option value="DrivingLicense">Driver's License</option>
-                                            <option value="VoterID">Voter ID</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label fw-semibold small">ID / Document Number</label>
-                                        <input asp-for="IdDocumentNumber" class="form-control form-select-sm" placeholder="e.g. XXXX-XXXX-1234" />
-                                    </div>
-                                    <div class="col-12 mt-2">
-                                        <label class="form-label fw-semibold small">Attach Photo / PDF of ID Document (Max 5MB)</label>
-                                        <input asp-for="IdDocumentFile" type="file" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.webp,.pdf" onchange="if(window.ImageOptimizer && this.files && this.files.length) { const inp = this; ImageOptimizer.compressAndConvertToWebP(this.files[0], { maxWidth: 1600, maxHeight: 1200, quality: 0.85 }).then(f => { const dt = new DataTransfer(); dt.items.add(f); inp.files = dt.files; }); }" />
-                                        <div class="form-text small text-muted"><i class="bi bi-lock me-1"></i>Encrypted in private storage and never shared with hosts. Photos are auto-optimized.</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    }
-
-                    <!-- Live Total Calculation Card -->
-                    <div class="card bg-light border-warning p-3 mb-4">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <span class="text-muted d-block">Estimated Total Payable</span>
-                                <h3 class="text-dark fw-bold mb-0" id="totalAmountText">₹@Model.CalculatedAmount.ToString("N2")</h3>
-                            </div>
-                            <span class="badge bg-success p-2"><i class="bi bi-shield-check"></i> 100% Secure Checkout</span>
-                        </div>
-                    </div>
-
-                    <!-- Mandatory Legal & Compliance Consent (Item 3e) -->
-                    <partial name="_PolicyConsentCheckbox" />
-
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-warning btn-lg fw-bold py-3">
-                            <i class="bi bi-credit-card-2-front"></i> Pay & Confirm Reservation
-                        </button>
-                    </div>
-                </form>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
@@ -470,430 +453,572 @@
 
 @section Scripts {
 <script>
-    (function () {
-        const root = document.getElementById('calendarPickerRoot');
-        if (!root) return;
+    // ─────────────────────────────────────────────────────────────
+    // Duration Type Segmented Control (Section 7A)
+    // ─────────────────────────────────────────────────────────────
+    let currentMode = '@(string.IsNullOrEmpty(Model.BookingType) ? "FullDay" : Model.BookingType)';
+    const basePrice = @Model.PricePerNight;
 
-        const minStay = parseInt(root.getAttribute('data-min-stay')) || 1;
-        const maxStay = parseInt(root.getAttribute('data-max-stay')) || 30;
-        const baseRate = parseFloat(root.getAttribute('data-base-price')) || 0;
-        let blockedDates = [];
-        try {
-            blockedDates = JSON.parse(root.getAttribute('data-blocked') || '[]');
-        } catch (e) {
-            blockedDates = [];
-        }
-        const blockedSet = new Set(blockedDates);
+    const segmentedBtns = document.querySelectorAll('.segmented-btn');
+    const bookingTypeField = document.getElementById('bookingTypeField');
+    const fullDayContainer = document.getElementById('fullDayInputContainer');
+    const halfDayContainer = document.getElementById('halfDaySlotContainer');
+    const hourlyContainer = document.getElementById('hourlyTimeContainer');
+    const hourlyDurationField = document.getElementById('hourlyDurationField');
+    const hourlyDurationReadonly = document.getElementById('hourlyDurationReadonly');
 
-        const checkInInput = document.getElementById('checkIn');
-        const checkOutInput = document.getElementById('checkOut');
-        const monthsWrap = document.getElementById('calMonthsWrap');
-        const prevBtn = document.getElementById('calPrevMonthBtn');
-        const nextBtn = document.getElementById('calNextMonthBtn');
-        const summaryText = document.getElementById('calSelectedDatesSummary');
-        const nightsBadge = document.getElementById('calNightsCountBadge');
-        const liveDurationText = document.getElementById('calLiveDurationText');
-        const livePriceText = document.getElementById('calLivePriceText');
-        const warningBox = document.getElementById('calWarningBox');
-        const warningText = document.getElementById('calWarningText');
-        const clearBtn = document.getElementById('calClearInlineBtn');
-        const mobileMount = document.getElementById('mobileCalendarMount');
-        const modalClearBtn = document.getElementById('modalClearBtn');
+    const visibleCheckIn = document.getElementById('visibleCheckInDate');
+    const visibleCheckOut = document.getElementById('visibleCheckOutDate');
+    const visibleHalfDay = document.getElementById('visibleHalfDayDate');
+    const visibleHourly = document.getElementById('visibleHourlyDate');
 
-        let startDate = checkInInput.value ? parseIsoDate(checkInInput.value) : new Date();
-        let endDate = checkOutInput.value ? parseIsoDate(checkOutInput.value) : addDays(new Date(), Math.max(1, minStay));
-        let hoverDate = null;
-        let viewMonth = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-        let keyboardFocusedDate = new Date(startDate);
+    segmentedBtns.forEach(btn => {
+        btn.addEventListener('click', function () {
+            segmentedBtns.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            currentMode = this.getAttribute('data-type');
+            bookingTypeField.value = currentMode;
 
-        function parseIsoDate(str) {
-            const parts = str.split('-');
-            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        }
-
-        function formatIso(d) {
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return `${y}-${m}-${day}`;
-        }
-
-        function formatDisplay(d) {
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            return `${String(d.getDate()).padStart(2, '0')} ${months[d.getMonth()]} ${d.getFullYear()}`;
-        }
-
-        function addDays(d, n) {
-            const res = new Date(d);
-            res.setDate(res.getDate() + n);
-            return res;
-        }
-
-        function diffDays(d1, d2) {
-            const ms = Math.abs(d2.setHours(0,0,0,0) - d1.setHours(0,0,0,0));
-            return Math.round(ms / (1000 * 60 * 60 * 24));
-        }
-
-        function isSameDay(d1, d2) {
-            if (!d1 || !d2) return false;
-            return d1.getFullYear() === d2.getFullYear() &&
-                   d1.getMonth() === d2.getMonth() &&
-                   d1.getDate() === d2.getDate();
-        }
-
-        function showWarning(msg) {
-            if (!warningBox || !warningText) return;
-            warningText.innerText = msg;
-            warningBox.classList.remove('d-none');
-            setTimeout(() => {
-                warningBox.classList.add('d-none');
-            }, 4500);
-        }
-
-        function clearWarning() {
-            if (warningBox) warningBox.classList.add('d-none');
-        }
-
-        function renderCalendar() {
-            monthsWrap.innerHTML = '';
-
-            const isMobile = window.innerWidth < 768;
-            const monthsToRender = isMobile ? 1 : 2;
-
-            for (let i = 0; i < monthsToRender; i++) {
-                const mDate = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + i, 1);
-                const monthBox = createMonthElement(mDate, i > 0);
-                monthsWrap.appendChild(monthBox);
+            if (currentMode === 'FullDay') {
+                fullDayContainer.classList.remove('d-none');
+                halfDayContainer.classList.add('d-none');
+                hourlyContainer.classList.add('d-none');
+            } else if (currentMode === 'HalfDay') {
+                fullDayContainer.classList.add('d-none');
+                halfDayContainer.classList.remove('d-none');
+                hourlyContainer.classList.add('d-none');
+            } else if (currentMode === 'Hourly') {
+                fullDayContainer.classList.add('d-none');
+                halfDayContainer.classList.add('d-none');
+                hourlyContainer.classList.remove('d-none');
+                validateHourlyTimings();
             }
 
-            if (mobileMount) {
-                mobileMount.innerHTML = '';
-                const mobileMonth = createMonthElement(viewMonth, false);
-                mobileMount.appendChild(mobileMonth);
-            }
+            renderCompactCalendar();
+            calculateLiveTotal();
+        });
+    });
 
-            updateSummaryAndPricing();
-        }
-
-        function createMonthElement(targetMonth, isSecondMonth) {
-            const box = document.createElement('div');
-            box.className = 'cal-month-box' + (isSecondMonth ? ' desktop-second-month' : '');
-
-            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-            const title = document.createElement('div');
-            title.className = 'cal-month-title';
-            title.innerText = `${monthNames[targetMonth.getMonth()]} ${targetMonth.getFullYear()}`;
-            box.appendChild(title);
-
-            const weekdays = document.createElement('div');
-            weekdays.className = 'cal-weekdays';
-            ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].forEach(w => {
-                const sp = document.createElement('span');
-                sp.innerText = w;
-                weekdays.appendChild(sp);
-            });
-            box.appendChild(weekdays);
-
-            const grid = document.createElement('div');
-            grid.className = 'cal-days-grid';
-
-            const firstDayIndex = targetMonth.getDay();
-            const daysInMonth = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0).getDate();
-
-            // Leading empty slots
-            for (let e = 0; e < firstDayIndex; e++) {
-                const empty = document.createElement('div');
-                empty.className = 'cal-day-cell cal-disabled';
-                empty.style.visibility = 'hidden';
-                grid.appendChild(empty);
-            }
-
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            for (let day = 1; day <= daysInMonth; day++) {
-                const cellDate = new Date(targetMonth.getFullYear(), targetMonth.getMonth(), day);
-                cellDate.setHours(0, 0, 0, 0);
-
-                const cell = document.createElement('div');
-                cell.className = 'cal-day-cell';
-                cell.innerText = day;
-                cell.setAttribute('data-date', formatIso(cellDate));
-                cell.setAttribute('tabindex', '-1');
-
-                const iso = formatIso(cellDate);
-
-                if (isSameDay(cellDate, today)) {
-                    cell.classList.add('cal-today');
-                }
-
-                if (cellDate < today) {
-                    cell.classList.add('cal-disabled-past', 'cal-disabled');
-                } else if (blockedSet.has(iso)) {
-                    cell.classList.add('cal-disabled-blocked', 'cal-disabled');
-                    cell.setAttribute('title', 'Unavailable / Booked');
-                } else {
-                    cell.classList.add('cal-available');
-                    cell.addEventListener('click', () => handleDateClick(cellDate));
-                    cell.addEventListener('mouseenter', () => handleDateHover(cellDate));
-                }
-
-                // Selected range classes
-                if (startDate && isSameDay(cellDate, startDate)) {
-                    cell.classList.add('cal-range-start');
-                }
-                if (endDate && isSameDay(cellDate, endDate)) {
-                    cell.classList.add('cal-range-end');
-                }
-                if (startDate && endDate && cellDate > startDate && cellDate < endDate) {
-                    cell.classList.add('cal-range-mid');
-                } else if (startDate && !endDate && hoverDate && cellDate > startDate && cellDate <= hoverDate) {
-                    cell.classList.add('cal-range-hover');
-                }
-
-                if (isSameDay(cellDate, keyboardFocusedDate)) {
-                    cell.classList.add('cal-focused');
-                }
-
-                grid.appendChild(cell);
-            }
-
-            box.appendChild(grid);
-            return box;
-        }
-
-        function handleDateClick(clickedDate) {
-            clearWarning();
-
-            if (!startDate || (startDate && endDate)) {
-                // First click: select start date
-                startDate = new Date(clickedDate);
-                endDate = null;
-                hoverDate = null;
-                keyboardFocusedDate = new Date(clickedDate);
-                renderCalendar();
-            } else if (startDate && !endDate) {
-                // Second click: select end date
-                if (clickedDate <= startDate) {
-                    // Clicked earlier or same date: restart with new start date
-                    startDate = new Date(clickedDate);
-                    endDate = null;
-                    keyboardFocusedDate = new Date(clickedDate);
-                    renderCalendar();
-                    return;
-                }
-
-                // Check for blocked dates inside candidate range
-                let hasBlocked = false;
-                for (let d = addDays(startDate, 0); d <= clickedDate; d = addDays(d, 1)) {
-                    if (blockedSet.has(formatIso(d))) {
-                        hasBlocked = true;
-                        break;
+    // Synchronize visible date pickers with calendar and hidden inputs
+    if (visibleCheckIn) {
+        visibleCheckIn.addEventListener('change', () => {
+            if (visibleCheckIn.value) {
+                selStart = new Date(visibleCheckIn.value + 'T00:00:00');
+                if (visibleCheckOut && visibleCheckOut.value) {
+                    const outDate = new Date(visibleCheckOut.value + 'T00:00:00');
+                    if (outDate <= selStart) {
+                        selEnd = new Date(selStart);
+                        selEnd.setDate(selEnd.getDate() + 1);
+                        visibleCheckOut.value = formatYmd(selEnd);
                     }
                 }
-
-                if (hasBlocked) {
-                    showWarning('Selected range includes unavailable dates. Please choose an available window.');
-                    startDate = new Date(clickedDate);
-                    endDate = null;
-                    renderCalendar();
-                    return;
-                }
-
-                const nights = diffDays(startDate, clickedDate);
-
-                if (minStay > 0 && nights < minStay) {
-                    showWarning(`Minimum stay for this stay is ${minStay} ${(minStay === 1 ? 'night' : 'nights')}.`);
-                    return;
-                }
-
-                if (maxStay > 0 && nights > maxStay) {
-                    showWarning(`Maximum stay for this stay is ${maxStay} nights.`);
-                    return;
-                }
-
-                endDate = new Date(clickedDate);
-                keyboardFocusedDate = new Date(clickedDate);
-
-                checkInInput.value = formatIso(startDate);
-                checkOutInput.value = formatIso(endDate);
-
-                renderCalendar();
-                window.updatePricing();
+                renderCompactCalendar();
+                calculateLiveTotal();
             }
-        }
-
-        function handleDateHover(hDate) {
-            if (startDate && !endDate && hDate > startDate) {
-                hoverDate = new Date(hDate);
-                // Update only hover classes across rendered cells
-                document.querySelectorAll('.cal-day-cell.cal-available').forEach(cell => {
-                    const iso = cell.getAttribute('data-date');
-                    if (!iso) return;
-                    const cDate = parseIsoDate(iso);
-                    if (cDate > startDate && cDate <= hoverDate) {
-                        cell.classList.add('cal-range-hover');
-                    } else {
-                        cell.classList.remove('cal-range-hover');
-                    }
-                });
-            }
-        }
-
-        function updateSummaryAndPricing() {
-            if (startDate && endDate) {
-                const nights = diffDays(startDate, endDate);
-                if (summaryText) summaryText.innerText = `${formatDisplay(startDate)} – ${formatDisplay(endDate)}`;
-                if (nightsBadge) {
-                    nightsBadge.innerText = `${nights} ${(nights === 1 ? 'night' : 'nights')}`;
-                    nightsBadge.className = 'badge bg-primary ms-2';
-                }
-                if (liveDurationText) liveDurationText.innerText = `${nights} ${(nights === 1 ? 'night' : 'nights')}`;
-
-                const stayTotal = baseRate * nights;
-                if (livePriceText) livePriceText.innerText = '₹' + stayTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 });
-            } else if (startDate) {
-                if (summaryText) summaryText.innerText = `${formatDisplay(startDate)} – Select check-out date`;
-                if (nightsBadge) {
-                    nightsBadge.innerText = 'Select end date';
-                    nightsBadge.className = 'badge bg-warning text-dark ms-2';
-                }
-                if (liveDurationText) liveDurationText.innerText = 'Pending check-out';
-            } else {
-                if (summaryText) summaryText.innerText = 'Select stay dates';
-                if (nightsBadge) {
-                    nightsBadge.innerText = '0 nights';
-                    nightsBadge.className = 'badge bg-secondary ms-2';
-                }
-                if (liveDurationText) liveDurationText.innerText = '0 nights';
-            }
-        }
-
-        function resetDates() {
-            startDate = new Date();
-            endDate = addDays(new Date(), Math.max(1, minStay));
-            hoverDate = null;
-            checkInInput.value = formatIso(startDate);
-            checkOutInput.value = formatIso(endDate);
-            clearWarning();
-            renderCalendar();
-            window.updatePricing();
-        }
-
-        prevBtn.addEventListener('click', () => {
-            viewMonth.setMonth(viewMonth.getMonth() - 1);
-            renderCalendar();
         });
-
-        nextBtn.addEventListener('click', () => {
-            viewMonth.setMonth(viewMonth.getMonth() + 1);
-            renderCalendar();
-        });
-
-        if (clearBtn) clearBtn.addEventListener('click', resetDates);
-        if (modalClearBtn) modalClearBtn.addEventListener('click', resetDates);
-
-        // Keyboard Accessibility (Item 8)
-        root.addEventListener('keydown', (e) => {
-            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'Escape'].includes(e.key)) {
-                e.preventDefault();
-            }
-
-            if (e.key === 'Escape') {
-                resetDates();
-                return;
-            }
-
-            if (e.key === 'ArrowLeft') {
-                keyboardFocusedDate = addDays(keyboardFocusedDate, -1);
-            } else if (e.key === 'ArrowRight') {
-                keyboardFocusedDate = addDays(keyboardFocusedDate, 1);
-            } else if (e.key === 'ArrowUp') {
-                keyboardFocusedDate = addDays(keyboardFocusedDate, -7);
-            } else if (e.key === 'ArrowDown') {
-                keyboardFocusedDate = addDays(keyboardFocusedDate, 7);
-            } else if (e.key === 'Enter') {
-                const iso = formatIso(keyboardFocusedDate);
-                const today = new Date();
-                today.setHours(0,0,0,0);
-                if (keyboardFocusedDate >= today && !blockedSet.has(iso)) {
-                    handleDateClick(keyboardFocusedDate);
-                }
-                return;
-            }
-
-            // Keep view in month
-            if (keyboardFocusedDate.getMonth() !== viewMonth.getMonth() && keyboardFocusedDate.getMonth() !== ((viewMonth.getMonth() + 1) % 12)) {
-                viewMonth = new Date(keyboardFocusedDate.getFullYear(), keyboardFocusedDate.getMonth(), 1);
-            }
-            renderCalendar();
-        });
-
-        window.addEventListener('resize', () => {
-            renderCalendar();
-        });
-
-        renderCalendar();
-    })();
-
-    function toggleEventSection() {
-        const isEvent = document.getElementById('toggleEventBooking')?.checked;
-        const container = document.getElementById('eventPackageContainer');
-        if (container) container.style.display = isEvent ? 'block' : 'none';
-        if (!isEvent) {
-            const pkgSelect = document.getElementById('eventPackageSelect');
-            if (pkgSelect) pkgSelect.value = '';
-        }
-        updatePricing();
     }
 
-    window.updatePricing = function() {
-        const typeEl = document.querySelector('input[name="BookingType"]:checked');
-        const type = typeEl ? typeEl.value : 'FullDay';
-        const baseRate = parseFloat(document.getElementById('basePrice')?.value) || 0;
-        const slotContainer = document.getElementById('slotTypeContainer');
-        const hourlyContainer = document.getElementById('hourlyContainer');
-        const checkOut = document.getElementById('checkOut');
-        const checkIn = document.getElementById('checkIn');
-
-        let total = baseRate;
-
-        if (type === 'FullDay') {
-            if (slotContainer) slotContainer.style.display = 'none';
-            if (hourlyContainer) hourlyContainer.style.display = 'none';
-            const inDate = checkIn ? new Date(checkIn.value) : new Date();
-            const outDate = checkOut ? new Date(checkOut.value) : new Date();
-            const diffDays = Math.max(1, Math.round((outDate - inDate) / (1000 * 60 * 60 * 24)));
-            total = baseRate * diffDays;
-        } else if (type === 'HalfDay') {
-            if (slotContainer) slotContainer.style.display = 'block';
-            if (hourlyContainer) hourlyContainer.style.display = 'none';
-            total = Math.round(baseRate * 0.55);
-        } else if (type === 'Hourly') {
-            if (slotContainer) slotContainer.style.display = 'none';
-            if (hourlyContainer) hourlyContainer.style.display = 'block';
-            const hours = parseInt(document.getElementById('hourlySelect')?.value) || 4;
-            total = Math.round((baseRate / 10) * hours);
-        }
-
-        const isEvent = document.getElementById('toggleEventBooking')?.checked;
-        if (isEvent) {
-            const pkgSelect = document.getElementById('eventPackageSelect');
-            if (pkgSelect && pkgSelect.selectedIndex > 0) {
-                const selectedOption = pkgSelect.options[pkgSelect.selectedIndex];
-                const pkgPrice = parseFloat(selectedOption.getAttribute('data-price')) || 0;
-                total += pkgPrice;
+    if (visibleCheckOut) {
+        visibleCheckOut.addEventListener('change', () => {
+            if (visibleCheckOut.value) {
+                selEnd = new Date(visibleCheckOut.value + 'T00:00:00');
+                if (selStart && selEnd <= selStart) {
+                    document.getElementById('checkOutDateError').style.display = 'block';
+                    visibleCheckOut.classList.add('field-error-highlight');
+                } else {
+                    document.getElementById('checkOutDateError').style.display = 'none';
+                    visibleCheckOut.classList.remove('field-error-highlight');
+                }
+                renderCompactCalendar();
+                calculateLiveTotal();
             }
+        });
+    }
+
+    if (visibleHalfDay) {
+        visibleHalfDay.addEventListener('change', () => {
+            if (visibleHalfDay.value) {
+                selStart = new Date(visibleHalfDay.value + 'T00:00:00');
+                selEnd = new Date(selStart);
+                renderCompactCalendar();
+                calculateLiveTotal();
+            }
+        });
+    }
+
+    if (visibleHourly) {
+        visibleHourly.addEventListener('change', () => {
+            if (visibleHourly.value) {
+                selStart = new Date(visibleHourly.value + 'T00:00:00');
+                selEnd = new Date(selStart);
+                renderCompactCalendar();
+                calculateLiveTotal();
+            }
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Compact Calendar Implementation (Section 7A)
+    // ─────────────────────────────────────────────────────────────
+    let selStart = new Date();
+    selStart.setHours(0, 0, 0, 0);
+    let selEnd = new Date(selStart);
+    selEnd.setDate(selEnd.getDate() + 1);
+
+    const initInVal = document.getElementById('checkInField')?.value;
+    const initOutVal = document.getElementById('checkOutField')?.value;
+    if (initInVal) {
+        selStart = new Date(initInVal + 'T00:00:00');
+    }
+    if (initOutVal) {
+        selEnd = new Date(initOutVal + 'T00:00:00');
+    }
+
+    let viewCalDate = new Date(selStart.getFullYear(), selStart.getMonth(), 1);
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+
+    const cCalDaysGrid = document.getElementById('cCalDaysGrid');
+    const cCalMonthTitle = document.getElementById('cCalMonthTitle');
+    const cCalPrevBtn = document.getElementById('cCalPrevBtn');
+    const cCalNextBtn = document.getElementById('cCalNextBtn');
+    const cCalSummaryLabel = document.getElementById('cCalSummaryLabel');
+    const cCalResetBtn = document.getElementById('cCalResetBtn');
+
+    cCalPrevBtn.addEventListener('click', () => {
+        viewCalDate.setMonth(viewCalDate.getMonth() - 1);
+        renderCompactCalendar();
+    });
+
+    cCalNextBtn.addEventListener('click', () => {
+        viewCalDate.setMonth(viewCalDate.getMonth() + 1);
+        renderCompactCalendar();
+    });
+
+    cCalResetBtn.addEventListener('click', () => {
+        selStart = new Date(todayDate);
+        selEnd = new Date(todayDate);
+        selEnd.setDate(selEnd.getDate() + 1);
+        viewCalDate = new Date(selStart.getFullYear(), selStart.getMonth(), 1);
+        renderCompactCalendar();
+        calculateLiveTotal();
+    });
+
+    function renderCompactCalendar() {
+        const y = viewCalDate.getFullYear();
+        const m = viewCalDate.getMonth();
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        cCalMonthTitle.textContent = months[m] + ' ' + y;
+
+        const isCurrent = y === todayDate.getFullYear() && m === todayDate.getMonth();
+        cCalPrevBtn.disabled = isCurrent;
+        cCalPrevBtn.style.opacity = isCurrent ? '0.35' : '1';
+
+        cCalDaysGrid.innerHTML = '';
+        const firstDay = new Date(y, m, 1).getDay();
+        const daysInMonth = new Date(y, m + 1, 0).getDate();
+
+        for (let i = 0; i < firstDay; i++) {
+            const empty = document.createElement('div');
+            empty.className = 'compact-cal-cell cal-disabled';
+            cCalDaysGrid.appendChild(empty);
         }
 
-        const totalEl = document.getElementById('totalAmountText');
-        if (totalEl) {
-            totalEl.innerText = '₹' + total.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+        for (let d = 1; d <= daysInMonth; d++) {
+            const cell = document.createElement('div');
+            cell.className = 'compact-cal-cell';
+            cell.textContent = d;
+
+            const cDate = new Date(y, m, d);
+            cDate.setHours(0, 0, 0, 0);
+
+            if (cDate < todayDate) {
+                cell.classList.add('cal-disabled');
+            } else {
+                if (currentMode === 'FullDay') {
+                    if (isSame(cDate, selStart)) cell.classList.add('cal-start');
+                    if (isSame(cDate, selEnd)) cell.classList.add('cal-end');
+                    if (cDate > selStart && cDate < selEnd) cell.classList.add('cal-mid');
+                } else {
+                    if (isSame(cDate, selStart)) cell.classList.add('cal-single');
+                }
+
+                cell.addEventListener('click', () => handleCompactCalClick(cDate));
+            }
+
+            cCalDaysGrid.appendChild(cell);
+        }
+
+        updateCalendarSummary();
+    }
+
+    function handleCompactCalClick(date) {
+        if (currentMode === 'FullDay') {
+            if (!selStart || (selStart && selEnd)) {
+                selStart = date;
+                selEnd = null;
+            } else if (selStart && !selEnd) {
+                if (date > selStart) {
+                    selEnd = date;
+                } else {
+                    selStart = date;
+                    selEnd = null;
+                }
+            }
+        } else {
+            selStart = date;
+            selEnd = date;
+        }
+
+        renderCompactCalendar();
+        calculateLiveTotal();
+    }
+
+    function updateCalendarSummary() {
+        const ymdStart = formatYmd(selStart);
+        document.getElementById('checkInField').value = ymdStart;
+        if (visibleCheckIn) visibleCheckIn.value = ymdStart;
+        if (visibleHalfDay) visibleHalfDay.value = ymdStart;
+        if (visibleHourly) visibleHourly.value = ymdStart;
+
+        if (currentMode === 'FullDay') {
+            if (selEnd) {
+                const ymdEnd = formatYmd(selEnd);
+                document.getElementById('checkOutField').value = ymdEnd;
+                if (visibleCheckOut) visibleCheckOut.value = ymdEnd;
+                const nights = Math.max(1, Math.round((selEnd - selStart) / (1000 * 60 * 60 * 24)));
+                cCalSummaryLabel.textContent = `${nights} ${nights === 1 ? 'night' : 'nights'} (${formatDisp(selStart)} – ${formatDisp(selEnd)})`;
+            } else {
+                document.getElementById('checkOutField').value = '';
+                cCalSummaryLabel.textContent = formatDisp(selStart) + ' (Select check-out)';
+            }
+        } else {
+            document.getElementById('checkOutField').value = ymdStart;
+            cCalSummaryLabel.textContent = formatDisp(selStart) + ' (Single day selected)';
+        }
+    }
+
+    function isSame(d1, d2) {
+        return d1 && d2 && d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
+    }
+
+    function formatYmd(d) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    function formatDisp(d) {
+        const m = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        return `${d.getDate()} ${m[d.getMonth()]}`;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Hourly Timing Validation & Calculation (Section 7A)
+    // ─────────────────────────────────────────────────────────────
+    function validateHourlyTimings() {
+        const inTime = document.getElementById('hourlyCheckInTime').value;
+        const outTime = document.getElementById('hourlyCheckOutTime').value;
+        const overnightNote = document.getElementById('hourlyOvernightNote');
+        const errorText = document.getElementById('hourlyErrorText');
+
+        if (!inTime || !outTime) return false;
+
+        const [inH, inM] = inTime.split(':').map(Number);
+        const [outH, outM] = outTime.split(':').map(Number);
+
+        let diffHours = (outH + outM / 60) - (inH + inM / 60);
+        let isOvernight = false;
+
+        if (diffHours <= 0) {
+            diffHours += 24;
+            isOvernight = true;
+        }
+
+        diffHours = Math.round(diffHours * 10) / 10;
+
+        if (diffHours < 2 || diffHours > 12) {
+            errorText.style.display = 'block';
+            errorText.textContent = 'Hourly booking duration must be between 2 and 12 hours. Current: ' + diffHours + ' hrs.';
+            if (hourlyDurationReadonly) hourlyDurationReadonly.value = diffHours + ' hours (Invalid)';
+            return false;
+        } else {
+            errorText.style.display = 'none';
+            if (hourlyDurationReadonly) hourlyDurationReadonly.value = diffHours + ' hours';
+            hourlyDurationField.value = Math.ceil(diffHours);
+            if (overnightNote) overnightNote.classList.toggle('d-none', !isOvernight);
+            calculateLiveTotal();
+            return true;
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Live Price Calculation (Section 7B - No security deposit line!)
+    // ─────────────────────────────────────────────────────────────
+    function calculateLiveTotal() {
+        let total = basePrice;
+        const rateLabel = document.getElementById('summaryRateLabel');
+        const stayAmountEl = document.getElementById('summaryStayAmount');
+        const finalPayableEl = document.getElementById('finalTotalPayable');
+
+        if (currentMode === 'FullDay') {
+            const nights = selEnd ? Math.max(1, Math.round((selEnd - selStart) / (1000 * 60 * 60 * 24))) : 1;
+            total = basePrice * nights;
+            if (rateLabel) rateLabel.textContent = `Full Day Stay (${nights} ${nights === 1 ? 'night' : 'nights'}):`;
+        } else if (currentMode === 'HalfDay') {
+            total = Math.round(basePrice * 0.55);
+            if (rateLabel) rateLabel.textContent = 'Half Day Slot (55% rate):';
+        } else if (currentMode === 'Hourly') {
+            const hours = parseInt(hourlyDurationField.value) || 4;
+            total = Math.round(basePrice * 0.10 * hours);
+            if (rateLabel) rateLabel.textContent = `Hourly Slot (${hours} hours × 10% rate):`;
+        }
+
+        if (stayAmountEl) stayAmountEl.textContent = '₹' + total.toLocaleString('en-IN');
+        if (finalPayableEl) finalPayableEl.textContent = '₹' + total.toLocaleString('en-IN');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Dynamic Guest Identity Verification Validation & Gating (Section 7C)
+    // ─────────────────────────────────────────────────────────────
+    const idTypeSelect = document.getElementById('idTypeSelect');
+    const idInput = document.getElementById('idNumberInput');
+    const idHelper = document.getElementById('idFormatHelperText');
+    const idError = document.getElementById('idNumberError');
+    const btnProceed = document.getElementById('btnProceedPayment');
+
+    const ID_CONFIGS = {
+        Aadhaar: {
+            placeholder: '1234 5678 9012',
+            helper: 'Format: 12 digits numeric (e.g. 1234 5678 9012)',
+            regex: /^\d{12}$/,
+            formatInput: (val) => {
+                const digits = val.replace(/\D/g, '').slice(0, 12);
+                const parts = [];
+                for (let i = 0; i < digits.length; i += 4) {
+                    parts.push(digits.slice(i, i + 4));
+                }
+                return parts.join(' ');
+            },
+            getRaw: (val) => val.replace(/\D/g, ''),
+            errorMsg: (val) => {
+                const len = val.replace(/\D/g, '').length;
+                return `Aadhaar must be 12 digits. You have entered ${len}.`;
+            }
+        },
+        PAN: {
+            placeholder: 'ABCDE1234F',
+            helper: 'Format: 10 chars uppercase alphanumeric (e.g. ABCDE1234F)',
+            regex: /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/,
+            formatInput: (val) => val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10),
+            getRaw: (val) => val.toUpperCase().trim(),
+            errorMsg: () => 'PAN must be 10 characters in AAAAA9999A format.'
+        },
+        Passport: {
+            placeholder: 'A1234567',
+            helper: 'Format: 1 letter followed by 7 digits (e.g. A1234567)',
+            regex: /^[A-Z]{1}[0-9]{7}$/,
+            formatInput: (val) => val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8),
+            getRaw: (val) => val.toUpperCase().trim(),
+            errorMsg: () => 'Passport must be 1 letter followed by 7 digits (e.g. A1234567).'
+        },
+        DrivingLicense: {
+            placeholder: 'MH1420110062821',
+            helper: 'Format: 2-letter state code followed by 13-15 chars (e.g. MH1420110062821)',
+            regex: /^[A-Z]{2}[0-9A-Z]{13,15}$/,
+            formatInput: (val) => val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 17),
+            getRaw: (val) => val.toUpperCase().replace(/[^A-Z0-9]/g, ''),
+            errorMsg: () => 'Driving License must start with a 2-letter state code followed by 13 to 15 alphanumeric characters.'
+        },
+        VoterID: {
+            placeholder: 'ABC1234567',
+            helper: 'Format: 3 letters followed by 7 digits (e.g. ABC1234567)',
+            regex: /^[A-Z]{3}[0-9]{7}$/,
+            formatInput: (val) => val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10),
+            getRaw: (val) => val.toUpperCase().trim(),
+            errorMsg: () => 'Voter ID must be 3 letters followed by 7 digits (e.g. ABC1234567).'
         }
     };
 
-    document.addEventListener("DOMContentLoaded", function() {
-        window.updatePricing();
+    function adaptIdValidation() {
+        const type = idTypeSelect.value;
+        const config = ID_CONFIGS[type] || ID_CONFIGS.Aadhaar;
+        // Spec rule: When user changes ID type dropdown, clear the ID number input
+        idInput.value = '';
+        idInput.placeholder = config.placeholder;
+        idHelper.textContent = config.helper;
+        idError.style.display = 'none';
+        idInput.classList.remove('field-error-highlight');
+    }
+
+    function formatAndValidateIdNumber(isTyping) {
+        const type = idTypeSelect.value;
+        const config = ID_CONFIGS[type] || ID_CONFIGS.Aadhaar;
+
+        if (config.formatInput) {
+            idInput.value = config.formatInput(idInput.value);
+        }
+
+        const raw = config.getRaw(idInput.value);
+        const isValid = config.regex.test(raw);
+
+        if (!isValid && !isTyping && idInput.value.length > 0) {
+            idError.textContent = config.errorMsg(idInput.value);
+            idError.style.display = 'block';
+            idInput.classList.add('field-error-highlight');
+        } else if (isValid) {
+            idError.style.display = 'none';
+            idInput.classList.remove('field-error-highlight');
+        }
+        return isValid;
+    }
+
+    // Scroll with sticky header offset
+    function focusField(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const header = document.querySelector('header') || document.querySelector('.navbar');
+        const headerHeight = header ? header.offsetHeight : 70;
+        const rect = el.getBoundingClientRect();
+        const scrollToY = rect.top + window.pageYOffset - (headerHeight + 24);
+        window.scrollTo({
+            top: Math.max(0, scrollToY),
+            behavior: 'smooth'
+        });
+        setTimeout(() => el.focus(), 300);
+    }
+
+    // Real-time error removal on user input
+    ['guestFullName', 'guestPhone', 'idNumberInput'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', () => {
+                el.classList.remove('field-error-highlight');
+                const err = el.parentElement?.querySelector('.inline-error-text');
+                if (err) err.style.display = 'none';
+            });
+        }
     });
+
+    const consentEl = document.getElementById('policyConsentCheck');
+    if (consentEl) {
+        consentEl.addEventListener('change', () => {
+            const err = document.getElementById('policyConsentError');
+            if (err) err.style.display = 'none';
+        });
+    }
+
+    let isSubmitting = false;
+
+    // Full Validation UX upon clicking "Proceed to Payment"
+    document.getElementById('checkoutBookingForm').addEventListener('submit', function (e) {
+        if (isSubmitting) {
+            e.preventDefault();
+            return;
+        }
+
+        const nameInput = document.getElementById('guestFullName');
+        const phoneInput = document.getElementById('guestPhone');
+        const idFileInput = document.getElementById('idFileInput');
+        const consentCheck = document.getElementById('policyConsentCheck');
+        const banner = document.getElementById('checkoutErrorBanner');
+        const errorList = document.getElementById('checkoutErrorList');
+        const errorTitle = document.getElementById('checkoutErrorTitle');
+
+        const errors = [];
+        let firstInvalid = null;
+
+        // 1. Duration / Date validity
+        if (currentMode === 'FullDay') {
+            if (!selStart || !selEnd || selEnd <= selStart) {
+                errors.push({ id: 'visibleCheckOutDate', label: 'Check-Out Date', msg: 'Check-out date must be after check-in date.' });
+                if (!firstInvalid) firstInvalid = visibleCheckOut || visibleCheckIn;
+                const errEl = document.getElementById('checkOutDateError');
+                if (errEl) errEl.style.display = 'block';
+                if (visibleCheckOut) visibleCheckOut.classList.add('field-error-highlight');
+            }
+        } else if (currentMode === 'Hourly') {
+            const isHourlyValid = validateHourlyTimings();
+            if (!isHourlyValid) {
+                errors.push({ id: 'hourlyCheckOutTime', label: 'Hourly Timing', msg: 'Hourly duration must be between 2 and 12 hours.' });
+                if (!firstInvalid) firstInvalid = document.getElementById('hourlyCheckOutTime');
+            }
+        }
+
+        // 2. Guest Full Name
+        const nameVal = nameInput ? nameInput.value.trim() : '';
+        if (!nameVal || nameVal.length < 3) {
+            errors.push({ id: 'guestFullName', label: 'Guest Full Name', msg: 'Please enter guest full name (at least 3 characters).' });
+            if (!firstInvalid) firstInvalid = nameInput;
+            const errEl = document.getElementById('guestNameError');
+            if (errEl) errEl.style.display = 'block';
+            if (nameInput) nameInput.classList.add('field-error-highlight');
+        }
+
+        // 3. Contact Mobile Number
+        const phoneVal = phoneInput ? phoneInput.value.replace(/\D/g, '') : '';
+        if (!phoneVal || phoneVal.length !== 10) {
+            errors.push({ id: 'guestPhone', label: 'Contact Mobile Number', msg: 'Please enter a valid 10-digit mobile number.' });
+            if (!firstInvalid) firstInvalid = phoneInput;
+            const errEl = document.getElementById('guestPhoneError');
+            if (errEl) errEl.style.display = 'block';
+            if (phoneInput) phoneInput.classList.add('field-error-highlight');
+        }
+
+        // 4. Guest ID Verification
+        const hasFile = idFileInput && idFileInput.files && idFileInput.files.length > 0;
+        if (!hasFile) {
+            const type = idTypeSelect ? idTypeSelect.value : 'Aadhaar';
+            const config = ID_CONFIGS[type] || ID_CONFIGS.Aadhaar;
+            const rawId = config.getRaw(idInput ? idInput.value : '');
+            const isIdValid = config.regex.test(rawId);
+
+            if (!isIdValid) {
+                const specificMsg = config.errorMsg(idInput ? idInput.value : '');
+                errors.push({ id: 'idNumberInput', label: `${type} Number`, msg: specificMsg });
+                if (!firstInvalid) firstInvalid = idInput;
+                if (idError) {
+                    idError.textContent = specificMsg;
+                    idError.style.display = 'block';
+                }
+                if (idInput) idInput.classList.add('field-error-highlight');
+            } else if (type === 'Aadhaar' && idInput) {
+                // Store raw 12 digits for backend compliance
+                idInput.value = rawId;
+            }
+        }
+
+        // 5. Policy Consent
+        if (consentCheck && !consentCheck.checked) {
+            errors.push({ id: 'policyConsentCheck', label: 'Terms & Policies Consent', msg: 'You must agree to the Terms of Service, Privacy Policy, and Refund Policy.' });
+            if (!firstInvalid) firstInvalid = consentCheck;
+            const errEl = document.getElementById('policyConsentError');
+            if (errEl) errEl.style.display = 'block';
+        }
+
+        if (errors.length > 0) {
+            e.preventDefault();
+            // Show top-of-form error summary banner with anchor links
+            errorTitle.textContent = `${errors.length} ${errors.length === 1 ? 'field needs' : 'fields need'} your attention:`;
+            errorList.innerHTML = errors.map(err => 
+                `<li><a href="javascript:void(0)" onclick="focusField('${err.id}')" class="error-anchor-link">${err.label}</a>: ${err.msg}</li>`
+            ).join('');
+            banner.classList.remove('d-none');
+
+            // Scroll to first invalid field taking sticky header into account
+            if (firstInvalid) {
+                focusField(firstInvalid.id);
+            }
+            return false;
+        }
+
+        // If form is valid: put button in loading state and prevent double submission
+        isSubmitting = true;
+        btnProceed.disabled = true;
+        btnProceed.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Processing Payment...';
+    });
+
+    // Initial render
+    renderCompactCalendar();
+    adaptIdValidation();
+    calculateLiveTotal();
 </script>
 }

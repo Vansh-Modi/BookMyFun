@@ -25,8 +25,11 @@
 
     var avail = ViewBag.AvailabilityResult as BookMyFun.Services.AvailabilitySuggestionResult;
     bool isUnavailable = avail != null && !avail.IsRequestedAvailable;
-    string selectedIn = ViewBag.SelectedCheckIn as string ?? DateTime.Today.ToString("yyyy-MM-dd");
+        string selectedIn = ViewBag.SelectedCheckIn as string ?? DateTime.Today.ToString("yyyy-MM-dd");
     string selectedOut = ViewBag.SelectedCheckOut as string ?? DateTime.Today.AddDays(1).ToString("yyyy-MM-dd");
+    DateTime? selectedInDate = DateTime.TryParse(selectedIn, out var parsedIn) ? parsedIn : DateTime.Today;
+    DateTime? selectedOutDate = DateTime.TryParse(selectedOut, out var parsedOut) ? parsedOut : DateTime.Today.AddDays(1);
+    int nights = selectedInDate.HasValue && selectedOutDate.HasValue && selectedOutDate.Value > selectedInDate.Value ? (selectedOutDate.Value - selectedInDate.Value).Days : 1;
 }
 
 <style>
@@ -270,7 +273,7 @@
 
         <!-- Sticky Booking Widget -->
         <div class="col-lg-4">
-            <div class="card border-0 shadow-lg rounded-4 sticky-top @(isUnavailable ? "property-detail-unavailable" : "")" id="bookingWidgetCard" style="top: 5rem;">
+            <div class="card border-0 shadow-lg rounded-4 sticky-top @(isUnavailable ? "property-detail-unavailable" : "")" id="bookingWidgetCard" style="top: calc(var(--header-height, 70px) + 1.25rem); z-index: 90;">
                 <div class="card-body p-4">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div>
@@ -293,20 +296,69 @@
                         </div>
                     </div>
 
-                    <!-- Stay Dates Selector -->
-                    <div class="mb-3 p-3 bg-light rounded-3 border">
-                        <label class="form-label fw-bold small text-muted text-uppercase mb-2">
-                            <i class="bi bi-calendar-range text-primary me-1"></i> Your Stay Dates
+                    <!-- Stay Dates Unified Range Selector (Section 6C) -->
+                    <div class="mb-3 position-relative">
+                        <label class="form-label fw-bold small text-muted text-uppercase mb-2 d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-calendar-range text-primary me-1"></i> Your Stay Dates</span>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill small" id="nightsCountBadge">
+                                @(nights > 0 ? $"{nights} {(nights == 1 ? "night" : "nights")}" : "Select dates")
+                            </span>
                         </label>
-                        <div class="row g-2">
-                            <div class="col-6">
-                                <label class="small text-muted mb-1" for="widgetCheckIn">Check-In</label>
-                                <input type="date" id="widgetCheckIn" class="form-control form-control-sm" value="@selectedIn" min="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                        <div class="p-2.5 px-3 bg-light border rounded-3 d-flex align-items-center justify-content-between cursor-pointer" id="detailsDateRangeTrigger" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false" title="Click to choose stay dates">
+                            <div class="d-flex align-items-center gap-2 overflow-hidden">
+                                <i class="bi bi-calendar3 text-primary"></i>
+                                <span class="fw-semibold text-dark small text-truncate" id="detailsDateRangeText">
+                                    @if (selectedInDate.HasValue && selectedOutDate.HasValue)
+                                    {
+                                        @($"{selectedInDate.Value:dd MMM} – {selectedOutDate.Value:dd MMM yyyy}")
+                                    }
+                                    else
+                                    {
+                                        <span>Choose Check-in &amp; Check-out</span>
+                                    }
+                                </span>
                             </div>
-                            <div class="col-6">
-                                <label class="small text-muted mb-1" for="widgetCheckOut">Check-Out</label>
-                                <input type="date" id="widgetCheckOut" class="form-control form-control-sm" value="@selectedOut" min="@DateTime.Today.AddDays(1).ToString("yyyy-MM-dd")" />
+                            <i class="bi bi-chevron-down text-muted small ms-2"></i>
+                        </div>
+                        <input type="hidden" id="widgetCheckIn" value="@selectedIn" />
+                        <input type="hidden" id="widgetCheckOut" value="@selectedOut" />
+
+                        <!-- Compact Popup Range Calendar -->
+                        <div class="catalog-calendar-popover" id="detailsCalendarPopover" style="width: 100%; max-width: 330px; display: none;" role="dialog">
+                            <div class="cal-header-row">
+                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" id="detailsCalPrev" style="width: 30px; height: 30px; padding: 0;">
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                                <span class="fw-bold small text-dark" id="detailsCalMonthTitle"></span>
+                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" id="detailsCalNext" style="width: 30px; height: 30px; padding: 0;">
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
                             </div>
+                            <div class="cal-grid-weekdays">
+                                <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+                            </div>
+                            <div class="cal-grid-days" id="detailsCalDaysGrid"></div>
+                            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                                <button type="button" class="btn btn-link btn-sm text-secondary p-0 text-decoration-none fw-semibold" id="detailsCalClear">Clear</button>
+                                <button type="button" class="btn btn-primary btn-sm rounded-pill px-3 fw-bold shadow-xs" id="detailsCalApply">Apply</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Price Breakdown (No Security Deposit) -->
+                    <div class="p-3 bg-light rounded-3 border mb-3" id="livePriceBreakdown">
+                        <div class="d-flex justify-content-between mb-1 small">
+                            <span class="text-muted">₹@Model.PricePerNight.ToString("N0") × <span id="calcNightsLabel">@(Math.Max(1, nights))</span> nights</span>
+                            <strong class="text-dark" id="calcStaySubtotal">₹@((Model.PricePerNight * Math.Max(1, nights)).ToString("N0"))</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-1 small text-muted">
+                            <span>Taxes &amp; Platform Fee</span>
+                            <span>Included</span>
+                        </div>
+                        <hr class="my-2" />
+                        <div class="d-flex justify-content-between align-items-baseline">
+                            <span class="fw-bold text-dark small">Total (INR)</span>
+                            <h4 class="fw-bold text-success mb-0" id="calcTotalAmount">₹@((Model.PricePerNight * Math.Max(1, nights)).ToString("N0"))</h4>
                         </div>
                     </div>
 
@@ -341,13 +393,7 @@
                         </div>
                     </div>
 
-                    @if (Model.SecurityDepositAmount > 0)
-                    {
-                        <div class="p-2 bg-light border rounded-3 mb-3 small d-flex align-items-center justify-content-between">
-                            <span class="text-secondary"><i class="bi bi-shield-lock text-success me-1"></i>Security Deposit Hold</span>
-                            <strong class="text-dark">₹@Model.SecurityDepositAmount.ToString("N0")</strong>
-                        </div>
-                    }
+
 
                     <div class="alert alert-light border small text-muted mb-3">
                         <i class="bi bi-info-circle text-primary me-1"></i> Flexible booking options available: <strong>Full Day, Half Day</strong> (Morning / Evening slot), or <strong>Hourly</strong> bookings!
@@ -547,6 +593,7 @@
             });
         }
 
+        window.fetchDetailsAvailability = async function(inDate, outDate) {
         async function fetchAvailability(inDate, outDate) {
             if (!inDate || !outDate || outDate <= inDate) return;
 
@@ -610,5 +657,193 @@
         bindSuggestionChips();
         updateCheckoutLinks(checkInInput.value, checkOutInput.value);
     })();
+
+    // ─────────────────────────────────────────────────────────────
+    // Unified Date Range Picker Script for Details Page
+    // ─────────────────────────────────────────────────────────────
+    (function () {
+        const trigger = document.getElementById('detailsDateRangeTrigger');
+        const popover = document.getElementById('detailsCalendarPopover');
+        const textSpan = document.getElementById('detailsDateRangeText');
+        const hiddenIn = document.getElementById('widgetCheckIn');
+        const hiddenOut = document.getElementById('widgetCheckOut');
+        const monthTitle = document.getElementById('detailsCalMonthTitle');
+        const daysGrid = document.getElementById('detailsCalDaysGrid');
+        const prevBtn = document.getElementById('detailsCalPrev');
+        const nextBtn = document.getElementById('detailsCalNext');
+        const clearBtn = document.getElementById('detailsCalClear');
+        const applyBtn = document.getElementById('detailsCalApply');
+        const nightsBadge = document.getElementById('nightsCountBadge');
+        const calcNightsLabel = document.getElementById('calcNightsLabel');
+        const calcStaySubtotal = document.getElementById('calcStaySubtotal');
+        const calcTotalAmount = document.getElementById('calcTotalAmount');
+        const pricePerNight = @Model.PricePerNight;
+
+        if (!trigger || !popover) return;
+
+        let viewDate = new Date();
+        let selIn = hiddenIn.value ? new Date(hiddenIn.value + 'T00:00:00') : null;
+        let selOut = hiddenOut.value ? new Date(hiddenOut.value + 'T00:00:00') : null;
+
+        if (selIn && !isNaN(selIn.getTime())) {
+            viewDate = new Date(selIn.getFullYear(), selIn.getMonth(), 1);
+        } else {
+            viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        function togglePopover(show) {
+            const isVis = popover.style.display === 'block';
+            const willShow = show !== undefined ? show : !isVis;
+            popover.style.display = willShow ? 'block' : 'none';
+            trigger.setAttribute('aria-expanded', willShow ? 'true' : 'false');
+            if (willShow) renderDetailsCalendar();
+        }
+
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            togglePopover();
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!popover.contains(e.target) && !trigger.contains(e.target)) {
+                togglePopover(false);
+            }
+        });
+
+        prevBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            viewDate.setMonth(viewDate.getMonth() - 1);
+            renderDetailsCalendar();
+        });
+
+        nextBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            viewDate.setMonth(viewDate.getMonth() + 1);
+            renderDetailsCalendar();
+        });
+
+        clearBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selIn = null;
+            selOut = null;
+            renderDetailsCalendar();
+        });
+
+        applyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            commitDetailsDates();
+            togglePopover(false);
+        });
+
+        function commitDetailsDates() {
+            if (selIn && selOut) {
+                const inStr = formatDateYmd(selIn);
+                const outStr = formatDateYmd(selOut);
+                hiddenIn.value = inStr;
+                hiddenOut.value = outStr;
+                textSpan.textContent = formatDateDisplay(selIn) + ' – ' + formatDateDisplay(selOut);
+
+                const diffDays = Math.max(1, Math.round((selOut - selIn) / (1000 * 60 * 60 * 24)));
+                if (nightsBadge) nightsBadge.textContent = diffDays + (diffDays === 1 ? ' night' : ' nights');
+                if (calcNightsLabel) calcNightsLabel.textContent = diffDays;
+                const total = pricePerNight * diffDays;
+                if (calcStaySubtotal) calcStaySubtotal.textContent = '₹' + total.toLocaleString('en-IN');
+                if (calcTotalAmount) calcTotalAmount.textContent = '₹' + total.toLocaleString('en-IN');
+
+                // Trigger existing availability fetch
+                if (window.fetchDetailsAvailability) {
+                    window.fetchDetailsAvailability(inStr, outStr);
+                }
+            } else if (selIn) {
+                hiddenIn.value = formatDateYmd(selIn);
+                hiddenOut.value = '';
+                textSpan.textContent = formatDateDisplay(selIn) + ' · Check-out not selected';
+            }
+        }
+
+        function renderDetailsCalendar() {
+            const y = viewDate.getFullYear();
+            const m = viewDate.getMonth();
+            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            monthTitle.textContent = monthNames[m] + ' ' + y;
+
+            const isCurrentMonth = y === today.getFullYear() && m === today.getMonth();
+            prevBtn.disabled = isCurrentMonth;
+            prevBtn.style.opacity = isCurrentMonth ? '0.35' : '1';
+
+            daysGrid.innerHTML = '';
+
+            const firstDayIndex = new Date(y, m, 1).getDay();
+            const daysInMonth = new Date(y, m + 1, 0).getDate();
+
+            for (let i = 0; i < firstDayIndex; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = 'cal-cell cal-disabled';
+                daysGrid.appendChild(emptyCell);
+            }
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const cell = document.createElement('div');
+                cell.className = 'cal-cell';
+                cell.textContent = d;
+
+                const cellDate = new Date(y, m, d);
+                cellDate.setHours(0, 0, 0, 0);
+
+                if (cellDate < today) {
+                    cell.classList.add('cal-disabled');
+                } else {
+                    if (selIn && isSameDay(cellDate, selIn)) {
+                        cell.classList.add('cal-selected-in');
+                    }
+                    if (selOut && isSameDay(cellDate, selOut)) {
+                        cell.classList.add('cal-selected-out');
+                    }
+                    if (selIn && selOut && cellDate > selIn && cellDate < selOut) {
+                        cell.classList.add('cal-in-range');
+                    }
+
+                    cell.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (!selIn || (selIn && selOut)) {
+                            selIn = cellDate;
+                            selOut = null;
+                        } else if (selIn && !selOut) {
+                            if (cellDate > selIn) {
+                                selOut = cellDate;
+                            } else {
+                                selIn = cellDate;
+                                selOut = null;
+                            }
+                        }
+                        renderDetailsCalendar();
+                    });
+                }
+
+                daysGrid.appendChild(cell);
+            }
+        }
+
+        function isSameDay(d1, d2) {
+            return d1.getFullYear() === d2.getFullYear() &&
+                   d1.getMonth() === d2.getMonth() &&
+                   d1.getDate() === d2.getDate();
+        }
+
+        function formatDateYmd(d) {
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${d.getFullYear()}-${mm}-${dd}`;
+        }
+
+        function formatDateDisplay(d) {
+            const shortMonths = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            return `${String(d.getDate()).padStart(2, '0')} ${shortMonths[d.getMonth()]}`;
+        }
+    })();
+
 </script>
 }

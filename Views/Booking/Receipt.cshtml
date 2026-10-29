@@ -77,6 +77,39 @@
 
         <!-- Body Content -->
         <div class="receipt-body">
+        @if (Model.Booking.Status == "Cancelled" && Model.RefundRecord != null)
+        {
+            <div class="alert alert-info border-0 rounded-4 p-3.5 mb-4 shadow-xs">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <h5 class="fw-bold mb-0 text-dark">
+                        <i class="bi bi-arrow-counterclockwise text-primary me-2"></i>Official Refund Settlement Credit Voucher
+                    </h5>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1 fw-bold">
+                        @Model.RefundRecord.Status
+                    </span>
+                </div>
+                <div class="row g-2 small text-muted">
+                    <div class="col-sm-4">
+                        <span>Original Paid:</span>
+                        <strong class="text-dark d-block">₹@Model.RefundRecord.GrossBookingAmount.ToString("N2")</strong>
+                    </div>
+                    <div class="col-sm-4">
+                        <span>Cancellation Fee Deducted:</span>
+                        <strong class="text-danger d-block">- ₹@Model.RefundRecord.CancellationFeeDeducted.ToString("N2")</strong>
+                    </div>
+                    <div class="col-sm-4">
+                        <span>Net Refund Credited:</span>
+                        <strong class="text-success fs-6 d-block">₹@Model.RefundRecord.NetRefundAmount.ToString("N2")</strong>
+                    </div>
+                    <div class="col-12 mt-2 pt-2 border-top border-info border-opacity-25">
+                        <span>Gateway Refund Reference:</span>
+                        <code class="text-dark fw-bold ms-1">@(Model.RefundRecord.GatewayRefundID ?? "ONLINE_TRANSFER_PROCESSED")</code>
+                        <span class="ms-3 text-muted">Settlement Date:</span>
+                        <strong class="text-dark ms-1">@(Model.RefundRecord.ProcessedAt?.ToString("dd MMM yyyy, hh:mm tt") ?? Model.RefundRecord.CreatedAt.ToString("dd MMM yyyy"))</strong>
+                    </div>
+                </div>
+            </div>
+        }
             <!-- 2-Column Overview Cards -->
             <div class="row g-3 mb-4">
                 <!-- Left: Property Details -->

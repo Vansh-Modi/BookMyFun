@@ -5,12 +5,18 @@
     var site = await SettingsService.GetSettingsAsync();
 }
 
-<!-- Contact Hero Banner -->
-<div class="bg-dark text-white py-5 rounded-4 mb-5 text-center shadow-sm" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);">
-    <div class="container py-3">
-        <span class="badge bg-warning text-dark px-3 py-2 fw-bold text-uppercase mb-2">24/7 Dedicated Support</span>
-        <h1 class="display-5 fw-bold mb-3">How Can We Help You Today?</h1>
-        <p class="lead text-light opacity-75 col-md-8 mx-auto">
+<!-- Contact Hero Banner (Consistent with Homepage Pattern) -->
+<div class="hero-section rounded-4 mb-5 text-center shadow-sm">
+    <div class="container py-5 text-white">
+        <div class="mb-3">
+            <span class="hero-pill">
+                <i class="bi bi-headset"></i> 24/7 Dedicated Support
+            </span>
+        </div>
+        <h1 class="hero-title mb-3">
+            How Can We <span class="hero-highlight">Help You</span> Today?
+        </h1>
+        <p class="lead col-md-8 mx-auto text-light opacity-90 mb-0" style="font-size: 1.1rem; line-height: 1.6;">
             Need help selecting the perfect farmhouse or villa? Our customer support executives are here to assist with booking customizations, group packages, and instant reservations.
         </p>
     </div>
@@ -125,34 +131,28 @@
 
         @if (!string.IsNullOrWhiteSpace(site.InstagramUrl) || !string.IsNullOrWhiteSpace(site.FacebookUrl) || !string.IsNullOrWhiteSpace(site.WhatsAppNumber) || !string.IsNullOrWhiteSpace(site.YouTubeUrl))
         {
-            <!-- Social Media Channels Card -->
-            <div class="card border-0 shadow-sm p-4 text-center">
-                <h5 class="fw-bold mb-2">Follow Our Community</h5>
-                <p class="text-muted small mb-3">Explore trending farmhouses, weekend reels &amp; exclusive deals:</p>
-                <div class="d-flex justify-content-center gap-3">
+            <!-- Social Media Channels Card (No button, balanced icons) -->
+            <div class="card border-0 shadow-sm p-4 text-center rounded-4">
+                <h5 class="fw-bold mb-2 text-dark">Follow Our Community</h5>
+                <p class="text-muted small mb-4">Explore trending farmhouses, weekend reels &amp; exclusive deals:</p>
+                <div class="d-flex justify-content-center align-items-center gap-3">
                     @if (!string.IsNullOrWhiteSpace(site.InstagramUrl))
                     {
-                        <a href="@site.InstagramUrl" target="_blank" rel="noopener noreferrer" class="btn btn-outline-danger btn-lg rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;" title="Instagram">
+                        <a href="@site.InstagramUrl" target="_blank" rel="noopener noreferrer" class="social-icon-link text-danger bg-danger-subtle border border-danger-subtle d-inline-flex align-items-center justify-content-center rounded-circle shadow-xs" style="width: 48px; height: 48px; font-size: 1.3rem; transition: transform 0.2s ease;" title="Instagram">
                             <i class="bi bi-instagram"></i>
                         </a>
                     }
                     @if (!string.IsNullOrWhiteSpace(site.FacebookUrl))
                     {
-                        <a href="@site.FacebookUrl" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary btn-lg rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;" title="Facebook">
+                        <a href="@site.FacebookUrl" target="_blank" rel="noopener noreferrer" class="social-icon-link text-primary bg-primary-subtle border border-primary-subtle d-inline-flex align-items-center justify-content-center rounded-circle shadow-xs" style="width: 48px; height: 48px; font-size: 1.3rem; transition: transform 0.2s ease;" title="Facebook">
                             <i class="bi bi-facebook"></i>
                         </a>
                     }
                     @if (!string.IsNullOrWhiteSpace(site.WhatsAppNumber))
                     {
                         var cleanWa = site.WhatsAppNumber.Replace("+", "").Replace(" ", "").Replace("(", "").Replace(")", "").Replace("-", "");
-                        <a href="https://wa.me/@cleanWa" target="_blank" rel="noopener noreferrer" class="btn btn-outline-success btn-lg rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;" title="WhatsApp Channel">
+                        <a href="https://wa.me/@cleanWa" target="_blank" rel="noopener noreferrer" class="social-icon-link text-success bg-success-subtle border border-success-subtle d-inline-flex align-items-center justify-content-center rounded-circle shadow-xs" style="width: 48px; height: 48px; font-size: 1.3rem; transition: transform 0.2s ease;" title="WhatsApp Channel">
                             <i class="bi bi-whatsapp"></i>
-                        </a>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(site.YouTubeUrl))
-                    {
-                        <a href="@site.YouTubeUrl" target="_blank" rel="noopener noreferrer" class="btn btn-outline-danger btn-lg rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;" title="YouTube">
-                            <i class="bi bi-youtube"></i>
                         </a>
                     }
                 </div>

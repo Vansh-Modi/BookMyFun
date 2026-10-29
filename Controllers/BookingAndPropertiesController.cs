@@ -43,24 +43,39 @@ namespace BookMyFun.Controllers
             int? guests, 
             DateTime? checkIn = null,
             DateTime? checkOut = null,
+            string? sortBy = "popular",
+            List<int>? typeIds = null,
+            List<int>? amenityIds = null,
             int page = 1, 
             int pageSize = 12)
         {
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 100);
 
-            var (properties, totalCount) = await _propRepo.SearchPropertiesPagedAsync(location, typeId, occasionId, minPrice, maxPrice, guests, page, pageSize);
+            // If single typeId is provided, merge into typeIds list
+            if (typeId.HasValue && (typeIds == null || !typeIds.Contains(typeId.Value)))
+            {
+                typeIds ??= new List<int>();
+                typeIds.Add(typeId.Value);
+            }
+
+            var (properties, totalCount) = await _propRepo.SearchPropertiesPagedAsync(
+                location, typeId, occasionId, minPrice, maxPrice, guests, page, pageSize, sortBy, typeIds, amenityIds);
 
             ViewBag.PropertyTypes = await _propRepo.GetPropertyTypesAsync();
+            ViewBag.Amenities = await _propRepo.GetAllAmenitiesAsync();
             ViewBag.Occasions = await _propRepo.GetOccasionsAsync();
             ViewBag.SelectedLocation = location;
             ViewBag.SelectedTypeId = typeId;
+            ViewBag.SelectedTypeIds = typeIds ?? new List<int>();
+            ViewBag.SelectedAmenityIds = amenityIds ?? new List<int>();
             ViewBag.SelectedOccasionId = occasionId;
             ViewBag.SelectedMinPrice = minPrice;
             ViewBag.SelectedMaxPrice = maxPrice;
             ViewBag.SelectedGuests = guests;
             ViewBag.SelectedCheckIn = checkIn?.ToString("yyyy-MM-dd");
             ViewBag.SelectedCheckOut = checkOut?.ToString("yyyy-MM-dd");
+            ViewBag.SelectedSort = string.IsNullOrEmpty(sortBy) ? "popular" : sortBy;
             ViewBag.CurrentPage = page;
             ViewBag.PageSize = pageSize;
             ViewBag.TotalCount = totalCount;
@@ -347,7 +362,77 @@ namespace BookMyFun.Controllers
                     string? consent = Request.Form["PolicyConsent"];
                     if (consent != "true")
                     {
-                        ModelState.AddModelError("", "You must agree to the Terms of Service, Privacy Policy, and Refund Policy to proceed with checkout.");
+                        ModelState.AddModelError("PolicyConsent", "You must agree to the Terms of Service, Privacy Policy, and Refund Policy to proceed with checkout.");
+                    }
+
+                    // Guest identity & contact validation
+                    if (string.IsNullOrWhiteSpace(model.GuestFullName) || model.GuestFullName.Trim().Length < 3)
+                    {
+                        ModelState.AddModelError("GuestFullName", "Please enter guest full name (at least 3 characters).");
+                    }
+
+                    var cleanPhone = model.GuestPhone != null ? System.Text.RegularExpressions.Regex.Replace(model.GuestPhone, @"\D", "") : "";
+                    if (string.IsNullOrWhiteSpace(model.GuestPhone) || cleanPhone.Length != 10)
+                    {
+                        ModelState.AddModelError("GuestPhone", "Please enter a valid 10-digit mobile number.");
+                    }
+
+                    // ID Number validation
+                    bool hasFile = model.IdDocumentFile != null && model.IdDocumentFile.Length > 0;
+                    if (!hasFile)
+                    {
+                        var docType = model.DocumentType ?? "Aadhaar";
+                        var rawId = (model.IdDocumentNumber ?? "").Trim();
+
+                        if (string.IsNullOrWhiteSpace(rawId))
+                        {
+                            ModelState.AddModelError("IdDocumentNumber", $"Please provide your {docType} number.");
+                        }
+                        else if (docType == "Aadhaar")
+                        {
+                            var rawDigits = rawId.Replace(" ", "");
+                            model.IdDocumentNumber = rawDigits; // store raw 12 digits
+                            if (!System.Text.RegularExpressions.Regex.IsMatch(rawDigits, @"^\d{12}$"))
+                            {
+                                ModelState.AddModelError("IdDocumentNumber", $"Aadhaar must be 12 digits. You have entered {rawDigits.Length}.");
+                            }
+                        }
+                        else if (docType == "PAN")
+                        {
+                            var panUpper = rawId.ToUpperInvariant();
+                            model.IdDocumentNumber = panUpper;
+                            if (!System.Text.RegularExpressions.Regex.IsMatch(panUpper, @"^[A-Z]{5}[0-9]{4}[A-Z]{1}$"))
+                            {
+                                ModelState.AddModelError("IdDocumentNumber", "PAN must be 10 characters in AAAAA9999A format.");
+                            }
+                        }
+                        else if (docType == "Passport")
+                        {
+                            var passUpper = rawId.ToUpperInvariant();
+                            model.IdDocumentNumber = passUpper;
+                            if (!System.Text.RegularExpressions.Regex.IsMatch(passUpper, @"^[A-Z]{1}[0-9]{7}$"))
+                            {
+                                ModelState.AddModelError("IdDocumentNumber", "Passport must be 1 letter followed by 7 digits (e.g. A1234567).");
+                            }
+                        }
+                        else if (docType == "DrivingLicense")
+                        {
+                            var dlClean = rawId.ToUpperInvariant().Replace(" ", "").Replace("-", "");
+                            model.IdDocumentNumber = dlClean;
+                            if (!System.Text.RegularExpressions.Regex.IsMatch(dlClean, @"^[A-Z]{2}[0-9A-Z]{13,15}$"))
+                            {
+                                ModelState.AddModelError("IdDocumentNumber", "Driving License must start with a 2-letter state code followed by 13 to 15 alphanumeric characters.");
+                            }
+                        }
+                        else if (docType == "VoterID")
+                        {
+                            var voterUpper = rawId.ToUpperInvariant();
+                            model.IdDocumentNumber = voterUpper;
+                            if (!System.Text.RegularExpressions.Regex.IsMatch(voterUpper, @"^[A-Z]{3}[0-9]{7}$"))
+                            {
+                                ModelState.AddModelError("IdDocumentNumber", "Voter ID must be 3 letters followed by 7 digits (e.g. ABC1234567).");
+                            }
+                        }
                     }
                 }
 

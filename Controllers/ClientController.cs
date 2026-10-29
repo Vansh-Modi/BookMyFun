@@ -14,15 +14,18 @@ namespace BookMyFun.Controllers
         private readonly IUserRepository _userRepo;
         private readonly IBookingRepository _bookingRepo;
         private readonly IIdVerificationService _idVerificationService;
+        private readonly IRefundRepository? _refundRepo;
 
         public ClientController(
             IUserRepository userRepo,
             IBookingRepository bookingRepo,
-            IIdVerificationService idVerificationService)
+            IIdVerificationService idVerificationService,
+            IRefundRepository? refundRepo = null)
         {
             _userRepo = userRepo;
             _bookingRepo = bookingRepo;
             _idVerificationService = idVerificationService;
+            _refundRepo = refundRepo;
         }
 
         public async Task<IActionResult> Index()
@@ -32,7 +35,33 @@ namespace BookMyFun.Controllers
             var bookings = await _bookingRepo.GetByClientIdAsync(clientId);
             var verification = await _idVerificationService.GetClientVerificationAsync(clientId, clientId, "Client");
 
+            TimeZoneInfo istZone;
+            try
+            {
+                istZone = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
+            }
+            catch
+            {
+                istZone = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+            }
+            var todayInIst = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, istZone).Date;
+
+            var refundMap = new Dictionary<int, BookingRefund>();
+            if (_refundRepo != null)
+            {
+                foreach (var b in bookings.Where(b => b.Status == "Cancelled"))
+                {
+                    var r = await _refundRepo.GetRefundByBookingIdAsync(b.BookingID);
+                    if (r != null)
+                    {
+                        refundMap[b.BookingID] = r;
+                    }
+                }
+            }
+
             ViewBag.Verification = verification;
+            ViewBag.TodayInIst = todayInIst;
+            ViewBag.RefundMap = refundMap;
 
             var vm = new ClientDashboardViewModel
             {
