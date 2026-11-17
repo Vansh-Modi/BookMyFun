@@ -1,19 +1,88 @@
 using BookMyFun.Data;
 using BookMyFun.Repositories;
 using BookMyFun.Services;
+using BookMyFun.Services.Configuration;
+using BookMyFun.Services.Security;
+using BookMyFun.Services.Checkout;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.ResponseCompression;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Bootstrap Logger for Startup Phase Diagnostics
+using var startupLoggerFactory = LoggerFactory.Create(lb =>
+{
+    lb.AddConfiguration(builder.Configuration.GetSection("Logging"));
+    lb.AddConsole();
+});
+var startupLogger = startupLoggerFactory.CreateLogger("Startup");
+
+// 1. Fail-fast validation for REQUIRED configuration
+string defaultConnectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? string.Empty;
+if (string.IsNullOrWhiteSpace(defaultConnectionString))
+{
+    startupLogger.LogCritical("FATAL: Missing REQUIRED configuration setting 'ConnectionStrings:DefaultConnection'. Application cannot start.");
+    throw new InvalidOperationException("Missing REQUIRED configuration setting 'ConnectionStrings:DefaultConnection'. Application cannot start.");
+}
+
+// 2. Options Pattern Registration
+builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
+builder.Services.Configure<RazorpayOptions>(builder.Configuration.GetSection(RazorpayOptions.SectionName));
+builder.Services.Configure<GoogleAuthOptions>(builder.Configuration.GetSection(GoogleAuthOptions.SectionName));
+builder.Services.Configure<WhatsAppOptions>(builder.Configuration.GetSection(WhatsAppOptions.SectionName));
+builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection(DatabaseOptions.SectionName));
+
+var smtpOptions = builder.Configuration.GetSection(SmtpOptions.SectionName).Get<SmtpOptions>() ?? new SmtpOptions();
+var razorpayOptions = builder.Configuration.GetSection(RazorpayOptions.SectionName).Get<RazorpayOptions>() ?? new RazorpayOptions();
+var googleOptions = builder.Configuration.GetSection(GoogleAuthOptions.SectionName).Get<GoogleAuthOptions>() ?? new GoogleAuthOptions();
+var whatsAppOptions = builder.Configuration.GetSection(WhatsAppOptions.SectionName).Get<WhatsAppOptions>() ?? new WhatsAppOptions();
+var databaseOptions = builder.Configuration.GetSection(DatabaseOptions.SectionName).Get<DatabaseOptions>() ?? new DatabaseOptions();
+
+// Optional Feature Diagnostics
+if (!smtpOptions.IsConfigured)
+{
+    startupLogger.LogWarning("Optional feature 'SMTP Email' is disabled or incomplete. Configure 'Smtp:Host', 'Smtp:Username', and 'Smtp:Password'.");
+}
+if (!razorpayOptions.IsConfigured)
+{
+    startupLogger.LogWarning("Optional feature 'Razorpay Payments' is disabled or incomplete. Configure 'Razorpay:KeyId' and 'Razorpay:KeySecret'.");
+}
+if (!whatsAppOptions.IsConfigured)
+{
+    startupLogger.LogWarning("Optional feature 'WhatsApp Cloud API' is disabled or incomplete. Configure 'WhatsApp:ApiKey' and 'WhatsApp:PhoneNumberId'.");
+}
+
+// 3. ASP.NET Core Data Protection (Keys persisted to App_Data/DataProtectionKeys)
+var appDataParent = Path.Combine(builder.Environment.ContentRootPath, "App_Data");
+EnsureDirectoryWritable(appDataParent, startupLogger, "App_Data directory failed write verification.");
+var appDataDir = Path.Combine(appDataParent, "DataProtectionKeys");
+EnsureDirectoryWritable(appDataDir, startupLogger, "DataProtectionKeys directory in App_Data failed write verification.");
+
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(appDataDir))
+    .SetApplicationName("BookMyFun");
+
+// 4. Controller & View Pipeline with Global Antiforgery Validation
 builder.Services.AddControllersWithViews(options =>
 {
     options.Filters.Add<BookMyFun.Services.Filters.GlobalExceptionFilter>();
+    options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute());
 });
 
-// Register HTTP Client Factory
+// 5. Response Compression (Brotli & Gzip for HTML, CSS, JS, JSON, SVG)
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[] { "image/svg+xml" });
+});
+
+// Register HTTP Client Factory with resilience timeouts
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient("Razorpay", client =>
 {
@@ -24,7 +93,7 @@ builder.Services.AddHttpClient("WhatsApp", client =>
     client.Timeout = TimeSpan.FromSeconds(15);
 });
 
-// Register Data Access Layer (Raw ADO.NET)
+// Data Access Layer (Raw ADO.NET)
 builder.Services.AddSingleton<DBHelper>();
 builder.Services.AddTransient<DatabaseInitializer>();
 
@@ -47,7 +116,11 @@ builder.Services.AddScoped<IEventPackageRepository, EventPackageRepository>();
 builder.Services.AddScoped<IWebhookEventRepository, WebhookEventRepository>();
 builder.Services.AddScoped<ILegalDocumentRepository, LegalDocumentRepository>();
 
-// Services
+// Core Security & Domain Services
+builder.Services.AddSingleton<IPasswordHasherService, PasswordHasherService>();
+builder.Services.AddSingleton<ILoginLockoutService, LoginLockoutService>();
+builder.Services.AddSingleton<IHtmlSanitizerService, HtmlSanitizerService>();
+builder.Services.AddScoped<ICustomErrorHandlerService, CustomErrorHandlerService>();
 builder.Services.AddScoped<IBookingPricingService, BookingPricingService>();
 builder.Services.AddScoped<ICommissionService, CommissionService>();
 builder.Services.AddScoped<IPaymentGatewayService, RazorpayPaymentService>();
@@ -65,14 +138,37 @@ builder.Services.AddScoped<IIdVerificationService, IdVerificationService>();
 builder.Services.AddScoped<ILegalDocumentService, LegalDocumentService>();
 builder.Services.AddScoped<IAvailabilitySuggestionService, AvailabilitySuggestionService>();
 builder.Services.AddScoped<ICalendarRangeService, CalendarRangeService>();
+builder.Services.AddScoped<IContactPrivacyScanner, ContactPrivacyScanner>();
+builder.Services.AddScoped<IWhatsAppProvider, MetaWhatsAppProvider>();
+builder.Services.AddScoped<INotificationFanoutService, NotificationFanoutService>();
+builder.Services.AddScoped<BookMyFun.Repositories.IUserNotificationRepository, BookMyFun.Repositories.UserNotificationRepository>();
+builder.Services.AddScoped<BookMyFun.Services.Notifications.INotificationDispatcherService, BookMyFun.Services.Notifications.NotificationDispatcherService>();
+builder.Services.AddHostedService<BookMyFun.Services.Notifications.CheckInReminderBackgroundService>();
+builder.Services.AddHostedService<BookMyFun.Services.Notifications.SubscriptionLifecycleBackgroundService>();
+builder.Services.AddScoped<ICheckoutEventManagerService, CheckoutEventManagerService>();
+builder.Services.AddScoped<IStayCelebrationEligibilityService, StayCelebrationEligibilityService>();
 builder.Services.AddMemoryCache();
 
+builder.Services.Configure<CookiePolicyOptions>(options =>
+{
+    options.MinimumSameSitePolicy = SameSiteMode.Lax;
+    options.Secure = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+});
+
+// Antiforgery Configuration
 builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "RequestVerificationToken";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
 });
 
-// Cookie & External Authentication (Google, etc.)
+// Authentication Configuration (Cookie & Google OAuth)
 var authBuilder = builder.Services.AddAuthentication(options =>
 {
     options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
@@ -88,37 +184,81 @@ var authBuilder = builder.Services.AddAuthentication(options =>
     options.SlidingExpiration = true;
     options.Cookie.HttpOnly = true;
     options.Cookie.SameSite = SameSiteMode.Lax;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+
+    options.Events = new CookieAuthenticationEvents
+    {
+        OnValidatePrincipal = async context =>
+        {
+            // Enforce maximum absolute ticket lifetime of 24 hours from issuance
+            if (context.Properties.IssuedUtc.HasValue)
+            {
+                var timeElapsed = DateTimeOffset.UtcNow - context.Properties.IssuedUtc.Value;
+                if (timeElapsed > TimeSpan.FromHours(24))
+                {
+                    context.RejectPrincipal();
+                    await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                }
+            }
+        }
+    };
 });
 
-// Conditionally configure Google OAuth if flag is enabled and client credentials are provided via environment variables only
-bool isGoogleLoginEnabled = builder.Configuration.GetValue<bool>("GoogleLogin:Enabled", false);
-var googleClientId = Environment.GetEnvironmentVariable("Google__ClientId") 
-    ?? Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID");
-var googleClientSecret = Environment.GetEnvironmentVariable("Google__ClientSecret") 
-    ?? Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET");
+// Policy-Based Authorization
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+    options.AddPolicy("RequireAdmin", policy => policy.RequireRole("Admin"));
+    options.AddPolicy("RequireEmployee", policy => policy.RequireRole("Employee", "Admin"));
+    options.AddPolicy("RequireOwner", policy => policy.RequireRole("Owner", "Admin"));
+    options.AddPolicy("RequireEventManager", policy => policy.RequireRole("EventManager", "Admin", "Employee"));
+    options.AddPolicy("RequireClient", policy => policy.RequireRole("Client", "Admin"));
+});
 
-bool isGoogleConfigured = isGoogleLoginEnabled
-    && !string.IsNullOrWhiteSpace(googleClientId)
-    && !string.IsNullOrWhiteSpace(googleClientSecret);
+// Check environment variables for Google OAuth fallback
+if (string.IsNullOrWhiteSpace(googleOptions.ClientId))
+{
+    googleOptions.ClientId = Environment.GetEnvironmentVariable("Google__ClientId")
+        ?? Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID") ?? string.Empty;
+}
+if (string.IsNullOrWhiteSpace(googleOptions.ClientSecret))
+{
+    googleOptions.ClientSecret = Environment.GetEnvironmentVariable("Google__ClientSecret")
+        ?? Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET") ?? string.Empty;
+}
 
-if (isGoogleConfigured)
+if (googleOptions.IsConfigured)
 {
     authBuilder.AddGoogle(options =>
     {
-        options.ClientId = googleClientId!;
-        options.ClientSecret = googleClientSecret!;
+        options.ClientId = googleOptions.ClientId;
+        options.ClientSecret = googleOptions.ClientSecret;
         options.CallbackPath = "/signin-google";
         options.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
         options.SaveTokens = true;
     });
 }
+else
+{
+    startupLogger.LogWarning("Optional feature 'Google Sign-in' is disabled. Set 'Authentication:Google:ClientId' and 'Authentication:Google:ClientSecret'.");
+}
 
 var app = builder.Build();
 
-// Run Database Initializer & Seeder
-using (var scope = app.Services.CreateScope())
+// Ensure mandatory runtime folders exist and are writable
+var logsDirectory = Path.Combine(app.Environment.ContentRootPath, "logs");
+var uploadsDirectory = Path.Combine(app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"), "uploads");
+EnsureDirectoryWritable(logsDirectory, app.Logger);
+EnsureDirectoryWritable(uploadsDirectory, app.Logger);
+
+// Database Initialization & Migration Control
+// Never run migrations in Production unless Database:AutoMigrate is explicitly true. Default false.
+bool shouldAutoMigrate = app.Environment.IsDevelopment() || databaseOptions.AutoMigrate;
+if (shouldAutoMigrate)
 {
+    using var scope = app.Services.CreateScope();
     var initializer = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
     await initializer.InitializeAsync();
 
@@ -127,37 +267,65 @@ using (var scope = app.Services.CreateScope())
     {
         await DatabaseSeeder.SeedInitialDataAsync(dbHelper);
     }
-    catch { }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Initial database seeding encountered a recoverable error.");
+    }
 }
+else
+{
+    app.Logger.LogInformation("Database auto-migration skipped (Production environment and Database:AutoMigrate is false). Schema changes are managed via /db scripts.");
+}
+
+// Health Endpoint (returns plain text OK without querying database)
+app.MapGet("/health", () => Results.Text("OK", "text/plain"));
 
 // Security & Rate Limiting Middlewares
 app.UseMiddleware<BookMyFun.Services.Security.SecurityHeadersMiddleware>();
 app.UseMiddleware<BookMyFun.Services.Security.RateLimitingMiddleware>();
 
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
+// Response Compression Middleware
+app.UseResponseCompression();
+
+// Exception Handling & Status Codes
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+else
 {
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
     app.UseHttpsRedirection();
 }
 
-// Serve static files (including runtime-uploaded property photos, packages, and avatars)
+app.UseStatusCodePagesWithReExecute("/Home/Error/{0}");
+
+// Serve static files with modern image formats support & immutable caching
 var contentTypeProvider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
 contentTypeProvider.Mappings[".webp"] = "image/webp";
 contentTypeProvider.Mappings[".avif"] = "image/avif";
 
 app.UseStaticFiles(new StaticFileOptions
 {
-    ContentTypeProvider = contentTypeProvider
+    ContentTypeProvider = contentTypeProvider,
+    OnPrepareResponse = ctx =>
+    {
+        // 1 year cache for static assets (images, css, js, fonts)
+        const int durationInSeconds = 60 * 60 * 24 * 365;
+        ctx.Context.Response.Headers["Cache-Control"] = $"public,max-age={durationInSeconds},immutable";
+    }
 });
 
 app.UseRouting();
 
+app.UseCookiePolicy();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapStaticAssets();
+
+app.MapControllers();
 
 app.MapControllerRoute(
     name: "default",
@@ -165,3 +333,24 @@ app.MapControllerRoute(
     .WithStaticAssets();
 
 app.Run();
+
+// Local Helper: Verifies that a directory exists and has write permissions
+static void EnsureDirectoryWritable(string directoryPath, ILogger logger, string? failureContext = null)
+{
+    try
+    {
+        if (!Directory.Exists(directoryPath))
+        {
+            Directory.CreateDirectory(directoryPath);
+            logger.LogInformation("Created startup directory: {Directory}", directoryPath);
+        }
+
+        string testFilePath = Path.Combine(directoryPath, $".write_test_{Guid.NewGuid():N}.tmp");
+        File.WriteAllText(testFilePath, "write_test");
+        File.Delete(testFilePath);
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "CRITICAL: {Context} Directory '{Directory}' failed write permission check.", failureContext ?? "Directory write check failed.", directoryPath);
+    }
+}

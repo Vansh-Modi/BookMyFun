@@ -144,14 +144,14 @@ namespace BookMyFun.Tests
             var (publicUrlWebp, _) = await service.SaveMediaFileAsync(webpFile, "photo");
             Assert.EndsWith(".webp", publicUrlWebp);
 
-            // 2. Valid AVIF file header (ftypavif)
-            byte[] avifBytes = new byte[32];
-            avifBytes[4] = 0x66; avifBytes[5] = 0x74; avifBytes[6] = 0x79; avifBytes[7] = 0x70; // ftyp
-            avifBytes[8] = 0x61; avifBytes[9] = 0x76; avifBytes[10] = 0x69; avifBytes[11] = 0x66; // avif
+            // 2. Valid PNG file header (Phase 1: accept only jpg, png, webp for images)
+            byte[] pngBytes = new byte[32];
+            pngBytes[0] = 0x89; pngBytes[1] = 0x50; pngBytes[2] = 0x4E; pngBytes[3] = 0x47; // PNG
+            pngBytes[4] = 0x0D; pngBytes[5] = 0x0A; pngBytes[6] = 0x1A; pngBytes[7] = 0x0A;
 
-            var avifFile = CreateMockFormFile("property.avif", "image/avif", avifBytes);
-            var (publicUrlAvif, _) = await service.SaveMediaFileAsync(avifFile, "photo");
-            Assert.EndsWith(".avif", publicUrlAvif);
+            var pngFile = CreateMockFormFile("property.png", "image/png", pngBytes);
+            var (publicUrlPng, _) = await service.SaveMediaFileAsync(pngFile, "image");
+            Assert.EndsWith(".png", publicUrlPng);
 
             // Clean up test temp files
             try { Directory.Delete(tempDir, true); } catch { }
@@ -239,8 +239,8 @@ namespace BookMyFun.Tests
             var webpFile = CreateMockFormFile("property.webp", "image/webp", webpBytes);
             var (publicUrl, _) = await service.SaveMediaFileAsync(webpFile, "photo");
 
-            Assert.StartsWith("/uploads/photos/", publicUrl);
-            string expectedPath = Path.Combine(tempDir, "wwwroot", "uploads", "photos", Path.GetFileName(publicUrl));
+            Assert.StartsWith("/uploads/media/", publicUrl);
+            string expectedPath = Path.Combine(tempDir, "wwwroot", "uploads", "media", Path.GetFileName(publicUrl));
             Assert.True(File.Exists(expectedPath), $"File should be saved to {expectedPath}");
 
             try { Directory.Delete(tempDir, true); } catch { }

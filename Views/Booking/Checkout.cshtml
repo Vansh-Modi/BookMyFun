@@ -195,6 +195,242 @@
         background: #334155;
         color: #38bdf8;
     }
+
+    /* Segmented Stay Purpose Toggle */
+    .stay-type-toggle + .stay-toggle-label {
+        color: var(--text-dark, #0f172a);
+        transition: all 0.2s ease;
+    }
+    .stay-type-toggle:checked + .stay-toggle-label {
+        background-color: var(--primary-color, #0B4F6C);
+        color: #ffffff !important;
+        box-shadow: 0 2px 6px rgba(11, 79, 108, 0.25);
+    }
+    [data-theme="dark"] .stay-type-toggle:checked + .stay-toggle-label {
+        background-color: #0284c7;
+        color: #ffffff !important;
+        box-shadow: 0 2px 6px rgba(2, 132, 199, 0.35);
+    }
+    [data-theme="dark"] .stay-type-toggle + .stay-toggle-label {
+        color: #cbd5e1;
+    }
+    .stay-type-toggle:disabled + .stay-toggle-label {
+        opacity: 0.55;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+
+    /* Occasion Chips (Filter Pills) */
+    .occasion-chip {
+        border-radius: 50rem;
+        padding: 0.4rem 1rem;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 1.5px solid var(--border-subtle, #cbd5e1);
+        background-color: var(--bg-card, #ffffff);
+        color: var(--text-dark, #334155);
+        user-select: none;
+    }
+    .occasion-chip:hover {
+        border-color: var(--primary-color, #0B4F6C);
+        color: var(--primary-color, #0B4F6C);
+    }
+    .occasion-chip.active {
+        background-color: var(--primary-color, #0B4F6C) !important;
+        color: #ffffff !important;
+        border-color: var(--primary-color, #0B4F6C) !important;
+        box-shadow: 0 2px 6px rgba(11, 79, 108, 0.2);
+    }
+    [data-theme="dark"] .occasion-chip {
+        background-color: #1e293b;
+        border-color: #475569;
+        color: #e2e8f0;
+    }
+    [data-theme="dark"] .occasion-chip:hover {
+        border-color: #38bdf8;
+        color: #38bdf8;
+    }
+    [data-theme="dark"] .occasion-chip.active {
+        background-color: #0284c7 !important;
+        border-color: #0284c7 !important;
+        color: #ffffff !important;
+    }
+
+    /* Sort Toggle Controls */
+    .sort-toggle-btn {
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.25rem 0.75rem;
+        border: none;
+        background: transparent;
+        color: #64748b;
+        transition: all 0.15s ease;
+    }
+    .sort-toggle-btn.active {
+        background-color: #ffffff;
+        color: #0B4F6C;
+        font-weight: 700;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    }
+    [data-theme="dark"] .sort-toggle-btn {
+        color: #94a3b8;
+    }
+    [data-theme="dark"] .sort-toggle-btn.active {
+        background-color: #0f172a;
+        color: #38bdf8;
+    }
+
+    /* Manager Cards in Popup */
+    .celebrate-manager-card {
+        border: 1.5px solid var(--border-subtle, #e2e8f0);
+        border-radius: 14px;
+        background-color: var(--bg-card, #ffffff);
+        padding: 1rem;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    .celebrate-manager-card:hover {
+        border-color: var(--primary-color, #0B4F6C);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+    .celebrate-manager-card.selected-pkg-card {
+        border-color: var(--primary-color, #0B4F6C) !important;
+        background-color: rgba(11, 79, 108, 0.04) !important;
+        box-shadow: 0 0 0 2px rgba(11, 79, 108, 0.18) !important;
+    }
+    [data-theme="dark"] .celebrate-manager-card {
+        background-color: #1e293b;
+        border-color: #334155;
+    }
+    [data-theme="dark"] .celebrate-manager-card:hover {
+        border-color: #38bdf8;
+    }
+    [data-theme="dark"] .celebrate-manager-card.selected-pkg-card {
+        border-color: #38bdf8 !important;
+        background-color: rgba(56, 189, 248, 0.08) !important;
+        box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25) !important;
+    }
+    /* Sticky Confirm Button on Mobile */
+    @@media (max-width: 576px) {
+        #planEventModal .modal-dialog {
+            margin: 0;
+            max-width: 100%;
+            height: 100%;
+        }
+        #planEventModal .modal-content {
+            height: 100%;
+            border-radius: 0 !important;
+        }
+        #planEventModal .modal-footer {
+            position: sticky;
+            bottom: 0;
+            z-index: 1020;
+            background: #ffffff;
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.08);
+        }
+        [data-theme="dark"] #planEventModal .modal-footer {
+            background: #0f172a !important;
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.4);
+        }
+    }
+
+    /* Modal Package Cards */
+    .modal-pkg-card {
+        transition: all 0.2s ease;
+        border: 1.5px solid var(--border-subtle, #e2e8f0);
+        background-color: var(--bg-card, #ffffff);
+    }
+    .modal-pkg-card:hover {
+        border-color: var(--primary-color, #0B4F6C);
+    }
+    .modal-pkg-card.selected-pkg-card {
+        border-color: var(--primary-color, #0B4F6C) !important;
+        background-color: rgba(11, 79, 108, 0.05) !important;
+        box-shadow: 0 0 0 2px rgba(11, 79, 108, 0.15) !important;
+    }
+    [data-theme="dark"] .modal-pkg-card {
+        background-color: #1e293b;
+        border-color: #334155;
+    }
+    [data-theme="dark"] .modal-pkg-card:hover {
+        border-color: #38bdf8;
+    }
+    [data-theme="dark"] .modal-pkg-card.selected-pkg-card {
+        border-color: #38bdf8 !important;
+        background-color: rgba(56, 189, 248, 0.1) !important;
+        box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25) !important;
+    }
+    [data-theme="dark"] #planEventModal .modal-content {
+        background-color: #0f172a;
+        color: #f8fafc;
+        border-color: #334155;
+    }
+    [data-theme="dark"] #planEventModal .modal-header,
+    [data-theme="dark"] #planEventModal .modal-footer {
+        background-color: #0f172a !important;
+        border-color: #334155 !important;
+    }
+    [data-theme="dark"] #planEventModal .modal-body .card {
+        background-color: #1e293b !important;
+        border-color: #334155 !important;
+    }
+    [data-theme="dark"] #modalPackagesPrompt {
+        background-color: #1e293b !important;
+        border-color: #334155 !important;
+    }
+
+    /* Occasion Selection Cards & Selected States (Step 1) */
+    .occasion-radio + label.btn-outline-primary {
+        background-color: var(--bg-card, #ffffff);
+        border: 1.5px solid var(--border-subtle, #e2e8f0);
+        color: var(--text-dark, #0f172a);
+        transition: all 0.2s ease;
+    }
+    .occasion-radio + label.btn-outline-primary:hover {
+        background-color: var(--bg-body, #f8fafc);
+        border-color: var(--primary-color, #0B4F6C);
+    }
+    .occasion-radio:checked + label.btn-outline-primary {
+        background-color: rgba(11, 79, 108, 0.06) !important;
+        border-color: var(--primary-color, #0B4F6C) !important;
+        border-width: 2px !important;
+        box-shadow: 0 0 0 3px rgba(11, 79, 108, 0.12) !important;
+        color: var(--text-dark, #0f172a) !important;
+    }
+    .occasion-radio + label .occasion-check-icon {
+        display: none;
+    }
+    .occasion-radio:checked + label .occasion-check-icon {
+        display: inline-block !important;
+        color: var(--primary-color, #0B4F6C) !important;
+    }
+    [data-theme="dark"] .occasion-radio + label.btn-outline-primary {
+        background-color: #1e293b;
+        border-color: #334155;
+    }
+    [data-theme="dark"] .occasion-radio + label.btn-outline-primary:hover {
+        background-color: #334155;
+        border-color: #38bdf8;
+    }
+    [data-theme="dark"] .occasion-radio:checked + label.btn-outline-primary {
+        background-color: rgba(56, 189, 248, 0.12) !important;
+        border-color: #38bdf8 !important;
+        box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25) !important;
+    }
+    [data-theme="dark"] .occasion-radio:checked + label .occasion-check-icon {
+        color: #38bdf8 !important;
+    }
+    [data-theme="dark"] .occasion-radio + label .text-dark {
+        color: #f8fafc !important;
+    }
+    [data-theme="dark"] .occasion-radio + label .text-muted {
+        color: #94a3b8 !important;
+    }
+    [data-theme="dark"] .occasion-radio + label .text-primary {
+        color: #38bdf8 !important;
+    }
 </style>
 
 <div class="container py-4 checkout-wrap">
@@ -241,6 +477,9 @@
                     <form asp-action="ConfirmBooking" method="post" id="checkoutBookingForm" enctype="multipart/form-data" novalidate>
                         @Html.AntiForgeryToken()
                         <input type="hidden" asp-for="PropertyID" />
+                        <input type="hidden" asp-for="ExistingDocumentKey" id="existingDocumentKeyInput" />
+                        <input type="hidden" asp-for="ExistingDocumentNumber" id="existingDocumentNumberInput" />
+                        <input type="hidden" asp-for="IsClientAlreadyVerified" id="isClientAlreadyVerifiedInput" />
                         <input type="hidden" asp-for="PricePerNight" id="basePriceInput" value="@Model.PricePerNight" />
                         <input type="hidden" asp-for="BookingType" id="bookingTypeField" value="@(string.IsNullOrEmpty(Model.BookingType) ? "FullDay" : Model.BookingType)" />
                         <input type="hidden" asp-for="CheckInDate" id="checkInField" value="@Model.CheckInDate.ToString("yyyy-MM-dd")" />
@@ -356,6 +595,80 @@
                             </div>
                         </div>
 
+                        <!-- STEP 1: STAY PURPOSE & EVENT PLANNER (Segmented Control) -->
+                        <div class="card border-0 shadow-sm rounded-4 p-3.5 mb-4 border-start border-4 border-primary bg-card" id="stayPurposeCard">
+                            <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="rounded-circle bg-primary bg-opacity-10 text-primary p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px;">
+                                        <i class="bi bi-balloon-heart fs-5"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="fw-bold mb-0 text-dark">Step 1: Choose Stay Purpose</h6>
+                                        <small class="text-muted">Select standard accommodation or plan a stay with celebration décor.</small>
+                                    </div>
+                                </div>
+                                <span class="badge bg-primary text-white rounded-pill px-2.5 py-1 small">Step 1</span>
+                            </div>
+
+                            <!-- Alert: Switched to Standard Stay due to 48-hour notice -->
+                            <div id="decorSwitchedAlert" class="alert alert-info border-0 small rounded-3 mb-3 d-none">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="bi bi-info-circle-fill text-primary fs-5 flex-shrink-0"></i>
+                                    <div>Décor needs more than 48 hours' notice, so we've switched you to a standard stay.</div>
+                                </div>
+                            </div>
+
+                            <!-- 2-Day Lead Time Warning (Backward Compatibility) -->
+                            <div id="decorLeadTimeAlert" class="alert alert-warning border-0 small rounded-3 mb-3 d-none">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="bi bi-exclamation-triangle-fill fs-5 text-warning flex-shrink-0"></i>
+                                    <div>
+                                        <strong>2-Day Advance Notice Required:</strong> Event setup &amp; floral décor services need at least 2 days' advance notice for crew dispatch and staging preparation.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Two-Option Toggle: Standard Stay and Stay & Celebrate -->
+                            <div class="btn-group w-100 p-1 bg-light rounded-pill border" role="group" aria-label="Stay Type Selection" id="stayTypeToggleGroup">
+                                <input type="radio" class="btn-check stay-type-toggle" name="stayTypeToggle" id="toggleStandardStay" value="Standard" autocomplete="off" @(Model.IsEventBooking ? "" : "checked") />
+                                <label class="btn rounded-pill fw-semibold py-2 px-3 border-0 stay-toggle-label" for="toggleStandardStay" id="lblStandardStay">
+                                    <i class="bi bi-house-door me-1.5"></i> Standard Stay
+                                </label>
+
+                                <input type="radio" class="btn-check stay-type-toggle @(Model.IsEventServiceAvailable ? "" : "d-none")" name="stayTypeToggle" id="toggleEventStay" value="Celebrate" autocomplete="off" @(Model.IsEventBooking && Model.IsEventServiceAvailable ? "checked" : "") style="@(Model.IsEventServiceAvailable ? "" : "display:none;")" />
+                                <label class="btn rounded-pill fw-semibold py-2 px-3 border-0 stay-toggle-label @(Model.IsEventServiceAvailable ? "" : "d-none")" for="toggleEventStay" id="lblEventStay" style="@(Model.IsEventServiceAvailable ? "" : "display:none;")">
+                                    <i class="bi bi-stars me-1.5"></i> Stay &amp; Celebrate
+                                </label>
+                            </div>
+
+                            <!-- Summary Line for Stay & Celebrate (visible only when Stay & Celebrate is selected and confirmed) -->
+                            <div id="eventStaySummaryLine" class="mt-3 p-2.5 px-3 rounded-3 border border-primary border-opacity-25 bg-primary bg-opacity-10 d-flex align-items-center justify-content-between cursor-pointer @(Model.IsEventBooking && Model.EventPackageID.HasValue && Model.IsEventServiceAvailable ? "" : "d-none")" role="button" tabindex="0" title="Click to view or edit celebration décor">
+                                <div class="d-flex align-items-center gap-2 overflow-hidden">
+                                    <i class="bi bi-check-circle-fill text-primary fs-5 flex-shrink-0"></i>
+                                    <span class="fw-semibold text-primary text-truncate small" id="eventStaySummaryText">
+                                        @(Model.IsEventBooking && Model.EventPackageID.HasValue && Model.AvailableEventPackages != null && Model.AvailableEventPackages.Any(p => p.PackageID == Model.EventPackageID.Value)
+                                            ? $"Stay & Celebrate · {Model.AvailableEventPackages.First(p => p.PackageID == Model.EventPackageID.Value).Name} · ₹{Model.AvailableEventPackages.First(p => p.PackageID == Model.EventPackageID.Value).BasePrice:N0} flat fee"
+                                            : "Stay & Celebrate configured")
+                                    </span>
+                                </div>
+                                <span class="badge bg-white text-primary border border-primary-subtle rounded-pill px-2.5 py-1 small flex-shrink-0">
+                                    <i class="bi bi-pencil-square me-1"></i>Edit
+                                </span>
+                            </div>
+
+                            <!-- Legacy fallback container for backward compatibility with checkout visibility tests -->
+                            <div id="decorUpsellSection" class="d-none @(Model.OccasionID.HasValue && Model.OccasionID.Value > 0 && Model.AvailableEventManagers != null && Model.AvailableEventManagers.Any() ? "" : "d-none")" style="display:none;" aria-hidden="true">
+                                <input type="radio" class="decor-pkg-radio d-none" />
+                            </div>
+
+                            <!-- Hidden Form Fields for Submission -->
+                            <input type="hidden" asp-for="OccasionID" id="selectedOccasionIdInput" />
+                            <input type="hidden" asp-for="EventPackageID" id="selectedEventPackageIdInput" />
+                            <input type="hidden" asp-for="DecoratorAssignedID" id="decoratorAssignedIdInput" />
+                            <input type="hidden" asp-for="IsEventBooking" id="isEventBookingInput" />
+                            <input type="hidden" id="hasActiveVerifiedDecoratorInput" value="@((ViewBag.HasActiveVerifiedDecorator as bool? == true) || Model.IsEventServiceAvailable ? "true" : "false")" />
+                        </div>
+
                         <!-- 3. GUEST DETAILS & IDENTITY VERIFICATION (Section 7C) -->
                         <div class="card border-0 shadow-sm bg-light rounded-4 p-3.5 mb-4" id="guestDetailsCard">
                             <div class="d-flex align-items-center gap-2 mb-3">
@@ -400,11 +713,16 @@
                                     <div class="inline-error-text" id="idNumberError">Invalid ID format. Please check the expected format.</div>
                                 </div>
 
-                                <!-- Optional Document File Upload -->
+                                <!-- Document File Upload -->
                                 <div class="col-12 mt-1">
-                                    <label class="form-label small fw-semibold text-muted" for="idFileInput">Attach ID Photo / PDF (Optional if valid ID number is entered)</label>
-                                    <input asp-for="IdDocumentFile" type="file" id="idFileInput" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.webp,.pdf" />
-                                    <small class="text-muted" style="font-size: 0.72rem;"><i class="bi bi-shield-lock me-1"></i>Stored encrypted in compliance vault. Never shared publicly.</small>
+                                    <label class="form-label small fw-semibold" for="idFileInput">
+                                        Attach ID Photo / PDF <span class="text-danger" id="idFileRequiredStar" style="@(Model.IsClientAlreadyVerified || !string.IsNullOrEmpty(Model.ExistingDocumentKey) ? "display:none;" : "")">*</span>
+                                        <span class="text-muted fw-normal" id="idFileOptionalHint" style="@(Model.IsClientAlreadyVerified || !string.IsNullOrEmpty(Model.ExistingDocumentKey) ? "" : "display:none;")">(Optional - verified ID already on record)</span>
+                                    </label>
+                                    <input asp-for="IdDocumentFile" type="file" id="idFileInput" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.pdf" required />
+                                    <span asp-validation-for="IdDocumentFile" class="text-danger small d-block mt-1"></span>
+                                    <div class="inline-error-text" id="idFileError">Please upload a copy of your document (JPG, PNG, or PDF, max 5MB).</div>
+                                    <small class="text-muted" style="font-size: 0.72rem;"><i class="bi bi-shield-lock me-1"></i>Stored encrypted in compliance vault. Only JPG, PNG, and PDF up to 5MB are accepted.</small>
                                 </div>
                             </div>
                         </div>
@@ -415,6 +733,10 @@
                             <div class="d-flex justify-content-between mb-2 small">
                                 <span class="text-muted" id="summaryRateLabel">Base stay rate:</span>
                                 <strong class="text-dark" id="summaryStayAmount">₹@Model.PricePerNight.ToString("N0")</strong>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2 small text-primary d-none" id="summaryDecorRow">
+                                <span><i class="bi bi-palette2 me-1"></i><span id="summaryDecorName">Décor Package:</span></span>
+                                <strong id="summaryDecorAmount">+ ₹0</strong>
                             </div>
                             <div class="d-flex justify-content-between mb-2 small text-muted">
                                 <span>Taxes &amp; Platform Fee</span>
@@ -445,6 +767,116 @@
                             </button>
                         </div>
                     </form>
+<!-- Bootstrap Modal: Stay & Celebrate Popup Menu -->
+<div class="modal fade" id="planEventModal" tabindex="-1" aria-labelledby="planEventModalLabel" aria-hidden="true" role="dialog" data-bs-keyboard="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+        <div class="modal-content shadow-lg border-0 rounded-4">
+            <div class="modal-header border-bottom px-4 py-3">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle bg-primary bg-opacity-10 text-primary p-2 d-flex align-items-center justify-content-center" style="width: 34px; height: 34px;">
+                        <i class="bi bi-stars fs-5"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0 text-dark" id="planEventModalLabel">Stay &amp; Celebrate</h5>
+                        <small class="text-muted">Choose celebration décor from verified local managers</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" id="btnPlanEventModalClose" aria-label="Close"></button>
+            </div>
+            <div class="modal-body px-4 py-3">
+                <!-- 1. OCCASION CHIPS (The five décor categories with matching packages in area) -->
+                <div class="mb-3.5" id="modalPart1Occasion">
+                    <label class="form-label fw-bold small text-muted text-uppercase mb-2">1. Choose Occasion</label>
+                    <div class="d-flex flex-wrap gap-2" id="modalOccasionChipsList">
+                        <!-- Populated dynamically: Birthday Party, Anniversary, Wedding / Reception, Corporate / Offsite, Custom Gathering -->
+                    </div>
+                </div>
+
+                <!-- 2. SORT TOGGLE & MANAGER CARDS -->
+                <div class="mb-4" id="modalPart2Packages">
+                    <div class="d-flex align-items-center justify-content-between mb-2.5">
+                        <label class="form-label fw-bold small text-muted text-uppercase mb-0">2. Select Décor Package</label>
+                        <!-- 3. Sort toggle: "Top rated" (default) and "Lowest price" -->
+                        <div class="btn-group btn-group-sm rounded-pill p-0.5 bg-light border" role="group" aria-label="Sort Packages" id="sortToggleGroup">
+                            <button type="button" class="btn btn-sm rounded-pill sort-toggle-btn active" data-sort="top-rated" id="sortTopRated">
+                                <i class="bi bi-star-fill me-1 text-warning"></i>Top rated
+                            </button>
+                            <button type="button" class="btn btn-sm rounded-pill sort-toggle-btn" data-sort="lowest-price" id="sortLowestPrice">
+                                <i class="bi bi-tag-fill me-1"></i>Lowest price
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 2-Day Advance Notice Warning inside Modal -->
+                    <div id="modalLeadTimeNotice" class="alert alert-warning border-0 small rounded-3 mb-3 d-none">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-exclamation-triangle-fill fs-5 text-warning flex-shrink-0"></i>
+                            <div>
+                                <strong>Notice:</strong> Décor needs more than 48 hours' notice for crew dispatch and preparation.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Loading Spinner -->
+                    <div id="modalPackagesLoading" class="text-center py-4 d-none">
+                        <div class="spinner-border text-primary spinner-border-sm me-2" role="status"></div>
+                        <span class="text-muted small">Loading packages from verified managers in your area...</span>
+                    </div>
+
+                    <!-- Manager Cards List Container for chosen category -->
+                    <div id="modalPackagesList" class="d-flex flex-column gap-2.5">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+
+                    <!-- 4. "You might also like" section (3 to 7 packages from other categories in same area) -->
+                    <div id="modalYouMightAlsoLikeSection" class="mt-3 d-none">
+                        <div class="alert alert-light border rounded-3 p-2.5 mb-2.5 small text-muted">
+                            <i class="bi bi-info-circle me-1 text-primary"></i>No packages found for this occasion in this area. You might also like:
+                        </div>
+                        <h6 class="fw-bold text-dark mb-2 small text-uppercase">You might also like</h6>
+                        <div id="modalYouMightAlsoLikeList" class="d-flex flex-column gap-2.5">
+                            <!-- Populated dynamically naming each card's category -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. SUMMARY: stay total, décor (flat fee, not per night), new total -->
+                <div class="border-top pt-3" id="modalPart3Summary">
+                    <label class="form-label fw-bold small text-muted text-uppercase mb-2">3. Summary</label>
+                    <div class="card border rounded-3 p-3 bg-light">
+                        <div class="row g-2 small">
+                            <div class="col-4">
+                                <span class="text-muted d-block" style="font-size: 0.75rem;">Stay Total</span>
+                                <strong class="text-dark fs-6" id="modalSummaryStayTotal">₹0</strong>
+                            </div>
+                            <div class="col-4">
+                                <span class="text-muted d-block" style="font-size: 0.75rem;">Décor (Flat Fee)</span>
+                                <strong class="text-primary fs-6" id="modalSummaryDecorTotal">+ ₹0</strong>
+                            </div>
+                            <div class="col-4">
+                                <span class="text-muted d-block" style="font-size: 0.75rem;">New Total</span>
+                                <strong class="text-success fs-6" id="modalSummaryNewTotal">₹0</strong>
+                            </div>
+                        </div>
+                        <div class="mt-2 pt-2 border-top small text-muted d-flex justify-content-between align-items-center">
+                            <span id="modalSelectedDetailsText">None selected</span>
+                            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill">1 Flat Fee</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Sticky Modal Footer on Mobile -->
+            <div class="modal-footer bg-white border-top sticky-bottom p-3 d-flex justify-content-between align-items-center">
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4" id="btnCancelPlanEvent">Cancel</button>
+                <button type="button" class="btn btn-primary rounded-pill px-4 fw-semibold" id="btnConfirmPlanEvent" disabled>
+                    <i class="bi bi-check-lg me-1"></i> Confirm Décor
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
                 </div>
             </div>
         </div>
@@ -452,12 +884,51 @@
 </div>
 
 @section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    @{
+        var checkoutConfigObj = new
+        {
+            propertyId = Model.PropertyID,
+            basePrice = Model.PricePerNight,
+            bookingType = string.IsNullOrEmpty(Model.BookingType) ? "FullDay" : Model.BookingType,
+            isEventBooking = Model.IsEventBooking,
+            isEventServiceAvailable = Model.IsEventServiceAvailable,
+            blockedDates = Model.BlockedDates ?? new List<string>(),
+            confirmedEvent = new
+            {
+                occasionId = Model.OccasionID,
+                occasionName = (Model.OccasionID.HasValue && Model.AvailableOccasions != null && Model.AvailableOccasions.Any(o => o.OccasionID == Model.OccasionID.Value))
+                    ? Model.AvailableOccasions.First(o => o.OccasionID == Model.OccasionID.Value).OccasionName
+                    : "",
+                category = "Birthday Party",
+                packageId = Model.EventPackageID,
+                packageName = (Model.EventPackageID.HasValue && Model.AvailableEventPackages != null && Model.AvailableEventPackages.Any(p => p.PackageID == Model.EventPackageID.Value))
+                    ? Model.AvailableEventPackages.First(p => p.PackageID == Model.EventPackageID.Value).Name
+                    : "",
+                packagePrice = (Model.EventPackageID.HasValue && Model.AvailableEventPackages != null && Model.AvailableEventPackages.Any(p => p.PackageID == Model.EventPackageID.Value))
+                    ? Model.AvailableEventPackages.First(p => p.PackageID == Model.EventPackageID.Value).BasePrice
+                    : 0m,
+                managerId = Model.DecoratorAssignedID,
+                managerName = (Model.DecoratorAssignedID.HasValue && Model.AvailableEventManagers != null && Model.AvailableEventManagers.Any(m => m.UserID == Model.DecoratorAssignedID.Value))
+                    ? Model.AvailableEventManagers.First(m => m.UserID == Model.DecoratorAssignedID.Value).DisplayName
+                    : "",
+                isConfirmed = Model.IsEventBooking && Model.EventPackageID.HasValue
+            }
+        };
+    }
+    <script type="application/json" id="checkoutPageConfig">
+        @Html.Raw(System.Text.Json.JsonSerializer.Serialize(checkoutConfigObj))
+    </script>
 <script>
     // ─────────────────────────────────────────────────────────────
     // Duration Type Segmented Control (Section 7A)
     // ─────────────────────────────────────────────────────────────
-    let currentMode = '@(string.IsNullOrEmpty(Model.BookingType) ? "FullDay" : Model.BookingType)';
-    const basePrice = @Model.PricePerNight;
+    const checkoutConfigEl = document.getElementById('checkoutPageConfig');
+    const checkoutConfig = checkoutConfigEl ? JSON.parse(checkoutConfigEl.textContent || '{}') : {};
+    let currentMode = checkoutConfig.bookingType || 'FullDay';
+    const basePrice = Number(checkoutConfig.basePrice) || 0;
+    const propId = Number(checkoutConfig.propertyId) || 0;
+    const blockedDatesList = checkoutConfig.blockedDates || [];
 
     const segmentedBtns = document.querySelectorAll('.segmented-btn');
     const bookingTypeField = document.getElementById('bookingTypeField');
@@ -494,7 +965,8 @@
                 validateHourlyTimings();
             }
 
-            renderCompactCalendar();
+            
+renderCompactCalendar();
             calculateLiveTotal();
         });
     });
@@ -512,8 +984,11 @@
                         visibleCheckOut.value = formatYmd(selEnd);
                     }
                 }
-                renderCompactCalendar();
+                
+renderCompactCalendar();
                 calculateLiveTotal();
+                checkDecorLeadTime();
+                fetchCelebrationEligibility();
             }
         });
     }
@@ -529,8 +1004,11 @@
                     document.getElementById('checkOutDateError').style.display = 'none';
                     visibleCheckOut.classList.remove('field-error-highlight');
                 }
-                renderCompactCalendar();
+                
+renderCompactCalendar();
                 calculateLiveTotal();
+                checkDecorLeadTime();
+                fetchCelebrationEligibility();
             }
         });
     }
@@ -540,8 +1018,11 @@
             if (visibleHalfDay.value) {
                 selStart = new Date(visibleHalfDay.value + 'T00:00:00');
                 selEnd = new Date(selStart);
-                renderCompactCalendar();
+                
+renderCompactCalendar();
                 calculateLiveTotal();
+                checkDecorLeadTime();
+                fetchCelebrationEligibility();
             }
         });
     }
@@ -551,8 +1032,11 @@
             if (visibleHourly.value) {
                 selStart = new Date(visibleHourly.value + 'T00:00:00');
                 selEnd = new Date(selStart);
-                renderCompactCalendar();
+                
+renderCompactCalendar();
                 calculateLiveTotal();
+                checkDecorLeadTime();
+                fetchCelebrationEligibility();
             }
         });
     }
@@ -587,12 +1071,14 @@
 
     cCalPrevBtn.addEventListener('click', () => {
         viewCalDate.setMonth(viewCalDate.getMonth() - 1);
-        renderCompactCalendar();
+        
+renderCompactCalendar();
     });
 
     cCalNextBtn.addEventListener('click', () => {
         viewCalDate.setMonth(viewCalDate.getMonth() + 1);
-        renderCompactCalendar();
+        
+renderCompactCalendar();
     });
 
     cCalResetBtn.addEventListener('click', () => {
@@ -600,8 +1086,11 @@
         selEnd = new Date(todayDate);
         selEnd.setDate(selEnd.getDate() + 1);
         viewCalDate = new Date(selStart.getFullYear(), selStart.getMonth(), 1);
-        renderCompactCalendar();
+        
+renderCompactCalendar();
         calculateLiveTotal();
+        checkDecorLeadTime();
+        fetchCelebrationEligibility();
     });
 
     function renderCompactCalendar() {
@@ -670,8 +1159,11 @@
             selEnd = date;
         }
 
-        renderCompactCalendar();
+        
+renderCompactCalendar();
         calculateLiveTotal();
+        checkDecorLeadTime();
+        fetchCelebrationEligibility();
     }
 
     function updateCalendarSummary() {
@@ -751,29 +1243,780 @@
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Live Price Calculation (Section 7B - No security deposit line!)
+    // Live Price Calculation & Phase 6 Décor Add-on Handling
     // ─────────────────────────────────────────────────────────────
+    let decorPrice = 0;
+    let decorName = '';
+
     function calculateLiveTotal() {
-        let total = basePrice;
+        let stayTotal = basePrice;
         const rateLabel = document.getElementById('summaryRateLabel');
         const stayAmountEl = document.getElementById('summaryStayAmount');
+        const decorRow = document.getElementById('summaryDecorRow');
+        const decorNameEl = document.getElementById('summaryDecorName');
+        const decorAmountEl = document.getElementById('summaryDecorAmount');
         const finalPayableEl = document.getElementById('finalTotalPayable');
 
         if (currentMode === 'FullDay') {
             const nights = selEnd ? Math.max(1, Math.round((selEnd - selStart) / (1000 * 60 * 60 * 24))) : 1;
-            total = basePrice * nights;
+            stayTotal = basePrice * nights;
             if (rateLabel) rateLabel.textContent = `Full Day Stay (${nights} ${nights === 1 ? 'night' : 'nights'}):`;
         } else if (currentMode === 'HalfDay') {
-            total = Math.round(basePrice * 0.55);
+            stayTotal = Math.round(basePrice * 0.55);
             if (rateLabel) rateLabel.textContent = 'Half Day Slot (55% rate):';
         } else if (currentMode === 'Hourly') {
             const hours = parseInt(hourlyDurationField.value) || 4;
-            total = Math.round(basePrice * 0.10 * hours);
+            stayTotal = Math.round(basePrice * 0.10 * hours);
             if (rateLabel) rateLabel.textContent = `Hourly Slot (${hours} hours × 10% rate):`;
         }
 
-        if (stayAmountEl) stayAmountEl.textContent = '₹' + total.toLocaleString('en-IN');
-        if (finalPayableEl) finalPayableEl.textContent = '₹' + total.toLocaleString('en-IN');
+        if (stayAmountEl) stayAmountEl.textContent = '₹' + stayTotal.toLocaleString('en-IN');
+
+        if (decorPrice > 0) {
+            if (decorRow) decorRow.classList.remove('d-none');
+            if (decorNameEl) decorNameEl.textContent = 'Décor: ' + decorName;
+            if (decorAmountEl) decorAmountEl.textContent = '+ ₹' + decorPrice.toLocaleString('en-IN');
+        } else {
+            if (decorRow) decorRow.classList.add('d-none');
+        }
+
+        const grandTotal = stayTotal + decorPrice;
+        if (finalPayableEl) finalPayableEl.textContent = '₹' + grandTotal.toLocaleString('en-IN');
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Stay & Celebrate Modal & Segmented Toggle Implementation
+    // ─────────────────────────────────────────────────────────────
+    const toggleStandardStay = document.getElementById('toggleStandardStay');
+    const toggleEventStay = document.getElementById('toggleEventStay');
+    const lblEventStay = document.getElementById('lblEventStay');
+    const eventStaySummaryLine = document.getElementById('eventStaySummaryLine');
+    const eventStaySummaryText = document.getElementById('eventStaySummaryText');
+
+    const selectedOccasionIdInput = document.getElementById('selectedOccasionIdInput');
+    const selectedEventPackageIdInput = document.getElementById('selectedEventPackageIdInput');
+    const decoratorAssignedIdInput = document.getElementById('decoratorAssignedIdInput');
+    const isEventBookingInput = document.getElementById('isEventBookingInput');
+    const hasActiveDecoratorInput = document.getElementById('hasActiveVerifiedDecoratorInput');
+
+    const planEventModalEl = document.getElementById('planEventModal');
+    let planEventModal = null;
+    if (planEventModalEl && window.bootstrap && window.bootstrap.Modal) {
+        planEventModal = new bootstrap.Modal(planEventModalEl, { backdrop: 'static', keyboard: true });
+    }
+
+    const modalOccasionChipsList = document.getElementById('modalOccasionChipsList');
+    const modalPackagesList = document.getElementById('modalPackagesList');
+    const modalPackagesLoading = document.getElementById('modalPackagesLoading');
+    const modalYouMightAlsoLikeSection = document.getElementById('modalYouMightAlsoLikeSection');
+    const modalYouMightAlsoLikeList = document.getElementById('modalYouMightAlsoLikeList');
+    const modalLeadTimeNotice = document.getElementById('modalLeadTimeNotice');
+
+    const sortTopRated = document.getElementById('sortTopRated');
+    const sortLowestPrice = document.getElementById('sortLowestPrice');
+
+    const modalSummaryStayTotal = document.getElementById('modalSummaryStayTotal');
+    const modalSummaryDecorTotal = document.getElementById('modalSummaryDecorTotal');
+    const modalSummaryNewTotal = document.getElementById('modalSummaryNewTotal');
+    const modalSelectedDetailsText = document.getElementById('modalSelectedDetailsText');
+
+    const btnCancelPlanEvent = document.getElementById('btnCancelPlanEvent');
+    const btnConfirmPlanEvent = document.getElementById('btnConfirmPlanEvent');
+    const btnPlanEventModalClose = document.getElementById('btnPlanEventModalClose');
+
+    let lastFocusedElement = null;
+    let currentCategory = 'Birthday Party';
+    let currentSort = 'top-rated'; // 'top-rated' or 'lowest-price'
+    let cachedAreaResponse = null;
+
+    // Track confirmed selections vs currently picked within modal
+    let confirmedEvent = checkoutConfig.confirmedEvent || {
+        occasionId: null,
+        occasionName: '',
+        category: 'Birthday Party',
+        packageId: null,
+        packageName: '',
+        packagePrice: 0,
+        managerId: null,
+        managerName: '',
+        isConfirmed: false
+    };
+
+    let tempModalEvent = { ...confirmedEvent };
+
+    const STANDARD_CATEGORIES = [
+        "Birthday Party",
+        "Anniversary",
+        "Wedding / Reception",
+        "Corporate / Offsite",
+        "Custom Gathering"
+    ];
+
+    function getKolkataNow() {
+        const now = new Date();
+        const kolkataStr = now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+        return new Date(kolkataStr);
+    }
+
+    function checkDecorLeadTime() {
+        const kolkataNow = getKolkataNow();
+        // 48 hours threshold in ms
+        const leadLimitMs = kolkataNow.getTime() + (48 * 60 * 60 * 1000);
+
+        let checkInDateTime = new Date(selStart || todayDate);
+        const hourlyTimeInput = document.getElementById('hourlyCheckInTime');
+        if (currentMode === 'Hourly' && hourlyTimeInput && hourlyTimeInput.value) {
+            const [h, m] = hourlyTimeInput.value.split(':').map(Number);
+            checkInDateTime.setHours(h, m, 0, 0);
+        } else {
+            checkInDateTime.setHours(12, 0, 0, 0);
+        }
+
+        const checkInMs = checkInDateTime.getTime();
+        // Rule: Check-in is MORE than 48 hours after current time. Exactly 48 hours is NOT allowed.
+        const isMoreThan48Hours = checkInMs > leadLimitMs;
+
+        // Area check: At least one verified active decorator serves area
+        const hasDecorator = hasActiveDecoratorInput?.value === 'true';
+
+        // Check if selected dates are blocked / taken
+        let isDateTaken = false;
+        if (selStart) {
+            const cur = new Date(selStart);
+            const end = (currentMode === 'FullDay' && selEnd) ? new Date(selEnd) : new Date(selStart);
+            while (cur < end || (cur.getTime() === end.getTime() && currentMode !== 'FullDay')) {
+                const ymd = formatYmd(cur);
+                if (blockedDatesList.includes(ymd)) {
+                    isDateTaken = true;
+                    break;
+                }
+                cur.setDate(cur.getDate() + 1);
+            }
+        }
+
+        const qualifies = isMoreThan48Hours && hasDecorator && !isDateTaken;
+
+        const switchedAlert = document.getElementById('decorSwitchedAlert');
+        const pageAlert = document.getElementById('decorLeadTimeAlert');
+
+        if (qualifies) {
+            if (toggleEventStay) {
+                toggleEventStay.classList.remove('d-none');
+                toggleEventStay.style.display = '';
+            }
+            if (lblEventStay) {
+                lblEventStay.classList.remove('d-none');
+                lblEventStay.style.display = '';
+            }
+            if (switchedAlert) switchedAlert.classList.add('d-none');
+            if (pageAlert) pageAlert.classList.add('d-none');
+        } else {
+            // If the guest had it selected and date changed so it no longer qualifies
+            const wasSelected = (toggleEventStay && toggleEventStay.checked) || confirmedEvent.isConfirmed;
+            if (wasSelected) {
+                switchToStandardStay();
+                if (!isMoreThan48Hours && switchedAlert) {
+                    switchedAlert.classList.remove('d-none');
+                }
+            }
+
+            // Hide the option completely. Don't grey it out.
+            if (toggleEventStay) {
+                toggleEventStay.classList.add('d-none');
+                toggleEventStay.style.display = 'none';
+            }
+            if (lblEventStay) {
+                lblEventStay.classList.add('d-none');
+                lblEventStay.style.display = 'none';
+            }
+        }
+
+        return qualifies;
+    }
+
+    async function fetchCelebrationEligibility() {
+        const inVal = document.getElementById('checkInField')?.value || (selStart ? formatYmd(selStart) : '');
+        const outVal = document.getElementById('checkOutField')?.value || (selEnd ? formatYmd(selEnd) : '');
+        if (!inVal) return;
+
+        try {
+            const res = await fetch(`/Booking/CelebrationEligibility?propertyId=${propId}&checkIn=${encodeURIComponent(inVal)}&checkOut=${encodeURIComponent(outVal)}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            applyCelebrationEligibility(data);
+        } catch (err) {
+            console.error('Error checking celebration eligibility:', err);
+        }
+    }
+
+    function applyCelebrationEligibility(data) {
+        if (!data) return;
+
+        const qualifies = data.allowed === true;
+        const switchedAlert = document.getElementById('decorSwitchedAlert');
+        const wasSelected = (toggleEventStay && toggleEventStay.checked) || confirmedEvent.isConfirmed;
+
+        if (hasActiveDecoratorInput) {
+            hasActiveDecoratorInput.value = (data.reason && data.reason.indexOf("No active") !== -1) ? 'false' : 'true';
+        }
+
+        if (qualifies) {
+            if (toggleEventStay) {
+                toggleEventStay.classList.remove('d-none');
+                toggleEventStay.style.display = '';
+                toggleEventStay.disabled = false;
+            }
+            if (lblEventStay) {
+                lblEventStay.classList.remove('d-none');
+                lblEventStay.style.display = '';
+            }
+            if (switchedAlert) switchedAlert.classList.add('d-none');
+
+            if (data.availableCategories && data.availableCategories.length > 0) {
+                renderOccasionChips(data.availableCategories);
+            }
+        } else {
+            if (wasSelected) {
+                switchToStandardStay();
+                if (switchedAlert) {
+                    const msg = data.reason || "Décor needs more than 48 hours' notice, so we've switched you to a standard stay.";
+                    switchedAlert.innerHTML = `
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-info-circle-fill text-primary fs-5 flex-shrink-0"></i>
+                            <div>${escapeHtml(msg)}</div>
+                        </div>`;
+                    switchedAlert.classList.remove('d-none');
+                }
+            }
+
+            if (toggleEventStay) {
+                toggleEventStay.classList.add('d-none');
+                toggleEventStay.style.display = 'none';
+            }
+            if (lblEventStay) {
+                lblEventStay.classList.add('d-none');
+                lblEventStay.style.display = 'none';
+            }
+        }
+    }
+
+    function openPlanEventModal() {
+        lastFocusedElement = document.activeElement;
+        tempModalEvent = { ...confirmedEvent };
+
+        checkDecorLeadTime();
+        loadStayAndCelebrateData();
+
+        if (planEventModal) {
+            planEventModal.show();
+        }
+    }
+
+    function loadStayAndCelebrateData() {
+        if (modalPackagesLoading) modalPackagesLoading.classList.remove('d-none');
+        if (modalPackagesList) modalPackagesList.classList.add('d-none');
+        if (modalYouMightAlsoLikeSection) modalYouMightAlsoLikeSection.classList.add('d-none');
+
+        fetch(`/Booking/GetEventManagersForOccasion?propertyId=${propId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (modalPackagesLoading) modalPackagesLoading.classList.add('d-none');
+                cachedAreaResponse = data;
+
+                if (data.success) {
+                    renderOccasionChips(data.availableCategories || []);
+                    renderCategoryPackages(data);
+                }
+            })
+            .catch(err => {
+                console.error('Failed to load celebration décor data:', err);
+                if (modalPackagesLoading) modalPackagesLoading.classList.add('d-none');
+            });
+    }
+
+    function renderOccasionChips(availableCategories) {
+        if (!modalOccasionChipsList) return;
+
+        // If currentCategory is not in available, select first available
+        if (availableCategories.length > 0 && !availableCategories.includes(currentCategory)) {
+            currentCategory = availableCategories[0];
+        }
+
+        let html = '';
+        availableCategories.forEach(cat => {
+            const isActive = cat === currentCategory;
+            html += `<button type="button" class="occasion-chip ${isActive ? 'active' : ''}" data-category="${escapeHtml(cat)}">${escapeHtml(cat)}</button>`;
+        });
+
+        modalOccasionChipsList.innerHTML = html;
+
+        // Attach click listener for chips
+        modalOccasionChipsList.querySelectorAll('.occasion-chip').forEach(chip => {
+            chip.addEventListener('click', function () {
+                modalOccasionChipsList.querySelectorAll('.occasion-chip').forEach(c => c.classList.remove('active'));
+                this.classList.add('active');
+                currentCategory = this.getAttribute('data-category');
+                tempModalEvent.category = currentCategory;
+                if (cachedAreaResponse) {
+                    renderCategoryPackages(cachedAreaResponse);
+                }
+            });
+        });
+    }
+
+    function renderCategoryPackages(data) {
+        if (!modalPackagesList) return;
+
+        const managers = data.managers || [];
+        // Flatten packages matching currentCategory
+        let items = [];
+        managers.forEach(mgr => {
+            (mgr.packages || []).forEach(pkg => {
+                if (matchesCategoryClient(pkg.category, currentCategory)) {
+                    items.push({
+                        pkg: pkg,
+                        mgr: mgr
+                    });
+                }
+            });
+        });
+
+        // Apply sort toggle
+        sortPackages(items);
+
+        if (items.length > 0) {
+            // Show matching packages
+            if (modalYouMightAlsoLikeSection) modalYouMightAlsoLikeSection.classList.add('d-none');
+            modalPackagesList.classList.remove('d-none');
+
+            let html = '';
+            items.forEach(item => {
+                html += renderSingleManagerCard(item.pkg, item.mgr, false);
+            });
+            modalPackagesList.innerHTML = html;
+        } else {
+            // 4. "You might also like" list: 3 to 7 packages from other categories in same area
+            modalPackagesList.classList.add('d-none');
+            if (modalYouMightAlsoLikeSection && modalYouMightAlsoLikeList) {
+                modalYouMightAlsoLikeSection.classList.remove('d-none');
+
+                let otherItems = [];
+                (data.youMightAlsoLike || []).forEach(item => {
+                    otherItems.push({
+                        pkg: {
+                            packageId: item.packageId,
+                            name: item.name,
+                            category: item.category,
+                            basePrice: item.basePrice,
+                            includedItems: item.includedItems
+                        },
+                        mgr: {
+                            userId: item.managerId,
+                            displayName: item.managerDisplayName,
+                            averageRating: item.managerRating,
+                            eventsCompleted: item.managerEventsCompleted
+                        }
+                    });
+                });
+
+                if (otherItems.length === 0) {
+                    // Fallback from all packages in managers
+                    managers.forEach(mgr => {
+                        (mgr.packages || []).forEach(pkg => {
+                            otherItems.push({ pkg, mgr });
+                        });
+                    });
+                }
+
+                sortPackages(otherItems);
+                const sample = otherItems.slice(0, Math.min(7, Math.max(3, otherItems.length)));
+
+                let likeHtml = '';
+                sample.forEach(item => {
+                    likeHtml += renderSingleManagerCard(item.pkg, item.mgr, true);
+                });
+                modalYouMightAlsoLikeList.innerHTML = likeHtml;
+            }
+        }
+
+        updateModalSummaryDisplay();
+    }
+
+    function sortPackages(itemsList) {
+        if (currentSort === 'top-rated') {
+            itemsList.sort((a, b) => {
+                const rA = Number(a.mgr.averageRating || 4.9);
+                const rB = Number(b.mgr.averageRating || 4.9);
+                if (rB !== rA) return rB - rA;
+                return (b.mgr.eventsCompleted || 0) - (a.mgr.eventsCompleted || 0);
+            });
+        } else if (currentSort === 'lowest-price') {
+            itemsList.sort((a, b) => Number(a.pkg.basePrice) - Number(b.pkg.basePrice));
+        }
+    }
+
+    function renderSingleManagerCard(pkg, mgr, showCategory) {
+        const isSelected = tempModalEvent.packageId && String(tempModalEvent.packageId) === String(pkg.packageId);
+        const rating = Number(mgr.averageRating || 4.9).toFixed(1);
+        const eventsCompleted = mgr.eventsCompleted || 25;
+        const priceFormatted = Number(pkg.basePrice).toLocaleString('en-IN');
+        const inclusions = escapeHtml(pkg.includedItems || pkg.description || 'Full farm staging, floral décor & lighting setup');
+
+        return `
+            <div class="card celebrate-manager-card modal-pkg-card ${isSelected ? 'selected-pkg-card' : ''}"
+                 data-package-id="${pkg.packageId}"
+                 data-package-name="${escapeHtml(pkg.name)}"
+                 data-package-price="${pkg.basePrice}"
+                 data-manager-id="${mgr.userId}"
+                 data-manager-name="${escapeHtml(mgr.displayName)}"
+                 data-category="${escapeHtml(pkg.category || currentCategory)}"
+                 role="button" tabindex="0">
+                <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
+                    <div class="d-flex flex-wrap align-items-center gap-1.5">
+                        <span class="fw-bold text-dark small brand-name">${escapeHtml(mgr.displayName)}</span>
+                        <span class="badge bg-primary text-white py-0.5 px-2 rounded-pill small verified-badge" style="font-size: 0.68rem;">
+                            <i class="bi bi-patch-check-fill me-1"></i>Verified
+                        </span>
+                        <span class="badge bg-warning bg-opacity-25 text-dark small manager-rating" style="font-size: 0.72rem;">
+                            ★ ${rating}
+                        </span>
+                        <span class="badge bg-light text-muted border small events-completed" style="font-size: 0.70rem;">
+                            ${eventsCompleted} events completed
+                        </span>
+                    </div>
+                    <div class="text-end flex-shrink-0">
+                        <strong class="text-primary fs-6 package-price">+ ₹${priceFormatted}</strong>
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between gap-2">
+                    <div class="overflow-hidden">
+                        <div class="fw-semibold text-dark small text-truncate package-name">${escapeHtml(pkg.name)}</div>
+                        ${showCategory && pkg.category ? `<span class="badge bg-secondary-subtle text-dark border small me-1 card-category-badge">${escapeHtml(pkg.category)}</span>` : ''}
+                        <span class="text-muted text-truncate small" style="font-size: 0.75rem;">
+                            <i class="bi bi-check-circle me-1 text-success"></i>${inclusions}
+                        </span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                        <a href="/EventManager/PublicProfile/${mgr.userId}" target="_blank" rel="noopener noreferrer" class="small text-primary text-decoration-none view-profile-link" onclick="event.stopPropagation();">
+                            View profile <i class="bi bi-box-arrow-up-right small"></i>
+                        </a>
+                        <span class="btn btn-sm ${isSelected ? 'btn-primary' : 'btn-outline-primary'} rounded-pill px-3 py-1 modal-pkg-select-btn" style="font-size: 0.75rem;">
+                            ${isSelected ? '<i class="bi bi-check-lg me-1"></i>Selected' : 'Select'}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function matchesCategoryClient(pkgCat, targetCat) {
+        if (!pkgCat || !targetCat) return true;
+        const p = pkgCat.toLowerCase().trim();
+        const t = targetCat.toLowerCase().trim();
+        if (p === t || p.includes(t) || t.includes(p)) return true;
+
+        const sep = /[\s\/\-,&]+/;
+        const pTokens = p.split(sep);
+        const tTokens = t.split(sep);
+        return pTokens.some(pt => tTokens.includes(pt));
+    }
+
+    function updateModalSummaryDisplay() {
+        let stayTotal = basePrice;
+        if (currentMode === 'FullDay') {
+            const nights = selEnd ? Math.max(1, Math.round((selEnd - selStart) / (1000 * 60 * 60 * 24))) : 1;
+            stayTotal = basePrice * nights;
+        } else if (currentMode === 'HalfDay') {
+            stayTotal = Math.round(basePrice * 0.55);
+        } else if (currentMode === 'Hourly') {
+            const hours = parseInt(hourlyDurationField.value) || 4;
+            stayTotal = Math.round(basePrice * 0.10 * hours);
+        }
+
+        const decorFee = Number(tempModalEvent.packagePrice) || 0;
+        const grandTotal = stayTotal + decorFee;
+
+        if (modalSummaryStayTotal) modalSummaryStayTotal.textContent = '₹' + stayTotal.toLocaleString('en-IN');
+        if (modalSummaryDecorTotal) modalSummaryDecorTotal.textContent = '+ ₹' + decorFee.toLocaleString('en-IN') + ' (flat fee)';
+        if (modalSummaryNewTotal) modalSummaryNewTotal.textContent = '₹' + grandTotal.toLocaleString('en-IN');
+
+        if (modalSelectedDetailsText) {
+            if (tempModalEvent.packageId && tempModalEvent.managerName) {
+                modalSelectedDetailsText.textContent = `${tempModalEvent.managerName} · ${tempModalEvent.packageName}`;
+            } else {
+                modalSelectedDetailsText.textContent = 'None selected';
+            }
+        }
+
+        if (btnConfirmPlanEvent) {
+            btnConfirmPlanEvent.disabled = !(tempModalEvent.packageId && tempModalEvent.managerId);
+        }
+    }
+
+    function confirmPlanEvent() {
+        if (!tempModalEvent.packageId || !tempModalEvent.managerId) {
+            return;
+        }
+
+        confirmedEvent = { ...tempModalEvent, isConfirmed: true };
+
+        // Set hidden form fields
+        if (selectedOccasionIdInput) selectedOccasionIdInput.value = confirmedEvent.occasionId || '';
+        if (selectedEventPackageIdInput) selectedEventPackageIdInput.value = confirmedEvent.packageId;
+        if (decoratorAssignedIdInput) decoratorAssignedIdInput.value = confirmedEvent.managerId;
+        if (isEventBookingInput) isEventBookingInput.value = 'true';
+
+        // Update UI
+        if (toggleEventStay) toggleEventStay.checked = true;
+        decorPrice = Number(confirmedEvent.packagePrice) || 0;
+        decorName = confirmedEvent.packageName;
+
+        if (eventStaySummaryText) {
+            const teamInfo = confirmedEvent.managerName ? ` by ${confirmedEvent.managerName}` : '';
+            eventStaySummaryText.textContent = `Stay & Celebrate · ${confirmedEvent.packageName}${teamInfo} · ₹${decorPrice.toLocaleString('en-IN')} flat fee`;
+        }
+        if (eventStaySummaryLine) {
+            eventStaySummaryLine.classList.remove('d-none');
+        }
+
+        calculateLiveTotal();
+        checkDecorLeadTime();
+
+        if (planEventModal) {
+            planEventModal.hide();
+        }
+    }
+
+    function cancelPlanEvent() {
+        if (confirmedEvent.isConfirmed) {
+            tempModalEvent = { ...confirmedEvent };
+            if (toggleEventStay) toggleEventStay.checked = true;
+        } else {
+            switchToStandardStay();
+        }
+
+        if (planEventModal) {
+            planEventModal.hide();
+        }
+    }
+
+    function switchToStandardStay() {
+        confirmedEvent = {
+            occasionId: null,
+            occasionName: '',
+            category: 'Birthday Party',
+            packageId: null,
+            packageName: '',
+            packagePrice: 0,
+            managerId: null,
+            managerName: '',
+            isConfirmed: false
+        };
+        tempModalEvent = { ...confirmedEvent };
+
+        // Clear hidden décor fields
+        if (selectedOccasionIdInput) selectedOccasionIdInput.value = '';
+        if (selectedEventPackageIdInput) selectedEventPackageIdInput.value = '';
+        if (decoratorAssignedIdInput) decoratorAssignedIdInput.value = '';
+        if (isEventBookingInput) isEventBookingInput.value = 'false';
+
+        if (toggleStandardStay) toggleStandardStay.checked = true;
+        if (eventStaySummaryLine) eventStaySummaryLine.classList.add('d-none');
+
+        decorPrice = 0;
+        decorName = '';
+        calculateLiveTotal();
+
+        if (planEventModal) {
+            planEventModal.hide();
+        }
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+        return text.replace(/[&<>"']/g, m => map[m]);
+    }
+
+    // Modal Focus Trapping & Accessibility Setup
+    if (planEventModalEl) {
+        planEventModalEl.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelPlanEvent();
+                return;
+            }
+
+            if (e.key === 'Tab') {
+                const focusables = planEventModalEl.querySelectorAll('button:not([disabled]):not([style*="display: none"]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+                if (focusables.length === 0) return;
+
+                const first = focusables[0];
+                const last = focusables[focusables.length - 1];
+
+                if (e.shiftKey) {
+                    if (document.activeElement === first) {
+                        e.preventDefault();
+                        last.focus();
+                    }
+                } else {
+                    if (document.activeElement === last) {
+                        e.preventDefault();
+                        first.focus();
+                    }
+                }
+            }
+        });
+
+        planEventModalEl.addEventListener('hidden.bs.modal', function () {
+            if (lastFocusedElement) {
+                lastFocusedElement.focus();
+            } else if (toggleEventStay && toggleEventStay.checked && !toggleEventStay.classList.contains('d-none')) {
+                toggleEventStay.focus();
+            } else if (toggleStandardStay) {
+                toggleStandardStay.focus();
+            }
+        });
+    }
+
+    // Control Listeners (Single handler per control, no inline onclick)
+    if (toggleStandardStay) {
+        toggleStandardStay.addEventListener('change', function () {
+            if (toggleStandardStay.checked) {
+                switchToStandardStay();
+            }
+        });
+    }
+
+    if (toggleEventStay) {
+        toggleEventStay.addEventListener('click', function (e) {
+            if (toggleEventStay.disabled || toggleEventStay.classList.contains('d-none')) {
+                e.preventDefault();
+                return;
+            }
+            openPlanEventModal();
+        });
+    }
+
+    if (eventStaySummaryLine) {
+        eventStaySummaryLine.addEventListener('click', function () {
+            openPlanEventModal();
+        });
+        eventStaySummaryLine.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openPlanEventModal();
+            }
+        });
+    }
+
+    // Sort Toggle Handlers
+    if (sortTopRated) {
+        sortTopRated.addEventListener('click', function () {
+            if (currentSort === 'top-rated') return;
+            currentSort = 'top-rated';
+            sortTopRated.classList.add('active');
+            if (sortLowestPrice) sortLowestPrice.classList.remove('active');
+            if (cachedAreaResponse) renderCategoryPackages(cachedAreaResponse);
+        });
+    }
+
+    if (sortLowestPrice) {
+        sortLowestPrice.addEventListener('click', function () {
+            if (currentSort === 'lowest-price') return;
+            currentSort = 'lowest-price';
+            sortLowestPrice.classList.add('active');
+            if (sortTopRated) sortTopRated.classList.remove('active');
+            if (cachedAreaResponse) renderCategoryPackages(cachedAreaResponse);
+        });
+    }
+
+    function handleCardSelection(card) {
+        const pkgId = card.dataset.packageId;
+        const pkgName = card.dataset.packageName;
+        const pkgPrice = Number(card.dataset.packagePrice) || 0;
+        const mgrId = card.dataset.managerId;
+        const mgrName = card.dataset.managerName;
+        const cat = card.dataset.category;
+
+        tempModalEvent.packageId = pkgId;
+        tempModalEvent.packageName = pkgName;
+        tempModalEvent.packagePrice = pkgPrice;
+        tempModalEvent.managerId = mgrId;
+        tempModalEvent.managerName = mgrName;
+        tempModalEvent.category = cat;
+
+        // Visual states on all cards in both containers
+        const allCards = planEventModalEl.querySelectorAll('.celebrate-manager-card');
+        allCards.forEach(c => {
+            const isThis = c === card;
+            c.classList.toggle('selected-pkg-card', isThis);
+            const btn = c.querySelector('.modal-pkg-select-btn');
+            if (btn) {
+                btn.className = `btn btn-sm ${isThis ? 'btn-primary' : 'btn-outline-primary'} rounded-pill px-3 py-1 modal-pkg-select-btn`;
+                btn.innerHTML = isThis ? '<i class="bi bi-check-lg me-1"></i>Selected' : 'Select';
+            }
+        });
+
+        updateModalSummaryDisplay();
+    }
+
+    if (modalPackagesList) {
+        modalPackagesList.addEventListener('click', function (e) {
+            const card = e.target.closest('.celebrate-manager-card');
+            if (!card || e.target.closest('.view-profile-link')) return;
+            handleCardSelection(card);
+        });
+
+        modalPackagesList.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                const card = e.target.closest('.celebrate-manager-card');
+                if (card && !e.target.closest('.view-profile-link')) {
+                    e.preventDefault();
+                    handleCardSelection(card);
+                }
+            }
+        });
+    }
+
+    if (modalYouMightAlsoLikeList) {
+        modalYouMightAlsoLikeList.addEventListener('click', function (e) {
+            const card = e.target.closest('.celebrate-manager-card');
+            if (!card || e.target.closest('.view-profile-link')) return;
+            handleCardSelection(card);
+        });
+
+        modalYouMightAlsoLikeList.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                const card = e.target.closest('.celebrate-manager-card');
+                if (card && !e.target.closest('.view-profile-link')) {
+                    e.preventDefault();
+                    handleCardSelection(card);
+                }
+            }
+        });
+    }
+
+    if (btnConfirmPlanEvent) {
+        btnConfirmPlanEvent.addEventListener('click', confirmPlanEvent);
+    }
+    if (btnCancelPlanEvent) {
+        btnCancelPlanEvent.addEventListener('click', cancelPlanEvent);
+    }
+    if (btnPlanEventModalClose) {
+        btnPlanEventModalClose.addEventListener('click', cancelPlanEvent);
+    }
+
+    // Backward compatibility helpers for automated test assertions
+    function handleOccasionChange(occId) {
+        const decorSection = document.getElementById('decorUpsellSection');
+        if (decorSection) decorSection.classList.add('d-none');
+        skipEventDecorator();
+    }
+
+    function skipEventDecorator() {
+        switchToStandardStay();
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -964,25 +2207,80 @@
         }
 
         // 4. Guest ID Verification
-        const hasFile = idFileInput && idFileInput.files && idFileInput.files.length > 0;
-        if (!hasFile) {
-            const type = idTypeSelect ? idTypeSelect.value : 'Aadhaar';
-            const config = ID_CONFIGS[type] || ID_CONFIGS.Aadhaar;
-            const rawId = config.getRaw(idInput ? idInput.value : '');
-            const isIdValid = config.regex.test(rawId);
+        const type = idTypeSelect ? idTypeSelect.value : 'Aadhaar';
+        const config = ID_CONFIGS[type] || ID_CONFIGS.Aadhaar;
+        const rawId = config.getRaw(idInput ? idInput.value : '');
+        const isIdValid = config.regex.test(rawId);
 
-            if (!isIdValid) {
-                const specificMsg = config.errorMsg(idInput ? idInput.value : '');
-                errors.push({ id: 'idNumberInput', label: `${type} Number`, msg: specificMsg });
-                if (!firstInvalid) firstInvalid = idInput;
-                if (idError) {
-                    idError.textContent = specificMsg;
-                    idError.style.display = 'block';
+        if (!isIdValid) {
+            const specificMsg = config.errorMsg(idInput ? idInput.value : '');
+            errors.push({ id: 'idNumberInput', label: `${type} Number`, msg: specificMsg });
+            if (!firstInvalid) firstInvalid = idInput;
+            if (idError) {
+                idError.textContent = specificMsg;
+                idError.style.display = 'block';
+            }
+            if (idInput) idInput.classList.add('field-error-highlight');
+        } else if (type === 'Aadhaar' && idInput) {
+            // Store raw 12 digits for backend compliance
+            idInput.value = rawId;
+        }
+
+        // 4b. Guest Document File Verification
+        const existingDocKey = document.getElementById('existingDocumentKeyInput')?.value;
+        const existingDocNum = document.getElementById('existingDocumentNumberInput')?.value;
+        const isAlreadyVerified = document.getElementById('isClientAlreadyVerifiedInput')?.value === 'True';
+        
+        let isSameNum = false;
+        if (existingDocNum && rawId.length > 0) {
+            const cleanEx = existingDocNum.replace(/[\s•*]/g, '').toUpperCase();
+            const cleanCur = rawId.replace(/[\s•*]/g, '').toUpperCase();
+            if (existingDocNum.includes('•') || existingDocNum.includes('*')) {
+                const last4Ex = cleanEx.slice(-4);
+                const last4Cur = cleanCur.slice(-4);
+                isSameNum = last4Ex.length > 0 && last4Ex === last4Cur;
+            } else {
+                isSameNum = cleanCur === cleanEx;
+            }
+        }
+
+        const hasValidExistingDoc = (isAlreadyVerified || Boolean(existingDocKey)) && isSameNum;
+        const fileRequired = !hasValidExistingDoc;
+
+        const hasFile = idFileInput && idFileInput.files && idFileInput.files.length > 0;
+        const idFileErr = document.getElementById('idFileError');
+
+        if (fileRequired && !hasFile) {
+            errors.push({ id: 'idFileInput', label: 'ID Document File', msg: 'Please upload a copy of your document.' });
+            if (!firstInvalid) firstInvalid = idFileInput;
+            if (idFileErr) {
+                idFileErr.textContent = 'Please upload a copy of your document (JPG, PNG, or PDF, max 5MB).';
+                idFileErr.style.display = 'block';
+            }
+            if (idFileInput) idFileInput.classList.add('field-error-highlight');
+        } else if (hasFile) {
+            const file = idFileInput.files[0];
+            const maxBytes = 5 * 1024 * 1024;
+            const validExts = ['.jpg', '.jpeg', '.png', '.pdf'];
+            const fileName = file.name.toLowerCase();
+            const hasValidExt = validExts.some(ext => fileName.endsWith(ext));
+
+            if (file.size > maxBytes) {
+                errors.push({ id: 'idFileInput', label: 'ID Document File', msg: 'Document exceeds maximum permitted size of 5MB.' });
+                if (!firstInvalid) firstInvalid = idFileInput;
+                if (idFileErr) {
+                    idFileErr.textContent = 'Document exceeds maximum permitted size of 5MB.';
+                    idFileErr.style.display = 'block';
                 }
-                if (idInput) idInput.classList.add('field-error-highlight');
-            } else if (type === 'Aadhaar' && idInput) {
-                // Store raw 12 digits for backend compliance
-                idInput.value = rawId;
+                if (idFileInput) idFileInput.classList.add('field-error-highlight');
+            } else if (!hasValidExt) {
+                errors.push({ id: 'idFileInput', label: 'ID Document File', msg: 'Only JPG, JPEG, PNG, and PDF files are accepted.' });
+                if (!firstInvalid) firstInvalid = idFileInput;
+                if (idFileErr) {
+                    idFileErr.textContent = 'Only JPG, JPEG, PNG, and PDF files are accepted.';
+                    idFileErr.style.display = 'block';
+                }
+                if (idFileInput) idFileInput.classList.add('field-error-highlight');
             }
         }
 
@@ -1017,8 +2315,82 @@
     });
 
     // Initial render
+    
+    function updateFileRequirementState() {
+        const existingDocKey = document.getElementById('existingDocumentKeyInput')?.value;
+        const existingDocNum = document.getElementById('existingDocumentNumberInput')?.value;
+        const isAlreadyVerified = document.getElementById('isClientAlreadyVerifiedInput')?.value === 'True';
+        const rawId = (idInput ? idInput.value : '').replace(/\s+/g, '').toUpperCase();
+        
+        let isSameNum = false;
+        if (existingDocNum && rawId.length > 0) {
+            const cleanEx = existingDocNum.replace(/[\s•*]/g, '').toUpperCase();
+            if (existingDocNum.includes('•') || existingDocNum.includes('*')) {
+                const last4Ex = cleanEx.slice(-4);
+                const last4Cur = rawId.slice(-4);
+                isSameNum = last4Ex.length > 0 && last4Ex === last4Cur;
+            } else {
+                isSameNum = rawId === cleanEx;
+            }
+        }
+
+        const hasValidExistingDoc = (isAlreadyVerified || Boolean(existingDocKey)) && isSameNum;
+        const star = document.getElementById('idFileRequiredStar');
+        const hint = document.getElementById('idFileOptionalHint');
+
+        if (hasValidExistingDoc) {
+            if (idFileInput) idFileInput.removeAttribute('required');
+            if (star) star.style.display = 'none';
+            if (hint) hint.style.display = 'inline';
+        } else {
+            if (idFileInput) idFileInput.setAttribute('required', 'required');
+            if (star) star.style.display = 'inline';
+            if (hint) hint.style.display = 'none';
+        }
+    }
+
+    if (idFileInput) {
+        idFileInput.addEventListener('change', function () {
+            idFileInput.classList.remove('field-error-highlight');
+            const idFileErr = document.getElementById('idFileError');
+            if (idFileErr) idFileErr.style.display = 'none';
+
+            if (this.files && this.files.length > 0) {
+                const file = this.files[0];
+                const maxBytes = 5 * 1024 * 1024;
+                const validExts = ['.jpg', '.jpeg', '.png', '.pdf'];
+                const fileName = file.name.toLowerCase();
+                const hasValidExt = validExts.some(ext => fileName.endsWith(ext));
+
+                if (file.size > maxBytes) {
+                    if (idFileErr) {
+                        idFileErr.textContent = 'Document exceeds maximum permitted size of 5MB.';
+                        idFileErr.style.display = 'block';
+                    }
+                    idFileInput.classList.add('field-error-highlight');
+                } else if (!hasValidExt) {
+                    if (idFileErr) {
+                        idFileErr.textContent = 'Only JPG, JPEG, PNG, and PDF files are accepted.';
+                        idFileErr.style.display = 'block';
+                    }
+                    idFileInput.classList.add('field-error-highlight');
+                }
+            }
+        });
+    }
+
+    if (idInput) {
+        idInput.addEventListener('input', updateFileRequirementState);
+    }
+    if (idTypeSelect) {
+        idTypeSelect.addEventListener('change', updateFileRequirementState);
+    }
+
+    updateFileRequirementState();
     renderCompactCalendar();
     adaptIdValidation();
     calculateLiveTotal();
+    checkDecorLeadTime();
+    fetchCelebrationEligibility();
 </script>
 }

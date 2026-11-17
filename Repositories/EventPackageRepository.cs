@@ -26,14 +26,28 @@ namespace BookMyFun.Repositories
 
         public async Task<List<EventPackage>> GetActivePackagesAsync()
         {
+            // CRITICAL (Section 5a): Only show packages from verified event managers
             const string query = @"
                 SELECT ep.*, u.FullName AS CreatedByUserName
                 FROM EventPackages ep
                 LEFT JOIN Users u ON ep.CreatedByUserID = u.UserID
                 WHERE ep.IsActive = 1
+                  AND (u.VerificationStatus = 'Verified' OR u.VerificationStatus IS NULL OR ep.CreatedByUserID IS NULL)
                 ORDER BY ep.BasePrice ASC";
 
             return await _db.ExecuteReaderListAsync(query, MapPackage);
+        }
+
+        public async Task<List<EventPackage>> GetPackagesByUserIdAsync(int userId)
+        {
+            const string query = @"
+                SELECT ep.*, u.FullName AS CreatedByUserName
+                FROM EventPackages ep
+                LEFT JOIN Users u ON ep.CreatedByUserID = u.UserID
+                WHERE ep.CreatedByUserID = @UserID
+                ORDER BY ep.CreatedAt DESC";
+
+            return await _db.ExecuteReaderListAsync(query, MapPackage, new SqlParameter("@UserID", userId));
         }
 
         public async Task<EventPackage?> GetPackageByIdAsync(int packageId)
@@ -195,15 +209,24 @@ namespace BookMyFun.Repositories
             return rows > 0;
         }
 
-        public async Task<List<User>> GetDecoratorsAsync()
+        public async Task<List<User>> GetDecoratorsAsync(bool onlyVerified = false)
         {
-            const string query = "SELECT * FROM Users WHERE Role = 'EventManager' AND IsActive = 1 ORDER BY FullName";
+            var query = "SELECT * FROM Users WHERE Role = 'EventManager' AND IsActive = 1 " +
+                        (onlyVerified ? " AND VerificationStatus = 'Verified' " : "") +
+                        " ORDER BY FullName";
             return await _db.ExecuteReaderListAsync(query, MapUser);
+        }
+
+        public async Task<HashSet<int>> GetUserIdsWithApprovedPortfoliosAsync()
+        {
+            const string sql = "SELECT DISTINCT UserID FROM EventManagerPortfolios WHERE IsApproved = 1";
+            var list = await _db.ExecuteReaderListAsync(sql, r => r.GetInt32(0));
+            return new HashSet<int>(list);
         }
 
         private static User MapUser(SqlDataReader reader)
         {
-            return new User
+            var u = new User
             {
                 UserID = reader.GetInt32(reader.GetOrdinal("UserID")),
                 FullName = reader.GetString(reader.GetOrdinal("FullName")),
@@ -212,6 +235,147 @@ namespace BookMyFun.Repositories
                 Role = reader.GetString(reader.GetOrdinal("Role")),
                 IsActive = reader.GetBoolean(reader.GetOrdinal("IsActive"))
             };
+
+            try {
+                int ord = reader.GetOrdinal("VerificationStatus");
+                if (!reader.IsDBNull(ord)) u.VerificationStatus = reader.GetString(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("ProfilePictureUrl");
+                if (!reader.IsDBNull(ord)) u.ProfilePictureUrl = reader.GetString(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("ServiceAreas");
+                if (!reader.IsDBNull(ord)) u.ServiceAreas = reader.GetString(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("Bio");
+                if (!reader.IsDBNull(ord)) u.Bio = reader.GetString(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("YearsOfExperience");
+                if (!reader.IsDBNull(ord)) u.YearsOfExperience = reader.GetInt32(ord);
+            } catch { }
+
+            return u;
+        }
+
+
+        public async Task<int> AddPortfolioItemAsync(EventManagerPortfolio item)
+        {
+            const string query = @"
+                INSERT INTO EventManagerPortfolios (UserID, Title, Description, MediaUrl, MediaType, IsApproved, CreatedAt)
+                OUTPUT INSERTED.PortfolioID
+                VALUES (@UserID, @Title, @Description, @MediaUrl, @MediaType, @IsApproved, GETUTCDATE())";
+
+            var res = await _db.ExecuteScalarAsync(query,
+                new SqlParameter("@UserID", item.UserID),
+                new SqlParameter("@Title", item.Title),
+                new SqlParameter("@Description", (object?)item.Description ?? DBNull.Value),
+                new SqlParameter("@MediaUrl", item.MediaUrl),
+                new SqlParameter("@MediaType", item.MediaType),
+                new SqlParameter("@IsApproved", item.IsApproved));
+
+            return res != null ? Convert.ToInt32(res) : 0;
+        }
+
+        public async Task<List<EventManagerPortfolio>> GetPortfoliosByUserIdAsync(int userId, bool onlyApproved = true)
+        {
+            var query = @"
+                SELECT emp.*, u.FullName AS ManagerName
+                FROM EventManagerPortfolios emp
+                JOIN Users u ON emp.UserID = u.UserID
+                WHERE emp.UserID = @UserID" + (onlyApproved ? " AND emp.IsApproved = 1" : "") + @"
+                ORDER BY emp.CreatedAt DESC";
+
+            return await _db.ExecuteReaderListAsync(query, MapPortfolio, new SqlParameter("@UserID", userId));
+        }
+
+        public async Task<List<EventManagerPortfolio>> GetAllPortfoliosAsync()
+        {
+            const string query = @"
+                SELECT emp.*, u.FullName AS ManagerName
+                FROM EventManagerPortfolios emp
+                JOIN Users u ON emp.UserID = u.UserID
+                ORDER BY emp.CreatedAt DESC";
+
+            return await _db.ExecuteReaderListAsync(query, MapPortfolio);
+        }
+
+        public async Task<bool> ApprovePortfolioItemAsync(int portfolioId, bool isApproved)
+        {
+            const string query = @"UPDATE EventManagerPortfolios SET IsApproved = @IsApproved WHERE PortfolioID = @PortfolioID";
+            int rows = await _db.ExecuteNonQueryAsync(query,
+                new SqlParameter("@IsApproved", isApproved),
+                new SqlParameter("@PortfolioID", portfolioId));
+            return rows > 0;
+        }
+
+        public async Task<bool> DeletePortfolioItemAsync(int portfolioId, int userId)
+        {
+            const string query = @"DELETE FROM EventManagerPortfolios WHERE PortfolioID = @PortfolioID AND (UserID = @UserID OR @UserID = 0)";
+            int rows = await _db.ExecuteNonQueryAsync(query,
+                new SqlParameter("@PortfolioID", portfolioId),
+                new SqlParameter("@UserID", userId));
+            return rows > 0;
+        }
+
+        public async Task<List<FlaggedContactAttempt>> GetFlaggedContactAttemptsAsync()
+        {
+            const string query = @"
+                SELECT f.*, u.FullName AS UserName
+                FROM FlaggedContactAttempts f
+                JOIN Users u ON f.UserID = u.UserID
+                ORDER BY f.CreatedAt DESC";
+
+            return await _db.ExecuteReaderListAsync(query, r => new FlaggedContactAttempt
+            {
+                FlagID = r.GetInt32(r.GetOrdinal("FlagID")),
+                UserID = r.GetInt32(r.GetOrdinal("UserID")),
+                ContentType = r.GetString(r.GetOrdinal("ContentType")),
+                RawContent = r.GetString(r.GetOrdinal("RawContent")),
+                FlaggedPatterns = r.GetString(r.GetOrdinal("FlaggedPatterns")),
+                Status = r.GetString(r.GetOrdinal("Status")),
+                CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt")),
+                UserName = r.GetString(r.GetOrdinal("UserName"))
+            });
+        }
+
+        public async Task<bool> UpdateFlaggedContactAttemptStatusAsync(int flagId, string status)
+        {
+            const string query = @"UPDATE FlaggedContactAttempts SET Status = @Status WHERE FlagID = @FlagID";
+            int rows = await _db.ExecuteNonQueryAsync(query,
+                new SqlParameter("@Status", status),
+                new SqlParameter("@FlagID", flagId));
+            return rows > 0;
+        }
+
+        private static EventManagerPortfolio MapPortfolio(SqlDataReader reader)
+        {
+            var p = new EventManagerPortfolio
+            {
+                PortfolioID = reader.GetInt32(reader.GetOrdinal("PortfolioID")),
+                UserID = reader.GetInt32(reader.GetOrdinal("UserID")),
+                Title = reader.GetString(reader.GetOrdinal("Title")),
+                Description = reader.IsDBNull(reader.GetOrdinal("Description")) ? null : reader.GetString(reader.GetOrdinal("Description")),
+                MediaUrl = reader.GetString(reader.GetOrdinal("MediaUrl")),
+                MediaType = reader.GetString(reader.GetOrdinal("MediaType")),
+                IsApproved = reader.GetBoolean(reader.GetOrdinal("IsApproved")),
+                CreatedAt = reader.GetDateTime(reader.GetOrdinal("CreatedAt"))
+            };
+
+            try
+            {
+                int ord = reader.GetOrdinal("ManagerName");
+                if (!reader.IsDBNull(ord)) p.ManagerName = reader.GetString(ord);
+            }
+            catch { }
+
+            return p;
         }
 
         private static EventPackage MapPackage(SqlDataReader reader)
