@@ -1,7 +1,13 @@
+@inject BookMyFun.Services.Staff.IEventManagerReviewService EventReviewService
 @{
     var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Client";
     var currentCtrl = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
     var currentAct = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+    int pendingEventManagers = 0;
+    if (role == "Admin" || role == "Employee")
+    {
+        try { pendingEventManagers = await EventReviewService.GetPendingCountAsync(); } catch { }
+    }
 }
 
 <ul class="nav flex-column dashboard-nav">
@@ -53,6 +59,22 @@
 
     <!-- 4. Users and Partners -->
     <li class="dashboard-nav-heading">Users &amp; Partners</li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct.StartsWith("EventManager") ? "active" : "")" asp-controller="Admin" asp-action="EventManagerVerifications">
+            <i class="bi bi-patch-check-fill text-primary"></i>
+            <span class="nav-text">Event Managers</span>
+            @if (pendingEventManagers > 0)
+            {
+                <span class="badge bg-danger rounded-pill ms-auto">@pendingEventManagers</span>
+            }
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "FlaggedContacts" ? "active" : "")" asp-controller="Admin" asp-action="FlaggedContacts">
+            <i class="bi bi-shield-x text-danger"></i>
+            <span class="nav-text">Flagged Contacts</span>
+        </a>
+    </li>
     <li class="dashboard-nav-item">
         <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "ManageOwners" ? "active" : "")" asp-controller="Admin" asp-action="ManageOwners">
             <i class="bi bi-person-badge text-warning"></i>
@@ -188,15 +210,19 @@ else if (role == "Employee")
     </li>
     <li class="dashboard-nav-heading">Platform Oversight</li>
     <li class="dashboard-nav-item">
-        <a class="dashboard-nav-link @(currentCtrl == "Employee" && currentAct == "ManageProperties" ? "active" : "")" asp-controller="Employee" asp-action="ManageProperties">
-            <i class="bi bi-building text-warning"></i>
-            <span class="nav-text">Properties</span>
+        <a class="dashboard-nav-link @(currentCtrl == "Employee" && currentAct.StartsWith("EventManager") ? "active" : "")" asp-controller="Employee" asp-action="EventManagerVerifications">
+            <i class="bi bi-patch-check-fill text-primary"></i>
+            <span class="nav-text">Event Managers</span>
+            @if (pendingEventManagers > 0)
+            {
+                <span class="badge bg-danger rounded-pill ms-auto">@pendingEventManagers</span>
+            }
         </a>
     </li>
     <li class="dashboard-nav-item">
-        <a class="dashboard-nav-link @(currentCtrl == "Employee" && currentAct == "EventCommissions" ? "active" : "")" asp-controller="Employee" asp-action="EventCommissions">
-            <i class="bi bi-percent text-warning"></i>
-            <span class="nav-text">Event Commissions</span>
+        <a class="dashboard-nav-link @(currentCtrl == "Employee" && currentAct == "ManageProperties" ? "active" : "")" asp-controller="Employee" asp-action="ManageProperties">
+            <i class="bi bi-building text-warning"></i>
+            <span class="nav-text">Properties</span>
         </a>
     </li>
     <li class="dashboard-nav-item">
@@ -233,6 +259,12 @@ else if (role == "Owner")
             <span class="nav-text">Subscription Plans</span>
         </a>
     </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Owner" && currentAct == "NotificationSettings" ? "active" : "")" asp-controller="Owner" asp-action="NotificationSettings">
+            <i class="bi bi-bell-fill text-warning"></i>
+            <span class="nav-text">Notification Channels</span>
+        </a>
+    </li>
 }
 else if (role == "EventManager")
 {
@@ -259,6 +291,18 @@ else if (role == "EventManager")
         <a class="dashboard-nav-link @(currentCtrl == "EventManager" && currentAct == "AssignedSetups" ? "active" : "")" asp-controller="EventManager" asp-action="AssignedSetups">
             <i class="bi bi-calendar-event text-warning"></i>
             <span class="nav-text">Assigned Setups</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "EventManager" && currentAct == "Inbox" ? "active" : "")" asp-controller="EventManager" asp-action="Inbox">
+            <i class="bi bi-inbox-fill text-primary"></i>
+            <span class="nav-text">Inbox &amp; Orders</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "EventManager" && currentAct == "Profile" ? "active" : "")" asp-controller="EventManager" asp-action="Profile">
+            <i class="bi bi-person-badge-fill text-secondary"></i>
+            <span class="nav-text">Partner Profile</span>
         </a>
     </li>
     <li class="dashboard-nav-item">

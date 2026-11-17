@@ -1,0 +1,188 @@
+@model BookMyFun.Models.ViewModels.EventManagerListViewModel
+@{
+    ViewData["Title"] = "Event Manager Verification & Adjudication";
+    var currentCtrl = ViewContext.RouteData.Values["controller"]?.ToString() ?? "Admin";
+}
+
+<div class="dash-page-header mb-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <p class="dash-eyebrow">Platform Administration · Trust &amp; Safety</p>
+            <h1 class="dash-title">Event Managers</h1>
+            <p class="dash-subtitle">Review credentials, experience, packages, and portfolios before decorators offer celebration packages at checkout.</p>
+        </div>
+    </div>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-xs" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>@TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-xs" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+@if (TempData["Warning"] != null)
+{
+    <div class="alert alert-warning alert-dismissible fade show rounded-3 shadow-xs" role="alert">
+        <i class="bi bi-exclamation-circle-fill me-2"></i>@TempData["Warning"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+<!-- Tabs Navigation -->
+<ul class="nav nav-pills mb-4 gap-2 bg-light p-2 rounded-4 border">
+    <li class="nav-item">
+        <a class="nav-link rounded-pill px-3 py-2 fw-semibold @(Model.ActiveTab == "Pending" ? "active bg-primary text-white" : "text-dark")"
+           asp-controller="@currentCtrl" asp-action="EventManagerVerifications" asp-route-tab="Pending">
+            <i class="bi bi-hourglass-split me-1"></i> Pending
+            <span class="badge rounded-pill ms-1 @(Model.ActiveTab == "Pending" ? "bg-white text-primary" : "bg-secondary text-white")">@Model.PendingCount</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link rounded-pill px-3 py-2 fw-semibold @(Model.ActiveTab == "Verified" ? "active bg-success text-white" : "text-dark")"
+           asp-controller="@currentCtrl" asp-action="EventManagerVerifications" asp-route-tab="Verified">
+            <i class="bi bi-patch-check-fill me-1"></i> Verified
+            <span class="badge rounded-pill ms-1 @(Model.ActiveTab == "Verified" ? "bg-white text-success" : "bg-secondary text-white")">@Model.VerifiedCount</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link rounded-pill px-3 py-2 fw-semibold @(Model.ActiveTab == "Rejected" ? "active bg-danger text-white" : "text-dark")"
+           asp-controller="@currentCtrl" asp-action="EventManagerVerifications" asp-route-tab="Rejected">
+            <i class="bi bi-x-circle-fill me-1"></i> Rejected
+            <span class="badge rounded-pill ms-1 @(Model.ActiveTab == "Rejected" ? "bg-white text-danger" : "bg-secondary text-white")">@Model.RejectedCount</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link rounded-pill px-3 py-2 fw-semibold @(Model.ActiveTab == "Suspended" ? "active bg-warning text-dark" : "text-dark")"
+           asp-controller="@currentCtrl" asp-action="EventManagerVerifications" asp-route-tab="Suspended">
+            <i class="bi bi-slash-circle-fill me-1"></i> Suspended
+            <span class="badge rounded-pill ms-1 @(Model.ActiveTab == "Suspended" ? "bg-dark text-white" : "bg-secondary text-white")">@Model.SuspendedCount</span>
+        </a>
+    </li>
+</ul>
+
+<!-- Managers Table -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-card mb-4">
+    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold mb-0 text-dark">
+            <i class="bi bi-people-fill text-primary me-2"></i>@Model.ActiveTab Event Managers (@Model.Managers.Count)
+        </h5>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Name or Brand</th>
+                    <th>Areas</th>
+                    <th>Status</th>
+                    <th class="text-center">Active Packages</th>
+                    <th class="text-center">Approved Portfolio</th>
+                    <th>Submitted Date</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Managers.Any())
+                {
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2 opacity-50"></i>
+                            No event managers found in the @Model.ActiveTab queue.
+                        </td>
+                    </tr>
+                }
+                @foreach (var manager in Model.Managers)
+                {
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center gap-3">
+                                <img src="@(manager.ProfilePictureUrl ?? "/images/default-avatar.svg")" class="rounded-circle shadow-xs" style="width: 44px; height: 44px; object-fit: cover;" onerror="this.src='/images/placeholder.jpg';" />
+                                <div>
+                                    <div class="fw-bold text-dark">@manager.FullName</div>
+                                    <div class="small text-muted">@manager.Email &bull; @manager.Phone</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            @if (!string.IsNullOrWhiteSpace(manager.ServiceAreas))
+                            {
+                                <div class="small text-truncate" style="max-width: 250px;" title="@manager.ServiceAreas">
+                                    @manager.ServiceAreas
+                                </div>
+                            }
+                            else
+                            {
+                                <span class="badge bg-light text-muted border">None configured</span>
+                            }
+                        </td>
+                        <td>
+                            @if (manager.VerificationStatus == "Verified" && manager.IsActive)
+                            {
+                                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1 rounded-pill">
+                                    <i class="bi bi-patch-check-fill me-1"></i> Verified
+                                </span>
+                            }
+                            else if (manager.VerificationStatus == "Suspended" || !manager.IsActive)
+                            {
+                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-1 rounded-pill">
+                                    <i class="bi bi-slash-circle me-1"></i> Suspended
+                                </span>
+                            }
+                            else if (manager.VerificationStatus == "Rejected")
+                            {
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-1 rounded-pill">
+                                    <i class="bi bi-x-circle me-1"></i> Rejected
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-1 rounded-pill">
+                                    <i class="bi bi-hourglass-split me-1"></i> Pending
+                                </span>
+                            }
+                        </td>
+                        <td class="text-center">
+                            @if (manager.ActivePackageCount > 0)
+                            {
+                                <span class="badge bg-success-subtle text-success border rounded-pill px-2.5 py-1">
+                                    @manager.ActivePackageCount
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary-subtle text-muted border rounded-pill px-2.5 py-1">0</span>
+                            }
+                        </td>
+                        <td class="text-center">
+                            @if (manager.ApprovedPortfolioCount > 0)
+                            {
+                                <span class="badge bg-success-subtle text-success border rounded-pill px-2.5 py-1">
+                                    @manager.ApprovedPortfolioCount
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger-subtle text-danger border rounded-pill px-2.5 py-1">0</span>
+                            }
+                        </td>
+                        <td class="small text-muted">
+                            @manager.SubmittedDate.ToString("dd MMM yyyy")
+                        </td>
+                        <td class="text-end">
+                            <a asp-controller="@currentCtrl" asp-action="EventManagerDetail" asp-route-id="@manager.UserID" class="btn btn-sm btn-primary rounded-pill px-3 py-1">
+                                <i class="bi bi-search me-1"></i> Review
+                            </a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

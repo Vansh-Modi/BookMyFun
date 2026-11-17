@@ -4,6 +4,7 @@ using BookMyFun.Models.Entities;
 using BookMyFun.Models.ViewModels;
 using BookMyFun.Repositories;
 using BookMyFun.Services;
+using BookMyFun.Services.Staff;
 
 using BookMyFun.Services.Notifications;
 using BookMyFun.Services.Exceptions;
@@ -33,6 +34,7 @@ namespace BookMyFun.Controllers
         private readonly IMediaStorageService _mediaStorage;
         private readonly IEventPackageRepository _eventPackageRepo;
         private readonly ILegalDocumentService? _legalService;
+        private readonly IEventManagerReviewService _eventReviewService;
 
         private readonly INotificationDispatcherService? _notificationDispatcher;
 
@@ -54,8 +56,8 @@ namespace BookMyFun.Controllers
             IMediaStorageService mediaStorage,
             IEventPackageRepository eventPackageRepo,
             ILegalDocumentService? legalService = null,
-
-            INotificationDispatcherService? notificationDispatcher = null)
+            INotificationDispatcherService? notificationDispatcher = null,
+            IEventManagerReviewService? eventReviewService = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -74,8 +76,8 @@ namespace BookMyFun.Controllers
             _mediaStorage = mediaStorage;
             _eventPackageRepo = eventPackageRepo;
             _legalService = legalService;
-
             _notificationDispatcher = notificationDispatcher;
+            _eventReviewService = eventReviewService ?? new EventManagerReviewService(userRepo, eventPackageRepo, configRepo, idVerificationService, mediaStorage);
         }
 
         public async Task<IActionResult> Index()
@@ -2592,25 +2594,50 @@ namespace BookMyFun.Controllers
             return View(doc);
         }
 
-        // --- Event Manager Verifications & Portfolio Moderation (Phase 9) ---
-        public async Task<IActionResult> EventManagerVerifications()
+        // --- Event Manager Verifications & Staff Review Workflow (Phase 3) ---
+        public async Task<IActionResult> EventManagerVerifications(string tab = "Pending")
         {
-            var decorators = await _eventPackageRepo.GetDecoratorsAsync(onlyVerified: false);
-            var portfolios = await _eventPackageRepo.GetAllPortfoliosAsync();
-            ViewBag.Portfolios = portfolios;
-            return View(decorators);
+            var model = await _eventReviewService.GetManagerListAsync(tab);
+            return View(model);
+        }
+
+        public async Task<IActionResult> EventManagerDetail(int id)
+        {
+            var detail = await _eventReviewService.GetManagerDetailAsync(id);
+            if (detail == null)
+            {
+                TempData["Error"] = "Event manager not found.";
+                return RedirectToAction(nameof(EventManagerVerifications));
+            }
+            return View(detail);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ViewManagerDocument(int userId, string docType = "IdProof")
+        {
+            var (stream, contentType, fileName) = await _eventReviewService.GetDocumentStreamAsync(userId, docType);
+            if (stream == null)
+            {
+                return NotFound("Document not found or access denied.");
+            }
+            return File(stream, contentType, fileName);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ApprovePortfolioItem(int portfolioId, string? returnUrl = null)
         {
-            var adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            await _eventPackageRepo.ApprovePortfolioItemAsync(portfolioId, true);
-            await _configRepo.LogAuditAsync(adminId, "ApprovePortfolioItem", "EventManagerPortfolio", portfolioId,
-                $"Approved showcase portfolio item #{portfolioId} for public display.");
+            var adminId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int parsed) ? parsed : 1;
+            var (success, error) = await _eventReviewService.ApprovePortfolioAsync(portfolioId, adminId);
+            if (success)
+            {
+                TempData["Success"] = $"Portfolio item #{portfolioId} approved for public display.";
+            }
+            else
+            {
+                TempData["Error"] = error ?? "Failed to approve portfolio item.";
+            }
 
-            TempData["Success"] = $"Portfolio item #{portfolioId} approved for public display.";
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
             return RedirectToAction(nameof(EventManagerVerifications));
         }
@@ -2619,48 +2646,140 @@ namespace BookMyFun.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> RejectPortfolioItem(int portfolioId, string? reason = null, string? returnUrl = null)
         {
-            var adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            await _eventPackageRepo.ApprovePortfolioItemAsync(portfolioId, false);
-            await _configRepo.LogAuditAsync(adminId, "RejectPortfolioItem", "EventManagerPortfolio", portfolioId,
-                $"Rejected showcase portfolio item #{portfolioId}. Reason: {reason ?? "Content guidelines violation"}");
+            var adminId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int parsed) ? parsed : 1;
+            var (success, error) = await _eventReviewService.RejectPortfolioAsync(portfolioId, reason ?? string.Empty, adminId);
+            if (success)
+            {
+                TempData["Success"] = $"Portfolio item #{portfolioId} set to unapproved/rejected.";
+            }
+            else
+            {
+                TempData["Error"] = error ?? "Failed to reject portfolio item. A reason is required.";
+            }
 
-            TempData["Success"] = $"Portfolio item #{portfolioId} set to unapproved/rejected.";
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
             return RedirectToAction(nameof(EventManagerVerifications));
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApproveEventManagerVerification(int userId)
+        public async Task<IActionResult> ApproveEventManagerVerification(int userId, string? returnUrl = null)
         {
-            var user = await _userRepo.GetByIdAsync(userId);
-            if (user != null)
+            var adminId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int parsed) ? parsed : 1;
+            var (success, error) = await _eventReviewService.VerifyAsync(userId, adminId);
+            if (success)
             {
-                user.VerificationStatus = "Verified";
-                await _userRepo.UpdateUserAsync(user);
-
-                var adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-                await _configRepo.LogAuditAsync(adminId, "ApproveEventManagerVerification", "User", userId, $"Approved event manager #{userId} ({user.FullName}) verification status to Verified.");
-                TempData["Success"] = $"Event Manager '{user.FullName}' has been verified and their profile and packages are now live!";
+                TempData["Success"] = $"Event Manager #{userId} has been verified and their profile and packages are now live!";
             }
+            else
+            {
+                TempData["Error"] = error ?? "Failed to verify event manager.";
+            }
+
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
             return RedirectToAction(nameof(EventManagerVerifications));
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RejectEventManagerVerification(int userId, string? reason)
+        public async Task<IActionResult> RejectEventManagerVerification(int userId, string? reason, string? returnUrl = null)
         {
-            var user = await _userRepo.GetByIdAsync(userId);
-            if (user != null)
+            var adminId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int parsed) ? parsed : 1;
+            var (success, error) = await _eventReviewService.RejectAsync(userId, reason ?? string.Empty, adminId);
+            if (success)
             {
-                user.VerificationStatus = "Rejected";
-                await _userRepo.UpdateUserAsync(user);
-
-                var adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-                await _configRepo.LogAuditAsync(adminId, "RejectEventManagerVerification", "User", userId, $"Rejected event manager #{userId} ({user.FullName}) verification. Reason: {reason}");
-                TempData["Success"] = $"Event Manager '{user.FullName}' verification was set to Rejected.";
+                TempData["Success"] = $"Event Manager #{userId} verification was set to Rejected.";
             }
+            else
+            {
+                TempData["Error"] = error ?? "Failed to reject event manager. A reason is required.";
+            }
+
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
             return RedirectToAction(nameof(EventManagerVerifications));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ReturnToPendingEventManager(int userId, string? returnUrl = null)
+        {
+            var adminId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int parsed) ? parsed : 1;
+            var (success, error) = await _eventReviewService.ReturnToPendingAsync(userId, adminId);
+            if (success)
+            {
+                TempData["Success"] = $"Event Manager #{userId} returned to Pending status.";
+            }
+            else
+            {
+                TempData["Error"] = error ?? "Failed to update event manager status.";
+            }
+
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
+            return RedirectToAction(nameof(EventManagerVerifications));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SuspendEventManager(int userId, string? reason = null, string? returnUrl = null)
+        {
+            var adminId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int parsed) ? parsed : 1;
+            var (success, error) = await _eventReviewService.SuspendAsync(userId, reason, adminId);
+            if (success)
+            {
+                TempData["Success"] = $"Event Manager #{userId} suspended.";
+            }
+            else
+            {
+                TempData["Error"] = error ?? "Failed to suspend event manager.";
+            }
+
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
+            return RedirectToAction(nameof(EventManagerVerifications));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ReactivateEventManager(int userId, string? returnUrl = null)
+        {
+            var adminId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int parsed) ? parsed : 1;
+            var (success, error) = await _eventReviewService.ReactivateAsync(userId, adminId);
+            if (success)
+            {
+                TempData["Success"] = $"Event Manager #{userId} reactivated.";
+            }
+            else
+            {
+                TempData["Error"] = error ?? "Failed to reactivate event manager.";
+            }
+
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
+            return RedirectToAction(nameof(EventManagerVerifications));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdateManagerServiceAreas(int userId, string serviceAreas, string? returnUrl = null)
+        {
+            var adminId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int parsed) ? parsed : 1;
+            var (success, normalized, unnormalized, error) = await _eventReviewService.UpdateServiceAreasAsync(userId, serviceAreas, adminId);
+            if (success)
+            {
+                if (unnormalized.Count > 0)
+                {
+                    TempData["Warning"] = $"Service areas updated, but these entries could not be normalized to 'City, State' and were skipped: {string.Join("; ", unnormalized)}";
+                }
+                else
+                {
+                    TempData["Success"] = "Service areas normalized and updated successfully.";
+                }
+            }
+            else
+            {
+                TempData["Error"] = error ?? "Failed to update service areas.";
+            }
+
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
+            return RedirectToAction(nameof(EventManagerDetail), new { id = userId });
         }
 
         // --- Flagged Contact Attempts (Section 5e & ContactPrivacyScanner) ---

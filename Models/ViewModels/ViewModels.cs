@@ -1,3 +1,4 @@
+using BookMyFun.Models.Validation;
 using System.ComponentModel.DataAnnotations;
 using BookMyFun.Models.Entities;
 
@@ -73,8 +74,8 @@ namespace BookMyFun.Models.ViewModels
 
         public string? Description { get; set; }
 
-        [Required, MaxLength(255)]
-        public string Location { get; set; } = string.Empty;
+        [MaxLength(255)]
+        public string? Location { get; set; }
 
         [Required, Range(1, 1000000)]
         public decimal PricePerNight { get; set; }
@@ -100,10 +101,47 @@ namespace BookMyFun.Models.ViewModels
         [MaxLength(1000)]
         [Display(Name = "Direct Map / Location URL")]
         public string? MapUrl { get; set; }
+        public bool MapUrlLocked { get; set; } = false;
         public bool IsFeatured { get; set; }
+
+        // Caretaker details (Section 4b)
+        [MaxLength(100)]
+        [Display(Name = "Caretaker / Contact Person Name")]
+        public string? CaretakerName { get; set; }
+
+        [MaxLength(20)]
+        [Display(Name = "Caretaker Contact Phone")]
+        public string? CaretakerPhone { get; set; }
+
+        public bool OwnerIsCaretaker { get; set; } = false;
+
+        // Structured Indian Address (Section 4c)
+        [RegularExpression(@"^[1-9][0-9]{5}$", ErrorMessage = "Please enter a valid 6-digit Indian PIN code.")]
+        [Display(Name = "PIN Code")]
+        public string? Pincode { get; set; }
+
+        [MaxLength(200)]
+        [Display(Name = "Nearby Area / Landmark / Road")]
+        public string? NearbyAreaOrRoad { get; set; }
+
+        [MaxLength(100)]
+        [Display(Name = "City")]
+        public string? City { get; set; }
+
+        [MaxLength(100)]
+        [Display(Name = "State / Union Territory")]
+        public string? State { get; set; }
 
         [Required, Range(1, 1000)]
         public int MaxGuests { get; set; }
+
+        [Range(1, 365, ErrorMessage = "Minimum stay must be at least 1 night.")]
+        [Display(Name = "Minimum Stay (Nights)")]
+        public int MinStayNights { get; set; } = 1;
+
+        [Range(1, 365, ErrorMessage = "Maximum stay cannot exceed 365 nights.")]
+        [Display(Name = "Maximum Stay (Nights)")]
+        public int MaxStayNights { get; set; } = 30;
 
         [Required]
         [Display(Name = "Property Category / Type")]
@@ -133,20 +171,22 @@ namespace BookMyFun.Models.ViewModels
         public List<EventPackage> AvailableEventPackages { get; set; } = new();
     }
 
-    public class UpdatePropertyLocationUrlViewModel
+
+    public class CheckoutEventManagerViewModel
     {
-        public int PropertyID { get; set; }
-        public string PropertyTitle { get; set; } = string.Empty;
-        public string Location { get; set; } = string.Empty;
-
-        [MaxLength(1000)]
-        [Display(Name = "Direct Map / Location URL")]
-        public string? MapUrl { get; set; }
-
-        public string? ReturnUrl { get; set; }
+        public int UserID { get; set; }
+        public string DisplayName { get; set; } = string.Empty;
+        public string ProfileImageUrl { get; set; } = "/images/default-avatar.svg";
+        public string? ServiceAreas { get; set; }
+        public int YearsOfExperience { get; set; } = 3;
+        public double AverageRating { get; set; } = 4.9;
+        public int ReviewCount { get; set; } = 12;
+        public int EventsCompleted { get; set; } = 25;
+        public decimal StartingPrice { get; set; }
+        public List<BookMyFun.Models.Entities.EventPackage> PackagesForOccasion { get; set; } = new();
+        public List<string> PortfolioSampleUrls { get; set; } = new();
     }
-
-    public class BookingCheckoutViewModel
+    public class BookingCheckoutViewModel : IValidatableObject
     {
         public int PropertyID { get; set; }
         public string PropertyTitle { get; set; } = string.Empty;
@@ -180,20 +220,57 @@ namespace BookMyFun.Models.ViewModels
         // Event Décor Add-on Options
         public bool IsEventBooking { get; set; }
         public int? EventPackageID { get; set; }
+        public int? DecoratorAssignedID { get; set; }
         public string? CustomEventNotes { get; set; }
         public bool IsEventServiceAvailable { get; set; }
 
         // Lookups
         public List<Occasion> AvailableOccasions { get; set; } = new();
+        public bool HasPropertyOccasions { get; set; }
         public List<EventPackage> AvailableEventPackages { get; set; } = new();
+        public List<CheckoutEventManagerViewModel> AvailableEventManagers { get; set; } = new();
 
         // KYC Identity Proof at Booking Time
         public bool IsClientAlreadyVerified { get; set; }
+        public string? ExistingDocumentKey { get; set; }
+        public string? ExistingDocumentNumber { get; set; }
         public string? GuestFullName { get; set; }
         public string? GuestPhone { get; set; }
-        public string? DocumentType { get; set; } = "Aadhaar"; // 'Aadhaar', 'Passport', 'DrivingLicense', 'VoterID'
+        public string? DocumentType { get; set; } // 'Aadhaar', 'Passport', 'DrivingLicense', 'VoterID'
         public string? IdDocumentNumber { get; set; }
+        [RequiredDocumentFile]
         public IFormFile? IdDocumentFile { get; set; }
+
+        public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+        {
+            bool docSubmitted = !string.IsNullOrWhiteSpace(IdDocumentNumber) || !string.IsNullOrWhiteSpace(DocumentType);
+            bool hasExistingDoc = !string.IsNullOrWhiteSpace(ExistingDocumentKey) || IsClientAlreadyVerified;
+            bool docNumberChanged = !string.IsNullOrWhiteSpace(ExistingDocumentNumber) &&
+                !RequiredDocumentFileAttribute.IsSameDocumentNumber(IdDocumentNumber, ExistingDocumentNumber);
+            bool fileRequired = docSubmitted && (!hasExistingDoc || docNumberChanged);
+
+            if (fileRequired && (IdDocumentFile == null || IdDocumentFile.Length == 0))
+            {
+                yield return new ValidationResult("Please upload a copy of your document.", new[] { nameof(IdDocumentFile) });
+            }
+
+            if (IdDocumentFile != null && IdDocumentFile.Length > 0)
+            {
+                if (IdDocumentFile.Length > RequiredDocumentFileAttribute.MaxFileSizeBytes)
+                {
+                    yield return new ValidationResult("Document exceeds maximum permitted size of 5MB.", new[] { nameof(IdDocumentFile) });
+                }
+                string ext = Path.GetExtension(IdDocumentFile.FileName).ToLowerInvariant();
+                if (string.IsNullOrEmpty(ext) || !RequiredDocumentFileAttribute.AllowedExtensions.Contains(ext))
+                {
+                    yield return new ValidationResult("Only JPG, JPEG, PNG, and PDF files are accepted.", new[] { nameof(IdDocumentFile) });
+                }
+                if (string.IsNullOrWhiteSpace(IdDocumentFile.ContentType) || !RequiredDocumentFileAttribute.AllowedContentTypes.Contains(IdDocumentFile.ContentType.ToLowerInvariant()))
+                {
+                    yield return new ValidationResult("Invalid file content type. Please upload a valid image or PDF document.", new[] { nameof(IdDocumentFile) });
+                }
+            }
+        }
     }
 
     public class PaymentPageViewModel
@@ -288,6 +365,11 @@ namespace BookMyFun.Models.ViewModels
         public List<Booking> Bookings { get; set; } = new();
         public List<SubscriptionPlan> AvailablePlans { get; set; } = new();
         public List<PropertyType> AvailableCategories { get; set; } = new();
+        public int TotalCountedListings => Properties.Count(p => p.ListingStatus != "Rejected");
+        public int LiveListingsCount => Properties.Count(p => p.IsApproved && p.ListingStatus == "Active");
+        public bool CanAddProperty { get; set; }
+        public bool IsEligibleForTrial { get; set; }
+        public string? AddPropertyDisabledReason { get; set; }
     }
 
     public class ClientDashboardViewModel
@@ -793,5 +875,169 @@ namespace BookMyFun.Models.ViewModels
 
         public bool IsOwnerView { get; set; } = false;
         public bool IsAdminOrStaffView { get; set; } = false;
+    }
+
+    public class EventManagerPublicProfileViewModel
+    {
+        public int ManagerID { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public string? ProfilePictureUrl { get; set; }
+        public string VerificationStatus { get; set; } = "Verified";
+        public string? ServiceAreas { get; set; }
+        public int YearsOfExperience { get; set; } = 3;
+        public string? Bio { get; set; }
+        public string? CancellationPolicy { get; set; }
+        public List<string> EventTypesHandled { get; set; } = new();
+        public List<BookMyFun.Models.Entities.EventManagerPortfolio> PortfolioItems { get; set; } = new();
+        public List<BookMyFun.Models.Entities.EventPackage> Packages { get; set; } = new();
+        public int EventsCompleted { get; set; } = 18;
+        public int RepeatClientsCount { get; set; } = 6;
+        public int OnTimePercentage { get; set; } = 99;
+        public string AverageResponseTime { get; set; } = "Within 1 hour";
+        public List<EventManagerReviewItem> Reviews { get; set; } = new();
+        public List<string> PastVenues { get; set; } = new();
+
+        // Phase 7 Selection & Context properties (Zero contact info)
+        public int? PropertyID { get; set; }
+        public int? OccasionID { get; set; }
+        public string? OccasionName { get; set; }
+        public double AverageRating { get; set; } = 4.9;
+        public int ReviewCount { get; set; } = 42;
+        public decimal StartingPrice { get; set; }
+        public int? SelectedPackageID { get; set; }
+    }
+
+    public class EventManagerReviewItem
+    {
+        public string ClientName { get; set; } = "Verified Traveler";
+        public int Rating { get; set; } = 5;
+        public string? Comment { get; set; }
+        public string EventType { get; set; } = "Anniversary / Birthday";
+        public DateTime EventDate { get; set; } = DateTime.Today.AddDays(-20);
+    }
+
+    /// <summary>
+    /// Phase 8 Model Binding DTO: Strictly restricts bindable fields for self-service profile editing.
+    /// Excludes ProfilePictureUrl, ProfilePictureFile, Phone, WhatsApp, Email, Address, and social handles.
+    /// </summary>
+    public class EventManagerProfileInput
+    {
+        [Required(ErrorMessage = "Display or brand name is required.")]
+        [StringLength(100, ErrorMessage = "Brand name cannot exceed 100 characters.")]
+        public string FullName { get; set; } = string.Empty;
+
+        [Range(0, 60, ErrorMessage = "Years of experience must be between 0 and 60.")]
+        public int? YearsOfExperience { get; set; }
+
+        [StringLength(500, ErrorMessage = "Service areas cannot exceed 500 characters.")]
+        public string? ServiceAreas { get; set; }
+
+        [StringLength(2000, ErrorMessage = "Bio cannot exceed 2000 characters.")]
+        public string? Bio { get; set; }
+
+        [StringLength(200, ErrorMessage = "Event types cannot exceed 200 characters.")]
+        public string? EventTypesCommaSeparated { get; set; }
+
+        [StringLength(1500, ErrorMessage = "Cancellation policy cannot exceed 1500 characters.")]
+        public string? CancellationPolicy { get; set; }
+    }
+
+    /// <summary>
+    /// Backward-compatible alias inheriting from EventManagerProfileInput without picture or contact fields.
+    /// </summary>
+    public class EventManagerProfileEditViewModel : EventManagerProfileInput
+    {
+        public int UserID { get; set; }
+    }
+
+    /// <summary>
+    /// Phase 8 Event Manager Profile ViewModel for view rendering.
+    /// Uses platform default avatar and excludes sensitive contact info.
+    /// </summary>
+    public class EventManagerProfileViewModel
+    {
+        public int UserID { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public string DefaultAvatarUrl { get; set; } = "/images/default-avatar.svg";
+        public string? Bio { get; set; }
+        public int? YearsOfExperience { get; set; }
+        public string? ServiceAreas { get; set; }
+        public string? CancellationPolicy { get; set; }
+        public string? EventTypesCommaSeparated { get; set; }
+        public string VerificationStatus { get; set; } = "Pending";
+        public List<EventPackage> Packages { get; set; } = new();
+        public List<EventManagerPortfolio> Portfolios { get; set; } = new();
+        public decimal StartingPrice { get; set; }
+    }
+
+    public class EventManagerPortfolioUploadViewModel
+    {
+        [Required, MaxLength(150)]
+        public string Title { get; set; } = string.Empty;
+
+        public string? Description { get; set; }
+
+        [Required]
+        public IFormFile? MediaFile { get; set; }
+
+        public string MediaType { get; set; } = "image"; // 'image', 'video'
+    }
+
+    public class OwnerNotificationPreferencesViewModel
+    {
+        public bool InAppEnabled { get; set; } = true;
+        public bool EmailEnabled { get; set; } = true;
+        public bool WhatsAppEnabled { get; set; } = false;
+        public bool WhatsAppVerified { get; set; } = false;
+        public string? WhatsAppPhone { get; set; }
+    }
+
+    public class PlanPriceCreateViewModel
+    {
+        public int PlanID { get; set; }
+        public decimal Price { get; set; }
+        public DateTime EffectiveFrom { get; set; } = DateTime.Today.AddDays(7);
+        public DateTime? EffectiveTo { get; set; }
+    }
+
+    public class EventManagerListItemViewModel
+    {
+        public int UserID { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public string? Email { get; set; }
+        public string? Phone { get; set; }
+        public string? ServiceAreas { get; set; }
+        public string VerificationStatus { get; set; } = "Pending";
+        public bool IsActive { get; set; } = true;
+        public int ActivePackageCount { get; set; }
+        public int ApprovedPortfolioCount { get; set; }
+        public DateTime SubmittedDate { get; set; }
+        public string? ProfilePictureUrl { get; set; }
+    }
+
+    public class EventManagerListViewModel
+    {
+        public string ActiveTab { get; set; } = "Pending"; // Pending, Verified, Rejected, Suspended
+        public int PendingCount { get; set; }
+        public int VerifiedCount { get; set; }
+        public int RejectedCount { get; set; }
+        public int SuspendedCount { get; set; }
+        public List<EventManagerListItemViewModel> Managers { get; set; } = new();
+    }
+
+    public class EventManagerDetailViewModel
+    {
+        public User Manager { get; set; } = new();
+        public List<EventPackage> Packages { get; set; } = new();
+        public List<EventManagerPortfolio> Portfolios { get; set; } = new();
+        public ClientIdVerification? VerificationDoc { get; set; }
+
+        // Checklist warnings (warns but never blocks action)
+        public bool HasDocumentsUploaded { get; set; }
+        public bool HasActivePackage { get; set; }
+        public bool HasApprovedPortfolio { get; set; }
+        public bool HasServiceAreas { get; set; }
+
+        public List<string> Warnings { get; set; } = new();
     }
 }

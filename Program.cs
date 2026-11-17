@@ -147,6 +147,7 @@ builder.Services.AddHostedService<BookMyFun.Services.Notifications.CheckInRemind
 builder.Services.AddHostedService<BookMyFun.Services.Notifications.SubscriptionLifecycleBackgroundService>();
 builder.Services.AddScoped<ICheckoutEventManagerService, CheckoutEventManagerService>();
 builder.Services.AddScoped<IStayCelebrationEligibilityService, StayCelebrationEligibilityService>();
+builder.Services.AddScoped<BookMyFun.Services.Staff.IEventManagerReviewService, BookMyFun.Services.Staff.EventManagerReviewService>();
 builder.Services.AddMemoryCache();
 
 builder.Services.Configure<CookiePolicyOptions>(options =>
