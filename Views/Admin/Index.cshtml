@@ -41,6 +41,19 @@
     </div>
 </div>
 
+@if (ViewBag.SchemaWarning != null)
+{
+    <div class="alert alert-warning border-0 shadow-xs rounded-4 mb-4" role="alert">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-exclamation-triangle-fill fs-4 me-3 text-warning"></i>
+            <div>
+                <strong>Database Migration Notice:</strong> @ViewBag.SchemaWarning
+                <div class="small text-muted mt-1">To apply pending database migrations, run: <code>dotnet run --project tools/DbMigrate</code></div>
+            </div>
+        </div>
+    </div>
+}
+
 <!-- Stat Cards Grid: 6 Summary Cards linking to filtered lists (Item 1) -->
 <div class="dash-stat-grid mb-4">
     <!-- 1. Bookings Today -->
@@ -198,8 +211,9 @@
                                         </form>
                                         @if (p.ListingStatus != "Rejected")
                                         {
-                                            <form asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="false" asp-route-status="Rejected" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1" onsubmit="return confirm('Reject listing for property #@p.PropertyID?');">
+                                            <form asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="false" asp-route-status="Rejected" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1" onsubmit="const r = prompt('Please enter the rejection reason for property #@p.PropertyID:'); if (!r || !r.trim()) { alert('A rejection reason is required.'); return false; } this.elements['reason'].value = r.trim(); return true;">
                                                 @Html.AntiForgeryToken()
+                                                <input type="hidden" name="reason" value="" />
                                                 <button type="submit" class="btn btn-sm btn-outline-danger" style="border-radius: 8px; padding: .25rem .55rem; font-size: .78rem;" title="Reject Listing">
                                                     <i class="bi bi-x-circle me-1"></i>Reject
                                                 </button>

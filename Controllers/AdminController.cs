@@ -6,6 +6,7 @@ using BookMyFun.Repositories;
 using BookMyFun.Services;
 using BookMyFun.Services.Staff;
 using BookMyFun.Services.Health;
+using BookMyFun.Services.Database;
 
 using BookMyFun.Services.Notifications;
 using BookMyFun.Services.Exceptions;
@@ -38,6 +39,7 @@ namespace BookMyFun.Controllers
         private readonly IEventManagerReviewService _eventReviewService;
         private readonly IStaffQueueService _staffQueueService;
         private readonly IDataHealthCheckService _healthCheckService;
+        private readonly ISchemaVersionService? _schemaVersionService;
 
         private readonly INotificationDispatcherService? _notificationDispatcher;
 
@@ -63,7 +65,8 @@ namespace BookMyFun.Controllers
             IEventManagerReviewService? eventReviewService = null,
             IStaffQueueService? staffQueueService = null,
             IDataHealthCheckService? healthCheckService = null,
-            INotificationOutboxRepository? outboxRepo = null)
+            INotificationOutboxRepository? outboxRepo = null,
+            ISchemaVersionService? schemaVersionService = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -86,6 +89,7 @@ namespace BookMyFun.Controllers
             _eventReviewService = eventReviewService ?? new EventManagerReviewService(userRepo, eventPackageRepo, configRepo, idVerificationService, mediaStorage);
             _staffQueueService = staffQueueService ?? new StaffQueueService(userRepo, eventPackageRepo, propRepo, idVerificationService, partnerLeadService, refundEngine, damageClaimService);
             _healthCheckService = healthCheckService ?? new DataHealthCheckService(propRepo, userRepo, eventPackageRepo, subRepo, outboxRepo ?? new NotificationOutboxRepository(new Data.DBHelper(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build()), new UserNotificationRepository(new Data.DBHelper(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build()), Microsoft.Extensions.Logging.Abstractions.NullLogger<UserNotificationRepository>.Instance), Microsoft.Extensions.Logging.Abstractions.NullLogger<NotificationOutboxRepository>.Instance), env);
+            _schemaVersionService = schemaVersionService;
         }
 
         public async Task<IActionResult> Index()
@@ -136,6 +140,15 @@ namespace BookMyFun.Controllers
                 RecentBookings = bookings.Take(5).ToList(),
                 RecentAuditLogs = await _configRepo.GetAuditLogsAsync(10)
             };
+
+            if (_env.IsDevelopment() && _schemaVersionService != null)
+            {
+                var schemaStatus = await _schemaVersionService.CheckSchemaStatusAsync();
+                if (schemaStatus.IsBehind)
+                {
+                    ViewBag.SchemaWarning = schemaStatus.StatusMessage;
+                }
+            }
 
             return View(vm);
         }

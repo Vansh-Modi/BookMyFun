@@ -749,25 +749,66 @@ namespace BookMyFun.Repositories
 
         public async Task<List<PropertyMedia>> GetPropertyMediaAsync(int propertyId)
         {
-            const string sql = @"
-                SELECT TOP 30 MediaID, PropertyID, MediaType, SourceType, StorageUrl, PublicId, IsPrimary, SortOrder, CreatedAt
-                FROM PropertyMedia
-                WHERE PropertyID = @PropertyID
-                  AND StorageUrl NOT LIKE '%test.jpg%'
-                  AND StorageUrl NOT LIKE '%placeholder%'
-                ORDER BY SortOrder ASC, MediaID ASC";
-            return await _db.ExecuteReaderListAsync(sql, r => new PropertyMedia
+            try
             {
-                MediaID = r.GetInt32(r.GetOrdinal("MediaID")),
-                PropertyID = r.GetInt32(r.GetOrdinal("PropertyID")),
-                MediaType = r.GetString(r.GetOrdinal("MediaType")),
-                SourceType = r.GetString(r.GetOrdinal("SourceType")),
-                StorageUrl = r.GetString(r.GetOrdinal("StorageUrl")),
-                PublicId = r.IsDBNull(r.GetOrdinal("PublicId")) ? null : r.GetString(r.GetOrdinal("PublicId")),
-                IsPrimary = r.GetBoolean(r.GetOrdinal("IsPrimary")),
-                SortOrder = r.GetInt32(r.GetOrdinal("SortOrder")),
-                CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt"))
-            }, new SqlParameter("@PropertyID", propertyId));
+                const string sql = @"
+                    SELECT TOP 30 MediaID, PropertyID, MediaType, SourceType, StorageUrl, PublicId, IsPrimary, SortOrder, CreatedAt
+                    FROM PropertyMedia
+                    WHERE PropertyID = @PropertyID
+                      AND StorageUrl NOT LIKE '%test.jpg%'
+                      AND StorageUrl NOT LIKE '%placeholder%'
+                    ORDER BY SortOrder ASC, MediaID ASC";
+                var list = await _db.ExecuteReaderListAsync(sql, r => new PropertyMedia
+                {
+                    MediaID = r.GetInt32(r.GetOrdinal("MediaID")),
+                    PropertyID = r.GetInt32(r.GetOrdinal("PropertyID")),
+                    MediaType = r.GetString(r.GetOrdinal("MediaType")),
+                    SourceType = r.GetString(r.GetOrdinal("SourceType")),
+                    StorageUrl = r.GetString(r.GetOrdinal("StorageUrl")),
+                    PublicId = r.IsDBNull(r.GetOrdinal("PublicId")) ? null : r.GetString(r.GetOrdinal("PublicId")),
+                    IsPrimary = r.GetBoolean(r.GetOrdinal("IsPrimary")),
+                    SortOrder = r.GetInt32(r.GetOrdinal("SortOrder")),
+                    CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt"))
+                }, new SqlParameter("@PropertyID", propertyId));
+
+                if (list != null && list.Count > 0)
+                {
+                    return list;
+                }
+            }
+            catch (SqlException)
+            {
+                // PropertyMedia table or column missing before migration 003/006
+            }
+
+            // Graceful degradation: Fall back to legacy PropertyImages if PropertyMedia has not yet been populated
+            try
+            {
+                const string legacySql = @"
+                    SELECT ImageID, PropertyID, ImageURL, IsPrimary
+                    FROM PropertyImages
+                    WHERE PropertyID = @PropertyID
+                      AND ImageURL NOT LIKE '%test.jpg%'
+                      AND ImageURL NOT LIKE '%placeholder%'
+                    ORDER BY ImageID ASC";
+
+                return await _db.ExecuteReaderListAsync(legacySql, r => new PropertyMedia
+                {
+                    MediaID = r.GetInt32(r.GetOrdinal("ImageID")),
+                    PropertyID = r.GetInt32(r.GetOrdinal("PropertyID")),
+                    MediaType = "image",
+                    SourceType = "legacy",
+                    StorageUrl = r.GetString(r.GetOrdinal("ImageURL")),
+                    PublicId = null,
+                    IsPrimary = r.GetBoolean(r.GetOrdinal("IsPrimary")),
+                    SortOrder = r.GetInt32(r.GetOrdinal("ImageID")),
+                    CreatedAt = DateTime.UtcNow
+                }, new SqlParameter("@PropertyID", propertyId));
+            }
+            catch
+            {
+                return new List<PropertyMedia>();
+            }
         }
 
         public async Task<PropertyMedia?> GetPropertyMediaByIdAsync(int mediaId)

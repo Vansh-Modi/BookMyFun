@@ -4,6 +4,7 @@ using BookMyFun.Models.ViewModels;
 using BookMyFun.Repositories;
 using BookMyFun.Services;
 using BookMyFun.Services.Staff;
+using BookMyFun.Services.Database;
 
 using BookMyFun.Services.Notifications;
 using Microsoft.AspNetCore.Authorization;
@@ -29,6 +30,7 @@ namespace BookMyFun.Controllers
         private readonly ISiteSettingsService _siteSettingsService;
         private readonly IEventManagerReviewService _eventReviewService;
         private readonly IStaffQueueService _staffQueueService;
+        private readonly ISchemaVersionService? _schemaVersionService;
 
         private readonly INotificationDispatcherService? _notificationDispatcher;
         private readonly ISubscriptionRepository? _subRepo;
@@ -50,7 +52,8 @@ namespace BookMyFun.Controllers
             INotificationDispatcherService? notificationDispatcher = null,
             ISubscriptionRepository? subRepo = null,
             IEventManagerReviewService? eventReviewService = null,
-            IStaffQueueService? staffQueueService = null)
+            IStaffQueueService? staffQueueService = null,
+            ISchemaVersionService? schemaVersionService = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -69,6 +72,7 @@ namespace BookMyFun.Controllers
             _subRepo = subRepo;
             _eventReviewService = eventReviewService ?? new EventManagerReviewService(userRepo, eventPackageRepo, configRepo, idVerificationService, mediaStorage);
             _staffQueueService = staffQueueService ?? new StaffQueueService(userRepo, eventPackageRepo, propRepo, idVerificationService, partnerLeadService, refundEngine, damageClaimService);
+            _schemaVersionService = schemaVersionService;
         }
 
         public async Task<IActionResult> Index()
@@ -84,6 +88,15 @@ namespace BookMyFun.Controllers
             ViewBag.PendingBookings = bookings.Count(b => b.Status == "Pending");
             ViewBag.PendingLeads = leads.Count;
             ViewBag.PendingKYC = pendingVerifications.Count;
+
+            if (_schemaVersionService != null)
+            {
+                var schemaStatus = await _schemaVersionService.CheckSchemaStatusAsync();
+                if (schemaStatus.IsBehind)
+                {
+                    ViewBag.SchemaWarning = schemaStatus.StatusMessage;
+                }
+            }
 
             return View(properties);
         }

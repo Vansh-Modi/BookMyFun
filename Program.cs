@@ -96,6 +96,7 @@ builder.Services.AddHttpClient("WhatsApp", client =>
 // Data Access Layer (Raw ADO.NET)
 builder.Services.AddSingleton<DBHelper>();
 builder.Services.AddTransient<DatabaseInitializer>();
+builder.Services.AddScoped<BookMyFun.Services.Database.ISchemaVersionService, BookMyFun.Services.Database.SchemaVersionService>();
 
 // Repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -258,28 +259,22 @@ var uploadsDirectory = Path.Combine(app.Environment.WebRootPath ?? Path.Combine(
 EnsureDirectoryWritable(logsDirectory, app.Logger);
 EnsureDirectoryWritable(uploadsDirectory, app.Logger);
 
-// Database Initialization & Migration Control
-// Never run migrations in Production unless Database:AutoMigrate is explicitly true. Default false.
-bool shouldAutoMigrate = app.Environment.IsDevelopment() || databaseOptions.AutoMigrate;
-if (shouldAutoMigrate)
+// Phase 6 Runtime Schema Verification (No DDL at startup)
+// The application must never create or alter tables at startup in any environment.
+// Instead, read the highest applied migration from dbo.SchemaVersion and log a single warning if behind.
+using (var scope = app.Services.CreateScope())
 {
-    using var scope = app.Services.CreateScope();
-    var initializer = scope.ServiceProvider.GetRequiredService<DatabaseInitializer>();
-    await initializer.InitializeAsync();
-
-    var dbHelper = scope.ServiceProvider.GetRequiredService<DBHelper>();
-    try
+    var schemaService = scope.ServiceProvider.GetRequiredService<BookMyFun.Services.Database.ISchemaVersionService>();
+    var schemaStatus = await schemaService.CheckSchemaStatusAsync();
+    if (schemaStatus.IsBehind)
     {
-        await DatabaseSeeder.SeedInitialDataAsync(dbHelper);
+        app.Logger.LogWarning("Schema verification check: Database is at version {CurrentVersion} (missing: {MissingVersions}). Running in degraded compatibility mode.",
+            schemaStatus.CurrentVersion, string.Join(", ", schemaStatus.MissingVersions));
     }
-    catch (Exception ex)
+    else
     {
-        app.Logger.LogWarning(ex, "Initial database seeding encountered a recoverable error.");
+        app.Logger.LogInformation("Database schema verified at version {Version}.", schemaStatus.CurrentVersion);
     }
-}
-else
-{
-    app.Logger.LogInformation("Database auto-migration skipped (Production environment and Database:AutoMigrate is false). Schema changes are managed via /db scripts.");
 }
 
 // Health Endpoint (returns plain text OK without querying database)
