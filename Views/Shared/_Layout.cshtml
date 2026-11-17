@@ -40,7 +40,7 @@
         })();
     </script>
 </head>
-<body>
+<body class="d-flex flex-column min-vh-100">
     <!-- Top Announcement & Quick Contact Bar (Dynamic) -->
     <div class="announcement-bar bg-dark text-white-50 py-1 border-bottom border-secondary small d-none d-md-block">
         <div class="container d-flex justify-content-between align-items-center">
@@ -70,29 +70,38 @@
     <!-- Main Navigation Header (Dynamic Brand / Logo) -->
     <header class="sticky-top">
         <nav class="navbar navbar-expand-lg navbar-dark shadow-sm">
-            <div class="container">
-                <a class="navbar-brand fw-bold text-warning d-flex align-items-center" asp-controller="Home" asp-action="Index">
-                    @if (!string.IsNullOrEmpty(site.LogoUrl))
+            <div class="@(ViewData["IsDashboard"] as bool? == true ? "container-fluid px-3 px-lg-4" : "container")">
+                <div class="d-flex align-items-center site-header-brand-wrap">
+                    @if (ViewData["IsDashboard"] as bool? == true && User.Identity?.IsAuthenticated == true && (User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value != "Client"))
                     {
-                        <img src="@Url.Content(site.LogoUrl)" alt="@site.SiteName" style="height: 38px; object-fit: contain;" class="me-2" />
+                        <button class="btn btn-outline-light border-0 me-2" type="button" id="dashboardSidebarToggle" aria-expanded="false" aria-controls="desktopDashboardSidebar" aria-label="Toggle navigation menu" style="width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.12); border-radius: 8px;">
+                            <i class="bi bi-list fs-4 text-warning"></i>
+                        </button>
                     }
                     else
                     {
-                        <i class="bi @site.SiteIcon me-2 fs-3 text-warning"></i>
+                        <button class="btn btn-outline-light border-0 me-2 main-nav-drawer-toggle" type="button" id="mainNavDrawerToggle" aria-expanded="false" aria-controls="mainNavDrawer" aria-label="Open menu" title="Open menu" style="width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.12); border-radius: 8px;">
+                            <i class="bi bi-list fs-4 text-warning"></i>
+                        </button>
                     }
-                    <span>@site.SiteName</span>
-                </a>
-                <!-- Mobile Controls: Theme Toggle & Hamburger -->
-                <div class="d-flex align-items-center gap-2 d-lg-none">
-                    <button type="button" class="theme-switch-btn btn btn-sm btn-outline-light border-0 rounded-circle" title="Toggle dark / light mode" aria-label="Toggle dark/light mode" style="width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.12);">
-                        <i class="bi bi-moon-stars-fill theme-icon"></i>
-                    </button>
-                    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain" aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation" style="width: 40px; height: 40px; padding: 0; display: inline-flex; align-items: center; justify-content: center;">
-                        <span class="navbar-toggler-icon"></span>
-                    </button>
+                    <a class="navbar-brand fw-bold text-warning d-flex align-items-center me-2 me-lg-3" asp-controller="Home" asp-action="Index">
+                    @if (!string.IsNullOrEmpty(site.LogoUrl))
+                    {
+                        <img src="@Url.Content(site.LogoUrl)" alt="@site.SiteName" style="height: 38px; object-fit: contain;" class="me-2 site-logo-img" />
+                        <i class="bi @(string.IsNullOrEmpty(site.SiteIcon) ? "bi-house-heart-fill" : site.SiteIcon) me-2 fs-3 text-warning site-logo-icon d-none"></i>
+                    }
+                    else
+                    {
+                        <img src="" alt="@site.SiteName" style="height: 38px; object-fit: contain;" class="me-2 site-logo-img d-none" />
+                        <i class="bi @(string.IsNullOrEmpty(site.SiteIcon) ? "bi-house-heart-fill" : site.SiteIcon) me-2 fs-3 text-warning site-logo-icon"></i>
+                    }
+                    <span class="site-name-text">@(string.IsNullOrWhiteSpace(site.SiteName) ? "BookMyFun" : site.SiteName)</span>
+                    </a>
                 </div>
-                <div class="collapse navbar-collapse" id="navbarMain">
-                    <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-4">
+
+                <!-- Desktop Center Navigation Links -->
+                <div class="collapse navbar-collapse d-none d-lg-flex" id="navbarMain">
+                    <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-3">
                         <li class="nav-item">
                             <a class="nav-link text-white fw-medium" asp-controller="Properties" asp-action="Index">
                                 <i class="bi bi-compass"></i> Explore Stays
@@ -119,211 +128,191 @@
                             </a>
                         </li>
                     </ul>
-                    <ul class="navbar-nav ms-auto align-items-center gap-2">
-                        @if (User.Identity != null && User.Identity.IsAuthenticated)
+                </div>
+
+                <!-- Right-side Controls: Notification Bell, Account Avatar/Sign-in, Theme Toggle -->
+                <div class="d-flex align-items-center ms-auto gap-2 header-right-controls">
+                    @if (User.Identity != null && User.Identity.IsAuthenticated)
+                    {
+                        <div class="dropdown position-relative" id="mainHeaderNotifDropdownItem">
+                            <button class="btn btn-sm btn-outline-light border-0 rounded-circle position-relative" type="button" id="mainHeaderNotifBell" data-bs-toggle="dropdown" aria-expanded="false" title="Notifications" aria-label="Notifications" style="width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.12);">
+                                <i class="bi bi-bell-fill fs-5 text-warning"></i>
+                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-dark main-notif-badge-sync" id="mainNotifBadge" style="font-size: 0.65rem; transform: translate(-10px, 8px) !important; display: none;">0</span>
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-4 p-0 mt-2 notif-dropdown-panel" aria-labelledby="mainHeaderNotifBell" style="width: 340px; max-width: 90vw;">
+                                <div class="p-3 border-bottom d-flex align-items-center justify-content-between bg-dark text-white rounded-top-4">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <i class="bi bi-bell-fill text-warning"></i>
+                                        <span class="fw-bold small">Notifications</span>
+                                        <span class="badge bg-warning text-dark rounded-pill" id="notifPanelUnreadBadge">0 unread</span>
+                                    </div>
+                                    <button type="button" class="btn btn-link text-warning p-0 text-decoration-none small fw-semibold btn-mark-all-read" id="btnMarkAllNotifsRead">Mark all read</button>
+                                </div>
+                                <div class="notif-list-container" id="notifListContainer" style="max-height: 300px; overflow-y: auto;">
+                                    <div class="p-3 text-center text-muted small"><div class="spinner-border spinner-border-sm text-warning me-1"></div> Loading...</div>
+                                </div>
+                                <div class="p-2 text-center bg-light rounded-bottom-4 border-top">
+                                    <a asp-controller="Home" asp-action="Index" class="text-decoration-none small fw-semibold text-primary">View Marketplace</a>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    @if (User.Identity != null && User.Identity.IsAuthenticated)
+                    {
+                        var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Client";
+                        var rawName = User.Identity?.Name?.Trim() ?? "";
+                        var rawEmail = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value?.Trim() ?? "";
+                        string userInitial = "U";
+                        if (!string.IsNullOrEmpty(rawName))
                         {
-                            var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
-                            if (role == "Admin")
-                            {
-                                <li class="nav-item dropdown">
-                                    <a class="btn btn-warning text-dark fw-bold px-3 py-1.5 dropdown-toggle shadow-sm rounded-pill" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <i class="bi bi-shield-lock-fill me-1"></i> Admin Console
-                                    </a>
-                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-4 py-2 mt-2">
-                                        <li><a class="dropdown-item fw-semibold" asp-controller="Admin" asp-action="Index"><i class="bi bi-speedometer2 text-primary me-2"></i>Dashboard</a></li>
-                                        <li><a class="dropdown-item fw-semibold text-success" asp-controller="Admin" asp-action="DynamicAnalytics"><i class="bi bi-graph-up-arrow text-success me-2"></i>Dynamic Analytics &amp; Reports</a></li>
-                                        <li><a class="dropdown-item fw-semibold text-warning" asp-controller="EventManager" asp-action="Index"><i class="bi bi-palette2 text-warning me-2"></i>Event Manager Dashboard</a></li>
-                                        <li><a class="dropdown-item text-secondary" asp-controller="EventManager" asp-action="ServiceAreas"><i class="bi bi-geo-alt text-info me-2"></i>Event Service Areas</a></li>
-                                        <li><hr class="dropdown-divider my-1"></li>
-                                        <li><h6 class="dropdown-header text-uppercase small text-muted">Operations Queues</h6></li>
-                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="RefundsQueue"><i class="bi bi-arrow-counterclockwise text-info me-2"></i>Refunds Operations</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="PartnerLeads"><i class="bi bi-people text-success me-2"></i>Partner Onboarding Leads</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="DamageClaims"><i class="bi bi-shield-shaded text-danger me-2"></i>Damage Claims Adjudication</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="IdVerifications"><i class="bi bi-person-vcard text-primary me-2"></i>Guest KYC Verifications</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="SupportQueries"><i class="bi bi-headset text-secondary me-2"></i>Customer Inquiries</a></li>
-                                        <li><hr class="dropdown-divider my-1"></li>
-                                        <li><h6 class="dropdown-header text-uppercase small text-muted">Platform Management</h6></li>
-                                        <li><a class="dropdown-item fw-semibold text-warning" asp-controller="Admin" asp-action="EventCommissions"><i class="bi bi-percent text-warning me-2"></i>Event Commissions &amp; Overrides</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageProperties"><i class="bi bi-houses me-2"></i>Manage Properties</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageBookings"><i class="bi bi-calendar-check me-2"></i>Manage Bookings</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageOwners"><i class="bi bi-person-badge me-2"></i>Manage Hosts &amp; Tiers</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="ManageEmployees"><i class="bi bi-people-fill text-primary me-2"></i>Manage Employees</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Admin" asp-action="Settings"><i class="bi bi-gear me-2"></i>System Settings</a></li>
-                                        <li><hr class="dropdown-divider my-1"></li>
-                                        <li><a class="dropdown-item fw-semibold" asp-controller="Account" asp-action="Profile"><i class="bi bi-person-circle text-primary me-2"></i>My Profile</a></li>
-                                        <li><hr class="dropdown-divider my-1"></li>
-                                        <li>
-                                            <button type="button" class="dropdown-item text-danger rounded-2 d-flex align-items-center py-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#logoutConfirmModal">
-                                                <i class="bi bi-box-arrow-right me-2"></i> Log Out
-                                            </button>
-                                        </li>
-                                    </ul>
-                                </li>
-                            }
-                            else if (role == "Employee")
-                            {
-                                <li class="nav-item dropdown">
-                                    <a class="btn btn-info text-dark fw-bold px-3 py-1.5 dropdown-toggle shadow-sm rounded-pill" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <i class="bi bi-headset me-1"></i> Operations Staff
-                                    </a>
-                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-4 py-2 mt-2">
-                                        <li><a class="dropdown-item fw-semibold" asp-controller="Employee" asp-action="Index"><i class="bi bi-speedometer2 text-primary me-2"></i>Dashboard</a></li>
-                                        <li><a class="dropdown-item fw-semibold text-warning" asp-controller="EventManager" asp-action="Index"><i class="bi bi-palette2 text-warning me-2"></i>Event Manager Dashboard</a></li>
-                                        <li><a class="dropdown-item text-secondary" asp-controller="EventManager" asp-action="ServiceAreas"><i class="bi bi-geo-alt text-info me-2"></i>Event Service Areas</a></li>
-                                        <li><hr class="dropdown-divider my-1"></li>
-                                        <li><h6 class="dropdown-header text-uppercase small text-muted">Operational Queues</h6></li>
-                                        <li><a class="dropdown-item" asp-controller="Employee" asp-action="RefundsQueue"><i class="bi bi-arrow-counterclockwise text-info me-2"></i>Refunds Operations</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Employee" asp-action="PartnerLeads"><i class="bi bi-people text-success me-2"></i>Partner Onboarding Leads</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Employee" asp-action="DamageClaims"><i class="bi bi-shield-shaded text-danger me-2"></i>Damage Claims</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Employee" asp-action="IdVerifications"><i class="bi bi-person-vcard text-primary me-2"></i>Guest KYC Verifications</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Employee" asp-action="SupportQueries"><i class="bi bi-headset text-secondary me-2"></i>Customer Inquiries</a></li>
-                                        <li><hr class="dropdown-divider my-1"></li>
-                                        <li><a class="dropdown-item" asp-controller="Employee" asp-action="ManageProperties"><i class="bi bi-houses me-2"></i>Manage Properties</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Employee" asp-action="ManageBookings"><i class="bi bi-calendar-check me-2"></i>Manage Bookings</a></li>
-                                        <li><a class="dropdown-item fw-semibold text-warning" asp-controller="Employee" asp-action="EventCommissions"><i class="bi bi-percent text-warning me-2"></i>Event Commissions &amp; Overrides</a></li>
-                                        <li><hr class="dropdown-divider my-1"></li>
-                                        <li><a class="dropdown-item fw-semibold" asp-controller="Account" asp-action="Profile"><i class="bi bi-person-circle text-primary me-2"></i>My Profile</a></li>
-                                        <li><hr class="dropdown-divider my-1"></li>
-                                        <li>
-                                            <button type="button" class="dropdown-item text-danger rounded-2 d-flex align-items-center py-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#logoutConfirmModal">
-                                                <i class="bi bi-box-arrow-right me-2"></i> Log Out
-                                            </button>
-                                        </li>
-                                    </ul>
-                                </li>
-                            }
-                            else if (role == "Owner")
-                            {
-                                <li class="nav-item dropdown">
-                                    <a class="btn btn-outline-warning text-warning px-3 py-1.5 dropdown-toggle rounded-pill shadow-sm" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <i class="bi bi-speedometer2 me-1"></i> Host Dashboard
-                                    </a>
-                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-4 py-2 mt-2">
-                                        <li><a class="dropdown-item fw-semibold" asp-controller="Owner" asp-action="Index"><i class="bi bi-grid-fill text-warning me-2"></i>Host Dashboard</a></li>
-                                        <li><a class="dropdown-item text-success fw-semibold" asp-controller="Owner" asp-action="CreateProperty"><i class="bi bi-plus-circle-fill text-success me-2"></i>List New Farm</a></li>
-                                        <li><a class="dropdown-item text-danger" asp-controller="Owner" asp-action="DamageClaims"><i class="bi bi-shield-exclamation text-danger me-2"></i>Security Deposit Claims</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Owner" asp-action="Subscriptions"><i class="bi bi-award text-primary me-2"></i>Subscription Plans</a></li>
-                                        <li><hr class="dropdown-divider my-1"></li>
-                                        <li><a class="dropdown-item fw-semibold" asp-controller="Account" asp-action="Profile"><i class="bi bi-person-circle text-primary me-2"></i>My Profile</a></li>
-                                        <li><hr class="dropdown-divider my-1"></li>
-                                        <li>
-                                            <button type="button" class="dropdown-item text-danger rounded-2 d-flex align-items-center py-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#logoutConfirmModal">
-                                                <i class="bi bi-box-arrow-right me-2"></i> Log Out
-                                            </button>
-                                        </li>
-                                    </ul>
-                                </li>
-                            }
-                            else if (role == "EventManager")
-                            {
-                                <li class="nav-item dropdown">
-                                    <a class="btn btn-outline-warning text-warning px-3 py-1.5 dropdown-toggle shadow-sm rounded-pill" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <i class="bi bi-palette2 me-1"></i> Event Manager
-                                    </a>
-                                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-4 py-2 mt-2">
-                                        <li><a class="dropdown-item fw-semibold" asp-controller="EventManager" asp-action="Index"><i class="bi bi-speedometer2 text-primary me-2"></i>Event Manager Dashboard</a></li>
-                                        <li><a class="dropdown-item fw-semibold text-primary" asp-controller="EventManager" asp-action="ServiceAreas"><i class="bi bi-geo-alt-fill text-primary me-2"></i>Serviceable Areas</a></li>
-                                        <li><a class="dropdown-item fw-semibold text-success" asp-controller="EventManager" asp-action="Packages"><i class="bi bi-box-seam text-success me-2"></i>Décor Packages</a></li>
-                                        <li><a class="dropdown-item fw-semibold text-warning" asp-controller="EventManager" asp-action="AssignedSetups"><i class="bi bi-calendar-event text-warning me-2"></i>Assigned Setups</a></li>
-                                        <li><a class="dropdown-item fw-semibold text-info" asp-controller="EventManager" asp-action="Financials"><i class="bi bi-wallet2 text-info me-2"></i>Earnings &amp; Financials</a></li>
-                                        <li><hr class="dropdown-divider my-1"></li>
-                                        <li><a class="dropdown-item fw-semibold" asp-controller="Account" asp-action="Profile"><i class="bi bi-person-circle text-primary me-2"></i>My Profile</a></li>
-                                        <li><hr class="dropdown-divider my-1"></li>
-                                        <li>
-                                            <button type="button" class="dropdown-item text-danger rounded-2 d-flex align-items-center py-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#logoutConfirmModal">
-                                                <i class="bi bi-box-arrow-right me-2"></i> Log Out
-                                            </button>
-                                        </li>
-                                    </ul>
-                                </li>
-                            }
-                            else
-                            {
-                                var rawClientName = User.Identity?.Name ?? "Traveler";
-                                var clientInitial = !string.IsNullOrWhiteSpace(rawClientName) ? rawClientName.Substring(0, 1).ToUpper() : "T";
-                                <li class="nav-item">
-                                    <a class="nav-link text-white fw-semibold px-2" asp-controller="Client" asp-action="Index">
-                                        <i class="bi bi-calendar-check text-warning me-1"></i> My Trips
-                                    </a>
-                                </li>
-                                <li class="nav-item dropdown ms-lg-2">
-                                    <a class="nav-link p-0 dropdown-toggle no-caret d-flex align-items-center" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" title="@rawClientName (Profile &amp; Settings)">
-                                        <div class="rounded-circle d-flex align-items-center justify-content-center shadow-sm text-dark fw-bold header-avatar-circle" style="width: 38px; height: 38px; background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%); border: 2px solid rgba(255, 255, 255, 0.6); font-size: 1rem; cursor: pointer;">
-                                            @clientInitial
+                            var firstElement = System.Globalization.StringInfo.GetNextTextElement(rawName, 0);
+                            userInitial = firstElement.ToUpper(System.Globalization.CultureInfo.CurrentCulture);
+                        }
+                        else if (!string.IsNullOrEmpty(rawEmail))
+                        {
+                            var firstElement = System.Globalization.StringInfo.GetNextTextElement(rawEmail, 0);
+                            userInitial = firstElement.ToUpper(System.Globalization.CultureInfo.CurrentCulture);
+                        }
+                        var greetingName = !string.IsNullOrWhiteSpace(rawName) ? rawName : (!string.IsNullOrWhiteSpace(rawEmail) ? rawEmail : "User");
+
+                        <div class="dropdown">
+                            <button class="btn p-0 border-0 rounded-circle header-account-avatar-btn" type="button" id="mainHeaderUserAvatar" data-bs-toggle="dropdown" aria-expanded="false" title="@greetingName" aria-label="Account menu for @greetingName">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center shadow-sm text-dark fw-bold header-avatar-circle" style="width: 36px; height: 36px; background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%); border: 2px solid rgba(255, 255, 255, 0.7); font-size: 0.95rem; cursor: pointer;">
+                                    @userInitial
+                                </div>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-4 py-2 mt-2" aria-labelledby="mainHeaderUserAvatar" style="min-width: 240px;">
+                                <li class="px-3 py-2 border-bottom">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="rounded-circle d-flex align-items-center justify-content-center text-dark fw-bold" style="width: 34px; height: 34px; background: #fbbf24; font-size: 0.95rem;">
+                                            @userInitial
                                         </div>
-                                    </a>
-                                    <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-4 py-2 mt-2" style="min-width: 240px;">
-                                        <li class="px-3 py-2 border-bottom">
-                                            <div class="d-flex align-items-center gap-2">
-                                                <div class="rounded-circle d-flex align-items-center justify-content-center text-dark fw-bold" style="width: 34px; height: 34px; background: #fbbf24; font-size: 0.95rem;">
-                                                    @clientInitial
-                                                </div>
-                                                <div class="overflow-hidden">
-                                                    <a asp-controller="Account" asp-action="Profile" class="fw-bold text-dark text-truncate d-block text-decoration-none">@rawClientName</a>
-                                                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill small">Traveler</span>
-                                                </div>
-                                            </div>
-                                        </li>
-                                        <li>
-                                            <a class="dropdown-item py-2 fw-medium" asp-controller="Account" asp-action="Profile">
-                                                <i class="bi bi-person-gear text-primary me-2"></i> Profile &amp; Settings
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <a class="dropdown-item py-2 fw-medium" asp-controller="Client" asp-action="Index">
-                                                <i class="bi bi-calendar-check text-success me-2"></i> My Trips &amp; Bookings
-                                            </a>
-                                        </li>
+                                        <div class="overflow-hidden">
+                                            <a asp-controller="Account" asp-action="Profile" class="fw-bold text-dark text-truncate d-block text-decoration-none">@greetingName</a>
+                                            <span class="badge bg-warning-subtle text-dark border border-warning-subtle rounded-pill small">@role</span>
+                                        </div>
+                                    </div>
+                                </li>
+                                @{
+                                    var headerMenuItems = BookMyFun.Services.Navigation.NavigationMenuDefinition.GetHeaderDropdownItems(role);
+                                }
+                                @foreach (var item in headerMenuItems)
+                                {
+                                    if (item.IsDivider)
+                                    {
                                         <li><hr class="dropdown-divider my-1"></li>
+                                    }
+                                    else if (item.IsLogout)
+                                    {
                                         <li>
-                                            <button type="button" class="dropdown-item text-danger py-2 fw-semibold d-flex align-items-center" data-bs-toggle="modal" data-bs-target="#logoutConfirmModal">
-                                                <i class="bi bi-box-arrow-right me-2"></i> Log Out
+                                            <button type="button" class="dropdown-item text-danger rounded-2 d-flex align-items-center py-2 fw-semibold" data-bs-toggle="modal" data-bs-target="#logoutConfirmModal">
+                                                <i class="bi @item.Icon me-2"></i> @item.Title
                                             </button>
                                         </li>
-                                    </ul>
-                                </li>
-                            }
-                        }
-                        else
-                        {
-                            <li class="nav-item">
-                                <a class="nav-link text-warning fw-medium" asp-controller="Home" asp-action="Partner">
-                                    <i class="bi bi-handshake me-1"></i> Partner With Us
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link text-light fw-medium" asp-controller="Account" asp-action="Login">
-                                    <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
-                                </a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="btn btn-warning fw-bold px-3 py-1.5 shadow-sm rounded-pill" asp-controller="Account" asp-action="Register">
-                                    Sign Up
-                                </a>
-                            </li>
-                        }
-                    </ul>
-                    <!-- Mobile Drawer Theme Switcher Row -->
-                    <div class="d-lg-none pt-3 mt-3 border-top border-secondary border-opacity-25 d-flex align-items-center justify-content-between">
-                        <span class="text-white-50 small"><i class="bi bi-palette me-2"></i>Display Theme</span>
-                        <button type="button" class="theme-switch-btn btn btn-sm btn-outline-light d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2);">
-                            <i class="bi bi-moon-stars-fill theme-icon"></i>
-                            <span class="theme-mode-label small fw-semibold">Toggle Mode</span>
-                        </button>
-                    </div>
-                    <!-- Dark / Light Mode Toggle (Desktop) -->
-                    <button id="themeSwitchBtn" class="theme-switch-btn ms-3 d-none d-lg-inline-flex" title="Toggle dark / light mode" aria-label="Toggle dark/light mode">
+                                    }
+                                    else
+                                    {
+                                        <li>
+                                            <a class="dropdown-item py-2 fw-medium" asp-controller="@item.Controller" asp-action="@item.Action">
+                                                <i class="bi @item.Icon @(item.IconColorClass ?? "") me-2"></i> @item.Title
+                                            </a>
+                                        </li>
+                                    }
+                                }
+                            </ul>
+                        </div>
+                    }
+                    else
+                    {
+                        <a asp-controller="Account" asp-action="Login" class="btn btn-sm btn-outline-light border-0 d-inline-flex align-items-center justify-content-center fw-semibold rounded-pill header-compact-signin" style="height: 36px; background: rgba(255,255,255,0.12); color: #ffffff;" title="Sign In" aria-label="Sign In">
+                            <i class="bi bi-box-arrow-in-right me-1 text-warning"></i>
+                            <span>Sign In</span>
+                        </a>
+                    }
+
+                    <!-- Dark / Light Mode Toggle Button -->
+                    <button id="themeSwitchBtn" class="theme-switch-btn btn btn-sm btn-outline-light border-0 rounded-circle" type="button" title="Toggle dark / light mode" aria-label="Toggle dark/light mode" style="width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.12);">
                         <i class="bi bi-moon-stars-fill theme-icon" id="themeIcon"></i>
                     </button>
                 </div>
-            </div>
-        </nav>
+            </div>        </nav>
     </header>
+
+    <!-- Public Main Navigation Drawer (Side Drawer Overlay) -->
+    <div id="mainNavDrawer" class="main-nav-drawer" role="dialog" aria-modal="true" aria-label="Navigation Menu" aria-hidden="true" tabindex="-1">
+        <div class="main-nav-drawer-header">
+            <a class="navbar-brand fw-bold text-warning d-flex align-items-center text-decoration-none" asp-controller="Home" asp-action="Index">
+                @if (!string.IsNullOrEmpty(site.LogoUrl))
+                {
+                    <img src="@Url.Content(site.LogoUrl)" alt="@site.SiteName" style="height: 32px; object-fit: contain;" class="me-2 site-logo-img" />
+                }
+                else
+                {
+                    <i class="bi @(string.IsNullOrEmpty(site.SiteIcon) ? "bi-house-heart-fill" : site.SiteIcon) me-2 fs-4 text-warning"></i>
+                }
+                <span class="site-name-text fs-5">@(string.IsNullOrWhiteSpace(site.SiteName) ? "BookMyFun" : site.SiteName)</span>
+            </a>
+            <button type="button" class="btn btn-sm btn-outline-secondary border-0 rounded-circle main-nav-drawer-close" id="mainNavDrawerCloseBtn" aria-label="Close menu" style="width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;">
+                <i class="bi bi-x-lg fs-5"></i>
+            </button>
+        </div>
+        <div class="main-nav-drawer-body">
+            @{
+                var drawerRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            }
+            <div class="dashboard-nav-heading">@(User.Identity?.IsAuthenticated == true ? BookMyFun.Services.Navigation.NavigationMenuDefinition.GetDashboardNameForRole(drawerRole) : "Explore BookMyFun")</div>
+            <ul class="list-unstyled p-0 m-0">
+                @{
+                    var drawerMenuItems = BookMyFun.Services.Navigation.NavigationMenuDefinition.GetSidebarDrawerItems(drawerRole, User.Identity?.IsAuthenticated == true);
+                    var drawerCtrl = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+                    var drawerAct = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+                }
+                @foreach (var item in drawerMenuItems)
+                {
+                    if (!string.IsNullOrEmpty(item.Heading))
+                    {
+                        <li class="dashboard-nav-heading mt-2">@item.Heading</li>
+                    }
+                    else
+                    {
+                        var isActive = drawerCtrl.Equals(item.Controller, System.StringComparison.OrdinalIgnoreCase) &&
+                                       (string.IsNullOrEmpty(item.Action) || drawerAct.Equals(item.Action, System.StringComparison.OrdinalIgnoreCase));
+                        <li class="dashboard-nav-item">
+                            @if (item.RouteValues != null)
+                            {
+                                var typeVal = item.RouteValues.GetType().GetProperty("type")?.GetValue(item.RouteValues)?.ToString() ?? "";
+                                <a class="dashboard-nav-link main-drawer-link @(isActive ? "active" : "")" asp-controller="@item.Controller" asp-action="@item.Action" asp-route-type="@typeVal">
+                                    <i class="bi @item.Icon @(item.IconColorClass ?? "")"></i>
+                                    <span class="nav-text">@item.Title</span>
+                                </a>
+                            }
+                            else
+                            {
+                                <a class="dashboard-nav-link main-drawer-link @(isActive ? "active" : "")" asp-controller="@item.Controller" asp-action="@item.Action">
+                                    <i class="bi @item.Icon @(item.IconColorClass ?? "")"></i>
+                                    <span class="nav-text">@item.Title</span>
+                                </a>
+                            }
+                        </li>
+                    }
+                }
+            </ul>
+        </div>
+        <div class="main-nav-drawer-footer border-top p-3 d-flex align-items-center justify-content-between">
+            <span class="small text-muted"><i class="bi bi-palette me-1"></i>Theme</span>
+            <button type="button" class="theme-switch-btn btn btn-sm btn-outline-light rounded-pill px-3 py-1 d-inline-flex align-items-center gap-2" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2);">
+                <i class="bi bi-moon-stars-fill theme-icon"></i>
+                <span class="theme-mode-label small fw-semibold">Toggle Mode</span>
+            </button>
+        </div>
+    </div>
+    <div id="mainNavDrawerBackdrop" class="main-nav-drawer-backdrop" aria-hidden="true"></div>
 
     <!-- Main Body Container -->
     @if (ViewData["IsDashboard"] as bool? == true)
     {
-        <div class="dashboard-wrapper w-100">
+        <div class="dashboard-wrapper w-100 flex-grow-1 d-flex flex-column">
             @RenderBody()
         </div>
     }
@@ -370,13 +359,15 @@
                     <h4 class="text-warning fw-bold mb-3 d-flex align-items-center">
                         @if (!string.IsNullOrEmpty(site.LogoUrl))
                         {
-                            <img src="@Url.Content(site.LogoUrl)" alt="@site.SiteName" style="height: 30px;" class="me-2" />
+                            <img src="@Url.Content(site.LogoUrl)" alt="@site.SiteName" style="height: 30px;" class="me-2 site-logo-img" />
+                            <i class="bi @(string.IsNullOrEmpty(site.SiteIcon) ? "bi-house-heart-fill" : site.SiteIcon) me-2 fs-4 text-warning site-logo-icon d-none"></i>
                         }
                         else
                         {
-                            <i class="bi @site.SiteIcon me-2"></i>
+                            <img src="" alt="@site.SiteName" style="height: 30px;" class="me-2 site-logo-img d-none" />
+                            <i class="bi @(string.IsNullOrEmpty(site.SiteIcon) ? "bi-house-heart-fill" : site.SiteIcon) me-2 fs-4 text-warning site-logo-icon"></i>
                         }
-                        <span>@site.SiteName</span>
+                        <span class="site-name-text">@(string.IsNullOrWhiteSpace(site.SiteName) ? "BookMyFun" : site.SiteName)</span>
                     </h4>
                     <p class="small text-light opacity-75 pe-lg-4">
                         India's premier booking platform for private farmhouses, luxury villas, cottages, and party resorts. Enjoy 100% verified properties with flexible hourly, half-day, and full-day booking slots.
@@ -475,7 +466,16 @@
 
             <hr class="border-secondary my-3" />
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-center small text-light opacity-75 gap-3">
-                <p class="mb-0">&copy; @DateTime.UtcNow.Year @site.SiteName Platforms Private Limited. All Rights Reserved.</p>
+                <p class="mb-0 site-copyright-text">
+                    @if (!string.IsNullOrWhiteSpace(site.CopyrightText))
+                    {
+                        @site.CopyrightText
+                    }
+                    else
+                    {
+                        @: &copy; @DateTime.UtcNow.Year @(string.IsNullOrWhiteSpace(site.SiteName) ? "BookMyFun" : site.SiteName). All rights reserved.
+                    }
+                </p>
                 <div class="developer-credit d-inline-flex align-items-center gap-2 py-1 px-3 rounded-pill bg-black bg-opacity-25 border border-secondary border-opacity-25">
                     <span>Developed by <strong class="text-warning">Vansh Modi</strong></span>
                     <a href="tel:8849077959" target="_blank" rel="noopener noreferrer" class="text-success text-decoration-none" title="Call: 8849077959">
@@ -605,5 +605,271 @@
     <script src="~/js/site.js" asp-append-version="true"></script>
     <script src="~/js/imageOptimizer.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
+
+    <!-- Dashboard Sidebar Drawer & Universal Notification Scripts -->
+    <script>
+        (function() {
+            // Sidebar Toggle
+            const toggleBtn = document.getElementById('dashboardSidebarToggle');
+            const sidebar = document.getElementById('desktopDashboardSidebar');
+            const dashboardRoot = document.querySelector('.dashboard-root');
+
+            function applySidebarState(open) {
+                if (!sidebar) return;
+                if (window.innerWidth >= 992) {
+                    if (open) {
+                        sidebar.classList.remove('sidebar-collapsed');
+                        dashboardRoot?.classList.remove('sidebar-collapsed-layout');
+                        toggleBtn?.setAttribute('aria-expanded', 'true');
+                        try { localStorage.setItem('bmf-dashboard-sidebar-state', 'expanded'); } catch(e){}
+                    } else {
+                        sidebar.classList.add('sidebar-collapsed');
+                        dashboardRoot?.classList.add('sidebar-collapsed-layout');
+                        toggleBtn?.setAttribute('aria-expanded', 'false');
+                        try { localStorage.setItem('bmf-dashboard-sidebar-state', 'collapsed'); } catch(e){}
+                    }
+                } else {
+                    if (open) {
+                        sidebar.classList.add('sidebar-mobile-drawer-open');
+                        toggleBtn?.setAttribute('aria-expanded', 'true');
+                        let backdrop = document.getElementById('sidebarDrawerBackdrop');
+                        if (!backdrop) {
+                            backdrop = document.createElement('div');
+                            backdrop.id = 'sidebarDrawerBackdrop';
+                            backdrop.className = 'sidebar-drawer-backdrop show';
+                            backdrop.addEventListener('click', () => applySidebarState(false));
+                            document.body.appendChild(backdrop);
+                        } else {
+                            backdrop.classList.add('show');
+                        }
+                    } else {
+                        sidebar.classList.remove('sidebar-mobile-drawer-open');
+                        toggleBtn?.setAttribute('aria-expanded', 'false');
+                        const backdrop = document.getElementById('sidebarDrawerBackdrop');
+                        if (backdrop) {
+                            backdrop.classList.remove('show');
+                            setTimeout(() => backdrop.remove(), 250);
+                        }
+                    }
+                }
+            }
+
+            if (toggleBtn && sidebar) {
+                try {
+                    const saved = localStorage.getItem('bmf-dashboard-sidebar-state');
+                    if (window.innerWidth >= 992 && saved === 'collapsed') {
+                        applySidebarState(false);
+                    } else if (window.innerWidth >= 992) {
+                        applySidebarState(true);
+                    }
+                } catch(e) {}
+
+                toggleBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    if (window.innerWidth >= 992) {
+                        applySidebarState(sidebar.classList.contains('sidebar-collapsed'));
+                    } else {
+                        applySidebarState(!sidebar.classList.contains('sidebar-mobile-drawer-open'));
+                    }
+                });
+
+                document.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape' && sidebar.classList.contains('sidebar-mobile-drawer-open')) {
+                        applySidebarState(false);
+                    }
+                });
+
+                document.addEventListener('click', function(e) {
+                    if (window.innerWidth < 992 && sidebar.classList.contains('sidebar-mobile-drawer-open')) {
+                        if (!sidebar.contains(e.target) && e.target !== toggleBtn && !toggleBtn.contains(e.target)) {
+                            applySidebarState(false);
+                        }
+                    }
+                });
+            }
+
+            // Public Main Navigation Drawer (Accessible Slide Drawer Overlay)
+            (function () {
+                const drawerToggle = document.getElementById('mainNavDrawerToggle');
+                const drawer = document.getElementById('mainNavDrawer');
+                const drawerCloseBtn = document.getElementById('mainNavDrawerCloseBtn');
+                const drawerBackdrop = document.getElementById('mainNavDrawerBackdrop');
+
+                if (!drawerToggle || !drawer) return;
+
+                function getFocusableElements() {
+                    return drawer.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+                }
+
+                function openDrawer() {
+                    drawer.classList.add('open');
+                    drawer.setAttribute('aria-hidden', 'false');
+                    drawerToggle.setAttribute('aria-expanded', 'true');
+                    if (drawerBackdrop) {
+                        drawerBackdrop.classList.add('show');
+                        drawerBackdrop.setAttribute('aria-hidden', 'false');
+                    }
+                    document.body.style.overflow = 'hidden';
+
+                    const focusables = getFocusableElements();
+                    if (focusables.length > 0) {
+                        focusables[0].focus();
+                    }
+                }
+
+                function closeDrawer() {
+                    if (!drawer.classList.contains('open')) return;
+                    drawer.classList.remove('open');
+                    drawer.setAttribute('aria-hidden', 'true');
+                    drawerToggle.setAttribute('aria-expanded', 'false');
+                    if (drawerBackdrop) {
+                        drawerBackdrop.classList.remove('show');
+                        drawerBackdrop.setAttribute('aria-hidden', 'true');
+                    }
+                    document.body.style.overflow = '';
+                    drawerToggle.focus();
+                }
+
+                drawerToggle.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    if (drawer.classList.contains('open')) {
+                        closeDrawer();
+                    } else {
+                        openDrawer();
+                    }
+                });
+
+                if (drawerCloseBtn) {
+                    drawerCloseBtn.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        closeDrawer();
+                    });
+                }
+
+                if (drawerBackdrop) {
+                    drawerBackdrop.addEventListener('click', function () {
+                        closeDrawer();
+                    });
+                }
+
+                drawer.querySelectorAll('a').forEach(function (link) {
+                    link.addEventListener('click', function () {
+                        closeDrawer();
+                    });
+                });
+
+                document.addEventListener('keydown', function (e) {
+                    if (!drawer.classList.contains('open')) return;
+
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        closeDrawer();
+                        return;
+                    }
+
+                    if (e.key === 'Tab') {
+                        const focusables = getFocusableElements();
+                        if (focusables.length === 0) return;
+                        const first = focusables[0];
+                        const last = focusables[focusables.length - 1];
+
+                        if (e.shiftKey) {
+                            if (document.activeElement === first) {
+                                e.preventDefault();
+                                last.focus();
+                            }
+                        } else {
+                            if (document.activeElement === last) {
+                                e.preventDefault();
+                                first.focus();
+                            }
+                        }
+                    }
+                });
+            })();
+
+            // Notification loading & read actions
+            async function fetchNotifs() {
+                try {
+                    const res = await fetch('/Notification/GetRecent');
+                    if (!res.ok) return;
+                    const data = await res.json();
+
+                    const badges = document.querySelectorAll('#mainNotifBadge, .main-notif-badge-sync');
+                    badges.forEach(b => {
+                        if (data.unreadCount > 0) {
+                            b.textContent = data.unreadCount > 9 ? '9+' : data.unreadCount;
+                            b.style.display = 'inline-block';
+                        } else {
+                            b.style.display = 'none';
+                        }
+                    });
+
+                    const panelBadge = document.getElementById('notifPanelUnreadBadge');
+                    if (panelBadge) panelBadge.textContent = `${data.unreadCount} unread`;
+
+                    const containers = document.querySelectorAll('.notif-list-container');
+                    containers.forEach(c => {
+                        if (!data.items || data.items.length === 0) {
+                            c.innerHTML = '<div class="p-4 text-center text-muted small"><i class="bi bi-bell-slash fs-4 d-block mb-1 opacity-50"></i>No notifications yet</div>';
+                            return;
+                        }
+                        c.innerHTML = data.items.map(n => {
+                            const safeUrl = (n.actionUrl || '').replace(/'/g, "\\'");
+                            return `
+                            <div class="p-3 border-bottom d-flex gap-2.5 align-items-start ${n.isRead ? 'bg-body' : 'bg-primary-subtle bg-opacity-25'}" style="cursor: pointer;" onclick="onNotifClick(${n.notificationId}, '${safeUrl}')">
+                                <div class="rounded-circle p-2 bg-warning-subtle text-warning flex-shrink-0" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="bi bi-bell-fill small"></i>
+                                </div>
+                                <div class="flex-grow-1 overflow-hidden">
+                                    <div class="fw-semibold small text-dark">${n.title}</div>
+                                    <div class="small text-muted text-truncate">${n.message}</div>
+                                    <div class="small text-muted mt-1" style="font-size: 0.7rem;">${n.timeAgo}</div>
+                                </div>
+                                ${!n.isRead ? '<span class="badge bg-primary rounded-circle p-1" style="width: 8px; height: 8px;"></span>' : ''}
+                            </div>`;
+                        }).join('');
+                    });
+                } catch(e) {}
+            }
+
+            window.onNotifClick = async function(id, url) {
+                try {
+                    const tokenEl = document.querySelector('input[name="__RequestVerificationToken"]');
+                    const form = new FormData();
+                    if (tokenEl) form.append('__RequestVerificationToken', tokenEl.value);
+                    form.append('notificationId', id);
+                    await fetch('/Notification/MarkAsRead?notificationId=' + id, { method: 'POST', body: form });
+                } catch (e) {}
+
+                if (url && url.trim().length > 0 && url.startsWith('/')) {
+                    window.location.href = url;
+                } else {
+                    fetchNotifs();
+                }
+            };
+
+            document.querySelectorAll('.btn-mark-all-read').forEach(btn => {
+                btn.addEventListener('click', async function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    try {
+                        const tokenEl = document.querySelector('input[name="__RequestVerificationToken"]');
+                        const form = new FormData();
+                        if (tokenEl) form.append('__RequestVerificationToken', tokenEl.value);
+                        await fetch('/Notification/MarkAllAsRead', { method: 'POST', body: form });
+                        fetchNotifs();
+                    } catch(e) {}
+                });
+            });
+
+            if (document.getElementById('mainHeaderNotifBell') || document.getElementById('mobileNotifBell')) {
+                fetchNotifs();
+                document.getElementById('mainHeaderNotifBell')?.addEventListener('show.bs.dropdown', fetchNotifs);
+                document.getElementById('mobileNotifBell')?.addEventListener('show.bs.dropdown', fetchNotifs);
+            }
+        })();
+    </script>
+
 </body>
 </html>
