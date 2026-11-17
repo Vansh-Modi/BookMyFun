@@ -1,0 +1,439 @@
+@model BookMyFun.Models.ViewModels.EventManagerPublicProfileViewModel
+@using System.Text.Encodings.Web
+@{
+    ViewData["Title"] = $"{Model.FullName} - Verified Event & Décor Partner";
+}
+
+<div class="container py-4">
+    <!-- Breadcrumb / Back Navigation -->
+    <div class="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        @if (Model.PropertyID.HasValue && Model.PropertyID.Value > 0)
+        {
+            <a href="/Booking/Checkout?propertyId=@Model.PropertyID&occasionId=@Model.OccasionID" class="text-decoration-none small text-muted">
+                <i class="bi bi-arrow-left me-1"></i> Back to Stay Checkout
+            </a>
+            <span class="badge bg-secondary-subtle text-secondary rounded-pill small">
+                Booking Context: Property #@Model.PropertyID @(!string.IsNullOrEmpty(Model.OccasionName) ? $"• {Model.OccasionName}" : "")
+            </span>
+        }
+        else
+        {
+            <a asp-controller="Properties" asp-action="Index" class="text-decoration-none small text-muted">
+                <i class="bi bi-arrow-left me-1"></i> Explore Stays &amp; Celebration Venues
+            </a>
+        }
+    </div>
+
+    <!-- 1. HERO BANNER: Display Name, Verified Badge, Areas Served, Experience, Primary CTA -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4 bg-card">
+        <div class="p-4 p-md-5 text-white position-relative" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);">
+            <div class="row align-items-center g-4">
+                <div class="col-auto">
+                    <div class="position-relative">
+                        <!-- Platform default avatar: No private photo or logo leaks (Phase 8 item 9) -->
+                        <img src="@(string.IsNullOrEmpty(Model.ProfilePictureUrl) ? "/images/default-avatar.svg" : Model.ProfilePictureUrl)" 
+                             alt="Platform Default Avatar" 
+                             class="rounded-circle shadow-lg border border-3 border-warning bg-white" 
+                             style="width: 110px; height: 110px; object-fit: cover;" 
+                             onerror="this.src='/images/default-avatar.svg';" />
+                        @if (Model.VerificationStatus == "Verified")
+                        {
+                            <span class="position-absolute bottom-0 end-0 bg-warning text-dark rounded-circle p-1 shadow-sm" title="BookMyFun Verified Partner" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+                                <i class="bi bi-patch-check-fill fs-5"></i>
+                            </span>
+                        }
+                    </div>
+                </div>
+                <div class="col">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                        <h2 class="fw-bold mb-0 text-white">@Model.FullName</h2>
+                        @if (Model.VerificationStatus == "Verified")
+                        {
+                            <span class="badge bg-primary text-white px-3 py-1.5 rounded-pill shadow-xs">
+                                <i class="bi bi-patch-check-fill me-1"></i>BookMyFun Verified
+                            </span>
+                        }
+                        <span class="badge bg-warning text-dark px-3 py-1.5 rounded-pill fw-bold">
+                            <i class="bi bi-star-fill text-dark me-1"></i>@Model.AverageRating.ToString("F1") / 5.0 (@Model.ReviewCount reviews)
+                        </span>
+                    </div>
+
+                    <p class="text-white-50 small mb-3">
+                        <i class="bi bi-briefcase-fill text-warning me-1"></i><strong>@Model.YearsOfExperience Years Experience</strong> in Celebration &amp; Event Styling
+                        <span class="mx-2">&bull;</span>
+                        <i class="bi bi-geo-alt-fill text-danger me-1"></i><strong>Areas Served:</strong> @Model.ServiceAreas
+                    </p>
+
+                    <!-- Event Specialty Tags (From package categories) -->
+                    <div class="d-flex flex-wrap gap-1.5">
+                        @foreach (var tag in Model.EventTypesHandled)
+                        {
+                            <span class="badge bg-white bg-opacity-10 text-white border border-white border-opacity-25 px-2.5 py-1 rounded-pill small">
+                                @tag
+                            </span>
+                        }
+                    </div>
+                </div>
+
+                <!-- Primary CTA Button (Select this event manager) -->
+                <div class="col-12 col-md-auto text-md-end mt-3 mt-md-0">
+                    @if (Model.PropertyID.HasValue && Model.PropertyID.Value > 0)
+                    {
+                        var targetPackageId = Model.Packages.FirstOrDefault()?.PackageID;
+                        <a href="/Booking/Checkout?propertyId=@Model.PropertyID&occasionId=@Model.OccasionID@(targetPackageId.HasValue ? $"&packageId={targetPackageId}" : "")" 
+                           class="btn btn-warning btn-lg fw-bold rounded-pill shadow px-4 py-2.5 w-100 w-md-auto">
+                            <i class="bi bi-check-circle-fill me-1"></i> Select This Event Manager
+                        </a>
+                        <small class="text-white-50 d-block mt-1 text-center text-md-end">Pre-selects decorator for your stay</small>
+                    }
+                    else
+                    {
+                        <a href="/Properties" class="btn btn-warning btn-lg fw-bold rounded-pill shadow px-4 py-2.5 w-100 w-md-auto">
+                            <i class="bi bi-house-door-fill me-1"></i> Choose a Stay to Book
+                        </a>
+                        <small class="text-white-50 d-block mt-1 text-center text-md-end">Pair with any serviced farmhouse</small>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Metric Counters Strip -->
+        <div class="p-3 bg-light border-top border-bottom">
+            <div class="row text-center g-2">
+                <div class="col-3 border-end">
+                    <div class="fw-bold fs-5 text-dark mb-0">@Model.EventsCompleted+</div>
+                    <span class="small text-muted" style="font-size: 0.75rem;">Setups Completed</span>
+                </div>
+                <div class="col-3 border-end">
+                    <div class="fw-bold fs-5 text-success mb-0">@Model.OnTimePercentage%</div>
+                    <span class="small text-muted" style="font-size: 0.75rem;">On-Time Arrival</span>
+                </div>
+                <div class="col-3 border-end">
+                    <div class="fw-bold fs-5 text-primary mb-0">@Model.RepeatClientsCount</div>
+                    <span class="small text-muted" style="font-size: 0.75rem;">Repeat Hosts</span>
+                </div>
+                <div class="col-3">
+                    <div class="fw-bold fs-5 text-warning mb-0">@Model.AverageResponseTime</div>
+                    <span class="small text-muted" style="font-size: 0.75rem;">Avg Response Time</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Main Column -->
+        <div class="col-lg-8">
+            <!-- 2. ABOUT & BIO (Sanitized, zero contact details) -->
+            <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-card">
+                <h5 class="fw-bold text-dark mb-3"><i class="bi bi-info-circle-fill text-primary me-2"></i>About the Décor Studio</h5>
+                <div class="text-secondary mb-0" style="line-height: 1.7; white-space: pre-line;">@Model.Bio</div>
+                <div class="mt-3 p-3 bg-light rounded-3 border">
+                    <small class="text-muted">
+                        <i class="bi bi-shield-lock-fill text-success me-1"></i>
+                        <strong>Secure Marketplace Protection:</strong> All booking coordination, customization requests, and payments are protected exclusively on BookMyFun.
+                    </small>
+                </div>
+            </div>
+
+            <!-- 3. WATERMARKED PORTFOLIO & PAST EVENTS GALLERY (Approved items only, Lightbox enabled) -->
+            <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5 class="fw-bold text-dark mb-1"><i class="bi bi-images text-warning me-2"></i>Portfolio Showcase Gallery</h5>
+                        <small class="text-muted">Authentic photos &amp; videos of recent setups at verified partner venues. Click any preview to open in full view.</small>
+                    </div>
+                </div>
+
+                @if (!Model.PortfolioItems.Any(p => p.IsApproved))
+                {
+                    <div class="alert alert-light border rounded-3 p-3 text-center mb-0">
+                        <i class="bi bi-images text-muted fs-3 d-block mb-1"></i>
+                        <span class="small text-muted">Portfolio items are currently being curated and verified by the moderation team.</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="row g-3">
+                        @foreach (var item in Model.PortfolioItems.Where(p => p.IsApproved))
+                        {
+                            var isVideo = string.Equals(item.MediaType, "video", StringComparison.OrdinalIgnoreCase);
+                            <div class="col-md-4 col-6">
+                                <div class="watermarked-photo-wrapper shadow-xs w-100 rounded-3 overflow-hidden cursor-pointer" 
+                                     style="height: 180px; position: relative;"
+                                     data-media-url="@item.MediaUrl"
+                                     data-title="@item.Title"
+                                     data-desc="@(item.Description ?? "")"
+                                     data-type="@item.MediaType"
+                                     onclick="openPortfolioLightboxFromElement(this)">
+                                    @if (isVideo)
+                                    {
+                                        <div class="w-100 h-100 bg-dark d-flex align-items-center justify-content-center text-white position-relative">
+                                            <i class="bi bi-play-circle-fill fs-1 text-warning"></i>
+                                            <span class="badge bg-dark bg-opacity-75 position-absolute top-0 start-0 m-2 small">Video</span>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <img src="@item.MediaUrl" class="w-100 h-100 object-fit-cover" alt="@item.Title" onerror="this.src='/images/placeholder.jpg';" />
+                                    }
+                                    <span class="watermark-overlay-badge"><i class="bi bi-patch-check-fill text-warning"></i> BookMyFun Verified</span>
+                                </div>
+                                <div class="small fw-semibold text-dark mt-1 text-truncate">@item.Title</div>
+                                @if (!string.IsNullOrEmpty(item.Description))
+                                {
+                                    <div class="small text-muted text-truncate" style="font-size: 0.72rem;">@item.Description</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- 4. CELEBRATION PACKAGES (Filtered for selected occasion if applicable) -->
+            <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-card" id="packagesSection">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5 class="fw-bold text-dark mb-0"><i class="bi bi-boxes text-success me-2"></i>Celebration Décor Packages</h5>
+                        @if (!string.IsNullOrEmpty(Model.OccasionName))
+                        {
+                            <small class="text-primary fw-semibold">Filtered for: @Model.OccasionName</small>
+                        }
+                        else
+                        {
+                            <small class="text-muted">Available add-on options for farmhouse bookings.</small>
+                        }
+                    </div>
+                </div>
+
+                @if (!Model.Packages.Any())
+                {
+                    <div class="alert alert-light border rounded-3 p-3 text-center mb-0">
+                        <span class="small text-muted">No packages currently published by this event manager.</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="d-flex flex-column gap-3">
+                        @foreach (var pkg in Model.Packages)
+                        {
+                            <div class="p-3 bg-light rounded-4 border d-flex flex-wrap justify-content-between align-items-center gap-3">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="watermarked-photo-wrapper flex-shrink-0 rounded-3 overflow-hidden" style="width: 80px; height: 60px;">
+                                        <img src="@(string.IsNullOrEmpty(pkg.MediaUrl) ? "https://images.unsplash.com/photo-1519741497674-611481863552" : pkg.MediaUrl)" 
+                                             class="w-100 h-100 object-fit-cover" 
+                                             alt="@pkg.Name" 
+                                             onerror="this.src='/images/placeholder.jpg';" />
+                                        <span class="watermark-overlay-badge" style="font-size: 0.55rem; padding: 1px 4px; bottom: 2px; right: 2px;">
+                                            <i class="bi bi-patch-check-fill text-warning"></i> Verified
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <h6 class="fw-bold mb-1 text-dark">
+                                            @pkg.Name <span class="badge bg-secondary-subtle text-secondary rounded-pill small ms-1">@pkg.Category</span>
+                                        </h6>
+                                        <p class="small text-muted mb-0">@pkg.Description</p>
+                                        @if (!string.IsNullOrEmpty(pkg.IncludedItems))
+                                        {
+                                            <div class="small text-muted mt-1" style="font-size: 0.75rem;">
+                                                <strong>Inclusions:</strong> @pkg.IncludedItems
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="text-end d-flex flex-column align-items-end gap-1">
+                                    <span class="fw-bold text-primary fs-5">₹@pkg.BasePrice.ToString("N0")</span>
+                                    @if (Model.PropertyID.HasValue && Model.PropertyID.Value > 0)
+                                    {
+                                        <a href="/Booking/Checkout?propertyId=@Model.PropertyID&occasionId=@Model.OccasionID&packageId=@pkg.PackageID" 
+                                           class="btn btn-warning btn-sm fw-bold rounded-pill px-3 py-1 shadow-xs">
+                                            <i class="bi bi-check2-circle me-1"></i> Select Package
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <a href="/Properties" class="btn btn-outline-primary btn-sm fw-semibold rounded-pill px-3 py-1">
+                                            Book with Stay
+                                        </a>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- 5. VERIFIED CLIENT REVIEWS (From completed bookings only) -->
+            <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5 class="fw-bold text-dark mb-0"><i class="bi bi-chat-heart-fill text-danger me-2"></i>Verified Client Reviews</h5>
+                        <small class="text-muted">Authentic feedback from verified guests with completed bookings.</small>
+                    </div>
+                    <span class="badge bg-success-subtle text-success rounded-pill px-3 py-1.5 small">
+                        <i class="bi bi-patch-check-fill me-1"></i>100% Completed Bookings
+                    </span>
+                </div>
+
+                <div class="d-flex flex-column gap-3">
+                    @foreach (var rev in Model.Reviews)
+                    {
+                        <div class="p-3 bg-light rounded-3 border">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div class="fw-bold text-dark small">
+                                    <i class="bi bi-person-circle text-primary me-1"></i>@rev.ClientName
+                                </div>
+                                <div class="text-warning small">
+                                    @for (int i = 0; i < rev.Rating; i++)
+                                    {
+                                        <i class="bi bi-star-fill"></i>
+                                    }
+                                </div>
+                            </div>
+                            <p class="small text-secondary mb-1">"@rev.Comment"</p>
+                            <div class="small text-muted" style="font-size: 0.7rem;">
+                                <i class="bi bi-calendar3 me-1"></i>@rev.EventDate.ToString("dd MMM yyyy") &bull; @rev.EventType
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Column -->
+        <div class="col-lg-4">
+            <!-- Floating CTA Card -->
+            <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-card border-top border-4 border-warning">
+                <h6 class="fw-bold text-dark mb-2">Book This Event Partner</h6>
+                <p class="small text-muted mb-3">
+                    Starting from <strong class="text-dark fs-6">₹@Model.StartingPrice.ToString("N0")</strong> for curated setup packages.
+                </p>
+
+                @if (Model.PropertyID.HasValue && Model.PropertyID.Value > 0)
+                {
+                    var targetPackageId = Model.Packages.FirstOrDefault()?.PackageID;
+                    <a href="/Booking/Checkout?propertyId=@Model.PropertyID&occasionId=@Model.OccasionID@(targetPackageId.HasValue ? $"&packageId={targetPackageId}" : "")" 
+                       class="btn btn-warning btn-lg fw-bold rounded-pill shadow-sm w-100 py-2.5 mb-2">
+                        <i class="bi bi-check-circle-fill me-1"></i> Select This Event Manager
+                    </a>
+                    <small class="text-muted d-block text-center" style="font-size: 0.75rem;">
+                        Returns to checkout with this manager pre-selected.
+                    </small>
+                }
+                else
+                {
+                    <a href="/Properties" class="btn btn-primary btn-lg fw-bold rounded-pill shadow-sm w-100 py-2.5 mb-2">
+                        <i class="bi bi-house-door me-1"></i> Browse Stays to Pair
+                    </a>
+                    <small class="text-muted d-block text-center" style="font-size: 0.75rem;">
+                        Select a farmhouse stay first to add this event manager.
+                    </small>
+                }
+            </div>
+
+            <!-- Cancellation and Replacement Policy -->
+            <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-card">
+                <h6 class="fw-bold text-dark mb-2"><i class="bi bi-shield-check text-primary me-2"></i>Cancellation &amp; Replacement Policy</h6>
+                <p class="small text-muted mb-0" style="line-height: 1.6;">
+                    @Model.CancellationPolicy
+                </p>
+                <div class="mt-2 pt-2 border-top small text-muted" style="font-size: 0.72rem;">
+                    <i class="bi bi-arrow-repeat text-success me-1"></i>In the rare case of emergency, BookMyFun guarantees an equivalent verified replacement decorator at no additional charge.
+                </div>
+            </div>
+
+            <!-- Familiar Venues -->
+            <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-card">
+                <h6 class="fw-bold text-dark mb-3"><i class="bi bi-geo-alt-fill text-danger me-2"></i>Familiar Farm Venues</h6>
+                <ul class="list-unstyled small text-muted mb-0">
+                    @foreach (var venue in Model.PastVenues)
+                    {
+                        <li class="mb-2 d-flex align-items-start gap-2">
+                            <i class="bi bi-check-circle-fill text-success flex-shrink-0 mt-0.5"></i>
+                            <span>@venue</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+
+            <!-- Lead Time Notice -->
+            <div class="card border-0 shadow-sm rounded-4 p-3.5 bg-warning bg-opacity-10 border border-warning border-opacity-25">
+                <div class="d-flex align-items-start gap-2">
+                    <i class="bi bi-clock-history text-warning fs-5 flex-shrink-0 mt-0.5"></i>
+                    <div>
+                        <strong class="text-dark small d-block mb-1">2-Day Advance Reservation</strong>
+                        <p class="small text-muted mb-0" style="font-size: 0.75rem;">
+                            Event styling setups require booking at least 48 hours prior to check-in for staging crew preparation.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lightbox Modal for Photos & Videos (Approved items only) -->
+<div class="modal fade" id="portfolioLightboxModal" tabindex="-1" aria-labelledby="portfolioLightboxModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 overflow-hidden shadow-lg bg-dark text-white">
+            <div class="modal-header border-0 pb-0">
+                <h6 class="modal-title fw-bold text-white text-truncate" id="lightboxTitle">Portfolio Showcase</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3 text-center position-relative">
+                <div class="watermarked-photo-wrapper d-inline-block position-relative rounded-3 overflow-hidden" style="max-height: 70vh; max-width: 100%;">
+                    <img id="lightboxImage" src="" class="img-fluid rounded-3" alt="Portfolio Image" style="max-height: 65vh; object-fit: contain;" />
+                    <video id="lightboxVideo" src="" controls class="d-none w-100 rounded-3" style="max-height: 65vh;"></video>
+                    <span class="watermark-overlay-badge"><i class="bi bi-patch-check-fill text-warning"></i> BookMyFun Verified</span>
+                </div>
+                <p class="text-white-50 small mt-2 mb-0" id="lightboxDesc"></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    function openPortfolioLightboxFromElement(el) {
+        if (!el) return;
+        const url = el.getAttribute('data-media-url');
+        const title = el.getAttribute('data-title');
+        const desc = el.getAttribute('data-desc');
+        const type = el.getAttribute('data-type');
+        openPortfolioLightbox(url, title, desc, type);
+    }
+
+    function openPortfolioLightbox(url, title, desc, type) {
+        const imgEl = document.getElementById('lightboxImage');
+        const videoEl = document.getElementById('lightboxVideo');
+        const titleEl = document.getElementById('lightboxTitle');
+        const descEl = document.getElementById('lightboxDesc');
+
+        if (type && type.toLowerCase() === 'video') {
+            imgEl.classList.add('d-none');
+            videoEl.classList.remove('d-none');
+            videoEl.src = url;
+        } else {
+            videoEl.classList.add('d-none');
+            imgEl.classList.remove('d-none');
+            imgEl.src = url;
+        }
+
+        if (titleEl) titleEl.textContent = title || 'Portfolio Showcase';
+        if (descEl) descEl.textContent = desc || '';
+
+        const modal = new bootstrap.Modal(document.getElementById('portfolioLightboxModal'));
+        modal.show();
+    }
+
+    const modalEl = document.getElementById('portfolioLightboxModal');
+    if (modalEl) {
+        modalEl.addEventListener('hidden.bs.modal', function () {
+            const videoEl = document.getElementById('lightboxVideo');
+            if (videoEl) {
+                videoEl.pause();
+                videoEl.src = '';
+            }
+        });
+    }
+</script>
+}

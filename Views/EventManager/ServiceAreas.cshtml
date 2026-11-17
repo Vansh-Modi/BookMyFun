@@ -285,11 +285,7 @@
 @section Scripts {
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const selectedAreasSet = new Set();
-        @foreach (var a in currentAreas)
-        {
-            @:selectedAreasSet.add("@Html.Raw(a.Replace("\"", "\\\""))");
-        }
+        const selectedAreasSet = new Set(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(currentAreas)));
 
         const selectedChipsCloud = document.getElementById('selectedChipsCloud');
         const hiddenInputsContainer = document.getElementById('hiddenInputsContainer');

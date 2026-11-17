@@ -105,7 +105,7 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> ManageBookings(string? status = null, int page = 1, int pageSize = 20)
         {
             page = Math.Max(1, page);
-            pageSize = Math.Clamp(pageSize, 1, 100);
+            pageSize = Math.Clamp(pageSize, 1, 25);
 
             var allBookings = await _bookingRepo.GetAllBookingsAsync();
             if (!string.IsNullOrEmpty(status) && !string.Equals(status, "All", StringComparison.OrdinalIgnoreCase))

@@ -164,7 +164,7 @@ namespace BookMyFun.Controllers
             int pageSize = 25)
         {
             page = Math.Max(1, page);
-            pageSize = Math.Clamp(pageSize, 1, 100);
+            pageSize = Math.Clamp(pageSize, 1, 25);
 
             var owners = await _userRepo.GetUsersByRoleAsync("Owner");
 
@@ -277,7 +277,7 @@ namespace BookMyFun.Controllers
             int pageSize = 25)
         {
             page = Math.Max(1, page);
-            pageSize = Math.Clamp(pageSize, 1, 100);
+            pageSize = Math.Clamp(pageSize, 1, 25);
 
             var employees = await _userRepo.GetUsersByRoleAsync("Employee");
 
@@ -465,7 +465,7 @@ namespace BookMyFun.Controllers
             int pageSize = 25)
         {
             page = Math.Max(1, page);
-            pageSize = Math.Clamp(pageSize, 1, 100);
+            pageSize = Math.Clamp(pageSize, 1, 25);
 
             var properties = await _propRepo.GetAllPropertiesAsync();
 
@@ -531,7 +531,7 @@ namespace BookMyFun.Controllers
             int pageSize = 25)
         {
             page = Math.Max(1, page);
-            pageSize = Math.Clamp(pageSize, 1, 100);
+            pageSize = Math.Clamp(pageSize, 1, 25);
 
             var allBookings = await _bookingRepo.GetAllBookingsAsync();
 
@@ -1854,7 +1854,7 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> SupportQueries(string? status = null, string? search = null, string? sort = null, string? dir = null, int page = 1, int pageSize = 25)
         {
             page = Math.Max(1, page);
-            pageSize = Math.Clamp(pageSize, 1, 100);
+            pageSize = Math.Clamp(pageSize, 1, 25);
 
             var contacts = await _contactRepo.GetAllContactsAsync();
 
@@ -1916,7 +1916,7 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> RefundsQueue(string? status = null, string? search = null, string? sort = null, string? dir = null, int page = 1, int pageSize = 25)
         {
             page = Math.Max(1, page);
-            pageSize = Math.Clamp(pageSize, 1, 100);
+            pageSize = Math.Clamp(pageSize, 1, 25);
 
             var refunds = await _refundEngine.GetRefundsQueueAsync(status);
 
@@ -2008,7 +2008,7 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> PartnerLeads(string? status = null, string? search = null, string? sort = null, string? dir = null, int page = 1, int pageSize = 25)
         {
             page = Math.Max(1, page);
-            pageSize = Math.Clamp(pageSize, 1, 100);
+            pageSize = Math.Clamp(pageSize, 1, 25);
 
             var leads = await _partnerLeadService.GetAllLeadsAsync(status);
 
@@ -2125,7 +2125,7 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> IdVerifications(string? status = null, string? search = null, string? sort = null, string? dir = null, int page = 1, int pageSize = 25)
         {
             page = Math.Max(1, page);
-            pageSize = Math.Clamp(pageSize, 1, 100);
+            pageSize = Math.Clamp(pageSize, 1, 25);
 
             var verifications = await _idVerificationService.GetAllVerificationsAsync(status);
 

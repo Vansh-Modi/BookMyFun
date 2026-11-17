@@ -112,7 +112,10 @@ namespace BookMyFun.Repositories
         {
             var sql = @"
                 SELECT p.*, pt.TypeName AS PropertyTypeName, u.FullName AS OwnerName,
-                       (SELECT TOP 1 ImageURL FROM PropertyImages WHERE PropertyID = p.PropertyID ORDER BY IsPrimary DESC, ImageID ASC) AS PrimaryImageUrl
+                       COALESCE(
+                           (SELECT TOP 1 StorageUrl FROM PropertyMedia WHERE PropertyID = p.PropertyID AND MediaType IN ('image', 'photo') AND StorageUrl NOT LIKE '%test.jpg%' AND StorageUrl NOT LIKE '%placeholder%' ORDER BY IsPrimary DESC, SortOrder ASC, MediaID ASC),
+                           (SELECT TOP 1 ImageURL FROM PropertyImages WHERE PropertyID = p.PropertyID ORDER BY IsPrimary DESC, ImageID ASC)
+                       ) AS PrimaryImageUrl
                 FROM Properties p
                 JOIN PropertyTypes pt ON p.PropertyTypeID = pt.PropertyTypeID
                 JOIN Users u ON p.OwnerID = u.UserID
@@ -128,7 +131,10 @@ namespace BookMyFun.Repositories
         {
             const string sql = @"
                 SELECT p.*, pt.TypeName AS PropertyTypeName, u.FullName AS OwnerName,
-                       (SELECT TOP 1 ImageURL FROM PropertyImages WHERE PropertyID = p.PropertyID ORDER BY IsPrimary DESC, ImageID ASC) AS PrimaryImageUrl
+                       COALESCE(
+                           (SELECT TOP 1 StorageUrl FROM PropertyMedia WHERE PropertyID = p.PropertyID AND MediaType IN ('image', 'photo') AND StorageUrl NOT LIKE '%test.jpg%' AND StorageUrl NOT LIKE '%placeholder%' ORDER BY IsPrimary DESC, SortOrder ASC, MediaID ASC),
+                           (SELECT TOP 1 ImageURL FROM PropertyImages WHERE PropertyID = p.PropertyID ORDER BY IsPrimary DESC, ImageID ASC)
+                       ) AS PrimaryImageUrl
                 FROM Properties p
                 LEFT JOIN PropertyTypes pt ON p.PropertyTypeID = pt.PropertyTypeID
                 LEFT JOIN Users u ON p.OwnerID = u.UserID
@@ -314,7 +320,10 @@ namespace BookMyFun.Repositories
 
             var dataSql = $@"
                 SELECT p.*, pt.TypeName AS PropertyTypeName, u.FullName AS OwnerName,
-                       (SELECT TOP 1 ImageURL FROM PropertyImages WHERE PropertyID = p.PropertyID ORDER BY IsPrimary DESC, ImageID ASC) AS PrimaryImageUrl
+                       COALESCE(
+                           (SELECT TOP 1 StorageUrl FROM PropertyMedia WHERE PropertyID = p.PropertyID AND MediaType IN ('image', 'photo') AND StorageUrl NOT LIKE '%test.jpg%' AND StorageUrl NOT LIKE '%placeholder%' ORDER BY IsPrimary DESC, SortOrder ASC, MediaID ASC),
+                           (SELECT TOP 1 ImageURL FROM PropertyImages WHERE PropertyID = p.PropertyID ORDER BY IsPrimary DESC, ImageID ASC)
+                       ) AS PrimaryImageUrl
                 FROM Properties p
                 JOIN PropertyTypes pt ON p.PropertyTypeID = pt.PropertyTypeID
                 JOIN Users u ON p.OwnerID = u.UserID

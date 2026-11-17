@@ -48,7 +48,7 @@ namespace BookMyFun.Services.Staff
         public async Task<StaffQueueViewModel> GetQueueAsync(string? filter = null, int page = 1, int pageSize = 25)
         {
             page = Math.Max(1, page);
-            pageSize = Math.Clamp(pageSize, 1, 100);
+            pageSize = Math.Clamp(pageSize, 1, 25);
 
             var allItems = new List<StaffQueueItemViewModel>();
 
