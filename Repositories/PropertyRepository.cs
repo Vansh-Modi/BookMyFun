@@ -37,6 +37,10 @@ namespace BookMyFun.Repositories
         Task<bool> PermanentlyDeletePropertyAsync(int propertyId);
         Task<bool> DeactivatePropertyAsync(int propertyId, bool deactivate = true);
         Task<bool> ApprovePropertyAsync(int propertyId, bool isApproved, string? targetStatus = null);
+        Task<bool> ApprovePropertyAsync(int propertyId, bool isApproved, string? targetStatus, int? staffUserId, string? reason) => ApprovePropertyAsync(propertyId, isApproved, targetStatus);
+        Task<(bool Success, string Message)> PublishPropertyAsync(int propertyId, int ownerId, int limit) => Task.FromResult((true, string.Empty));
+        Task<bool> UnpublishPropertyAsync(int propertyId, int ownerId, string unpublishReason = "Owner unpublished") => Task.FromResult(true);
+        Task<int> BatchUnpublishPropertiesByOwnerIdAsync(int ownerId, string unpublishReason) => Task.FromResult(0);
         Task<bool> SetPropertyOccasionsAsync(int propertyId, List<int> occasionIds);
         Task<List<int>> GetPropertyOccasionIdsAsync(int propertyId);
         Task<int> AddPropertyImageAsync(int propertyId, string imageUrl, bool isPrimary);
@@ -73,7 +77,10 @@ namespace BookMyFun.Repositories
         {
             const string sql = @"
                 SELECT p.*, pt.TypeName AS PropertyTypeName, u.FullName AS OwnerName,
-                       (SELECT TOP 1 ImageURL FROM PropertyImages WHERE PropertyID = p.PropertyID AND IsPrimary = 1) AS PrimaryImageUrl
+                       COALESCE(
+                           (SELECT TOP 1 StorageUrl FROM PropertyMedia WHERE PropertyID = p.PropertyID AND MediaType IN ('image', 'photo') AND StorageUrl NOT LIKE '%test.jpg%' AND StorageUrl NOT LIKE '%placeholder%' ORDER BY IsPrimary DESC, SortOrder ASC, MediaID ASC),
+                           (SELECT TOP 1 ImageURL FROM PropertyImages WHERE PropertyID = p.PropertyID AND IsPrimary = 1)
+                       ) AS PrimaryImageUrl
                 FROM Properties p
                 JOIN PropertyTypes pt ON p.PropertyTypeID = pt.PropertyTypeID
                 JOIN Users u ON p.OwnerID = u.UserID
@@ -91,7 +98,7 @@ namespace BookMyFun.Repositories
 
                 if ((string.IsNullOrEmpty(prop.PrimaryImageUrl) || prop.PrimaryImageUrl.Contains("placeholder")) && prop.MediaList.Any())
                 {
-                    var primary = prop.MediaList.FirstOrDefault(m => m.IsPrimary && m.MediaType == "photo") ?? prop.MediaList.FirstOrDefault(m => m.MediaType == "photo");
+                    var primary = prop.MediaList.FirstOrDefault(m => m.IsPrimary && (m.MediaType == "image" || m.MediaType == "photo")) ?? prop.MediaList.FirstOrDefault(m => m.MediaType == "image" || m.MediaType == "photo");
                     if (primary != null)
                     {
                         prop.PrimaryImageUrl = primary.StorageUrl;
@@ -123,8 +130,8 @@ namespace BookMyFun.Repositories
                 SELECT p.*, pt.TypeName AS PropertyTypeName, u.FullName AS OwnerName,
                        (SELECT TOP 1 ImageURL FROM PropertyImages WHERE PropertyID = p.PropertyID ORDER BY IsPrimary DESC, ImageID ASC) AS PrimaryImageUrl
                 FROM Properties p
-                JOIN PropertyTypes pt ON p.PropertyTypeID = pt.PropertyTypeID
-                JOIN Users u ON p.OwnerID = u.UserID
+                LEFT JOIN PropertyTypes pt ON p.PropertyTypeID = pt.PropertyTypeID
+                LEFT JOIN Users u ON p.OwnerID = u.UserID
                 WHERE p.OwnerID = @OwnerID
                 ORDER BY p.CreatedAt DESC";
 
@@ -334,13 +341,17 @@ namespace BookMyFun.Repositories
             const string sql = @"
                 INSERT INTO Properties 
                 (OwnerID, PropertyTypeID, Title, Description, Location, FormattedAddress, Latitude, Longitude, MapUrl,
-                 PricePerNight, SecurityDepositAmount, CommissionRate, EventCommissionRate, FreeCancellationWindowHours, CancellationCutoffHours,
-                 CancellationFeeType, CancellationFeeValue, MaxGuests, ListingStatus, IsApproved, IsFeatured, CreatedAt)
+                 PricePerNight, CommissionRate, EventCommissionRate, FreeCancellationWindowHours, CancellationCutoffHours,
+                 CancellationFeeType, CancellationFeeValue, MaxGuests, ListingStatus, IsApproved,
+                 CaretakerName, CaretakerPhone, OwnerIsCaretaker, Pincode, NearbyAreaOrRoad, City, State, MapUrlLocked,
+                 MinStayNights, MaxStayNights, CreatedByUserID, CreatedAt)
                 OUTPUT INSERTED.PropertyID
                 VALUES 
                 (@OwnerID, @PropertyTypeID, @Title, @Description, @Location, @FormattedAddress, @Latitude, @Longitude, @MapUrl,
-                 @PricePerNight, @SecurityDepositAmount, @CommissionRate, @EventCommissionRate, @FreeCancellationWindowHours, @CancellationCutoffHours,
-                 @CancellationFeeType, @CancellationFeeValue, @MaxGuests, @ListingStatus, @IsApproved, @IsFeatured, GETDATE())";
+                 @PricePerNight, @CommissionRate, @EventCommissionRate, @FreeCancellationWindowHours, @CancellationCutoffHours,
+                 @CancellationFeeType, @CancellationFeeValue, @MaxGuests, @ListingStatus, @IsApproved,
+                 @CaretakerName, @CaretakerPhone, @OwnerIsCaretaker, @Pincode, @NearbyAreaOrRoad, @City, @State, @MapUrlLocked,
+                 @MinStayNights, @MaxStayNights, @CreatedByUserID, GETDATE())";
 
             var result = await _db.ExecuteScalarAsync(sql,
                 new SqlParameter("@OwnerID", property.OwnerID),
@@ -353,7 +364,6 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@Longitude", DBHelper.ToDbValue(property.Longitude)),
                 new SqlParameter("@MapUrl", DBHelper.ToDbValue(property.MapUrl)),
                 new SqlParameter("@PricePerNight", property.PricePerNight),
-                new SqlParameter("@SecurityDepositAmount", property.SecurityDepositAmount),
                 new SqlParameter("@CommissionRate", DBHelper.ToDbValue(property.CommissionRate)),
                 new SqlParameter("@EventCommissionRate", DBHelper.ToDbValue(property.EventCommissionRate)),
                 new SqlParameter("@FreeCancellationWindowHours", property.FreeCancellationWindowHours),
@@ -363,7 +373,17 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@MaxGuests", property.MaxGuests),
                 new SqlParameter("@ListingStatus", property.ListingStatus),
                 new SqlParameter("@IsApproved", property.IsApproved),
-                new SqlParameter("@IsFeatured", property.IsFeatured));
+                new SqlParameter("@CaretakerName", DBHelper.ToDbValue(property.CaretakerName)),
+                new SqlParameter("@CaretakerPhone", DBHelper.ToDbValue(property.CaretakerPhone)),
+                new SqlParameter("@OwnerIsCaretaker", property.OwnerIsCaretaker),
+                new SqlParameter("@Pincode", DBHelper.ToDbValue(property.Pincode)),
+                new SqlParameter("@NearbyAreaOrRoad", DBHelper.ToDbValue(property.NearbyAreaOrRoad)),
+                new SqlParameter("@City", DBHelper.ToDbValue(property.City)),
+                new SqlParameter("@State", DBHelper.ToDbValue(property.State)),
+                new SqlParameter("@MapUrlLocked", property.MapUrlLocked),
+                new SqlParameter("@MinStayNights", property.MinStayNights > 0 ? property.MinStayNights : 1),
+                new SqlParameter("@MaxStayNights", property.MaxStayNights > 0 ? property.MaxStayNights : 30),
+                new SqlParameter("@CreatedByUserID", DBHelper.ToDbValue(property.CreatedByUserID)));
 
             var propertyId = result != null ? Convert.ToInt32(result) : 0;
 
@@ -393,9 +413,8 @@ namespace BookMyFun.Repositories
                     FormattedAddress = @FormattedAddress,
                     Latitude = @Latitude,
                     Longitude = @Longitude,
-                    MapUrl = @MapUrl,
+                    MapUrl = CASE WHEN MapUrlLocked = 1 THEN MapUrl ELSE COALESCE(@MapUrl, MapUrl) END,
                     PricePerNight = @PricePerNight,
-                    SecurityDepositAmount = @SecurityDepositAmount,
                     CommissionRate = @CommissionRate,
                     EventCommissionRate = @EventCommissionRate,
                     FreeCancellationWindowHours = @FreeCancellationWindowHours,
@@ -404,7 +423,15 @@ namespace BookMyFun.Repositories
                     CancellationFeeValue = @CancellationFeeValue,
                     MaxGuests = @MaxGuests,
                     ListingStatus = @ListingStatus,
-                    IsFeatured = @IsFeatured
+                    CaretakerName = @CaretakerName,
+                    CaretakerPhone = @CaretakerPhone,
+                    OwnerIsCaretaker = @OwnerIsCaretaker,
+                    Pincode = @Pincode,
+                    NearbyAreaOrRoad = @NearbyAreaOrRoad,
+                    City = @City,
+                    State = @State,
+                    MinStayNights = @MinStayNights,
+                    MaxStayNights = @MaxStayNights
                 WHERE PropertyID = @PropertyID";
 
             var rows = await _db.ExecuteNonQueryAsync(sql,
@@ -417,7 +444,6 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@Longitude", DBHelper.ToDbValue(property.Longitude)),
                 new SqlParameter("@MapUrl", DBHelper.ToDbValue(property.MapUrl)),
                 new SqlParameter("@PricePerNight", property.PricePerNight),
-                new SqlParameter("@SecurityDepositAmount", property.SecurityDepositAmount),
                 new SqlParameter("@CommissionRate", DBHelper.ToDbValue(property.CommissionRate)),
                 new SqlParameter("@EventCommissionRate", DBHelper.ToDbValue(property.EventCommissionRate)),
                 new SqlParameter("@FreeCancellationWindowHours", property.FreeCancellationWindowHours),
@@ -426,7 +452,15 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@CancellationFeeValue", property.CancellationFeeValue),
                 new SqlParameter("@MaxGuests", property.MaxGuests),
                 new SqlParameter("@ListingStatus", property.ListingStatus),
-                new SqlParameter("@IsFeatured", property.IsFeatured),
+                new SqlParameter("@CaretakerName", DBHelper.ToDbValue(property.CaretakerName)),
+                new SqlParameter("@CaretakerPhone", DBHelper.ToDbValue(property.CaretakerPhone)),
+                new SqlParameter("@OwnerIsCaretaker", property.OwnerIsCaretaker),
+                new SqlParameter("@Pincode", DBHelper.ToDbValue(property.Pincode)),
+                new SqlParameter("@NearbyAreaOrRoad", DBHelper.ToDbValue(property.NearbyAreaOrRoad)),
+                new SqlParameter("@City", DBHelper.ToDbValue(property.City)),
+                new SqlParameter("@State", DBHelper.ToDbValue(property.State)),
+                new SqlParameter("@MinStayNights", property.MinStayNights > 0 ? property.MinStayNights : 1),
+                new SqlParameter("@MaxStayNights", property.MaxStayNights > 0 ? property.MaxStayNights : 30),
                 new SqlParameter("@PropertyID", property.PropertyID));
 
             if (property.OccasionIDs != null)
@@ -446,7 +480,8 @@ namespace BookMyFun.Repositories
             const string sql = @"
                 UPDATE Properties
                 SET MapUrl = @MapUrl
-                WHERE PropertyID = @PropertyID AND OwnerID = @OwnerID";
+                WHERE PropertyID = @PropertyID AND OwnerID = @OwnerID
+                  AND (MapUrlLocked = 0 OR @OwnerID = 0)";
 
             int rows = await _db.ExecuteNonQueryAsync(sql,
                 new SqlParameter("@MapUrl", DBHelper.ToDbValue(mapUrl)),
@@ -518,37 +553,133 @@ namespace BookMyFun.Repositories
             return rows > 0;
         }
 
-        public async Task<bool> ApprovePropertyAsync(int propertyId, bool isApproved, string? targetStatus = null)
+        public Task<bool> ApprovePropertyAsync(int propertyId, bool isApproved, string? targetStatus = null)
+            => ApprovePropertyAsync(propertyId, isApproved, targetStatus, null, null);
+
+        public async Task<bool> ApprovePropertyAsync(int propertyId, bool isApproved, string? targetStatus = null, int? staffUserId = null, string? reason = null)
         {
             const string sql = @"
                 UPDATE Properties 
                 SET IsApproved = @IsApproved,
                     ListingStatus = CASE 
                         WHEN @TargetStatus IS NOT NULL AND @TargetStatus <> '' THEN @TargetStatus
-                        WHEN @IsApproved = 1 THEN 'Active' 
+                        WHEN @IsApproved = 1 THEN 'Draft' 
                         ELSE 'Rejected' 
-                    END
+                    END,
+                    ApprovedAt = CASE WHEN @IsApproved = 1 THEN GETUTCDATE() ELSE ApprovedAt END,
+                    ApprovedByUserID = CASE WHEN @IsApproved = 1 THEN @StaffUserId ELSE ApprovedByUserID END,
+                    RejectionReason = CASE WHEN @IsApproved = 0 THEN @Reason ELSE NULL END,
+                    MapUrlLocked = CASE WHEN @IsApproved = 1 THEN 1 ELSE MapUrlLocked END
                 WHERE PropertyID = @PropertyID";
 
             var rows = await _db.ExecuteNonQueryAsync(sql,
                 new SqlParameter("@IsApproved", isApproved),
                 new SqlParameter("@TargetStatus", (object?)targetStatus ?? DBNull.Value),
+                new SqlParameter("@StaffUserId", (object?)staffUserId ?? DBNull.Value),
+                new SqlParameter("@Reason", (object?)reason ?? DBNull.Value),
                 new SqlParameter("@PropertyID", propertyId));
 
             return rows > 0;
         }
 
+        public async Task<(bool Success, string Message)> PublishPropertyAsync(int propertyId, int ownerId, int limit)
+        {
+            const string sql = @"
+                IF (SELECT COUNT(*) FROM Properties WHERE OwnerID = @OwnerID AND ListingStatus = 'Active' AND IsApproved = 1) < @Limit
+                BEGIN
+                    UPDATE Properties
+                    SET ListingStatus = 'Active',
+                        IsApproved = 1,
+                        PublishedAt = GETUTCDATE(),
+                        UnpublishReason = NULL
+                    WHERE PropertyID = @PropertyID 
+                      AND OwnerID = @OwnerID 
+                      AND ((IsApproved = 1 AND ListingStatus = 'Draft') OR ListingStatus = 'Deactivated');
+                    SELECT @@ROWCOUNT;
+                END
+                ELSE
+                BEGIN
+                    SELECT -1; -- Concurrently reached limit
+                END";
+
+            var res = await _db.ExecuteScalarAsync(sql,
+                new SqlParameter("@PropertyID", propertyId),
+                new SqlParameter("@OwnerID", ownerId),
+                new SqlParameter("@Limit", limit));
+
+            int code = res != null ? Convert.ToInt32(res) : 0;
+            if (code == -1)
+            {
+                return (false, $"Cannot publish property. Your current plan allowance of {limit} live listing(s) has been reached. Please unpublish another listing or upgrade your subscription.");
+            }
+            if (code > 0)
+            {
+                return (true, "Property published successfully and is now live.");
+            }
+            return (false, "Unable to publish property. Only approved or previously unpublished listings owned by you can be published.");
+        }
+
+        public async Task<bool> UnpublishPropertyAsync(int propertyId, int ownerId, string unpublishReason = "Owner unpublished")
+        {
+            const string sql = @"
+                UPDATE Properties 
+                SET ListingStatus = 'Deactivated',
+                    UnpublishReason = @UnpublishReason
+                WHERE PropertyID = @PropertyID 
+                  AND OwnerID = @OwnerID 
+                  AND ListingStatus = 'Active'";
+
+            var rows = await _db.ExecuteNonQueryAsync(sql,
+                new SqlParameter("@PropertyID", propertyId),
+                new SqlParameter("@OwnerID", ownerId),
+                new SqlParameter("@UnpublishReason", unpublishReason));
+
+            return rows > 0;
+        }
+
+        public async Task<int> BatchUnpublishPropertiesByOwnerIdAsync(int ownerId, string unpublishReason)
+        {
+            const string sql = @"
+                UPDATE Properties 
+                SET ListingStatus = 'Deactivated',
+                    UnpublishReason = @UnpublishReason
+                WHERE OwnerID = @OwnerID 
+                  AND ListingStatus = 'Active'";
+
+            return await _db.ExecuteNonQueryAsync(sql,
+                new SqlParameter("@OwnerID", ownerId),
+                new SqlParameter("@UnpublishReason", unpublishReason));
+        }
+
         public async Task<bool> SetPropertyOccasionsAsync(int propertyId, List<int> occasionIds)
         {
-            await _db.ExecuteNonQueryAsync("DELETE FROM PropertyOccasions WHERE PropertyID = @PropertyID",
-                new SqlParameter("@PropertyID", propertyId));
+            var distinctIds = occasionIds?.Distinct().ToList() ?? new List<int>();
 
-            foreach (var occId in occasionIds)
+            var sqlBuilder = new System.Text.StringBuilder();
+            sqlBuilder.AppendLine("BEGIN TRANSACTION;");
+            sqlBuilder.AppendLine("BEGIN TRY");
+            sqlBuilder.AppendLine("    DELETE FROM PropertyOccasions WHERE PropertyID = @PropertyID;");
+
+            var parameters = new List<SqlParameter>
             {
-                await _db.ExecuteNonQueryAsync("INSERT INTO PropertyOccasions (PropertyID, OccasionID) VALUES (@PropertyID, @OccasionID)",
-                    new SqlParameter("@PropertyID", propertyId),
-                    new SqlParameter("@OccasionID", occId));
+                new SqlParameter("@PropertyID", propertyId)
+            };
+
+            for (int i = 0; i < distinctIds.Count; i++)
+            {
+                var paramName = $"@OccasionID_{i}";
+                sqlBuilder.AppendLine($"    INSERT INTO PropertyOccasions (PropertyID, OccasionID) VALUES (@PropertyID, {paramName});");
+                parameters.Add(new SqlParameter(paramName, distinctIds[i]));
             }
+
+            sqlBuilder.AppendLine("    COMMIT TRANSACTION;");
+            sqlBuilder.AppendLine("END TRY");
+            sqlBuilder.AppendLine("BEGIN CATCH");
+            sqlBuilder.AppendLine("    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;");
+            sqlBuilder.AppendLine("    THROW;");
+            sqlBuilder.AppendLine("END CATCH");
+
+            await _db.ExecuteNonQueryAsync(sqlBuilder.ToString(), parameters.ToArray());
             return true;
         }
 
@@ -618,7 +749,13 @@ namespace BookMyFun.Repositories
 
         public async Task<List<PropertyMedia>> GetPropertyMediaAsync(int propertyId)
         {
-            const string sql = "SELECT * FROM PropertyMedia WHERE PropertyID = @PropertyID ORDER BY IsPrimary DESC, SortOrder ASC, MediaID ASC";
+            const string sql = @"
+                SELECT TOP 30 MediaID, PropertyID, MediaType, SourceType, StorageUrl, PublicId, IsPrimary, SortOrder, CreatedAt
+                FROM PropertyMedia
+                WHERE PropertyID = @PropertyID
+                  AND StorageUrl NOT LIKE '%test.jpg%'
+                  AND StorageUrl NOT LIKE '%placeholder%'
+                ORDER BY SortOrder ASC, MediaID ASC";
             return await _db.ExecuteReaderListAsync(sql, r => new PropertyMedia
             {
                 MediaID = r.GetInt32(r.GetOrdinal("MediaID")),
@@ -848,15 +985,15 @@ namespace BookMyFun.Repositories
             {
                 PropertyID = reader.GetInt32(reader.GetOrdinal("PropertyID")),
                 OwnerID = reader.GetInt32(reader.GetOrdinal("OwnerID")),
-                PropertyTypeID = reader.GetInt32(reader.GetOrdinal("PropertyTypeID")),
-                Title = reader.GetString(reader.GetOrdinal("Title")),
+                PropertyTypeID = reader.IsDBNull(reader.GetOrdinal("PropertyTypeID")) ? 1 : reader.GetInt32(reader.GetOrdinal("PropertyTypeID")),
+                Title = reader.IsDBNull(reader.GetOrdinal("Title")) ? "Untitled Property" : reader.GetString(reader.GetOrdinal("Title")),
                 Description = reader.IsDBNull(reader.GetOrdinal("Description")) ? null : reader.GetString(reader.GetOrdinal("Description")),
-                Location = reader.GetString(reader.GetOrdinal("Location")),
-                PricePerNight = reader.GetDecimal(reader.GetOrdinal("PricePerNight")),
-                MaxGuests = reader.GetInt32(reader.GetOrdinal("MaxGuests")),
-                ListingStatus = reader.GetString(reader.GetOrdinal("ListingStatus")),
-                IsApproved = reader.GetBoolean(reader.GetOrdinal("IsApproved")),
-                CreatedAt = reader.GetDateTime(reader.GetOrdinal("CreatedAt"))
+                Location = reader.IsDBNull(reader.GetOrdinal("Location")) ? "" : reader.GetString(reader.GetOrdinal("Location")),
+                PricePerNight = reader.IsDBNull(reader.GetOrdinal("PricePerNight")) ? 0 : reader.GetDecimal(reader.GetOrdinal("PricePerNight")),
+                MaxGuests = reader.IsDBNull(reader.GetOrdinal("MaxGuests")) ? 1 : reader.GetInt32(reader.GetOrdinal("MaxGuests")),
+                ListingStatus = reader.IsDBNull(reader.GetOrdinal("ListingStatus")) ? "Draft" : reader.GetString(reader.GetOrdinal("ListingStatus")),
+                IsApproved = !reader.IsDBNull(reader.GetOrdinal("IsApproved")) && reader.GetBoolean(reader.GetOrdinal("IsApproved")),
+                CreatedAt = reader.IsDBNull(reader.GetOrdinal("CreatedAt")) ? DateTime.UtcNow : reader.GetDateTime(reader.GetOrdinal("CreatedAt"))
             };
 
             try
@@ -942,6 +1079,76 @@ namespace BookMyFun.Repositories
                 if (!reader.IsDBNull(featOrd)) p.IsFeatured = reader.GetBoolean(featOrd);
             }
             catch { }
+
+            try {
+                int ord = reader.GetOrdinal("CaretakerName");
+                if (!reader.IsDBNull(ord)) p.CaretakerName = reader.GetString(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("CaretakerPhone");
+                if (!reader.IsDBNull(ord)) p.CaretakerPhone = reader.GetString(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("OwnerIsCaretaker");
+                if (!reader.IsDBNull(ord)) p.OwnerIsCaretaker = reader.GetBoolean(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("Pincode");
+                if (!reader.IsDBNull(ord)) p.Pincode = reader.GetString(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("NearbyAreaOrRoad");
+                if (!reader.IsDBNull(ord)) p.NearbyAreaOrRoad = reader.GetString(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("City");
+                if (!reader.IsDBNull(ord)) p.City = reader.GetString(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("State");
+                if (!reader.IsDBNull(ord)) p.State = reader.GetString(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("MapUrlLocked");
+                if (!reader.IsDBNull(ord)) p.MapUrlLocked = reader.GetBoolean(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("CreatedByUserID");
+                if (!reader.IsDBNull(ord)) p.CreatedByUserID = reader.GetInt32(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("ApprovedAt");
+                if (!reader.IsDBNull(ord)) p.ApprovedAt = reader.GetDateTime(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("ApprovedByUserID");
+                if (!reader.IsDBNull(ord)) p.ApprovedByUserID = reader.GetInt32(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("PublishedAt");
+                if (!reader.IsDBNull(ord)) p.PublishedAt = reader.GetDateTime(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("UnpublishReason");
+                if (!reader.IsDBNull(ord)) p.UnpublishReason = reader.GetString(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("RejectionReason");
+                if (!reader.IsDBNull(ord)) p.RejectionReason = reader.GetString(ord);
+            } catch { }
 
             try
             {

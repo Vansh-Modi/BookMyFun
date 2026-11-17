@@ -4,13 +4,16 @@ using BookMyFun.Models.Entities;
 using BookMyFun.Models.ViewModels;
 using BookMyFun.Repositories;
 using BookMyFun.Services;
+
+using BookMyFun.Services.Notifications;
+using BookMyFun.Services.Exceptions;
 using ClosedXML.Excel;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookMyFun.Controllers
 {
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = "AdminOnly")]
     public class AdminController : Controller
     {
         private readonly IPropertyRepository _propRepo;
@@ -31,6 +34,8 @@ namespace BookMyFun.Controllers
         private readonly IEventPackageRepository _eventPackageRepo;
         private readonly ILegalDocumentService? _legalService;
 
+        private readonly INotificationDispatcherService? _notificationDispatcher;
+
         public AdminController(
             IPropertyRepository propRepo,
             IUserRepository userRepo,
@@ -48,7 +53,9 @@ namespace BookMyFun.Controllers
             IIdVerificationService idVerificationService,
             IMediaStorageService mediaStorage,
             IEventPackageRepository eventPackageRepo,
-            ILegalDocumentService? legalService = null)
+            ILegalDocumentService? legalService = null,
+
+            INotificationDispatcherService? notificationDispatcher = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -67,6 +74,8 @@ namespace BookMyFun.Controllers
             _mediaStorage = mediaStorage;
             _eventPackageRepo = eventPackageRepo;
             _legalService = legalService;
+
+            _notificationDispatcher = notificationDispatcher;
         }
 
         public async Task<IActionResult> Index()
@@ -588,13 +597,25 @@ namespace BookMyFun.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> CreateProperty(PropertyEditViewModel vm)
         {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var allowance = await _subRepo.CheckListingCreationAllowanceAsync(vm.OwnerID);
+            if (!allowance.Allowed)
+            {
+                ModelState.AddModelError("", $"Owner #{vm.OwnerID} listing allowance reached: {allowance.Reason}");
+                vm.AvailableTypes = await _propRepo.GetPropertyTypesAsync();
+                vm.AvailableOccasions = await _propRepo.GetOccasionsAsync();
+                vm.AvailableAmenities = await _propRepo.GetAllAmenitiesAsync();
+                ViewBag.Owners = await _userRepo.GetUsersByRoleAsync("Owner");
+                return View(vm);
+            }
+
             var prop = new Property
             {
                 OwnerID = vm.OwnerID,
                 PropertyTypeID = vm.PropertyTypeID,
                 Title = vm.Title,
                 Description = vm.Description,
-                Location = vm.Location,
+                Location = vm.Location ?? string.Empty,
                 FormattedAddress = vm.FormattedAddress,
                 Latitude = vm.Latitude,
                 Longitude = vm.Longitude,
@@ -608,8 +629,9 @@ namespace BookMyFun.Controllers
                 CancellationFeeType = vm.CancellationFeeType,
                 CancellationFeeValue = vm.CancellationFeeValue,
                 MaxGuests = vm.MaxGuests,
-                ListingStatus = "Active",
-                IsApproved = true,
+                ListingStatus = "Draft",
+                IsApproved = false,
+                CreatedByUserID = currentUserId,
                 OccasionIDs = vm.SelectedOccasionIDs,
                 AmenityIDs = vm.SelectedAmenityIDs
             };
@@ -667,7 +689,6 @@ namespace BookMyFun.Controllers
                 catch { }
             }
 
-            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             await _configRepo.LogAuditAsync(currentUserId, "CreateProperty", "Property", propId, $"Created property {prop.Title} on behalf of Owner #{prop.OwnerID}");
 
             return RedirectToAction(nameof(ManageProperties));
@@ -727,7 +748,7 @@ namespace BookMyFun.Controllers
                 PropertyTypeID = vm.PropertyTypeID,
                 Title = vm.Title,
                 Description = vm.Description,
-                Location = vm.Location,
+                Location = vm.Location ?? string.Empty,
                 FormattedAddress = vm.FormattedAddress,
                 Latitude = vm.Latitude,
                 Longitude = vm.Longitude,
@@ -848,7 +869,7 @@ namespace BookMyFun.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApproveProperty(int id, bool approve, string? status = null, string? returnUrl = null)
+        public async Task<IActionResult> ApproveProperty(int id, bool approve, string? status = null, string? reason = null, string? returnUrl = null)
         {
             var prop = await _propRepo.GetByIdAsync(id);
             if (prop == null)
@@ -858,19 +879,49 @@ namespace BookMyFun.Controllers
 
             var oldApprovalStatus = prop.ListingStatus;
             var oldApproved = prop.IsApproved;
-            var targetStatus = approve ? (status ?? "Active") : (status ?? "Rejected");
-            var success = await _propRepo.ApprovePropertyAsync(id, approve, targetStatus);
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            if (success)
+
+            if (approve)
             {
-                var actionName = approve ? "AdminApproveProperty" : (targetStatus == "Draft" ? "AdminRevokeProperty" : "AdminRejectProperty");
-                await _configRepo.LogAuditAsync(currentUserId, actionName, "Property", id,
-                    $"Old status: '{oldApprovalStatus}', IsApproved: {oldApproved} -> New status: '{targetStatus}', IsApproved: {approve}. Property: '{prop.Title}'");
-                TempData["Success"] = $"Property #{id} ({prop.Title}) has been {(approve ? "approved and made live" : (targetStatus == "Rejected" ? "rejected" : "revoked / set to draft"))}.";
+                var targetStatus = status ?? "Draft";
+                var success = await _propRepo.ApprovePropertyAsync(id, true, targetStatus, currentUserId, null);
+                if (success)
+                {
+                    await _configRepo.LogAuditAsync(currentUserId, "AdminApproveProperty", "Property", id,
+                        $"Old status: '{oldApprovalStatus}', IsApproved: {oldApproved} -> New status: '{targetStatus}', IsApproved: {approve}. Property: '{prop.Title}'");
+                    TempData["Success"] = $"Property #{id} ({prop.Title}) has been approved. The owner has been notified to publish.";
+                    _ = _notificationDispatcher?.DispatchPropertyApprovedAsync(id, prop.Title, prop.OwnerID);
+                }
+                else
+                {
+                    TempData["Error"] = $"Unable to approve property #{id}.";
+                }
             }
             else
             {
-                TempData["Error"] = $"Unable to update approval status for property #{id}.";
+                if (string.IsNullOrWhiteSpace(reason))
+                {
+                    TempData["Error"] = "A rejection reason is required when rejecting a property listing.";
+                    if (!string.IsNullOrWhiteSpace(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
+                    {
+                        return Redirect(returnUrl);
+                    }
+                    return RedirectToAction(nameof(ManageProperties));
+                }
+
+                var targetStatus = "Rejected";
+                var success = await _propRepo.ApprovePropertyAsync(id, false, targetStatus, currentUserId, reason.Trim());
+                if (success)
+                {
+                    await _configRepo.LogAuditAsync(currentUserId, "AdminRejectProperty", "Property", id,
+                        $"Admin rejected property #{id} ('{prop.Title}'). Reason: {reason}");
+                    TempData["Success"] = $"Property #{id} ({prop.Title}) has been rejected.";
+                    _ = _notificationDispatcher?.DispatchPropertyRejectedAsync(id, prop.Title, prop.OwnerID, reason.Trim());
+                }
+                else
+                {
+                    TempData["Error"] = $"Unable to reject property #{id}.";
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
@@ -929,44 +980,126 @@ namespace BookMyFun.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> SaveSiteBranding(SiteSettingsModel model, IFormFile? logoFile)
+        public async Task<IActionResult> SaveSiteBranding(
+            [FromForm] string siteName,
+            [FromForm] string? copyrightText,
+            [FromForm] string? siteTagline,
+            [FromForm] string? siteIcon,
+            [FromForm] bool removeLogo = false,
+            IFormFile? logoFile = null)
         {
-            var oldSettings = await _siteSettingsService.GetSettingsAsync();
+            bool isAjax = Request.Headers["X-Requested-With"] == "XMLHttpRequest" ||
+                          Request.Headers["Accept"].ToString().Contains("application/json");
 
-            // If user uploads an image file, optimize and store with high-res crisp formatting in wwwroot/uploads
-            if (logoFile != null && logoFile.Length > 0)
+            if (string.IsNullOrWhiteSpace(siteName))
             {
-                var (uploadedUrl, _) = await _mediaStorage.SaveMediaFileAsync(logoFile, "photo");
-                model.LogoUrl = uploadedUrl;
+                if (isAjax) return BadRequest(new { success = false, message = "Site name is required." });
+                TempData["Error"] = "Site name is required.";
+                return RedirectToAction(nameof(Settings), new { section = "sec-brand" });
             }
 
-            await _siteSettingsService.SaveSettingsAsync(model);
-
-            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            await _configRepo.LogAuditAsync(currentUserId, "UpdateSiteBranding", "SiteSettings", null,
-                $"Old: [Name='{oldSettings.SiteName}', Tagline='{oldSettings.SiteTagline}'] -> New: [Name='{model.SiteName}', Tagline='{model.SiteTagline}']");
-
-            // Persist per-event specific commission overrides if submitted
-            if (Request.Form.Keys.Any(k => k.StartsWith("eventPkgComm_")))
+            siteName = siteName.Trim();
+            if (siteName.Length > 100)
             {
-                foreach (var key in Request.Form.Keys.Where(k => k.StartsWith("eventPkgComm_")))
+                siteName = siteName.Substring(0, 100);
+            }
+
+            var currentSettings = await _siteSettingsService.GetSettingsAsync();
+            var oldSettings = new SiteSettingsModel
+            {
+                SiteName = currentSettings.SiteName,
+                SiteTagline = currentSettings.SiteTagline,
+                LogoUrl = currentSettings.LogoUrl,
+                CopyrightText = currentSettings.CopyrightText
+            };
+
+            if (removeLogo)
+            {
+                currentSettings.LogoUrl = "";
+            }
+            else if (logoFile != null && logoFile.Length > 0)
+            {
+                if (logoFile.Length > 2 * 1024 * 1024)
                 {
-                    var rawId = key.Replace("eventPkgComm_", "");
-                    if (int.TryParse(rawId, out int pkgId))
-                    {
-                        var rawVal = Request.Form[key].ToString().Trim();
-                        decimal? rate = null;
-                        if (!string.IsNullOrEmpty(rawVal) && decimal.TryParse(rawVal, out var parsedRate))
-                        {
-                            rate = parsedRate;
-                        }
-                        await _eventPackageRepo.UpdatePackageCommissionRateAsync(pkgId, rate);
-                    }
+                    if (isAjax) return BadRequest(new { success = false, message = "Logo file exceeds maximum permitted size of 2 MB." });
+                    TempData["Error"] = "Logo file exceeds maximum permitted size of 2 MB.";
+                    return RedirectToAction(nameof(Settings), new { section = "sec-brand" });
+                }
+
+                var ext = Path.GetExtension(logoFile.FileName).ToLowerInvariant();
+                var allowedExts = new[] { ".png", ".jpg", ".jpeg", ".svg", ".webp" };
+                if (!allowedExts.Contains(ext))
+                {
+                    if (isAjax) return BadRequest(new { success = false, message = "Invalid file type. Allowed formats: PNG, JPG, SVG, WebP." });
+                    TempData["Error"] = "Invalid file type. Allowed formats: PNG, JPG, SVG, WebP.";
+                    return RedirectToAction(nameof(Settings), new { section = "sec-brand" });
+                }
+
+                try
+                {
+                    var (uploadedUrl, _) = await _mediaStorage.SaveMediaFileAsync(logoFile, "photo");
+                    currentSettings.LogoUrl = uploadedUrl;
+                }
+                catch (ValidationException vx)
+                {
+                    if (isAjax) return BadRequest(new { success = false, message = vx.Message });
+                    TempData["Error"] = vx.Message;
+                    return RedirectToAction(nameof(Settings), new { section = "sec-brand" });
+                }
+                catch (Exception)
+                {
+                    if (isAjax) return StatusCode(500, new { success = false, message = "An error occurred while uploading the logo." });
+                    TempData["Error"] = "An error occurred while uploading the logo.";
+                    return RedirectToAction(nameof(Settings), new { section = "sec-brand" });
                 }
             }
 
-            TempData["Success"] = "Site branding, standing commission, and specific event commissions updated successfully!";
-            return RedirectToAction(nameof(Settings));
+            currentSettings.SiteName = siteName;
+            if (!string.IsNullOrWhiteSpace(siteTagline))
+            {
+                currentSettings.SiteTagline = siteTagline.Trim();
+            }
+            if (!string.IsNullOrWhiteSpace(siteIcon))
+            {
+                currentSettings.SiteIcon = siteIcon.Trim();
+            }
+
+            if (!string.IsNullOrWhiteSpace(copyrightText))
+            {
+                currentSettings.CopyrightText = copyrightText.Trim();
+                if (currentSettings.CopyrightText.Length > 200)
+                {
+                    currentSettings.CopyrightText = currentSettings.CopyrightText.Substring(0, 200);
+                }
+            }
+            else
+            {
+                currentSettings.CopyrightText = $"© {DateTime.UtcNow.Year} {siteName}. All rights reserved.";
+            }
+
+            await _siteSettingsService.SaveSettingsAsync(currentSettings);
+
+            if (int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int currentUserId))
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "UpdateSiteBranding", "SiteSettings", null,
+                    $"Old: [Name='{oldSettings.SiteName}', Logo='{oldSettings.LogoUrl}'] -> New: [Name='{currentSettings.SiteName}', Logo='{currentSettings.LogoUrl}']");
+            }
+
+            if (isAjax)
+            {
+                return Ok(new
+                {
+                    success = true,
+                    message = "Site branding and identity updated successfully!",
+                    siteName = currentSettings.SiteName,
+                    logoUrl = currentSettings.LogoUrl,
+                    copyrightText = currentSettings.CopyrightText,
+                    siteIcon = currentSettings.SiteIcon
+                });
+            }
+
+            TempData["Success"] = "Site branding and identity updated successfully!";
+            return RedirectToAction(nameof(Settings), new { section = "sec-brand" });
         }
 
         [HttpGet]
@@ -2458,5 +2591,189 @@ namespace BookMyFun.Controllers
 
             return View(doc);
         }
-    }
+
+        // --- Event Manager Verifications & Portfolio Moderation (Phase 9) ---
+        public async Task<IActionResult> EventManagerVerifications()
+        {
+            var decorators = await _eventPackageRepo.GetDecoratorsAsync(onlyVerified: false);
+            var portfolios = await _eventPackageRepo.GetAllPortfoliosAsync();
+            ViewBag.Portfolios = portfolios;
+            return View(decorators);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApprovePortfolioItem(int portfolioId, string? returnUrl = null)
+        {
+            var adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _eventPackageRepo.ApprovePortfolioItemAsync(portfolioId, true);
+            await _configRepo.LogAuditAsync(adminId, "ApprovePortfolioItem", "EventManagerPortfolio", portfolioId,
+                $"Approved showcase portfolio item #{portfolioId} for public display.");
+
+            TempData["Success"] = $"Portfolio item #{portfolioId} approved for public display.";
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
+            return RedirectToAction(nameof(EventManagerVerifications));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectPortfolioItem(int portfolioId, string? reason = null, string? returnUrl = null)
+        {
+            var adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _eventPackageRepo.ApprovePortfolioItemAsync(portfolioId, false);
+            await _configRepo.LogAuditAsync(adminId, "RejectPortfolioItem", "EventManagerPortfolio", portfolioId,
+                $"Rejected showcase portfolio item #{portfolioId}. Reason: {reason ?? "Content guidelines violation"}");
+
+            TempData["Success"] = $"Portfolio item #{portfolioId} set to unapproved/rejected.";
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
+            return RedirectToAction(nameof(EventManagerVerifications));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveEventManagerVerification(int userId)
+        {
+            var user = await _userRepo.GetByIdAsync(userId);
+            if (user != null)
+            {
+                user.VerificationStatus = "Verified";
+                await _userRepo.UpdateUserAsync(user);
+
+                var adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                await _configRepo.LogAuditAsync(adminId, "ApproveEventManagerVerification", "User", userId, $"Approved event manager #{userId} ({user.FullName}) verification status to Verified.");
+                TempData["Success"] = $"Event Manager '{user.FullName}' has been verified and their profile and packages are now live!";
+            }
+            return RedirectToAction(nameof(EventManagerVerifications));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RejectEventManagerVerification(int userId, string? reason)
+        {
+            var user = await _userRepo.GetByIdAsync(userId);
+            if (user != null)
+            {
+                user.VerificationStatus = "Rejected";
+                await _userRepo.UpdateUserAsync(user);
+
+                var adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                await _configRepo.LogAuditAsync(adminId, "RejectEventManagerVerification", "User", userId, $"Rejected event manager #{userId} ({user.FullName}) verification. Reason: {reason}");
+                TempData["Success"] = $"Event Manager '{user.FullName}' verification was set to Rejected.";
+            }
+            return RedirectToAction(nameof(EventManagerVerifications));
+        }
+
+        // --- Flagged Contact Attempts (Section 5e & ContactPrivacyScanner) ---
+        public async Task<IActionResult> FlaggedContacts()
+        {
+            var flagged = await _eventPackageRepo.GetFlaggedContactAttemptsAsync();
+            return View(flagged);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DismissFlaggedContact(int attemptId)
+        {
+            var adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _eventPackageRepo.UpdateFlaggedContactAttemptStatusAsync(attemptId, "Dismissed");
+            await _configRepo.LogAuditAsync(adminId, "DismissFlaggedContact", "FlaggedContactAttempt", attemptId, $"Admin reviewed and dismissed flagged contact violation #{attemptId}");
+            TempData["Success"] = $"Flagged contact attempt #{attemptId} resolved.";
+            return RedirectToAction(nameof(FlaggedContacts));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SuspendUserFromFlaggedContact(int attemptId, int userId, string? reason = null)
+        {
+            var adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var user = await _userRepo.GetByIdAsync(userId);
+            if (user != null)
+            {
+                user.IsActive = false;
+                await _userRepo.UpdateUserAsync(user);
+                await _eventPackageRepo.UpdateFlaggedContactAttemptStatusAsync(attemptId, "AccountSuspended");
+                await _configRepo.LogAuditAsync(adminId, "SuspendUserForContactViolation", "User", userId,
+                    $"Suspended user #{userId} ({user.FullName}) for off-platform contact sharing violation in attempt #{attemptId}. Reason: {reason ?? "Contact policy violation"}");
+
+                TempData["Success"] = $"User #{userId} ({user.FullName}) has been suspended. Profile and packages are deactivated.";
+            }
+            return RedirectToAction(nameof(FlaggedContacts));
+        }
+
+        // --- Effective-Dated Subscription Plan Prices (Section 3b) ---
+        public async Task<IActionResult> ManagePlanPrices(int planId)
+        {
+            var plan = await _subRepo.GetPlanByIdAsync(planId);
+            if (plan == null) return NotFound();
+
+            var prices = await _subRepo.GetPlanPricesByPlanIdAsync(planId);
+            ViewBag.Plan = plan;
+            ViewBag.Prices = prices;
+
+            var vm = new PlanPriceCreateViewModel
+            {
+                PlanID = planId,
+                Price = plan.Price,
+                EffectiveFrom = DateTime.Today.AddDays(1)
+            };
+
+            return View(vm);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreatePlanPrice(PlanPriceCreateViewModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                var plan = await _subRepo.GetPlanByIdAsync(model.PlanID);
+                ViewBag.Plan = plan;
+                ViewBag.Prices = await _subRepo.GetPlanPricesByPlanIdAsync(model.PlanID);
+                return View("ManagePlanPrices", model);
+            }
+
+            var priceRecord = new SubscriptionPlanPrice
+            {
+                PlanID = model.PlanID,
+                Price = model.Price,
+                EffectiveFrom = model.EffectiveFrom,
+                EffectiveTo = model.EffectiveTo
+            };
+
+            await _subRepo.CreatePlanPriceAsync(priceRecord);
+            var adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _configRepo.LogAuditAsync(adminId, "CreatePlanPrice", "SubscriptionPlanPrice", model.PlanID,
+                $"Admin created effective price ₹{model.Price} for Plan #{model.PlanID} starting {model.EffectiveFrom:dd MMM yyyy}");
+
+            TempData["Success"] = $"New effective price ₹{model.Price:N0} scheduled starting {model.EffectiveFrom:dd MMM yyyy}.";
+            return RedirectToAction(nameof(ManagePlanPrices), new { planId = model.PlanID });
+        }
+
+        // --- Map Link Change Requests Approval (Section 4a) ---
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApproveMapLinkChange(int propertyId, string newMapUrl, string reason)
+        {
+            var adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var prop = await _propRepo.GetByIdAsync(propertyId);
+            if (prop == null) return NotFound();
+
+            if (string.IsNullOrWhiteSpace(newMapUrl) || !Uri.TryCreate(newMapUrl.Trim(), UriKind.Absolute, out _))
+            {
+                TempData["Error"] = "Invalid Google Maps URL provided.";
+                return RedirectToAction(nameof(ManageProperties));
+            }
+
+            prop.MapUrl = newMapUrl.Trim();
+            prop.MapUrlLocked = true;
+            await _propRepo.UpdatePropertyAsync(prop);
+
+            await _configRepo.LogAuditAsync(adminId, "ApproveMapLinkChange", "Property", propertyId,
+                $"Admin approved Map Link update for property #{propertyId} ('{prop.Title}') to '{newMapUrl.Trim()}'. Audit Reason: {reason}");
+
+            TempData["Success"] = $"Map location link for '{prop.Title}' updated to verified link.";
+            return RedirectToAction(nameof(ManageProperties));
+        }
+
+}
 }

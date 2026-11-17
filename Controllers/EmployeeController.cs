@@ -3,12 +3,14 @@ using BookMyFun.Models.Entities;
 using BookMyFun.Models.ViewModels;
 using BookMyFun.Repositories;
 using BookMyFun.Services;
+
+using BookMyFun.Services.Notifications;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookMyFun.Controllers
 {
-    [Authorize(Roles = "Employee,Admin")]
+    [Authorize(Policy = "RequireEmployee")]
     public class EmployeeController : Controller
     {
         private readonly IPropertyRepository _propRepo;
@@ -25,6 +27,9 @@ namespace BookMyFun.Controllers
         private readonly IEventPackageRepository _eventPackageRepo;
         private readonly ISiteSettingsService _siteSettingsService;
 
+        private readonly INotificationDispatcherService? _notificationDispatcher;
+        private readonly ISubscriptionRepository? _subRepo;
+
         public EmployeeController(
             IPropertyRepository propRepo,
             IUserRepository userRepo,
@@ -38,7 +43,9 @@ namespace BookMyFun.Controllers
             IIdVerificationService idVerificationService,
             IMediaStorageService mediaStorage,
             IEventPackageRepository eventPackageRepo,
-            ISiteSettingsService siteSettingsService)
+            ISiteSettingsService siteSettingsService,
+            INotificationDispatcherService? notificationDispatcher = null,
+            ISubscriptionRepository? subRepo = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -53,6 +60,8 @@ namespace BookMyFun.Controllers
             _mediaStorage = mediaStorage;
             _eventPackageRepo = eventPackageRepo;
             _siteSettingsService = siteSettingsService;
+            _notificationDispatcher = notificationDispatcher;
+            _subRepo = subRepo;
         }
 
         public async Task<IActionResult> Index()
@@ -182,13 +191,28 @@ namespace BookMyFun.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> CreateProperty(PropertyEditViewModel vm)
         {
+            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            if (_subRepo != null)
+            {
+                var allowance = await _subRepo.CheckListingCreationAllowanceAsync(vm.OwnerID);
+                if (!allowance.Allowed)
+                {
+                    ModelState.AddModelError("", $"Owner #{vm.OwnerID} listing allowance reached: {allowance.Reason}");
+                    vm.AvailableTypes = await _propRepo.GetPropertyTypesAsync();
+                    vm.AvailableOccasions = await _propRepo.GetOccasionsAsync();
+                    vm.AvailableAmenities = await _propRepo.GetAllAmenitiesAsync();
+                    ViewBag.Owners = await _userRepo.GetUsersByRoleAsync("Owner");
+                    return View(vm);
+                }
+            }
+
             var prop = new Property
             {
                 OwnerID = vm.OwnerID,
                 PropertyTypeID = vm.PropertyTypeID,
                 Title = vm.Title,
                 Description = vm.Description,
-                Location = vm.Location,
+                Location = vm.Location ?? string.Empty,
                 FormattedAddress = vm.FormattedAddress,
                 Latitude = vm.Latitude,
                 Longitude = vm.Longitude,
@@ -201,8 +225,9 @@ namespace BookMyFun.Controllers
                 CancellationFeeType = vm.CancellationFeeType,
                 CancellationFeeValue = vm.CancellationFeeValue,
                 MaxGuests = vm.MaxGuests,
-                ListingStatus = "Active",
-                IsApproved = true,
+                ListingStatus = "Draft",
+                IsApproved = false,
+                CreatedByUserID = currentUserId,
                 OccasionIDs = vm.SelectedOccasionIDs,
                 AmenityIDs = vm.SelectedAmenityIDs
             };
@@ -260,7 +285,6 @@ namespace BookMyFun.Controllers
                 catch { }
             }
 
-            var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             await _configRepo.LogAuditAsync(currentUserId, "EmployeeCreateProperty", "Property", propId, $"Employee created property {prop.Title} for owner #{prop.OwnerID}");
 
             return RedirectToAction(nameof(ManageProperties));
@@ -319,7 +343,7 @@ namespace BookMyFun.Controllers
                 PropertyTypeID = vm.PropertyTypeID,
                 Title = vm.Title,
                 Description = vm.Description,
-                Location = vm.Location,
+                Location = vm.Location ?? string.Empty,
                 FormattedAddress = vm.FormattedAddress,
                 Latitude = vm.Latitude,
                 Longitude = vm.Longitude,
@@ -387,7 +411,7 @@ namespace BookMyFun.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ApproveProperty(int id, bool approve, string? status = null, string? returnUrl = null)
+        public async Task<IActionResult> ApproveProperty(int id, bool approve, string? status = null, string? reason = null, string? returnUrl = null)
         {
             var prop = await _propRepo.GetByIdAsync(id);
             if (prop == null)
@@ -395,18 +419,49 @@ namespace BookMyFun.Controllers
                 return NotFound();
             }
 
-            var targetStatus = approve ? (status ?? "Active") : (status ?? "Rejected");
-            var success = await _propRepo.ApprovePropertyAsync(id, approve, targetStatus);
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            if (success)
+
+            if (approve)
             {
-                var actionName = approve ? "EmployeeApproveProperty" : (targetStatus == "Draft" ? "EmployeeRevokeProperty" : "EmployeeRejectProperty");
-                await _configRepo.LogAuditAsync(currentUserId, actionName, "Property", id, $"Employee approval set to {approve} with status '{targetStatus}' for property '{prop.Title}'");
-                TempData["Success"] = $"Property #{id} ({prop.Title}) has been {(approve ? "approved and made live" : (targetStatus == "Rejected" ? "rejected" : "revoked / set to draft"))}.";
+                var targetStatus = status ?? "Draft";
+                var success = await _propRepo.ApprovePropertyAsync(id, true, targetStatus, currentUserId, null);
+                if (success)
+                {
+                    await _configRepo.LogAuditAsync(currentUserId, "EmployeeApproveProperty", "Property", id,
+                        $"Employee approved property #{id} ('{prop.Title}'). Ready for owner to publish.");
+                    TempData["Success"] = $"Property #{id} ({prop.Title}) has been approved. The owner has been notified to publish.";
+                    _ = _notificationDispatcher?.DispatchPropertyApprovedAsync(id, prop.Title, prop.OwnerID);
+                }
+                else
+                {
+                    TempData["Error"] = $"Unable to approve property #{id}.";
+                }
             }
             else
             {
-                TempData["Error"] = $"Unable to update approval status for property #{id}.";
+                if (string.IsNullOrWhiteSpace(reason))
+                {
+                    TempData["Error"] = "A rejection reason is required when rejecting a property listing.";
+                    if (!string.IsNullOrWhiteSpace(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
+                    {
+                        return Redirect(returnUrl);
+                    }
+                    return RedirectToAction(nameof(ManageProperties));
+                }
+
+                var targetStatus = "Rejected";
+                var success = await _propRepo.ApprovePropertyAsync(id, false, targetStatus, currentUserId, reason.Trim());
+                if (success)
+                {
+                    await _configRepo.LogAuditAsync(currentUserId, "EmployeeRejectProperty", "Property", id,
+                        $"Employee rejected property #{id} ('{prop.Title}'). Reason: {reason}");
+                    TempData["Success"] = $"Property #{id} ({prop.Title}) has been rejected.";
+                    _ = _notificationDispatcher?.DispatchPropertyRejectedAsync(id, prop.Title, prop.OwnerID, reason.Trim());
+                }
+                else
+                {
+                    TempData["Error"] = $"Unable to reject property #{id}.";
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))

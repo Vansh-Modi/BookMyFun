@@ -27,6 +27,12 @@
         <a asp-action="AssignedSetups" class="dash-btn dash-btn-outline">
             <i class="bi bi-calendar-check"></i> Assigned Setups
         </a>
+        <a asp-action="Inbox" class="dash-btn dash-btn-outline">
+            <i class="bi bi-inbox-fill"></i> Inbox &amp; Orders
+        </a>
+        <a asp-action="Profile" class="dash-btn dash-btn-outline">
+            <i class="bi bi-person-badge-fill"></i> Profile Settings
+        </a>
         <a asp-action="Financials" class="dash-btn dash-btn-outline" style="border-color: var(--brand-green); color: var(--brand-green);">
             <i class="bi bi-wallet2"></i> Earnings &amp; Financials
         </a>
@@ -682,6 +688,10 @@
 </div>
 
 @section Scripts {
+<script type="application/json" id="emDashboardAreasData">
+@Html.Raw(System.Text.Json.JsonSerializer.Serialize(currentAreas ?? new List<string>()))
+</script>
+
 <script>
     window.filterOfferings = function(filter, btn) {
         document.querySelectorAll('.offering-filter-btn').forEach(b => {
@@ -703,7 +713,7 @@
             }
         });
     };
-<script>
+
     document.addEventListener("DOMContentLoaded", function () {
         const tabButtons = document.querySelectorAll("#eventOrderTabs button");
         const rows = document.querySelectorAll(".order-row");
@@ -727,11 +737,8 @@
 
         // Dashboard Service Areas Chips Widget Logic
         (function() {
-            const selectedSet = new Set();
-            @foreach (var a in currentAreas)
-            {
-                @:selectedSet.add("@Html.Raw(a.Replace("\"", "\\\""))");
-            }
+            const currentAreasList = JSON.parse(document.getElementById('emDashboardAreasData')?.textContent || '[]');
+            const selectedSet = new Set(currentAreasList);
 
             const cloud = document.getElementById('dashSelectedChipsCloud');
             const hiddenCont = document.getElementById('dashHiddenInputsContainer');

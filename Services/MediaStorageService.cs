@@ -34,8 +34,15 @@ namespace BookMyFun.Services
             _logger = logger;
             _imageOptimizer = imageOptimizer;
 
-            string secret = _config["Security:TokenSecret"] ?? "BookMyFun_Default_Secure_Secret_Key_For_Tokens_2026";
-            _tokenSigningKey = Encoding.UTF8.GetBytes(secret);
+            string? configuredSecret = _config["Security:TokenSecret"];
+            if (!string.IsNullOrWhiteSpace(configuredSecret))
+            {
+                _tokenSigningKey = Encoding.UTF8.GetBytes(configuredSecret);
+            }
+            else
+            {
+                _tokenSigningKey = RandomNumberGenerator.GetBytes(32);
+            }
         }
 
         public async Task<(string publicUrl, string publicId)> SaveMediaFileAsync(IFormFile file, string mediaType)
@@ -43,28 +50,34 @@ namespace BookMyFun.Services
             if (file == null || file.Length == 0)
                 throw new ValidationException("file", "Uploaded file is empty.");
 
-            // 1. Size Validation
-            if (mediaType.Equals("photo", StringComparison.OrdinalIgnoreCase))
+            bool isImage = mediaType.Equals("photo", StringComparison.OrdinalIgnoreCase) || mediaType.Equals("image", StringComparison.OrdinalIgnoreCase);
+            bool isVideo = mediaType.Equals("video", StringComparison.OrdinalIgnoreCase);
+
+            if (!isImage && !isVideo)
+                throw new ValidationException("file", "Unsupported media type specified. Expected 'image' or 'video'.");
+
+            // 1. Size Validation from Configuration
+            long maxImageSize = _config.GetValue<long?>("Media:MaxImageSizeBytes") ?? (10L * 1024 * 1024);
+            long maxVideoSize = _config.GetValue<long?>("Media:MaxVideoSizeBytes") ?? (100L * 1024 * 1024);
+
+            if (isImage && file.Length > maxImageSize)
             {
-                if (file.Length > 10 * 1024 * 1024)
-                    throw new ValidationException("file", "Photo exceeds maximum permitted size of 10MB.");
+                throw new ValidationException("file", $"Image exceeds maximum permitted size of {maxImageSize / (1024 * 1024)}MB.");
             }
-            else if (mediaType.Equals("video", StringComparison.OrdinalIgnoreCase))
+            else if (isVideo && file.Length > maxVideoSize)
             {
-                if (file.Length > 100 * 1024 * 1024)
-                    throw new ValidationException("file", "Video exceeds maximum permitted size of 100MB.");
+                throw new ValidationException("file", $"Video exceeds maximum permitted size of {maxVideoSize / (1024 * 1024)}MB.");
             }
 
-            // 2. Magic-Byte Inspection
-            string safeExtension = await ValidateMagicBytesAndGetExtensionAsync(file, mediaType);
+            // 2. Magic-Byte Inspection (Strict: only jpg, png, webp for images; mp4, webm for videos)
+            string safeExtension = await ValidateMagicBytesAndGetExtensionAsync(file, isImage ? "image" : "video");
 
-            // 3. Filename Sanitization & Directory Generation
+            // 3. Filename Sanitization & Directory Generation (GUID)
             string publicId = Guid.NewGuid().ToString("N");
             string safeFileName = $"{publicId}{safeExtension}";
 
-            string subFolder = mediaType.Equals("video", StringComparison.OrdinalIgnoreCase) ? "videos" : "photos";
             string webRoot = !string.IsNullOrWhiteSpace(_env.WebRootPath) ? _env.WebRootPath : Path.Combine(_env.ContentRootPath, "wwwroot");
-            string uploadsFolder = Path.Combine(webRoot, "uploads", subFolder);
+            string uploadsFolder = Path.Combine(webRoot, "uploads", "media");
 
             if (!Directory.Exists(uploadsFolder))
             {
@@ -74,7 +87,7 @@ namespace BookMyFun.Services
             string fullPhysicalPath = Path.Combine(uploadsFolder, safeFileName);
 
             // 4. Server-Side Optimization for Image Files
-            if (mediaType.Equals("photo", StringComparison.OrdinalIgnoreCase) && _imageOptimizer.IsImageExtension(safeExtension))
+            if (isImage && _imageOptimizer.IsImageExtension(safeExtension))
             {
                 using var readStream = file.OpenReadStream();
                 var (optimizedBytes, optimizedExt, _) = await _imageOptimizer.OptimizeImageAsync(
@@ -98,7 +111,7 @@ namespace BookMyFun.Services
                 }
             }
 
-            string publicUrl = $"/uploads/{subFolder}/{safeFileName}";
+            string publicUrl = $"/uploads/media/{safeFileName}";
             return (publicUrl, publicId);
         }
 
@@ -300,43 +313,60 @@ namespace BookMyFun.Services
                 if (read < 4) throw new ValidationException("file", "File is corrupt or too small to inspect.");
             }
 
-            if (mediaType.Equals("photo", StringComparison.OrdinalIgnoreCase))
+            string rawExt = Path.GetExtension(file.FileName).ToLowerInvariant();
+
+            if (mediaType.Equals("photo", StringComparison.OrdinalIgnoreCase) || mediaType.Equals("image", StringComparison.OrdinalIgnoreCase))
             {
                 // JPEG: FF D8 FF
-                if (header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF) return ".jpg";
+                if (header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF)
+                {
+                    if (rawExt != ".jpg" && rawExt != ".jpeg")
+                        throw new ValidationException("file", "File extension does not match JPEG content.");
+                    return ".jpg";
+                }
 
                 // PNG: 89 50 4E 47
-                if (header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47) return ".png";
+                if (header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47)
+                {
+                    if (rawExt != ".png")
+                        throw new ValidationException("file", "File extension does not match PNG content.");
+                    return ".png";
+                }
 
                 // WEBP: 'RIFF' .... 'WEBP'
                 if (read >= 12 &&
                     header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46 &&
-                    header[8] == 0x57 && header[9] == 0x45 && header[10] == 0x42 && header[11] == 0x50) return ".webp";
+                    header[8] == 0x57 && header[9] == 0x45 && header[10] == 0x42 && header[11] == 0x50)
+                {
+                    if (rawExt != ".webp")
+                        throw new ValidationException("file", "File extension does not match WEBP content.");
+                    return ".webp";
+                }
 
-                // AVIF: ....ftypavif or ....ftypavis
-                if (read >= 12 &&
-                    header[4] == 0x66 && header[5] == 0x74 && header[6] == 0x79 && header[7] == 0x70 &&
-                    ((header[8] == 0x61 && header[9] == 0x76 && header[10] == 0x69 && header[11] == 0x66) ||
-                     (header[8] == 0x61 && header[9] == 0x76 && header[10] == 0x69 && header[11] == 0x73))) return ".avif";
-
-                throw new ValidationException("file", "Invalid image format. Allowed formats: JPG, PNG, WEBP, AVIF with verified binary headers.");
+                throw new ValidationException("file", "Invalid image format. Only JPG, PNG, and WEBP formats with valid file signatures are accepted.");
             }
             else if (mediaType.Equals("video", StringComparison.OrdinalIgnoreCase))
             {
-                // MP4: ....ftyp (bytes 4-7 = 0x66 0x74 0x79 0x70)
-                if (header[4] == 0x66 && header[5] == 0x74 && header[6] == 0x79 && header[7] == 0x70) return ".mp4";
+                // MP4: bytes 4-7 = 0x66 0x74 0x79 0x70 ('ftyp')
+                if (read >= 8 && header[4] == 0x66 && header[5] == 0x74 && header[6] == 0x79 && header[7] == 0x70)
+                {
+                    if (rawExt != ".mp4")
+                        throw new ValidationException("file", "File extension does not match MP4 content.");
+                    return ".mp4";
+                }
 
                 // WEBM: 1A 45 DF A3 (EBML Header)
-                if (header[0] == 0x1A && header[1] == 0x45 && header[2] == 0xDF && header[3] == 0xA3) return ".webm";
+                if (header[0] == 0x1A && header[1] == 0x45 && header[2] == 0xDF && header[3] == 0xA3)
+                {
+                    if (rawExt != ".webm")
+                        throw new ValidationException("file", "File extension does not match WEBM content.");
+                    return ".webm";
+                }
 
-                // QuickTime MOV (moov or ftyp)
-                string ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-                if (ext == ".mov" || ext == ".mp4") return ext;
-
-                throw new ValidationException("file", "Invalid video format. Allowed formats: MP4, WEBM, MOV with verified binary headers.");
+                throw new ValidationException("file", "Invalid video format. Only MP4 and WEBM formats with valid binary headers are accepted.");
             }
 
-            throw new ValidationException("file", "Unsupported media type specified.");
+            throw new ValidationException("file", "Unsupported media type specified. Expected 'image' or 'video'.");
         }
 
         private static async Task<string> ValidateDocumentMagicBytesAsync(IFormFile file)
