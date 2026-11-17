@@ -988,7 +988,7 @@ renderCompactCalendar();
 renderCompactCalendar();
                 calculateLiveTotal();
                 checkDecorLeadTime();
-                fetchCelebrationEligibility();
+                scheduleDateChangeEligibility();
             }
         });
     }
@@ -1008,7 +1008,7 @@ renderCompactCalendar();
 renderCompactCalendar();
                 calculateLiveTotal();
                 checkDecorLeadTime();
-                fetchCelebrationEligibility();
+                scheduleDateChangeEligibility();
             }
         });
     }
@@ -1022,7 +1022,7 @@ renderCompactCalendar();
 renderCompactCalendar();
                 calculateLiveTotal();
                 checkDecorLeadTime();
-                fetchCelebrationEligibility();
+                scheduleDateChangeEligibility();
             }
         });
     }
@@ -1036,7 +1036,7 @@ renderCompactCalendar();
 renderCompactCalendar();
                 calculateLiveTotal();
                 checkDecorLeadTime();
-                fetchCelebrationEligibility();
+                scheduleDateChangeEligibility();
             }
         });
     }
@@ -1090,7 +1090,7 @@ renderCompactCalendar();
 renderCompactCalendar();
         calculateLiveTotal();
         checkDecorLeadTime();
-        fetchCelebrationEligibility();
+        scheduleDateChangeEligibility();
     });
 
     function renderCompactCalendar() {
@@ -1163,7 +1163,7 @@ renderCompactCalendar();
 renderCompactCalendar();
         calculateLiveTotal();
         checkDecorLeadTime();
-        fetchCelebrationEligibility();
+        scheduleDateChangeEligibility();
     }
 
     function updateCalendarSummary() {
@@ -1408,41 +1408,63 @@ renderCompactCalendar();
                 lblEventStay.classList.remove('d-none');
                 lblEventStay.style.display = '';
             }
-            if (switchedAlert) switchedAlert.classList.add('d-none');
             if (pageAlert) pageAlert.classList.add('d-none');
         } else {
-            // If the guest had it selected and date changed so it no longer qualifies
-            const wasSelected = (toggleEventStay && toggleEventStay.checked) || confirmedEvent.isConfirmed;
-            if (wasSelected) {
-                switchToStandardStay();
-                if (!isMoreThan48Hours && switchedAlert) {
-                    switchedAlert.classList.remove('d-none');
-                }
-            }
-
-            // Hide the option completely. Don't grey it out.
-            if (toggleEventStay) {
-                toggleEventStay.classList.add('d-none');
-                toggleEventStay.style.display = 'none';
-            }
-            if (lblEventStay) {
-                lblEventStay.classList.add('d-none');
-                lblEventStay.style.display = 'none';
-            }
+            if (pageAlert) pageAlert.classList.remove('d-none');
         }
 
         return qualifies;
     }
 
+    let latestEligibilitySeq = 0;
+    let isUserDateChangeTriggered = false;
+    let dateChangeDebounceTimer = null;
+    let savedEventBeforeAutoSwitch = null;
+    let autoSwitchedToStandard = false;
+    let currentEligibilityIsUserChange = false;
+
+    function scheduleDateChangeEligibility() {
+        isUserDateChangeTriggered = true;
+        if (dateChangeDebounceTimer) {
+            clearTimeout(dateChangeDebounceTimer);
+        }
+        dateChangeDebounceTimer = setTimeout(() => {
+            fetchCelebrationEligibility();
+        }, 300);
+    }
+
+    function getDisplayedDates() {
+        let inVal = '';
+        let outVal = '';
+        if (currentMode === 'FullDay') {
+            inVal = (visibleCheckIn && visibleCheckIn.value) ? visibleCheckIn.value : (document.getElementById('checkInField')?.value || '');
+            outVal = (visibleCheckOut && visibleCheckOut.value) ? visibleCheckOut.value : (document.getElementById('checkOutField')?.value || '');
+        } else if (currentMode === 'HalfDay') {
+            inVal = (visibleHalfDay && visibleHalfDay.value) ? visibleHalfDay.value : (document.getElementById('checkInField')?.value || '');
+            outVal = inVal;
+        } else if (currentMode === 'Hourly') {
+            inVal = (visibleHourly && visibleHourly.value) ? visibleHourly.value : (document.getElementById('checkInField')?.value || '');
+            outVal = inVal;
+        }
+        return { inVal: inVal.trim(), outVal: outVal.trim() };
+    }
+
     async function fetchCelebrationEligibility() {
-        const inVal = document.getElementById('checkInField')?.value || (selStart ? formatYmd(selStart) : '');
-        const outVal = document.getElementById('checkOutField')?.value || (selEnd ? formatYmd(selEnd) : '');
-        if (!inVal) return;
+        const { inVal, outVal } = getDisplayedDates();
+        if (!inVal || inVal.startsWith('0001') || (currentMode === 'FullDay' && (!outVal || outVal.startsWith('0001')))) {
+            return;
+        }
+
+        const seq = ++latestEligibilitySeq;
+        const isUserChange = isUserDateChangeTriggered;
 
         try {
             const res = await fetch(`/Booking/CelebrationEligibility?propertyId=${propId}&checkIn=${encodeURIComponent(inVal)}&checkOut=${encodeURIComponent(outVal)}`);
+            if (seq !== latestEligibilitySeq) return;
             if (!res.ok) return;
             const data = await res.json();
+            if (seq !== latestEligibilitySeq) return;
+            currentEligibilityIsUserChange = isUserChange;
             applyCelebrationEligibility(data);
         } catch (err) {
             console.error('Error checking celebration eligibility:', err);
@@ -1455,6 +1477,7 @@ renderCompactCalendar();
         const qualifies = data.allowed === true;
         const switchedAlert = document.getElementById('decorSwitchedAlert');
         const wasSelected = (toggleEventStay && toggleEventStay.checked) || confirmedEvent.isConfirmed;
+        const isUserChange = currentEligibilityIsUserChange;
 
         if (hasActiveDecoratorInput) {
             hasActiveDecoratorInput.value = (data.reason && data.reason.indexOf("No active") !== -1) ? 'false' : 'true';
@@ -1472,11 +1495,36 @@ renderCompactCalendar();
             }
             if (switchedAlert) switchedAlert.classList.add('d-none');
 
+            // If we previously auto-switched to Standard Stay due to a date change, restore Event Stay
+            if (autoSwitchedToStandard) {
+                if (savedEventBeforeAutoSwitch) {
+                    confirmedEvent = { ...savedEventBeforeAutoSwitch };
+                    tempModalEvent = { ...confirmedEvent };
+                    if (selectedOccasionIdInput) selectedOccasionIdInput.value = confirmedEvent.occasionId || '';
+                    if (selectedEventPackageIdInput) selectedEventPackageIdInput.value = confirmedEvent.packageId || '';
+                    if (decoratorAssignedIdInput) decoratorAssignedIdInput.value = confirmedEvent.managerId || '';
+                    if (isEventBookingInput) isEventBookingInput.value = confirmedEvent.isConfirmed ? 'true' : 'false';
+                    decorPrice = confirmedEvent.packagePrice || 0;
+                    decorName = confirmedEvent.packageName || '';
+                    if (eventStaySummaryLine && confirmedEvent.packageName) {
+                        eventStaySummaryLine.classList.remove('d-none');
+                    }
+                }
+                if (toggleEventStay) toggleEventStay.checked = true;
+                if (toggleStandardStay) toggleStandardStay.checked = false;
+                calculateLiveTotal();
+                autoSwitchedToStandard = false;
+            }
+
             if (data.availableCategories && data.availableCategories.length > 0) {
                 renderOccasionChips(data.availableCategories);
             }
         } else {
-            if (wasSelected) {
+            // Only switch to Standard Stay if the guest changed the dates and latest response says unavailable
+            // Never switch on page load, and never switch because of an older response
+            if (isUserChange && wasSelected) {
+                savedEventBeforeAutoSwitch = { ...confirmedEvent };
+                autoSwitchedToStandard = true;
                 switchToStandardStay();
                 if (switchedAlert) {
                     const msg = data.reason || "Décor needs more than 48 hours' notice, so we've switched you to a standard stay.";
@@ -1822,6 +1870,7 @@ renderCompactCalendar();
         if (isEventBookingInput) isEventBookingInput.value = 'false';
 
         if (toggleStandardStay) toggleStandardStay.checked = true;
+        if (toggleEventStay) toggleEventStay.checked = false;
         if (eventStaySummaryLine) eventStaySummaryLine.classList.add('d-none');
 
         decorPrice = 0;
@@ -1884,6 +1933,8 @@ renderCompactCalendar();
     if (toggleStandardStay) {
         toggleStandardStay.addEventListener('change', function () {
             if (toggleStandardStay.checked) {
+                autoSwitchedToStandard = false;
+                savedEventBeforeAutoSwitch = null;
                 switchToStandardStay();
             }
         });
@@ -2024,6 +2075,7 @@ renderCompactCalendar();
     // ─────────────────────────────────────────────────────────────
     const idTypeSelect = document.getElementById('idTypeSelect');
     const idInput = document.getElementById('idNumberInput');
+    const idFileInput = document.getElementById('idFileInput');
     const idHelper = document.getElementById('idFormatHelperText');
     const idError = document.getElementById('idNumberError');
     const btnProceed = document.getElementById('btnProceedPayment');

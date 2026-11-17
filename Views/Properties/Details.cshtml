@@ -107,8 +107,7 @@
                                        playsinline
                                        style="@(isFirst ? "display:block;" : "display:none;")"
                                        src="@(isPreloadable ? s.StorageUrl : "")"
-                                       data-src="@s.StorageUrl"
-                                       onerror="handleGalleryMedia404(@s.MediaID, this)">
+                                       data-src="@s.StorageUrl">
                                     Your browser does not support HTML5 video.
                                 </video>
                             }
@@ -123,8 +122,7 @@
                                      data-src="@s.StorageUrl"
                                      alt="@Model.Title - Slide @(i + 1)"
                                      loading="@(isFirst ? "eager" : "lazy")"
-                                     style="@(isFirst ? "display:block;" : "display:none;")"
-                                     onerror="handleGalleryMedia404(@s.MediaID, this)" />
+                                     style="@(isFirst ? "display:block;" : "display:none;")" />
                             }
                         }
                     </div>
@@ -575,6 +573,73 @@
             updateCounter();
         }
 
+        function handleGalleryMedia404(mediaIdOrEvent, element) {
+            let mediaId = mediaIdOrEvent;
+            if (mediaIdOrEvent && mediaIdOrEvent.target) {
+                element = mediaIdOrEvent.target;
+                mediaId = element.getAttribute('data-media-id') || element.dataset?.mediaId;
+            } else if (!element && this && this.nodeType) {
+                element = this;
+                mediaId = mediaId || element.getAttribute('data-media-id') || element.dataset?.mediaId;
+            }
+
+            if (!element || element.dataset.broken === 'true') return;
+            element.dataset.broken = 'true';
+            element.style.display = 'none';
+
+            // Record failed media ID
+            window.failedGalleryMediaIds = window.failedGalleryMediaIds || [];
+            if (mediaId && !window.failedGalleryMediaIds.includes(mediaId)) {
+                window.failedGalleryMediaIds.push(mediaId);
+            }
+
+            try {
+                fetch('/api/health/report-media-404', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mediaId: mediaId, url: element.dataset.src || element.src })
+                }).catch(() => {});
+            } catch (_) {}
+
+            const origIdx = element.getAttribute('data-index');
+            const thumbBtn = document.getElementById('thumb-btn-' + origIdx);
+            if (thumbBtn) thumbBtn.style.display = 'none';
+
+            const currentActiveSlide = activeSlides[currentIndex];
+            activeSlides = slideItems.filter(s => !s.dataset.broken);
+
+            if (activeSlides.length === 0) {
+                if (counter) counter.textContent = '0 / 0';
+                return;
+            }
+
+            if (element === currentActiveSlide) {
+                if (currentIndex >= activeSlides.length) {
+                    currentIndex = 0;
+                }
+                goToSlide(currentIndex);
+            } else {
+                const newIdx = activeSlides.indexOf(currentActiveSlide);
+                if (newIdx !== -1) {
+                    currentIndex = newIdx;
+                    goToSlide(currentIndex);
+                } else {
+                    if (currentIndex >= activeSlides.length) {
+                        currentIndex = 0;
+                    }
+                    goToSlide(currentIndex);
+                }
+            }
+        }
+        window.handleGalleryMedia404 = handleGalleryMedia404;
+
+        slideItems.forEach(slide => {
+            slide.addEventListener('error', handleGalleryMedia404, true);
+            if (slide.tagName === 'IMG' && slide.complete && slide.naturalWidth === 0 && slide.src) {
+                handleGalleryMedia404(slide.getAttribute('data-media-id'), slide);
+            }
+        });
+
         thumbBtns.forEach(btn => {
             const btnIndex = parseInt(btn.getAttribute('data-index'), 10);
             btn.addEventListener('click', (e) => {
@@ -648,35 +713,7 @@
             observer.observe(stage);
         }
 
-        window.handleGalleryMedia404 = function (mediaId, element) {
-            if (!element || element.dataset.broken) return;
-            element.dataset.broken = 'true';
-            element.style.display = 'none';
 
-            const origIdx = element.getAttribute('data-index');
-            const thumbBtn = document.getElementById('thumb-btn-' + origIdx);
-            if (thumbBtn) thumbBtn.style.display = 'none';
-
-            activeSlides = slideItems.filter(s => !s.dataset.broken);
-            if (activeSlides.length === 0) {
-                element.src = '/images/property-placeholder.jpg';
-                element.style.display = 'block';
-                return;
-            }
-
-            if (currentIndex >= activeSlides.length) {
-                currentIndex = 0;
-            }
-            goToSlide(currentIndex);
-
-            try {
-                fetch('/api/health/report-media-404', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mediaId: mediaId, url: element.dataset.src || element.src })
-                }).catch(() => {});
-            } catch (_) {}
-        };
 
         window.handleGalleryThumb404 = function (mediaId, imgElement) {
             if (imgElement) imgElement.src = '/images/property-placeholder.jpg';
