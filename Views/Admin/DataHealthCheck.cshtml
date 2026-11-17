@@ -1,0 +1,152 @@
+@model BookMyFun.Models.ViewModels.DataHealthCheckViewModel
+@{
+    ViewData["Title"] = "Data Health Check - Diagnostics";
+}
+
+<div class="dash-page-header mb-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <p class="dash-eyebrow">Platform Oversight · System Integrity</p>
+            <h1 class="dash-title">Data Health Check</h1>
+            <p class="dash-subtitle">Automated read-only diagnostic inspection across media assets, event manager readiness, service area formats, Stay &amp; Celebrate coverage, subscriptions, and notification outbox.</p>
+        </div>
+        <div>
+            <span class="badge @(Model.TotalIssuesCount > 0 ? "bg-warning text-dark" : "bg-success") rounded-pill px-3 py-2 fs-6">
+                <i class="bi @(Model.TotalIssuesCount > 0 ? "bi-exclamation-triangle" : "bi-check-circle") me-1"></i>
+                @Model.TotalIssuesCount Diagnostic Issues Found
+            </span>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-info border-0 rounded-4 shadow-xs mb-4">
+    <div class="d-flex">
+        <i class="bi bi-info-circle-fill fs-4 me-3 text-info"></i>
+        <div>
+            <strong>Read-Only Diagnostics Mode:</strong> This diagnostic check inspects the platform's live state without executing any <code>UPDATE</code>, <code>INSERT</code>, or <code>DELETE</code> queries. Use the direct action buttons to remediate anomalies in the appropriate administrative screen.
+            <div class="small text-muted mt-1">Diagnostic scan executed at @Model.CheckedAt.ToString("dd MMM yyyy, HH:mm:ss") UTC.</div>
+        </div>
+    </div>
+</div>
+
+<!-- Diagnostics Metric Grid -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="card border-0 shadow-sm rounded-4 p-3 text-center h-100">
+            <div class="text-secondary small fw-bold text-uppercase">Total Issues</div>
+            <div class="fs-3 fw-bold @(Model.TotalIssuesCount > 0 ? "text-danger" : "text-success")">@Model.TotalIssuesCount</div>
+            <small class="text-muted">Platform-wide</small>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="card border-0 shadow-sm rounded-4 p-3 text-center h-100">
+            <div class="text-secondary small fw-bold text-uppercase">Missing Media</div>
+            <div class="fs-3 fw-bold @(Model.CountsByCategory.GetValueOrDefault("MissingMedia", 0) > 0 ? "text-warning" : "text-muted")">
+                @Model.CountsByCategory.GetValueOrDefault("MissingMedia", 0)
+            </div>
+            <small class="text-muted">Placeholders / 404</small>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="card border-0 shadow-sm rounded-4 p-3 text-center h-100">
+            <div class="text-secondary small fw-bold text-uppercase">Incomplete Mgrs</div>
+            <div class="fs-3 fw-bold @(Model.CountsByCategory.GetValueOrDefault("IncompleteEventManager", 0) > 0 ? "text-danger" : "text-muted")">
+                @Model.CountsByCategory.GetValueOrDefault("IncompleteEventManager", 0)
+            </div>
+            <small class="text-muted">Missing pkg/portfolio</small>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="card border-0 shadow-sm rounded-4 p-3 text-center h-100">
+            <div class="text-secondary small fw-bold text-uppercase">Area Formats</div>
+            <div class="fs-3 fw-bold @(Model.CountsByCategory.GetValueOrDefault("UnnormalizedServiceArea", 0) > 0 ? "text-warning" : "text-muted")">
+                @Model.CountsByCategory.GetValueOrDefault("UnnormalizedServiceArea", 0)
+            </div>
+            <small class="text-muted">Not City, State</small>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="card border-0 shadow-sm rounded-4 p-3 text-center h-100">
+            <div class="text-secondary small fw-bold text-uppercase">Coverage Gaps</div>
+            <div class="fs-3 fw-bold @(Model.CountsByCategory.GetValueOrDefault("NoDecorCoverage", 0) > 0 ? "text-warning" : "text-muted")">
+                @Model.CountsByCategory.GetValueOrDefault("NoDecorCoverage", 0)
+            </div>
+            <small class="text-muted">Live props no décor</small>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="card border-0 shadow-sm rounded-4 p-3 text-center h-100">
+            <div class="text-secondary small fw-bold text-uppercase">Expired Subs</div>
+            <div class="fs-3 fw-bold @(Model.CountsByCategory.GetValueOrDefault("ExpiredSubscription", 0) > 0 ? "text-danger" : "text-muted")">
+                @Model.CountsByCategory.GetValueOrDefault("ExpiredSubscription", 0)
+            </div>
+            <small class="text-muted">Owner subscription</small>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Findings List -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+    <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0 fw-bold">
+            <i class="bi bi-heart-pulse-fill me-2 text-danger"></i>
+            Diagnostic Findings (@Model.TotalIssuesCount)
+        </h5>
+        <a asp-action="DataHealthCheck" class="btn btn-sm btn-outline-secondary rounded-pill">
+            <i class="bi bi-arrow-clockwise me-1"></i> Re-run Diagnostics
+        </a>
+    </div>
+    <div class="card-body p-0">
+        @if (!Model.Findings.Any())
+        {
+            <div class="p-5 text-center text-success">
+                <i class="bi bi-check-circle-fill display-3 mb-3 d-block text-success"></i>
+                <h4 class="fw-bold">Platform Data Health is Pristine</h4>
+                <p class="text-muted mb-0">No media discrepancies, coverage gaps, un-normalised areas, expired subscriptions, or failed outbox items detected.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 100px;">Severity</th>
+                            <th style="width: 200px;">Category</th>
+                            <th style="width: 220px;">Entity</th>
+                            <th>Diagnostic Message</th>
+                            <th style="width: 140px;" class="text-end">Remediation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var finding in Model.Findings)
+                        {
+                            <tr>
+                                <td>
+                                    <span class="badge rounded-pill @(finding.Severity == "Error" ? "bg-danger" : "bg-warning text-dark") px-2 py-1">
+                                        @finding.Severity
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="fw-semibold small">@finding.CategoryLabel</span>
+                                </td>
+                                <td>
+                                    <div class="fw-bold text-dark small">@finding.Name</div>
+                                    <small class="text-muted">ID #@finding.EntityID</small>
+                                </td>
+                                <td>
+                                    <div class="small text-secondary">@finding.Issue</div>
+                                </td>
+                                <td class="text-end">
+                                    <a href="@finding.FixUrl" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                        <i class="bi bi-wrench-adjustable me-1"></i> Remediate
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>

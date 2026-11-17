@@ -1,12 +1,15 @@
 @inject BookMyFun.Services.Staff.IEventManagerReviewService EventReviewService
+@inject BookMyFun.Services.Staff.IStaffQueueService StaffQueueService
 @{
     var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Client";
     var currentCtrl = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
     var currentAct = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
     int pendingEventManagers = 0;
+    int pendingNeedsAttention = 0;
     if (role == "Admin" || role == "Employee")
     {
         try { pendingEventManagers = await EventReviewService.GetPendingCountAsync(); } catch { }
+        try { pendingNeedsAttention = await StaffQueueService.GetTotalPendingCountAsync(); } catch { }
     }
 }
 
@@ -18,6 +21,16 @@
         <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "Index" ? "active" : "")" asp-controller="Admin" asp-action="Index">
             <i class="bi bi-speedometer2 text-primary"></i>
             <span class="nav-text">Overview</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "NeedsAttention" ? "active" : "")" asp-controller="Admin" asp-action="NeedsAttention">
+            <i class="bi bi-inbox-fill text-danger"></i>
+            <span class="nav-text">Needs Attention</span>
+            @if (pendingNeedsAttention > 0)
+            {
+                <span class="badge bg-danger rounded-pill ms-auto">@pendingNeedsAttention</span>
+            }
         </a>
     </li>
 
@@ -160,8 +173,14 @@
         </a>
     </li>
 
-    <!-- 9. Audit Log -->
-    <li class="dashboard-nav-heading">Audit Log</li>
+    <!-- 9. Audit Log & System Health -->
+    <li class="dashboard-nav-heading">Platform Health &amp; Audit</li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "DataHealthCheck" ? "active" : "")" asp-controller="Admin" asp-action="DataHealthCheck">
+            <i class="bi bi-heart-pulse-fill text-danger"></i>
+            <span class="nav-text">Data Health Check</span>
+        </a>
+    </li>
     <li class="dashboard-nav-item">
         <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "AuditLog" ? "active" : "")" asp-controller="Admin" asp-action="AuditLog">
             <i class="bi bi-journal-check text-danger"></i>
@@ -178,6 +197,16 @@ else if (role == "Employee")
         </a>
     </li>
     <li class="dashboard-nav-heading">Operations Queues</li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Employee" && currentAct == "NeedsAttention" ? "active" : "")" asp-controller="Employee" asp-action="NeedsAttention">
+            <i class="bi bi-inbox-fill text-danger"></i>
+            <span class="nav-text">Needs Attention</span>
+            @if (pendingNeedsAttention > 0)
+            {
+                <span class="badge bg-danger rounded-pill ms-auto">@pendingNeedsAttention</span>
+            }
+        </a>
+    </li>
     <li class="dashboard-nav-item">
         <a class="dashboard-nav-link @(currentCtrl == "Employee" && currentAct == "ManageBookings" ? "active" : "")" asp-controller="Employee" asp-action="ManageBookings">
             <i class="bi bi-calendar-check text-success"></i>

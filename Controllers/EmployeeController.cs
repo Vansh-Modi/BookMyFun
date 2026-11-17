@@ -28,6 +28,7 @@ namespace BookMyFun.Controllers
         private readonly IEventPackageRepository _eventPackageRepo;
         private readonly ISiteSettingsService _siteSettingsService;
         private readonly IEventManagerReviewService _eventReviewService;
+        private readonly IStaffQueueService _staffQueueService;
 
         private readonly INotificationDispatcherService? _notificationDispatcher;
         private readonly ISubscriptionRepository? _subRepo;
@@ -48,7 +49,8 @@ namespace BookMyFun.Controllers
             ISiteSettingsService siteSettingsService,
             INotificationDispatcherService? notificationDispatcher = null,
             ISubscriptionRepository? subRepo = null,
-            IEventManagerReviewService? eventReviewService = null)
+            IEventManagerReviewService? eventReviewService = null,
+            IStaffQueueService? staffQueueService = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -66,6 +68,7 @@ namespace BookMyFun.Controllers
             _notificationDispatcher = notificationDispatcher;
             _subRepo = subRepo;
             _eventReviewService = eventReviewService ?? new EventManagerReviewService(userRepo, eventPackageRepo, configRepo, idVerificationService, mediaStorage);
+            _staffQueueService = staffQueueService ?? new StaffQueueService(userRepo, eventPackageRepo, propRepo, idVerificationService, partnerLeadService, refundEngine, damageClaimService);
         }
 
         public async Task<IActionResult> Index()
@@ -1098,6 +1101,14 @@ namespace BookMyFun.Controllers
             }
 
             return Json(new { success = false, message = "Failed to update event commission for this booking." });
+        }
+
+        // --- Phase 5: Staff Unified Needs Attention Queue ---
+        [HttpGet]
+        public async Task<IActionResult> NeedsAttention(string? filter = null, int page = 1)
+        {
+            var model = await _staffQueueService.GetQueueAsync(filter, page, 25);
+            return View(model);
         }
     }
 }

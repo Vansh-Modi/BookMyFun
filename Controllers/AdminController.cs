@@ -5,6 +5,7 @@ using BookMyFun.Models.ViewModels;
 using BookMyFun.Repositories;
 using BookMyFun.Services;
 using BookMyFun.Services.Staff;
+using BookMyFun.Services.Health;
 
 using BookMyFun.Services.Notifications;
 using BookMyFun.Services.Exceptions;
@@ -35,6 +36,8 @@ namespace BookMyFun.Controllers
         private readonly IEventPackageRepository _eventPackageRepo;
         private readonly ILegalDocumentService? _legalService;
         private readonly IEventManagerReviewService _eventReviewService;
+        private readonly IStaffQueueService _staffQueueService;
+        private readonly IDataHealthCheckService _healthCheckService;
 
         private readonly INotificationDispatcherService? _notificationDispatcher;
 
@@ -57,7 +60,10 @@ namespace BookMyFun.Controllers
             IEventPackageRepository eventPackageRepo,
             ILegalDocumentService? legalService = null,
             INotificationDispatcherService? notificationDispatcher = null,
-            IEventManagerReviewService? eventReviewService = null)
+            IEventManagerReviewService? eventReviewService = null,
+            IStaffQueueService? staffQueueService = null,
+            IDataHealthCheckService? healthCheckService = null,
+            INotificationOutboxRepository? outboxRepo = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -78,6 +84,8 @@ namespace BookMyFun.Controllers
             _legalService = legalService;
             _notificationDispatcher = notificationDispatcher;
             _eventReviewService = eventReviewService ?? new EventManagerReviewService(userRepo, eventPackageRepo, configRepo, idVerificationService, mediaStorage);
+            _staffQueueService = staffQueueService ?? new StaffQueueService(userRepo, eventPackageRepo, propRepo, idVerificationService, partnerLeadService, refundEngine, damageClaimService);
+            _healthCheckService = healthCheckService ?? new DataHealthCheckService(propRepo, userRepo, eventPackageRepo, subRepo, outboxRepo ?? new NotificationOutboxRepository(new Data.DBHelper(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build()), new UserNotificationRepository(new Data.DBHelper(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build()), Microsoft.Extensions.Logging.Abstractions.NullLogger<UserNotificationRepository>.Instance), Microsoft.Extensions.Logging.Abstractions.NullLogger<NotificationOutboxRepository>.Instance), env);
         }
 
         public async Task<IActionResult> Index()
@@ -2894,5 +2902,20 @@ namespace BookMyFun.Controllers
             return RedirectToAction(nameof(ManageProperties));
         }
 
-}
+        // --- Phase 5: Staff Unified Needs Attention Queue ---
+        [HttpGet]
+        public async Task<IActionResult> NeedsAttention(string? filter = null, int page = 1)
+        {
+            var model = await _staffQueueService.GetQueueAsync(filter, page, 25);
+            return View("~/Views/Employee/NeedsAttention.cshtml", model);
+        }
+
+        // --- Phase 5: Staff Data Health Check Diagnostics ---
+        [HttpGet]
+        public async Task<IActionResult> DataHealthCheck()
+        {
+            var model = await _healthCheckService.RunDiagnosticsAsync();
+            return View(model);
+        }
+    }
 }

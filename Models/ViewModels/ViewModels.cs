@@ -1040,4 +1040,48 @@ namespace BookMyFun.Models.ViewModels
 
         public List<string> Warnings { get; set; } = new();
     }
+
+    // --- Phase 5: Staff Queue & Data Health Check ViewModels ---
+    public class StaffQueueItemViewModel
+    {
+        public string TaskType { get; set; } = string.Empty; // EventManager, Portfolio, Property, ClientId, PartnerLead, Refund, DamageClaim
+        public string TaskTypeLabel { get; set; } = string.Empty;
+        public int EntityID { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Subtitle { get; set; } = string.Empty;
+        public DateTime SubmittedAt { get; set; } = DateTime.UtcNow;
+        public string ActionUrl { get; set; } = string.Empty;
+        public string BadgeClass { get; set; } = "bg-primary";
+    }
+
+    public class StaffQueueViewModel
+    {
+        public List<StaffQueueItemViewModel> Items { get; set; } = new();
+        public string SelectedFilter { get; set; } = "All";
+        public int TotalPendingCount { get; set; }
+        public Dictionary<string, int> CountsByType { get; set; } = new();
+        public int CurrentPage { get; set; } = 1;
+        public int PageSize { get; set; } = 25;
+        public int TotalPages { get; set; } = 1;
+        public int TotalItems { get; set; } = 0;
+    }
+
+    public class HealthCheckFindingViewModel
+    {
+        public string Category { get; set; } = string.Empty; // MissingMedia, NoDecorCoverage, IncompleteEventManager, UnnormalizedServiceArea, ExpiredSubscription, FailedOutbox
+        public string CategoryLabel { get; set; } = string.Empty;
+        public int EntityID { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Issue { get; set; } = string.Empty;
+        public string FixUrl { get; set; } = string.Empty;
+        public string Severity { get; set; } = "Warning"; // "Warning", "Error"
+    }
+
+    public class DataHealthCheckViewModel
+    {
+        public List<HealthCheckFindingViewModel> Findings { get; set; } = new();
+        public int TotalIssuesCount { get; set; }
+        public DateTime CheckedAt { get; set; } = DateTime.UtcNow;
+        public Dictionary<string, int> CountsByCategory { get; set; } = new();
+    }
 }

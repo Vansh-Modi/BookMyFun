@@ -150,6 +150,8 @@ builder.Services.AddHostedService<BookMyFun.Services.Notifications.SubscriptionL
 builder.Services.AddScoped<ICheckoutEventManagerService, CheckoutEventManagerService>();
 builder.Services.AddScoped<IStayCelebrationEligibilityService, StayCelebrationEligibilityService>();
 builder.Services.AddScoped<BookMyFun.Services.Staff.IEventManagerReviewService, BookMyFun.Services.Staff.EventManagerReviewService>();
+builder.Services.AddScoped<BookMyFun.Services.Staff.IStaffQueueService, BookMyFun.Services.Staff.StaffQueueService>();
+builder.Services.AddScoped<BookMyFun.Services.Health.IDataHealthCheckService, BookMyFun.Services.Health.DataHealthCheckService>();
 builder.Services.AddMemoryCache();
 
 builder.Services.Configure<CookiePolicyOptions>(options =>
@@ -334,6 +336,27 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}")
     .WithStaticAssets();
+
+// CLI diagnostic command: db-health
+if (args.Contains("db-health", StringComparer.OrdinalIgnoreCase) || args.Contains("--db-health", StringComparer.OrdinalIgnoreCase))
+{
+    using var scope = app.Services.CreateScope();
+    var healthService = scope.ServiceProvider.GetRequiredService<BookMyFun.Services.Health.IDataHealthCheckService>();
+    var report = await healthService.RunDiagnosticsAsync();
+    Console.WriteLine($"=== BookMyFun Data Health Check ({report.CheckedAt:yyyy-MM-dd HH:mm:ss} UTC) ===");
+    Console.WriteLine($"Total Issues Found: {report.TotalIssuesCount}");
+    foreach (var cat in report.CountsByCategory)
+    {
+        Console.WriteLine($" - {cat.Key}: {cat.Value}");
+    }
+    Console.WriteLine();
+    foreach (var f in report.Findings)
+    {
+        Console.WriteLine($"[{f.Severity.ToUpperInvariant()}] [{f.Category}] Entity #{f.EntityID} ({f.Name}): {f.Issue}");
+        Console.WriteLine($"       Fix URL: {f.FixUrl}");
+    }
+    return;
+}
 
 app.Run();
 
