@@ -3,7 +3,31 @@
     ViewData["Title"] = "Serviceable Operational Areas";
     var currentAreas = Model.SelectedAreas ?? new List<string>();
     var allLocations = Model.AvailableLocations ?? new List<string>();
+
+    var allDisplayLocations = new List<string>();
+    foreach (var loc in allLocations)
+    {
+        var trimmed = loc.Trim();
+        if (!string.IsNullOrWhiteSpace(trimmed) && !allDisplayLocations.Contains(trimmed, StringComparer.OrdinalIgnoreCase))
+        {
+            allDisplayLocations.Add(trimmed);
+        }
+    }
+    foreach (var area in currentAreas)
+    {
+        var trimmed = area.Trim();
+        if (!string.IsNullOrWhiteSpace(trimmed) && !allDisplayLocations.Contains(trimmed, StringComparer.OrdinalIgnoreCase))
+        {
+            allDisplayLocations.Add(trimmed);
+        }
+    }
 }
+<style>
+    .area-chip:focus-within {
+        outline: 2px solid #2563eb;
+        outline-offset: 2px;
+    }
+</style>
 
 <!-- Page Header -->
 <div class="dash-page-header">
@@ -74,13 +98,7 @@
                 <form asp-action="UpdateServiceAreas" method="post" id="serviceAreasForm">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
-                    <!-- Hidden inputs container synchronized with selected areas for clean model binding -->
-                    <div id="hiddenInputsContainer">
-                        @foreach (var area in currentAreas)
-                        {
-                            <input type="hidden" name="selectedAreas" value="@area" class="sync-hidden-area" data-area="@area" />
-                        }
-                    </div>
+                    <div id="hiddenInputsContainer" class="d-none"></div>
 
                     <!-- 1. ACTIVE SERVICE COVERAGE CHIPS CLOUD -->
                     <div class="p-3 bg-light rounded-4 border mb-4">
@@ -170,20 +188,38 @@
                             </div>
                         </div>
 
+                        @if (Model.InvalidAreas != null && Model.InvalidAreas.Any())
+                        {
+                            <div class="alert alert-danger border-0 rounded-3 d-flex align-items-start gap-2 mb-3 py-2 px-3" id="invalidAreasAlert">
+                                <i class="bi bi-exclamation-triangle-fill text-danger flex-shrink-0 mt-1"></i>
+                                <div class="small">
+                                    <strong>Invalid service area format:</strong> The following area(s) cannot be normalised to "City, State" format:
+                                    <div class="mt-1 d-flex flex-wrap gap-1">
+                                        @foreach (var bad in Model.InvalidAreas)
+                                        {
+                                            <span class="badge bg-danger text-white">@bad</span>
+                                        }
+                                    </div>
+                                    <div class="mt-1 text-muted">Areas must follow "City, State" format (e.g. "Pune, Maharashtra").</div>
+                                </div>
+                            </div>
+                        }
+
                         <div class="p-3 border rounded-3 bg-white" style="max-height: 280px; overflow-y: auto;">
                             <div id="catalogChipsGrid" class="d-flex flex-wrap gap-2">
-                                @if (!allLocations.Any())
+                                @if (!allDisplayLocations.Any())
                                 {
                                     <span class="text-muted small">No property locations found in the current catalog.</span>
                                 }
-                                @foreach (var loc in allLocations)
+                                @foreach (var loc in allDisplayLocations)
                                 {
-                                    bool isSelected = currentAreas.Any(a => string.Equals(a, loc, StringComparison.OrdinalIgnoreCase) || loc.Contains(a, StringComparison.OrdinalIgnoreCase) || a.Contains(loc, StringComparison.OrdinalIgnoreCase));
-                                    <button type="button" class="area-chip @(isSelected ? "active" : "")" data-area="@loc">
+                                    bool isSelected = currentAreas.Any(a => string.Equals(a, loc, StringComparison.OrdinalIgnoreCase));
+                                    <label class="area-chip @(isSelected ? "active" : "")" data-area="@loc">
+                                        <input type="checkbox" name="ServiceAreas" value="@loc" class="visually-hidden area-chip-checkbox" @(isSelected ? "checked" : "") />
                                         <i class="bi @(isSelected ? "bi-check-circle-fill text-white" : "bi-geo-alt text-primary") chip-icon"></i>
                                         <span class="chip-label">@loc</span>
                                         <i class="bi @(isSelected ? "bi-check-lg" : "bi-plus") chip-action-icon ms-1 opacity-75"></i>
-                                    </button>
+                                    </label>
                                 }
                             </div>
                         </div>
@@ -285,10 +321,7 @@
 @section Scripts {
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const selectedAreasSet = new Set(@Html.Raw(System.Text.Json.JsonSerializer.Serialize(currentAreas)));
-
         const selectedChipsCloud = document.getElementById('selectedChipsCloud');
-        const hiddenInputsContainer = document.getElementById('hiddenInputsContainer');
         const selectedBadgeCounter = document.getElementById('selectedBadgeCounter');
         const activeCountText = document.getElementById('activeCountText');
         const statsActiveCount = document.getElementById('statsActiveCount');
@@ -309,136 +342,13 @@
 
         const totalCatalogLocations = @Math.Max(1, allLocations.Count);
 
-        // Zone presets mappings
+        // Zone presets mappings (City, State)
         const zonePresets = {
-            hills: ['Lonavala', 'Khandala', 'Mahabaleshwar', 'Panchgani', 'Matheran', 'Igatpuri'],
-            coastal: ['Alibaug', 'Kashid', 'Mandwa', 'Diveagar', 'Nagaon', 'Murud'],
-            metro: ['Pune', 'Mumbai', 'Thane', 'Navi Mumbai', 'Pimpri-Chinchwad'],
-            vineyards: ['Nashik', 'Sula', 'Dindori', 'Trimbak']
+            hills: ['Lonavala, Maharashtra', 'Khandala, Maharashtra', 'Mahabaleshwar, Maharashtra', 'Panchgani, Maharashtra', 'Matheran, Maharashtra', 'Igatpuri, Maharashtra'],
+            coastal: ['Alibaug, Maharashtra', 'Kashid, Maharashtra', 'Mandwa, Maharashtra', 'Diveagar, Maharashtra', 'Nagaon, Maharashtra', 'Murud, Maharashtra'],
+            metro: ['Pune, Maharashtra', 'Mumbai, Maharashtra', 'Thane, Maharashtra', 'Navi Mumbai, Maharashtra', 'Pimpri-Chinchwad, Maharashtra'],
+            vineyards: ['Nashik, Maharashtra', 'Sula, Maharashtra', 'Dindori, Maharashtra', 'Trimbak, Maharashtra']
         };
-
-        function renderActiveChips() {
-            selectedChipsCloud.innerHTML = '';
-            hiddenInputsContainer.innerHTML = '';
-
-            if (selectedAreasSet.size === 0) {
-                selectedChipsCloud.innerHTML = '<span class="text-muted small fst-italic py-2" id="emptyNotice"><i class="bi bi-info-circle me-1"></i>No service areas currently selected. Click any location below or type a custom region to add coverage.</span>';
-            } else {
-                selectedAreasSet.forEach(area => {
-                    // Create visual chip
-                    const tag = document.createElement('span');
-                    tag.className = 'selected-area-tag animate__animated animate__fadeIn';
-                    tag.setAttribute('data-area', area);
-                    tag.innerHTML = `
-                        <i class="bi bi-geo-alt-fill text-primary small"></i>
-                        <span>${escapeHtml(area)}</span>
-                        <button type="button" class="btn-remove-tag" data-area="${escapeHtml(area)}" title="Remove ${escapeHtml(area)}" aria-label="Remove ${escapeHtml(area)}">
-                            <i class="bi bi-x-lg" style="font-size: 0.65rem;"></i>
-                        </button>
-                    `;
-                    selectedChipsCloud.appendChild(tag);
-
-                    // Create hidden input for form sync
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = 'selectedAreas';
-                    input.value = area;
-                    input.className = 'sync-hidden-area';
-                    input.setAttribute('data-area', area);
-                    hiddenInputsContainer.appendChild(input);
-                });
-            }
-
-            // Sync available catalog chips active state
-            if (catalogChipsGrid) {
-                catalogChipsGrid.querySelectorAll('.area-chip').forEach(chip => {
-                    const area = chip.getAttribute('data-area');
-                    const isActive = isAreaSelected(area);
-                    if (isActive) {
-                        chip.classList.add('active');
-                        chip.querySelector('.chip-icon').className = 'bi bi-check-circle-fill text-white chip-icon';
-                        chip.querySelector('.chip-action-icon').className = 'bi bi-check-lg chip-action-icon ms-1 opacity-75';
-                    } else {
-                        chip.classList.remove('active');
-                        chip.querySelector('.chip-icon').className = 'bi bi-geo-alt text-primary chip-icon';
-                        chip.querySelector('.chip-action-icon').className = 'bi bi-plus chip-action-icon ms-1 opacity-75';
-                    }
-                });
-            }
-
-            // Update stats & counters
-            const count = selectedAreasSet.size;
-            selectedBadgeCounter.textContent = `${count} Active Areas`;
-            activeCountText.textContent = count;
-            statsActiveCount.textContent = `${count} Areas`;
-
-            const pct = Math.min(100, Math.round((count / totalCatalogLocations) * 100));
-            coveragePctText.textContent = `${pct}%`;
-            coverageProgressBar.style.width = `${pct}%`;
-
-            if (count > 0) {
-                statusIconWrap.className = 'rounded-circle p-3 bg-success bg-opacity-10 text-success';
-                statusIcon.className = 'bi bi-check-circle-fill fs-3';
-                statusTitle.textContent = 'Actively Receiving Orders';
-                statusSubtitle.textContent = `Your packages appear in ${count} regions`;
-                statsVisibilityText.className = 'text-success';
-                statsVisibilityText.textContent = 'Active for Serviced Areas';
-            } else {
-                statusIconWrap.className = 'rounded-circle p-3 bg-warning bg-opacity-10 text-warning';
-                statusIcon.className = 'bi bi-exclamation-circle-fill fs-3';
-                statusTitle.textContent = 'No Areas Selected';
-                statusSubtitle.textContent = 'Packages hidden until areas are selected';
-                statsVisibilityText.className = 'text-danger';
-                statsVisibilityText.textContent = 'Completely Hidden';
-            }
-        }
-
-        function isAreaSelected(name) {
-            for (let a of selectedAreasSet) {
-                if (a.toLowerCase() === name.toLowerCase()) return true;
-            }
-            return false;
-        }
-
-        function toggleArea(name) {
-            const trimmed = name.trim();
-            if (!trimmed) return;
-
-            let existing = null;
-            for (let a of selectedAreasSet) {
-                if (a.toLowerCase() === trimmed.toLowerCase()) {
-                    existing = a;
-                    break;
-                }
-            }
-
-            if (existing) {
-                selectedAreasSet.delete(existing);
-            } else {
-                selectedAreasSet.add(trimmed);
-            }
-            renderActiveChips();
-        }
-
-        function addArea(name) {
-            const trimmed = name.trim();
-            if (!trimmed) return;
-            if (!isAreaSelected(trimmed)) {
-                selectedAreasSet.add(trimmed);
-                renderActiveChips();
-            }
-        }
-
-        function removeArea(name) {
-            const trimmed = name.trim();
-            for (let a of selectedAreasSet) {
-                if (a.toLowerCase() === trimmed.toLowerCase()) {
-                    selectedAreasSet.delete(a);
-                    break;
-                }
-            }
-            renderActiveChips();
-        }
 
         function escapeHtml(text) {
             const div = document.createElement('div');
@@ -446,84 +356,219 @@
             return div.innerHTML;
         }
 
-        // Available chip click listener
+        function updateChipVisual(checkbox) {
+            const label = checkbox.closest('.area-chip');
+            if (!label) return;
+            const isChecked = checkbox.checked;
+            if (isChecked) {
+                label.classList.add('active');
+                const icon = label.querySelector('.chip-icon');
+                if (icon) icon.className = 'bi bi-check-circle-fill text-white chip-icon';
+                const actionIcon = label.querySelector('.chip-action-icon');
+                if (actionIcon) actionIcon.className = 'bi bi-check-lg chip-action-icon ms-1 opacity-75';
+            } else {
+                label.classList.remove('active');
+                const icon = label.querySelector('.chip-icon');
+                if (icon) icon.className = 'bi bi-geo-alt text-primary chip-icon';
+                const actionIcon = label.querySelector('.chip-action-icon');
+                if (actionIcon) actionIcon.className = 'bi bi-plus chip-action-icon ms-1 opacity-75';
+            }
+        }
+
+        function getCheckedCheckboxes() {
+            if (!catalogChipsGrid) return [];
+            return Array.from(catalogChipsGrid.querySelectorAll('input[name="ServiceAreas"]:checked'));
+        }
+
+        function syncUIFromCheckboxes() {
+            const checkedBoxes = getCheckedCheckboxes();
+            const count = checkedBoxes.length;
+
+            // Render Active Coverage Chips Cloud
+            if (selectedChipsCloud) {
+                selectedChipsCloud.innerHTML = '';
+                if (count === 0) {
+                    selectedChipsCloud.innerHTML = '<span class="text-muted small fst-italic py-2" id="emptyNotice"><i class="bi bi-info-circle me-1"></i>No service areas currently selected. Click any location below or type a custom region to add coverage.</span>';
+                } else {
+                    checkedBoxes.forEach(box => {
+                        const area = box.value;
+                        const tag = document.createElement('span');
+                        tag.className = 'selected-area-tag animate__animated animate__fadeIn';
+                        tag.setAttribute('data-area', area);
+                        tag.innerHTML = `
+                            <i class="bi bi-geo-alt-fill text-primary small"></i>
+                            <span>${escapeHtml(area)}</span>
+                            <button type="button" class="btn-remove-tag" data-area="${escapeHtml(area)}" title="Remove ${escapeHtml(area)}" aria-label="Remove ${escapeHtml(area)}">
+                                <i class="bi bi-x-lg" style="font-size: 0.65rem;"></i>
+                            </button>
+                        `;
+                        selectedChipsCloud.appendChild(tag);
+                    });
+                }
+            }
+
+            // Update stats and badges
+            if (selectedBadgeCounter) selectedBadgeCounter.textContent = `${count} Active Areas`;
+            if (activeCountText) activeCountText.textContent = count;
+            if (statsActiveCount) statsActiveCount.textContent = `${count} Areas`;
+
+            const pct = Math.min(100, Math.round((count / totalCatalogLocations) * 100));
+            if (coveragePctText) coveragePctText.textContent = `${pct}%`;
+            if (coverageProgressBar) coverageProgressBar.style.width = `${pct}%`;
+
+            if (count > 0) {
+                if (statusIconWrap) statusIconWrap.className = 'rounded-circle p-3 bg-success bg-opacity-10 text-success';
+                if (statusIcon) statusIcon.className = 'bi bi-check-circle-fill fs-3';
+                if (statusTitle) statusTitle.textContent = 'Actively Receiving Orders';
+                if (statusSubtitle) statusSubtitle.textContent = `Your packages appear in ${count} regions`;
+                if (statsVisibilityText) {
+                    statsVisibilityText.className = 'text-success';
+                    statsVisibilityText.textContent = 'Active for Serviced Areas';
+                }
+            } else {
+                if (statusIconWrap) statusIconWrap.className = 'rounded-circle p-3 bg-warning bg-opacity-10 text-warning';
+                if (statusIcon) statusIcon.className = 'bi bi-exclamation-circle-fill fs-3';
+                if (statusTitle) statusTitle.textContent = 'No Areas Selected';
+                if (statusSubtitle) statusSubtitle.textContent = 'Packages hidden until areas are selected';
+                if (statsVisibilityText) {
+                    statsVisibilityText.className = 'text-danger';
+                    statsVisibilityText.textContent = 'Completely Hidden';
+                }
+            }
+        }
+
+        // Single source of truth: change event on checkbox
         if (catalogChipsGrid) {
-            catalogChipsGrid.addEventListener('click', function (e) {
-                const chip = e.target.closest('.area-chip');
-                if (chip) {
-                    const area = chip.getAttribute('data-area');
-                    toggleArea(area);
+            catalogChipsGrid.addEventListener('change', function (e) {
+                if (e.target && e.target.matches('input[name="ServiceAreas"]')) {
+                    updateChipVisual(e.target);
+                    syncUIFromCheckboxes();
                 }
             });
         }
 
-        // Remove active tag click listener
-        selectedChipsCloud.addEventListener('click', function (e) {
-            const btn = e.target.closest('.btn-remove-tag');
-            if (btn) {
-                const area = btn.getAttribute('data-area');
-                removeArea(area);
+        // Removing a tag from cloud unchecks the corresponding checkbox
+        if (selectedChipsCloud) {
+            selectedChipsCloud.addEventListener('click', function (e) {
+                const btn = e.target.closest('.btn-remove-tag');
+                if (btn && catalogChipsGrid) {
+                    const area = btn.getAttribute('data-area');
+                    const checkbox = Array.from(catalogChipsGrid.querySelectorAll('input[name="ServiceAreas"]'))
+                        .find(cb => cb.value.toLowerCase() === area.toLowerCase());
+                    if (checkbox) {
+                        checkbox.checked = false;
+                        updateChipVisual(checkbox);
+                        syncUIFromCheckboxes();
+                    }
+                }
+            });
+        }
+
+        function setChipState(areaName, checked) {
+            const trimmed = areaName.trim();
+            if (!trimmed || !catalogChipsGrid) return;
+
+            let checkbox = Array.from(catalogChipsGrid.querySelectorAll('input[name="ServiceAreas"]'))
+                .find(cb => cb.value.toLowerCase() === trimmed.toLowerCase());
+
+            if (checkbox) {
+                checkbox.checked = checked;
+                updateChipVisual(checkbox);
+            } else if (checked) {
+                const label = document.createElement('label');
+                label.className = 'area-chip active';
+                label.setAttribute('data-area', trimmed);
+                label.innerHTML = `
+                    <input type="checkbox" name="ServiceAreas" value="${escapeHtml(trimmed)}" class="visually-hidden area-chip-checkbox" checked />
+                    <i class="bi bi-check-circle-fill text-white chip-icon"></i>
+                    <span class="chip-label">${escapeHtml(trimmed)}</span>
+                    <i class="bi bi-check-lg chip-action-icon ms-1 opacity-75"></i>
+                `;
+                catalogChipsGrid.appendChild(label);
             }
-        });
+        }
 
         // Add Custom Area
         function handleAddCustom() {
             const val = customAreaInput.value.trim();
             if (val) {
-                addArea(val);
+                setChipState(val, true);
+                syncUIFromCheckboxes();
                 customAreaInput.value = '';
                 customAreaInput.focus();
             }
         }
 
-        btnAddCustomArea.addEventListener('click', handleAddCustom);
-        customAreaInput.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                handleAddCustom();
-            }
-        });
-
-        // Select All catalog locations
-        btnSelectAllCatalog.addEventListener('click', function () {
-            catalogChipsGrid.querySelectorAll('.area-chip').forEach(chip => {
-                if (chip.style.display !== 'none') {
-                    addArea(chip.getAttribute('data-area'));
+        if (btnAddCustomArea) btnAddCustomArea.addEventListener('click', handleAddCustom);
+        if (customAreaInput) {
+            customAreaInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddCustom();
                 }
             });
-        });
+        }
 
-        // Clear All
-        btnClearAllTags.addEventListener('click', function () {
-            selectedAreasSet.clear();
-            renderActiveChips();
-        });
+        // Select All catalog locations (Step 3 Requirement 3: "checks every chip checkbox. It does not save anything by itself.")
+        if (btnSelectAllCatalog && catalogChipsGrid) {
+            btnSelectAllCatalog.addEventListener('click', function () {
+                catalogChipsGrid.querySelectorAll('.area-chip').forEach(chip => {
+                    if (chip.style.display !== 'none') {
+                        const checkbox = chip.querySelector('input[name="ServiceAreas"]');
+                        if (checkbox && !checkbox.checked) {
+                            checkbox.checked = true;
+                            updateChipVisual(checkbox);
+                        }
+                    }
+                });
+                syncUIFromCheckboxes();
+            });
+        }
+
+        // Clear All (Deselect all)
+        if (btnClearAllTags && catalogChipsGrid) {
+            btnClearAllTags.addEventListener('click', function () {
+                catalogChipsGrid.querySelectorAll('input[name="ServiceAreas"]').forEach(checkbox => {
+                    if (checkbox.checked) {
+                        checkbox.checked = false;
+                        updateChipVisual(checkbox);
+                    }
+                });
+                syncUIFromCheckboxes();
+            });
+        }
 
         // Live search filter in catalog chips
-        catalogSearchInput.addEventListener('input', function () {
-            const query = this.value.trim().toLowerCase();
-            catalogChipsGrid.querySelectorAll('.area-chip').forEach(chip => {
-                const label = chip.getAttribute('data-area').toLowerCase();
-                if (query === '' || label.includes(query)) {
-                    chip.style.display = 'inline-flex';
-                } else {
-                    chip.style.display = 'none';
-                }
+        if (catalogSearchInput && catalogChipsGrid) {
+            catalogSearchInput.addEventListener('input', function () {
+                const query = this.value.trim().toLowerCase();
+                catalogChipsGrid.querySelectorAll('.area-chip').forEach(chip => {
+                    const label = chip.getAttribute('data-area').toLowerCase();
+                    if (query === '' || label.includes(query)) {
+                        chip.style.display = 'inline-flex';
+                    } else {
+                        chip.style.display = 'none';
+                    }
+                });
             });
-        });
+        }
 
         // Zone presets click listener
-        document.getElementById('boundaryZonePresets').addEventListener('click', function (e) {
-            const btn = e.target.closest('.zone-preset-pill');
-            if (btn) {
-                const zone = btn.getAttribute('data-zone');
-                const areas = zonePresets[zone] || [];
-                areas.forEach(a => addArea(a));
-            }
-        });
+        const presetsContainer = document.getElementById('boundaryZonePresets');
+        if (presetsContainer) {
+            presetsContainer.addEventListener('click', function (e) {
+                const btn = e.target.closest('.zone-preset-pill');
+                if (btn) {
+                    const zone = btn.getAttribute('data-zone');
+                    const areas = zonePresets[zone] || [];
+                    areas.forEach(a => setChipState(a, true));
+                    syncUIFromCheckboxes();
+                }
+            });
+        }
 
-        // Initial render
-        renderActiveChips();
+        // Initial sync from checked checkboxes
+        syncUIFromCheckboxes();
     });
 </script>
 }

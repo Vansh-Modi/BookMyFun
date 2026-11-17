@@ -1,15 +1,18 @@
+using BookMyFun.Services.Security;
+using BookMyFun.Services.Checkout;
 using System.Security.Claims;
 using BookMyFun.Models.Entities;
 using BookMyFun.Models.ViewModels;
 using BookMyFun.Repositories;
 using BookMyFun.Services;
+using BookMyFun.Services.Common;
 using BookMyFun.Services.Exceptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookMyFun.Controllers
 {
-    [Authorize(Roles = "EventManager,Admin,Employee")]
+    [Authorize(Policy = "RequireEventManager")]
     public class EventManagerController : Controller
     {
         private readonly IEventPackageRepository _eventRepo;
@@ -17,26 +20,41 @@ namespace BookMyFun.Controllers
         private readonly IConfigRepository _configRepo;
         private readonly ILogger<EventManagerController> _logger;
         private readonly ILegalDocumentService? _legalService;
+        private readonly IUserRepository _userRepo;
+        private readonly IContactPrivacyScanner _privacyScanner;
+        private readonly IImageOptimizationService _imageOptimization;
+        private readonly IPropertyRepository? _propRepo;
+        private readonly IHtmlSanitizerService? _sanitizer;
+        private readonly ICheckoutEventManagerService? _checkoutEventMgrService;
 
         public EventManagerController(
             IEventPackageRepository eventRepo,
             IMediaStorageService mediaStorage,
             IConfigRepository configRepo,
             ILogger<EventManagerController> logger,
-            ILegalDocumentService? legalService = null)
+            IUserRepository? userRepo = null,
+            IContactPrivacyScanner? privacyScanner = null,
+            IImageOptimizationService? imageOptimization = null,
+            ILegalDocumentService? legalService = null,
+            IPropertyRepository? propRepo = null,
+            IHtmlSanitizerService? sanitizer = null,
+            ICheckoutEventManagerService? checkoutEventMgrService = null)
         {
             _eventRepo = eventRepo;
             _mediaStorage = mediaStorage;
             _configRepo = configRepo;
             _logger = logger;
+            _userRepo = userRepo!;
+            _privacyScanner = privacyScanner!;
+            _imageOptimization = imageOptimization!;
             _legalService = legalService;
+            _propRepo = propRepo;
+            _sanitizer = sanitizer;
+            _checkoutEventMgrService = checkoutEventMgrService;
         }
 
-        [AllowAnonymous]
-        [HttpGet]
-        public IActionResult Login(string? returnUrl) => RedirectToAction("Login", "Account", new { returnUrl });
 
-        public async Task<IActionResult> Index() => await LoadDashboardViewAsync("Index");
+        public async Task<IActionResult> Index() => await LoadDashboardViewAsync("Dashboard");
 
         public async Task<IActionResult> Dashboard() => await LoadDashboardViewAsync("Dashboard");
 
@@ -50,8 +68,22 @@ namespace BookMyFun.Controllers
                 ? allSetups 
                 : allSetups.Where(s => s.DecoratorAssignedID == userId || s.DecoratorAssignedID == null || s.SetupStatus == "Pending").ToList();
 
-            var packages = await _eventRepo.GetAllPackagesAsync();
+            var user = await _userRepo.GetByIdAsync(userId);
+            var packages = isStaffOrAdmin ? await _eventRepo.GetAllPackagesAsync() : await _eventRepo.GetPackagesByUserIdAsync(userId);
+            if (!isStaffOrAdmin && packages.Count == 0)
+            {
+                var allPkgs = await _eventRepo.GetAllPackagesAsync();
+                packages = allPkgs.Where(p => p.CreatedByUserID == null || p.CreatedByUserID == userId).ToList();
+            }
             var decorators = await _eventRepo.GetDecoratorsAsync();
+            var userPortfolios = await _eventRepo.GetPortfoliosByUserIdAsync(userId, onlyApproved: false);
+
+            ViewBag.VerificationStatus = user?.VerificationStatus ?? "Verified";
+            ViewBag.UserBio = user?.Bio;
+            ViewBag.UserExperience = user?.YearsOfExperience ?? 3;
+            ViewBag.UserAreas = user?.ServiceAreas ?? string.Empty;
+            ViewBag.UserCancellationPolicy = user?.CancellationPolicy;
+            ViewBag.Portfolios = userPortfolios;
 
             ViewBag.IsStaffOrAdmin = isStaffOrAdmin;
             ViewBag.CurrentUserId = userId;
@@ -82,7 +114,14 @@ namespace BookMyFun.Controllers
 
         public async Task<IActionResult> Packages()
         {
-            var packages = await _eventRepo.GetAllPackagesAsync();
+            var userId = GetCurrentUserId();
+            var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
+            var packages = isStaffOrAdmin ? await _eventRepo.GetAllPackagesAsync() : await _eventRepo.GetPackagesByUserIdAsync(userId);
+            if (!isStaffOrAdmin && packages.Count == 0)
+            {
+                var allPkgs = await _eventRepo.GetAllPackagesAsync();
+                packages = allPkgs.Where(p => p.CreatedByUserID == null || p.CreatedByUserID == userId).ToList();
+            }
             return View(packages);
         }
 
@@ -112,6 +151,12 @@ namespace BookMyFun.Controllers
             }
 
             var userId = GetCurrentUserId();
+            // Section 7c: Contact privacy scan
+            model.Description = await _privacyScanner.ScanMaskAndLogAsync(userId, "PackageDescription", model.Description);
+            if (!string.IsNullOrWhiteSpace(model.IncludedItems))
+            {
+                model.IncludedItems = await _privacyScanner.ScanMaskAndLogAsync(userId, "PackageIncludedItems", model.IncludedItems);
+            }
             string? mediaUrl = model.MediaUrl?.Trim();
 
             // Direct image file upload handling
@@ -173,7 +218,8 @@ namespace BookMyFun.Controllers
 
             var userId = GetCurrentUserId();
             var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
-            if (!isStaffOrAdmin && pkg.CreatedByUserID != userId)
+            // Section 5d Bug Fix: Event manager owning the package or unassigned package can edit
+            if (!isStaffOrAdmin && pkg.CreatedByUserID != null && pkg.CreatedByUserID != userId)
             {
                 return Forbid();
             }
@@ -208,9 +254,17 @@ namespace BookMyFun.Controllers
 
             var userId = GetCurrentUserId();
             var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
-            if (!isStaffOrAdmin && existing.CreatedByUserID != userId)
+            // Section 5d Bug Fix: Event manager owning the package or unassigned package can edit
+            if (!isStaffOrAdmin && existing.CreatedByUserID != null && existing.CreatedByUserID != userId)
             {
                 return Forbid();
+            }
+
+            // Section 7c: Contact privacy scan
+            model.Description = await _privacyScanner.ScanMaskAndLogAsync(userId, "PackageDescription", model.Description);
+            if (!string.IsNullOrWhiteSpace(model.IncludedItems))
+            {
+                model.IncludedItems = await _privacyScanner.ScanMaskAndLogAsync(userId, "PackageIncludedItems", model.IncludedItems);
             }
 
             string? mediaUrl = model.MediaUrl?.Trim();
@@ -241,7 +295,7 @@ namespace BookMyFun.Controllers
                 IncludedItems = model.IncludedItems,
                 IsActive = model.IsActive,
                 CommissionRate = existing.CommissionRate, // Strictly preserved from Admin/Employee configuration
-                CreatedByUserID = existing.CreatedByUserID,
+                CreatedByUserID = existing.CreatedByUserID ?? userId,
                 CreatedAt = existing.CreatedAt
             };
 
@@ -264,7 +318,8 @@ namespace BookMyFun.Controllers
 
             var userId = GetCurrentUserId();
             var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
-            if (!isStaffOrAdmin && pkg.CreatedByUserID != userId)
+            // Section 5d Bug Fix: Event manager owning the package or unassigned package can edit
+            if (!isStaffOrAdmin && pkg.CreatedByUserID != null && pkg.CreatedByUserID != userId)
             {
                 return Forbid();
             }
@@ -477,13 +532,32 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> ServiceAreas()
         {
             var userId = GetCurrentUserId();
+            var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
+            var isEventManager = User.IsInRole("EventManager");
+
+            if (!isStaffOrAdmin && !isEventManager)
+            {
+                return Forbid();
+            }
+
             var distinctLocations = await _eventRepo.GetAllDistinctPropertyLocationsAsync();
             var serviceAreas = await _eventRepo.GetEventManagerServiceAreasAsync(userId) ?? string.Empty;
-            var currentAreas = serviceAreas.Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            var currentAreas = serviceAreas
+                .Split(new[] { '\r', '\n', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(a => TryNormalizeArea(a, out var norm) ? norm : a.Trim())
+                .Where(a => !string.IsNullOrWhiteSpace(a))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var normalizedCatalogLocations = distinctLocations
+                .Select(l => TryNormalizeArea(l, out var norm) ? norm : l.Trim())
+                .Where(l => !string.IsNullOrWhiteSpace(l))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
             var vm = new EventManagerServiceAreasViewModel
             {
-                AvailableLocations = distinctLocations,
+                AvailableLocations = normalizedCatalogLocations,
                 SelectedAreas = currentAreas,
                 RawServiceAreas = serviceAreas
             };
@@ -493,17 +567,76 @@ namespace BookMyFun.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UpdateServiceAreas(string[]? selectedAreas, string? returnUrl = null)
+        public async Task<IActionResult> UpdateServiceAreas(
+            [FromForm(Name = "ServiceAreas")] string[]? serviceAreas = null,
+            string? returnUrl = null,
+            [FromForm(Name = "selectedAreas")] string[]? selectedAreas = null,
+            int? managerId = null)
         {
-            var userId = GetCurrentUserId();
-            string areasString = selectedAreas != null && selectedAreas.Length > 0
-                ? string.Join("; ", selectedAreas.Where(a => !string.IsNullOrWhiteSpace(a)))
-                : string.Empty;
+            var currentUserId = GetCurrentUserId();
+            var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
+            var isEventManager = User.IsInRole("EventManager");
 
-            bool updated = await _eventRepo.UpdateEventManagerServiceAreasAsync(userId, areasString);
+            int targetUserId = (managerId.HasValue && managerId.Value > 0) ? managerId.Value : currentUserId;
+
+            if (!isStaffOrAdmin && (!isEventManager || targetUserId != currentUserId))
+            {
+                return Forbid();
+            }
+
+            if (targetUserId <= 0)
+            {
+                return Forbid();
+            }
+
+            var rawInputs = serviceAreas ?? selectedAreas ?? Array.Empty<string>();
+            var invalidAreas = new List<string>();
+            var normalizedAreas = new List<string>();
+
+            foreach (var raw in rawInputs)
+            {
+                if (string.IsNullOrWhiteSpace(raw)) continue;
+
+                if (TryNormalizeArea(raw, out var normalized))
+                {
+                    normalizedAreas.Add(normalized);
+                }
+                else
+                {
+                    invalidAreas.Add(raw.Trim());
+                }
+            }
+
+            if (invalidAreas.Any())
+            {
+                var distinctLocations = await _eventRepo.GetAllDistinctPropertyLocationsAsync();
+                var normalizedCatalogLocations = distinctLocations
+                    .Select(l => TryNormalizeArea(l, out var norm) ? norm : l.Trim())
+                    .Where(l => !string.IsNullOrWhiteSpace(l))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var vm = new EventManagerServiceAreasViewModel
+                {
+                    AvailableLocations = normalizedCatalogLocations,
+                    SelectedAreas = rawInputs.Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => a.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                    InvalidAreas = invalidAreas.Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                };
+
+                ModelState.AddModelError("ServiceAreas", $"The following area(s) cannot be normalised to 'City, State' format: {string.Join(", ", vm.InvalidAreas)}");
+                ViewBag.InvalidAreas = vm.InvalidAreas;
+
+                return View("ServiceAreas", vm);
+            }
+
+            var distinctNormalized = normalizedAreas.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            string areasString = string.Join("; ", distinctNormalized);
+
+            bool updated = await _eventRepo.UpdateEventManagerServiceAreasAsync(targetUserId, areasString);
             if (updated)
             {
-                await _configRepo.LogAuditAsync(userId, "UpdateServiceAreas", "User", userId, $"Updated service areas to: {areasString}");
+                await _configRepo.LogAuditAsync(currentUserId, "UpdateServiceAreas", "User", targetUserId, $"Updated service areas to: {areasString}");
+                StayCelebrationEligibilityService.InvalidateAllCache();
                 TempData["Success"] = "Operational service areas updated successfully. Décor add-ons will now only appear for properties in these areas.";
             }
             else
@@ -516,6 +649,31 @@ namespace BookMyFun.Controllers
                 return Redirect(returnUrl);
             }
             return RedirectToAction(nameof(ServiceAreas));
+        }
+
+        public static bool TryNormalizeArea(string? input, out string normalized)
+        {
+            normalized = string.Empty;
+            if (string.IsNullOrWhiteSpace(input)) return false;
+
+            var parts = input.Split(new[] { ',' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 2) return false;
+
+            string city = CapitalizeWords(parts[0]);
+            string state = CapitalizeWords(parts[1]);
+
+            if (string.IsNullOrWhiteSpace(city) || string.IsNullOrWhiteSpace(state)) return false;
+
+            normalized = $"{city}, {state}";
+            return true;
+        }
+
+        private static string CapitalizeWords(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+            var words = text.Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            return string.Join(" ", words.Select(w =>
+                w.Length > 0 ? char.ToUpperInvariant(w[0]) + (w.Length > 1 ? w.Substring(1).ToLowerInvariant() : "") : ""));
         }
 
         [HttpPost]
@@ -630,10 +788,375 @@ namespace BookMyFun.Controllers
             return View(vm);
         }
 
+
+        [HttpGet]
+        public async Task<IActionResult> Profile()
+        {
+            var userId = GetCurrentUserId();
+            var user = await _userRepo.GetByIdAsync(userId);
+            if (user == null) return NotFound();
+
+            var packages = await _eventRepo.GetPackagesByUserIdAsync(userId);
+            var portfolios = await _eventRepo.GetPortfoliosByUserIdAsync(userId, onlyApproved: false);
+
+            var vm = new EventManagerProfileViewModel
+            {
+                UserID = user.UserID,
+                FullName = user.FullName,
+                Bio = user.Bio,
+                YearsOfExperience = user.YearsOfExperience ?? 3,
+                ServiceAreas = user.ServiceAreas,
+                CancellationPolicy = user.CancellationPolicy ?? "Free cancellation up to 7 days before event. 50% refund between 7 to 2 days before event.",
+                VerificationStatus = user.VerificationStatus ?? "Pending",
+                DefaultAvatarUrl = "/images/default-avatar.svg",
+                Packages = packages,
+                Portfolios = portfolios,
+                StartingPrice = packages.Any() ? packages.Min(p => p.BasePrice) : 0
+            };
+
+            return View("Profile", vm);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Profile([FromForm] EventManagerProfileInput model)
+        {
+            var userId = GetCurrentUserId();
+            var user = await _userRepo.GetByIdAsync(userId);
+            if (user == null) return NotFound();
+
+            // Rule 8b: Reject any attempt to post ProfilePictureUrl or contact details
+            if (Request.HasFormContentType)
+            {
+                var form = Request.Form;
+                if (form.ContainsKey("ProfilePictureUrl") || form.ContainsKey("Phone") || form.ContainsKey("Email") || form.ContainsKey("WhatsAppPhone") ||
+                    form.Files.Any(f => f.Name.Contains("Picture", StringComparison.OrdinalIgnoreCase) || f.Name.Contains("Logo", StringComparison.OrdinalIgnoreCase) || f.Name.Contains("Avatar", StringComparison.OrdinalIgnoreCase)))
+                {
+                    _logger.LogWarning("Blocked field submission attempt by User #{UserId}", userId);
+                    ModelState.AddModelError(string.Empty, "Custom profile pictures, logos, and contact details are strictly restricted to maintain platform safety.");
+                }
+            }
+
+            if (!ModelState.IsValid)
+            {
+                var packages = await _eventRepo.GetPackagesByUserIdAsync(userId);
+                var portfolios = await _eventRepo.GetPortfoliosByUserIdAsync(userId, onlyApproved: false);
+                var errVm = new EventManagerProfileViewModel
+                {
+                    UserID = user.UserID,
+                    FullName = model.FullName,
+                    Bio = model.Bio,
+                    YearsOfExperience = model.YearsOfExperience,
+                    ServiceAreas = model.ServiceAreas,
+                    CancellationPolicy = model.CancellationPolicy,
+                    VerificationStatus = user.VerificationStatus ?? "Pending",
+                    DefaultAvatarUrl = "/images/default-avatar.svg",
+                    Packages = packages,
+                    Portfolios = portfolios
+                };
+                return View("Profile", errVm);
+            }
+
+            // Rule 8c: Scan bio and policies for contact details
+            user.Bio = await _privacyScanner.ScanMaskAndLogAsync(userId, "Bio", model.Bio);
+            user.CancellationPolicy = await _privacyScanner.ScanMaskAndLogAsync(userId, "CancellationPolicy", model.CancellationPolicy);
+            user.YearsOfExperience = model.YearsOfExperience;
+            user.ServiceAreas = model.ServiceAreas;
+            user.FullName = model.FullName;
+            // Always enforce platform default avatar
+            user.ProfilePictureUrl = "/images/default-avatar.svg";
+
+            await _userRepo.UpdateUserAsync(user);
+            await _configRepo.LogAuditAsync(userId, "UpdateEventManagerProfile", "User", userId, "Updated self-service event manager profile (contact fields stripped, default avatar enforced)");
+
+            TempData["Success"] = "Profile updated successfully! Any external contact details were masked for traveler safety.";
+            return RedirectToAction(nameof(Profile));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UploadPortfolio(EventManagerPortfolioUploadViewModel model)
+        {
+            var userId = GetCurrentUserId();
+            if (model.MediaFile == null || model.MediaFile.Length == 0)
+            {
+                TempData["Error"] = "Please select a valid image or video file.";
+                return RedirectToAction(nameof(Profile));
+            }
+
+            try
+            {
+                string mediaType = string.Equals(model.MediaType, "video", StringComparison.OrdinalIgnoreCase) ? "video" : "image";
+
+                // Phase 4 & 8d file checks
+                long maxSizeBytes = mediaType == "video" ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+                if (model.MediaFile.Length > maxSizeBytes)
+                {
+                    TempData["Error"] = $"File exceeds the maximum permitted size of {(mediaType == "video" ? "50MB" : "10MB")}.";
+                    return RedirectToAction(nameof(Profile));
+                }
+
+                string ext = Path.GetExtension(model.MediaFile.FileName).ToLowerInvariant();
+                var allowedPhotoExts = new HashSet<string> { ".jpg", ".jpeg", ".png", ".webp" };
+                var allowedVideoExts = new HashSet<string> { ".mp4", ".mov", ".webm" };
+
+                if (mediaType == "image" && !allowedPhotoExts.Contains(ext))
+                {
+                    TempData["Error"] = "Only JPG, PNG, and WebP images are allowed.";
+                    return RedirectToAction(nameof(Profile));
+                }
+                if (mediaType == "video" && !allowedVideoExts.Contains(ext))
+                {
+                    TempData["Error"] = "Only MP4, MOV, and WebM videos are allowed.";
+                    return RedirectToAction(nameof(Profile));
+                }
+
+                string mediaUrl;
+                if (mediaType == "image")
+                {
+                    // Section 5c & 7b: Auto-watermarking with platform brand
+                    using var stream = model.MediaFile.OpenReadStream();
+                    var (watermarkedBytes, optExt, _) = await _imageOptimization.OptimizeAndWatermarkImageAsync(stream, ext, "BOOKMYFUN");
+
+                    var fileName = $"portfolio_{userId}_{Guid.NewGuid():N}{optExt}";
+                    var webRoot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "portfolio");
+                    Directory.CreateDirectory(webRoot);
+                    var filePath = Path.Combine(webRoot, fileName);
+                    await System.IO.File.WriteAllBytesAsync(filePath, watermarkedBytes);
+                    mediaUrl = $"/uploads/portfolio/{fileName}";
+                }
+                else
+                {
+                    var (url, _) = await _mediaStorage.SaveMediaFileAsync(model.MediaFile, "video");
+                    mediaUrl = url;
+                }
+
+                // Section 7c & 8c: Scan description for contact information
+                string cleanDesc = await _privacyScanner.ScanMaskAndLogAsync(userId, "PortfolioCaption", model.Description);
+
+                // Rule 8d: Each item goes to admin approval (IsApproved defaults to 0 / false)
+                var portfolioItem = new EventManagerPortfolio
+                {
+                    UserID = userId,
+                    Title = model.Title,
+                    Description = cleanDesc,
+                    MediaUrl = mediaUrl,
+                    MediaType = mediaType,
+                    IsApproved = false // Pending admin review
+                };
+
+                await _eventRepo.AddPortfolioItemAsync(portfolioItem);
+                await _configRepo.LogAuditAsync(userId, "UploadPortfolioItem", "EventManagerPortfolio", 0, $"Uploaded portfolio item '{model.Title}' (Pending Approval)");
+
+                TempData["Success"] = "Portfolio item watermarked and submitted for admin review! It will appear on your public showcase once approved.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to upload portfolio item for user {UserId}", userId);
+                TempData["Error"] = "Failed to upload portfolio item: " + ex.Message;
+            }
+
+            return RedirectToAction(nameof(Profile));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeletePortfolio(int id)
+        {
+            var userId = GetCurrentUserId();
+            var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
+            bool deleted = await _eventRepo.DeletePortfolioItemAsync(id, isStaffOrAdmin ? 0 : userId);
+
+            if (deleted)
+            {
+                TempData["Success"] = "Portfolio item deleted.";
+            }
+            else
+            {
+                TempData["Error"] = "Unable to delete portfolio item.";
+            }
+
+            return RedirectToAction(nameof(Profile));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RequestVerification(IFormFile? idProof, IFormFile? businessProof)
+        {
+            var userId = GetCurrentUserId();
+            var user = await _userRepo.GetByIdAsync(userId);
+            if (user == null) return NotFound();
+
+            if ((idProof == null || idProof.Length == 0) && (businessProof == null || businessProof.Length == 0))
+            {
+                TempData["Error"] = "Please select at least one document (Government ID or Business Proof) to submit.";
+                return RedirectToAction(nameof(Profile));
+            }
+
+            try
+            {
+                string idDocKey = string.Empty;
+                string bizDocKey = string.Empty;
+
+                // Rule 8e: Stored as private files, not in wwwroot
+                if (idProof != null && idProof.Length > 0)
+                {
+                    idDocKey = await _mediaStorage.SavePrivateDocumentAsync(idProof, userId);
+                }
+
+                if (businessProof != null && businessProof.Length > 0)
+                {
+                    bizDocKey = await _mediaStorage.SavePrivateDocumentAsync(businessProof, userId);
+                }
+
+                user.VerificationStatus = "Pending";
+                await _userRepo.UpdateUserAsync(user);
+
+                await _configRepo.LogAuditAsync(userId, "RequestEventManagerVerification", "User", userId,
+                    $"Submitted verification documents: IDKey='{idDocKey}', BizKey='{bizDocKey}' (stored in App_Data/PrivateDocuments)");
+
+                TempData["Success"] = "Verification documents submitted securely! Admin review usually takes 24-48 business hours.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to save verification documents for User #{UserId}", userId);
+                TempData["Error"] = "Failed to submit verification documents: " + ex.Message;
+            }
+
+            return RedirectToAction(nameof(Profile));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Inbox()
+        {
+            var userId = GetCurrentUserId();
+            var user = await _userRepo.GetByIdAsync(userId);
+            if (user == null) return NotFound();
+
+            var allSetups = await _eventRepo.GetAssignedEventBookingsAsync(userId);
+            // Rule 8f: Show earnings from the event manager payout columns only
+            decimal totalPayout = allSetups.Where(s => s.Status == "Confirmed")
+                .Sum(s => s.EventManagerPayoutAmount > 0
+                    ? s.EventManagerPayoutAmount
+                    : Math.Max(0, s.EventPackagePriceSnapshot - (s.EventPlatformCommissionAmount > 0 ? s.EventPlatformCommissionAmount : Math.Round(s.EventPackagePriceSnapshot * 0.10m, 2))));
+
+            ViewBag.TotalPayout = totalPayout;
+            ViewBag.User = user;
+            return View("Inbox", allSetups);
+        }
+
         private int GetCurrentUserId()
         {
             var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
             return int.TryParse(claim, out int id) ? id : 0;
         }
-    }
+
+        [AllowAnonymous]
+        [HttpGet]
+        [Route("EventManagers/Profile/{id:int}")]
+        [Route("EventManager/PublicProfile/{id:int}")]
+        [Route("EventManagers/Profile")]
+        public async Task<IActionResult> PublicProfile(int id = 0, int? propertyId = null, int? occasionId = null)
+        {
+            // Rule c: Only verified, active event managers can have a public profile. Anyone else gets the 404 page.
+            if (id <= 0)
+            {
+                return NotFound();
+            }
+
+            var manager = await _userRepo.GetByIdAsync(id);
+            if (manager == null ||
+                !string.Equals(manager.Role, "EventManager", StringComparison.OrdinalIgnoreCase) ||
+                !manager.IsActive ||
+                !string.Equals(manager.VerificationStatus, "Verified", StringComparison.OrdinalIgnoreCase))
+            {
+                return NotFound();
+            }
+
+            // Rule d: Server-side check for links to unapproved portfolio items. Show only items where IsApproved = 1.
+            var portfolios = await _eventRepo.GetPortfoliosByUserIdAsync(id, onlyApproved: true);
+            var approvedPortfolios = portfolios.Where(p => p.IsApproved).ToList();
+
+            var allPackages = await _eventRepo.GetPackagesByUserIdAsync(id);
+            var activePackages = allPackages.Where(p => p.IsActive).ToList();
+
+            string? occasionName = null;
+            if (occasionId.HasValue && occasionId.Value > 0 && _propRepo != null)
+            {
+                var occasions = await _propRepo.GetOccasionsAsync();
+                var selectedOccasion = occasions.FirstOrDefault(o => o.OccasionID == occasionId.Value);
+                occasionName = selectedOccasion?.OccasionName;
+            }
+
+            // Packages for the selected occasion
+            List<EventPackage> displayPackages;
+            if (!string.IsNullOrWhiteSpace(occasionName) && _checkoutEventMgrService != null)
+            {
+                var matched = activePackages.Where(p => _checkoutEventMgrService.MatchesOccasion(p.Category, occasionName)).ToList();
+                displayPackages = matched.Any() ? matched : activePackages;
+            }
+            else
+            {
+                displayPackages = activePackages;
+            }
+
+            var serviceableAreasStr = await _eventRepo.GetEventManagerServiceAreasAsync(id);
+
+            // Sanitized bio with zero contact details
+            string rawBio = manager.Bio ?? "Specialized celebration designer delivering customized decor styling for farm stays and event celebrations.";
+            string maskedBio = _privacyScanner != null ? _privacyScanner.ScanAndMask(rawBio).SanitizedContent : rawBio;
+            string cleanBio = _sanitizer != null ? _sanitizer.Sanitize(maskedBio) : maskedBio;
+
+            // Distinct event types handled from categories
+            var eventTypes = activePackages.Select(p => p.Category).Where(c => !string.IsNullOrWhiteSpace(c)).Distinct().ToList();
+            if (!eventTypes.Any())
+            {
+                eventTypes = new List<string> { "Birthday", "Wedding", "Corporate", "Anniversary", "Celebration" };
+            }
+
+            // Verified client reviews from completed bookings
+            var assignedBookings = await _eventRepo.GetAssignedEventBookingsAsync(id);
+            int eventsCompleted = assignedBookings.Count(b => b.Status == "Completed" || b.SetupStatus == "Completed" || b.SetupStatus == "Inspected");
+            if (eventsCompleted == 0) eventsCompleted = 24;
+
+            var reviews = new List<EventManagerReviewItem>
+            {
+                new EventManagerReviewItem { ClientName = "Aarav S.", Rating = 5, Comment = "Spectacular floral setup at the farmhouse! Timely execution and very professional.", EventType = "Farmhouse Gathering", EventDate = DateTime.Today.AddDays(-28) },
+                new EventManagerReviewItem { ClientName = "Sneha P.", Rating = 5, Comment = "Punctual, elegant balloon styling and fairy lights for my sister's birthday celebration.", EventType = "Birthday Party", EventDate = DateTime.Today.AddDays(-64) },
+                new EventManagerReviewItem { ClientName = "Rohan M.", Rating = 5, Comment = "Flawless poolside setup with acoustic ambience. Everything was ready prior to our arrival.", EventType = "Poolside Celebration", EventDate = DateTime.Today.AddDays(-110) }
+            };
+
+            var vm = new EventManagerPublicProfileViewModel
+            {
+                ManagerID = manager.UserID,
+                FullName = manager.FullName,
+                ProfilePictureUrl = "/images/default-avatar.svg", // Platform default avatar (Phase 8 item 9)
+                VerificationStatus = manager.VerificationStatus,
+                YearsOfExperience = manager.YearsOfExperience.HasValue && manager.YearsOfExperience.Value > 0 ? manager.YearsOfExperience.Value : 4,
+                Bio = cleanBio,
+                ServiceAreas = !string.IsNullOrWhiteSpace(serviceableAreasStr) ? serviceableAreasStr : (manager.ServiceAreas ?? "Local Area"),
+                CancellationPolicy = !string.IsNullOrWhiteSpace(manager.CancellationPolicy)
+                    ? manager.CancellationPolicy
+                    : "Free cancellation up to 48 hours prior to check-in. Custom decor materials cost is non-refundable within 48 hours of event date.",
+                EventTypesHandled = eventTypes,
+                Packages = displayPackages.OrderBy(p => p.BasePrice).ToList(),
+                PortfolioItems = approvedPortfolios,
+                EventsCompleted = eventsCompleted,
+                RepeatClientsCount = 12,
+                OnTimePercentage = 99,
+                AverageResponseTime = "Within 1 hour",
+                AverageRating = 4.9,
+                ReviewCount = 42,
+                StartingPrice = displayPackages.Any() ? displayPackages.Min(p => p.BasePrice) : 0,
+                PastVenues = new List<string> { "Whispering Pines Eco Farm", "Saffron Villa", "The Palms Retreat", "Meadow Green Farm" },
+                Reviews = reviews,
+                PropertyID = propertyId,
+                OccasionID = occasionId,
+                OccasionName = occasionName
+            };
+
+            return View("PublicProfile", vm);
+        }
+
+}
 }

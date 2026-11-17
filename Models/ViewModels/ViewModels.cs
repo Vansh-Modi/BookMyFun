@@ -738,6 +738,7 @@ namespace BookMyFun.Models.ViewModels
         public List<string> AvailableLocations { get; set; } = new();
         public List<string> SelectedAreas { get; set; } = new();
         public string? RawServiceAreas { get; set; }
+        public List<string> InvalidAreas { get; set; } = new();
     }
 
     public class UpdateEventCommissionRequest
