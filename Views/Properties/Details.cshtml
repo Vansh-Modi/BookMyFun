@@ -167,8 +167,7 @@
                                              width="96"
                                              height="64"
                                              loading="lazy"
-                                             class="gallery-thumb-img"
-                                             onerror="handleGalleryThumb404(@s.MediaID, this)" />
+                                             class="gallery-thumb-img" />
                                     }
                                 </button>
                             }
@@ -510,6 +509,72 @@
         let activeSlides = slideItems.filter(s => !s.dataset.broken);
         let currentIndex = 0;
 
+        function handleGalleryMedia404(mediaIdOrEvent, element) {
+            let mediaId = mediaIdOrEvent;
+            if (mediaIdOrEvent && mediaIdOrEvent.target) {
+                element = mediaIdOrEvent.target;
+                mediaId = element.getAttribute('data-media-id') || element.dataset?.mediaId;
+            } else if (!element && this && this.nodeType) {
+                element = this;
+                mediaId = mediaId || element.getAttribute('data-media-id') || element.dataset?.mediaId;
+            }
+
+            if (!element) return;
+            // The handler must not throw when a slide is already hidden
+            if (element.dataset.broken === 'true' || element.style.display === 'none') {
+                element.dataset.broken = 'true';
+                return;
+            }
+            element.dataset.broken = 'true';
+            element.style.display = 'none';
+
+            // Record failed media ID
+            window.failedGalleryMediaIds = window.failedGalleryMediaIds || [];
+            if (mediaId && !window.failedGalleryMediaIds.includes(mediaId)) {
+                window.failedGalleryMediaIds.push(mediaId);
+            }
+
+            try {
+                fetch('/api/health/report-media-404', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mediaId: mediaId, url: element.dataset.src || element.src })
+                }).catch(() => {});
+            } catch (_) {}
+
+            const origIdx = element.getAttribute('data-index');
+            const thumbBtn = document.getElementById('thumb-btn-' + origIdx);
+            if (thumbBtn) thumbBtn.style.display = 'none';
+
+            const currentActiveSlide = activeSlides[currentIndex];
+            activeSlides = slideItems.filter(s => !s.dataset.broken && s.style.display !== 'none');
+
+            if (activeSlides.length === 0) {
+                if (counter) counter.textContent = '0 / 0';
+                return;
+            }
+
+            // Move gallery to the next valid slide
+            if (element === currentActiveSlide) {
+                if (currentIndex >= activeSlides.length) {
+                    currentIndex = 0;
+                }
+                goToSlide(currentIndex);
+            } else {
+                const newIdx = activeSlides.indexOf(currentActiveSlide);
+                if (newIdx !== -1) {
+                    currentIndex = newIdx;
+                    goToSlide(currentIndex);
+                } else {
+                    if (currentIndex >= activeSlides.length) {
+                        currentIndex = 0;
+                    }
+                    goToSlide(currentIndex);
+                }
+            }
+        }
+        window.handleGalleryMedia404 = handleGalleryMedia404;
+
         function pauseVideoIfAny(slideEl) {
             if (!slideEl) return;
             if (slideEl.tagName === 'VIDEO') {
@@ -573,71 +638,17 @@
             updateCounter();
         }
 
-        function handleGalleryMedia404(mediaIdOrEvent, element) {
-            let mediaId = mediaIdOrEvent;
-            if (mediaIdOrEvent && mediaIdOrEvent.target) {
-                element = mediaIdOrEvent.target;
-                mediaId = element.getAttribute('data-media-id') || element.dataset?.mediaId;
-            } else if (!element && this && this.nodeType) {
-                element = this;
-                mediaId = mediaId || element.getAttribute('data-media-id') || element.dataset?.mediaId;
-            }
-
-            if (!element || element.dataset.broken === 'true') return;
-            element.dataset.broken = 'true';
-            element.style.display = 'none';
-
-            // Record failed media ID
-            window.failedGalleryMediaIds = window.failedGalleryMediaIds || [];
-            if (mediaId && !window.failedGalleryMediaIds.includes(mediaId)) {
-                window.failedGalleryMediaIds.push(mediaId);
-            }
-
-            try {
-                fetch('/api/health/report-media-404', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mediaId: mediaId, url: element.dataset.src || element.src })
-                }).catch(() => {});
-            } catch (_) {}
-
-            const origIdx = element.getAttribute('data-index');
-            const thumbBtn = document.getElementById('thumb-btn-' + origIdx);
-            if (thumbBtn) thumbBtn.style.display = 'none';
-
-            const currentActiveSlide = activeSlides[currentIndex];
-            activeSlides = slideItems.filter(s => !s.dataset.broken);
-
-            if (activeSlides.length === 0) {
-                if (counter) counter.textContent = '0 / 0';
-                return;
-            }
-
-            if (element === currentActiveSlide) {
-                if (currentIndex >= activeSlides.length) {
-                    currentIndex = 0;
-                }
-                goToSlide(currentIndex);
-            } else {
-                const newIdx = activeSlides.indexOf(currentActiveSlide);
-                if (newIdx !== -1) {
-                    currentIndex = newIdx;
-                    goToSlide(currentIndex);
-                } else {
-                    if (currentIndex >= activeSlides.length) {
-                        currentIndex = 0;
-                    }
-                    goToSlide(currentIndex);
-                }
-            }
-        }
-        window.handleGalleryMedia404 = handleGalleryMedia404;
-
         slideItems.forEach(slide => {
             slide.addEventListener('error', handleGalleryMedia404, true);
             if (slide.tagName === 'IMG' && slide.complete && slide.naturalWidth === 0 && slide.src) {
                 handleGalleryMedia404(slide.getAttribute('data-media-id'), slide);
             }
+        });
+
+        document.querySelectorAll('.gallery-thumb-img').forEach(thumb => {
+            thumb.addEventListener('error', function () {
+                this.src = '/images/property-placeholder.jpg';
+            });
         });
 
         thumbBtns.forEach(btn => {
