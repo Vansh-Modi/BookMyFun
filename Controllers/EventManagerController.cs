@@ -623,7 +623,7 @@ namespace BookMyFun.Controllers
                     InvalidAreas = invalidAreas.Distinct(StringComparer.OrdinalIgnoreCase).ToList()
                 };
 
-                ModelState.AddModelError("ServiceAreas", $"The following area(s) cannot be normalised to 'City, State' format: {string.Join(", ", vm.InvalidAreas)}");
+                ModelState.AddModelError("ServiceAreas", $"The following area(s) cannot be parsed: {string.Join(", ", vm.InvalidAreas)}. Accepted formats: 'City, State' or 'State'.");
                 ViewBag.InvalidAreas = vm.InvalidAreas;
 
                 return View("ServiceAreas", vm);
@@ -651,21 +651,68 @@ namespace BookMyFun.Controllers
             return RedirectToAction(nameof(ServiceAreas));
         }
 
+        public static readonly HashSet<string> ValidIndianStates = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+            "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka",
+            "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram",
+            "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
+            "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
+            "Delhi", "Chandigarh", "Jammu and Kashmir", "Jammu & Kashmir", "Ladakh",
+            "Puducherry", "Pondicherry", "Dadra and Nagar Haveli and Daman and Diu",
+            "Dadra and Nagar Haveli", "Daman and Diu", "Lakshadweep", "Andaman and Nicobar Islands"
+        };
+
         public static bool TryNormalizeArea(string? input, out string normalized)
         {
             normalized = string.Empty;
             if (string.IsNullOrWhiteSpace(input)) return false;
 
-            var parts = input.Split(new[] { ',' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length != 2) return false;
+            // Reject numbers / digits
+            if (input.Any(char.IsDigit)) return false;
 
-            string city = CapitalizeWords(parts[0]);
-            string state = CapitalizeWords(parts[1]);
+            // Check comma segmentation without removing empty entries to detect e.g. "Pune,,"
+            var rawParts = input.Split(',');
+            if (rawParts.Length > 2) return false;
 
-            if (string.IsNullOrWhiteSpace(city) || string.IsNullOrWhiteSpace(state)) return false;
+            if (rawParts.Length == 2)
+            {
+                // Format 1: "City, State"
+                string rawCity = rawParts[0].Trim();
+                string rawState = rawParts[1].Trim();
 
-            normalized = $"{city}, {state}";
-            return true;
+                if (string.IsNullOrWhiteSpace(rawCity) || string.IsNullOrWhiteSpace(rawState)) return false;
+                if (!IsValidLocationName(rawCity) || !IsValidLocationName(rawState)) return false;
+
+                string city = CapitalizeWords(rawCity);
+                string state = CapitalizeWords(rawState);
+
+                if (string.IsNullOrWhiteSpace(city) || string.IsNullOrWhiteSpace(state)) return false;
+
+                normalized = $"{city}, {state}";
+                return true;
+            }
+            else // rawParts.Length == 1
+            {
+                // Format 2: "State" alone
+                string rawState = rawParts[0].Trim();
+                if (string.IsNullOrWhiteSpace(rawState)) return false;
+                if (!IsValidLocationName(rawState)) return false;
+
+                string state = CapitalizeWords(rawState);
+                if (string.IsNullOrWhiteSpace(state)) return false;
+
+                if (!ValidIndianStates.Contains(state)) return false;
+
+                normalized = state;
+                return true;
+            }
+        }
+
+        private static bool IsValidLocationName(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return false;
+            return s.All(c => char.IsLetter(c) || c == ' ' || c == '-' || c == '.' || c == '\'');
         }
 
         private static string CapitalizeWords(string text)

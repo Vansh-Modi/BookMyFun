@@ -139,7 +139,7 @@ namespace BookMyFun.Services.Checkout
                 areaManagers = eventManagers.Where(m =>
                 {
                     var areas = ParseServiceAreas(m.ServiceAreas);
-                    return areas.Any(a => string.Equals(a.State, propState, StringComparison.OrdinalIgnoreCase));
+                    return areas.Any(a => string.IsNullOrWhiteSpace(a.City) && string.Equals(a.State, propState, StringComparison.OrdinalIgnoreCase));
                 }).ToList();
             }
 
@@ -349,7 +349,16 @@ namespace BookMyFun.Services.Checkout
             }
             if (!servesArea && !string.IsNullOrWhiteSpace(propState))
             {
-                servesArea = areas.Any(a => string.Equals(a.State, propState, StringComparison.OrdinalIgnoreCase));
+                bool stateMatch = areas.Any(a => string.Equals(a.State, propState, StringComparison.OrdinalIgnoreCase));
+                if (stateMatch)
+                {
+                    // Matches property only when the property's city has no city-level match in that state
+                    var allDecorators = await _eventPackageRepo.GetDecoratorsAsync(onlyVerified: false);
+                    var hasCityMatch = allDecorators
+                        .Where(m => string.Equals(m.Role, "EventManager", StringComparison.OrdinalIgnoreCase) && m.IsActive && string.Equals(m.VerificationStatus, "Verified", StringComparison.OrdinalIgnoreCase))
+                        .Any(m => ParseServiceAreas(m.ServiceAreas).Any(a => string.Equals(a.City, propCity, StringComparison.OrdinalIgnoreCase)));
+                    servesArea = !hasCityMatch;
+                }
             }
 
             if (!servesArea)
@@ -393,14 +402,13 @@ namespace BookMyFun.Services.Checkout
         {
             if (string.IsNullOrWhiteSpace(area)) return string.Empty;
 
-            var parts = area.Split(new[] { ',' }, 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length == 2)
+            if (BookMyFun.Controllers.EventManagerController.TryNormalizeArea(area, out var normalized))
             {
-                string city = Capitalize(parts[0]);
-                string state = Capitalize(parts[1]);
-                return $"{city}, {state}";
+                return normalized;
             }
-            return Capitalize(parts[0]);
+
+            // Fallback for legacy database records
+            return Capitalize(area.Trim());
         }
 
         public List<(string City, string State)> ParseServiceAreas(string? serviceAreas)
@@ -421,7 +429,16 @@ namespace BookMyFun.Services.Checkout
                 }
                 else if (parts.Length == 1)
                 {
-                    result.Add((parts[0], string.Empty));
+                    if (BookMyFun.Controllers.EventManagerController.ValidIndianStates.Contains(parts[0]))
+                    {
+                        // "State" alone: stored as State with no city
+                        result.Add((string.Empty, parts[0]));
+                    }
+                    else
+                    {
+                        // Legacy single city record
+                        result.Add((parts[0], string.Empty));
+                    }
                 }
             }
             return result;
