@@ -200,14 +200,10 @@ namespace BookMyFun.Controllers
 
             var property = await _propRepo.GetByIdAsync(propertyId);
 
-            if (property == null)
-
+            if (property == null || !await _propRepo.IsPropertyPubliclyVisibleAsync(property))
             {
-
-                TempData["Error"] = "The requested property could not be found. Please browse available stays.";
-
+                TempData["Error"] = "This property is currently not available for bookings.";
                 return RedirectToAction("Index", "Properties");
-
             }
 
             var effectiveIn = checkIn?.Date ?? DateTime.Today;
@@ -720,14 +716,10 @@ namespace BookMyFun.Controllers
 
                 var property = await _propRepo.GetByIdAsync(model.PropertyID);
 
-                if (property == null)
-
+                if (property == null || !await _propRepo.IsPropertyPubliclyVisibleAsync(property))
                 {
-
-                    TempData["Error"] = "The requested property could not be found. Please browse available stays.";
-
+                    TempData["Error"] = "This property is currently not available for bookings.";
                     return RedirectToAction("Index", "Properties");
-
                 }
 
                 var clientIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);

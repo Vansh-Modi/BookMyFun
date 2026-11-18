@@ -7,6 +7,7 @@ namespace BookMyFun.Repositories
     public interface IPropertyRepository
     {
         Task<Property?> GetByIdAsync(int propertyId);
+        Task<bool> IsPropertyPubliclyVisibleAsync(Property? property) => Task.FromResult(property != null && property.IsApproved && (property.ListingStatus == "Live" || property.ListingStatus == "Active"));
         Task<List<Property>> GetAllPropertiesAsync(bool onlyApproved = false);
         Task<List<Property>> GetPropertiesByOwnerIdAsync(int ownerId);
         Task<List<Property>> SearchPropertiesAsync(string? location, int? propertyTypeId, int? occasionId, decimal? minPrice, decimal? maxPrice, int? guests);
@@ -73,6 +74,58 @@ namespace BookMyFun.Repositories
             _db = db;
         }
 
+        public static DateTime GetNowKolkata()
+        {
+            try
+            {
+                var tz = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
+                return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+            }
+            catch
+            {
+                try
+                {
+                    var tz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+                    return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+                }
+                catch
+                {
+                    return DateTime.UtcNow.AddMinutes(330);
+                }
+            }
+        }
+
+        // Shared query fragment for all public property queries
+        public const string PublicListingWhereFragment = @"
+            p.IsApproved = 1 
+            AND (p.ListingStatus = 'Live' OR p.ListingStatus = 'Active')
+            AND EXISTS (
+                SELECT 1 FROM OwnerSubscriptions os
+                WHERE os.OwnerID = p.OwnerID 
+                  AND os.PaymentStatus IN ('Paid', 'Trial')
+                  AND os.EndDate >= @NowKolkata
+            )";
+
+        public async Task<bool> IsPropertyPubliclyVisibleAsync(Property? property)
+        {
+            if (property == null || !property.IsApproved) return false;
+            if (property.ListingStatus != "Live" && property.ListingStatus != "Active") return false;
+
+            var nowKolkata = GetNowKolkata();
+            const string sql = @"
+                SELECT TOP 1 1 
+                FROM OwnerSubscriptions os
+                WHERE os.OwnerID = @OwnerID 
+                  AND os.PaymentStatus IN ('Paid', 'Trial') 
+                  AND os.EndDate >= @NowKolkata";
+
+            var result = await _db.ExecuteScalarAsync(sql,
+                new SqlParameter("@OwnerID", property.OwnerID),
+                new SqlParameter("@NowKolkata", nowKolkata));
+
+            return result != null && result != DBNull.Value;
+        }
+
         public async Task<Property?> GetByIdAsync(int propertyId)
         {
             const string sql = @"
@@ -119,10 +172,14 @@ namespace BookMyFun.Repositories
                 FROM Properties p
                 JOIN PropertyTypes pt ON p.PropertyTypeID = pt.PropertyTypeID
                 JOIN Users u ON p.OwnerID = u.UserID
-                WHERE 1=1 " + (onlyApproved ? " AND p.IsApproved = 1 AND p.ListingStatus = 'Active'" : "") +
+                WHERE 1=1 " + (onlyApproved ? $" AND {PublicListingWhereFragment}" : "") +
                 " ORDER BY p.CreatedAt DESC";
 
-            var properties = await _db.ExecuteReaderListAsync(sql, MapProperty);
+            var parameters = onlyApproved 
+                ? new[] { new SqlParameter("@NowKolkata", GetNowKolkata()) } 
+                : Array.Empty<SqlParameter>();
+
+            var properties = await _db.ExecuteReaderListAsync(sql, MapProperty, parameters);
             await PopulateAmenitiesAsync(properties);
             return properties;
         }
@@ -148,16 +205,19 @@ namespace BookMyFun.Repositories
 
         public async Task<List<Property>> SearchPropertiesAsync(string? location, int? propertyTypeId, int? occasionId, decimal? minPrice, decimal? maxPrice, int? guests)
         {
-            var sql = @"
+            var sql = $@"
                 SELECT DISTINCT p.*, pt.TypeName AS PropertyTypeName, u.FullName AS OwnerName,
                        (SELECT TOP 1 ImageURL FROM PropertyImages WHERE PropertyID = p.PropertyID ORDER BY IsPrimary DESC, ImageID ASC) AS PrimaryImageUrl
                 FROM Properties p
                 JOIN PropertyTypes pt ON p.PropertyTypeID = pt.PropertyTypeID
                 JOIN Users u ON p.OwnerID = u.UserID
                 LEFT JOIN PropertyOccasions po ON p.PropertyID = po.PropertyID
-                WHERE p.IsApproved = 1 AND p.ListingStatus = 'Active' ";
+                WHERE {PublicListingWhereFragment} ";
 
-            var parameters = new List<SqlParameter>();
+            var parameters = new List<SqlParameter>
+            {
+                new SqlParameter("@NowKolkata", GetNowKolkata())
+            };
 
             if (!string.IsNullOrWhiteSpace(location))
             {
@@ -219,8 +279,11 @@ namespace BookMyFun.Repositories
             pageSize = Math.Clamp(pageSize, 1, 100);
             int offset = (page - 1) * pageSize;
 
-            var whereSql = " WHERE p.IsApproved = 1 AND p.ListingStatus = 'Active' ";
-            var parameters = new List<SqlParameter>();
+            var whereSql = $" WHERE {PublicListingWhereFragment} ";
+            var parameters = new List<SqlParameter>
+            {
+                new SqlParameter("@NowKolkata", GetNowKolkata())
+            };
 
             if (!string.IsNullOrWhiteSpace(location))
             {

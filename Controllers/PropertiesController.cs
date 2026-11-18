@@ -101,6 +101,29 @@ namespace BookMyFun.Controllers
             var property = await _propRepo.GetByIdAsync(id);
             if (property == null) return NotFound();
 
+            // Owners and staff see their own properties in every state, including Unpublished. Staff see all properties.
+            bool isAuthorizedViewer = false;
+            if (User?.Identity?.IsAuthenticated == true)
+            {
+                if (User.IsInRole("Admin") || User.IsInRole("Employee"))
+                {
+                    isAuthorizedViewer = true;
+                }
+                else if (int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int currentUserId) && currentUserId == property.OwnerID)
+                {
+                    isAuthorizedViewer = true;
+                }
+            }
+
+            if (!isAuthorizedViewer)
+            {
+                bool isVisible = await _propRepo.IsPropertyPubliclyVisibleAsync(property);
+                if (!isVisible)
+                {
+                    return NotFound();
+                }
+            }
+
             var reviews = await _bookingRepo.GetReviewsByPropertyIdAsync(id);
             ViewBag.Reviews = reviews;
             ViewBag.SelectedCheckIn = checkIn?.ToString("yyyy-MM-dd");
