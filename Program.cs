@@ -148,6 +148,10 @@ builder.Services.AddScoped<BookMyFun.Services.Notifications.INotificationDispatc
 builder.Services.AddHostedService<BookMyFun.Services.Notifications.NotificationOutboxBackgroundService>();
 builder.Services.AddHostedService<BookMyFun.Services.Notifications.CheckInReminderBackgroundService>();
 builder.Services.AddHostedService<BookMyFun.Services.Notifications.SubscriptionLifecycleBackgroundService>();
+builder.Services.Configure<HostOptions>(options =>
+{
+    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+});
 builder.Services.AddScoped<ICheckoutEventManagerService, CheckoutEventManagerService>();
 builder.Services.AddScoped<IStayCelebrationEligibilityService, StayCelebrationEligibilityService>();
 builder.Services.AddScoped<BookMyFun.Services.Staff.IEventManagerReviewService, BookMyFun.Services.Staff.EventManagerReviewService>();

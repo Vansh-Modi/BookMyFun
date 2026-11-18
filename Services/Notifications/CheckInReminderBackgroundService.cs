@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using BookMyFun.Services.Common;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -11,6 +12,7 @@ namespace BookMyFun.Services.Notifications
     {
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<CheckInReminderBackgroundService> _logger;
+        private readonly ServiceResilienceState _resilienceState = new();
 
         public CheckInReminderBackgroundService(IServiceProvider serviceProvider, ILogger<CheckInReminderBackgroundService> logger)
         {
@@ -20,43 +22,71 @@ namespace BookMyFun.Services.Notifications
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("CheckInReminderBackgroundService initialized.");
-
-            // Initial short wait of 30 seconds after startup before the first run
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
-            }
-            catch (OperationCanceledException)
-            {
-                return;
-            }
+                _logger.LogInformation("CheckInReminderBackgroundService initialized.");
 
-            while (!stoppingToken.IsCancellationRequested)
-            {
+                // Initial wait of 30 seconds after startup before the first run
                 try
                 {
-                    using var scope = _serviceProvider.CreateScope();
-                    var dispatcher = scope.ServiceProvider.GetRequiredService<INotificationDispatcherService>();
-                    await dispatcher.DispatchCheckInRemindersAsync();
+                    await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
                 }
-                catch (Exception ex)
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
-                    _logger.LogError(ex, "Unhandled exception in hourly check-in reminder background task.");
+                    return;
                 }
 
-                try
+                while (!stoppingToken.IsCancellationRequested)
                 {
-                    // Run once every hour
-                    await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
+                    bool iterationSuccess = false;
+                    try
+                    {
+                        using var scope = _serviceProvider.CreateScope();
+                        var dispatcher = scope.ServiceProvider.GetRequiredService<INotificationDispatcherService>();
+                        await dispatcher.DispatchCheckInRemindersAsync();
+                        iterationSuccess = true;
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        await BackgroundServiceResilienceHelper.HandleLoopExceptionAsync(
+                            ex,
+                            nameof(CheckInReminderBackgroundService),
+                            _logger,
+                            _resilienceState,
+                            stoppingToken);
+                    }
+
+                    if (iterationSuccess)
+                    {
+                        try
+                        {
+                            // 5 minutes between normal runs (within 1 to 5 minute requirement)
+                            await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+                        }
+                        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                        {
+                            break;
+                        }
+                    }
                 }
             }
-
-            _logger.LogInformation("CheckInReminderBackgroundService stopped.");
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Graceful cancellation
+            }
+            catch (Exception ex)
+            {
+                var correlationId = Guid.NewGuid().ToString("N");
+                _logger.LogError(ex, "[{ServiceName}] [{CorrelationId}] Fatal unhandled exception in ExecuteAsync.", nameof(CheckInReminderBackgroundService), correlationId);
+            }
+            finally
+            {
+                _logger.LogInformation("CheckInReminderBackgroundService stopped.");
+            }
         }
     }
 }

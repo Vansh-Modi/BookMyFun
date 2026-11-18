@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using BookMyFun.Data;
 using BookMyFun.Models.Entities;
 using BookMyFun.Repositories;
+using BookMyFun.Services.Common;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 
@@ -420,6 +421,10 @@ namespace BookMyFun.Services.Notifications
             }
             catch (Exception ex)
             {
+                if (BackgroundServiceResilienceHelper.IsMissingTableException(ex) || BackgroundServiceResilienceHelper.IsDatabaseUnreachableException(ex))
+                {
+                    throw;
+                }
                 _logger.LogError(ex, "Error during DispatchCheckInRemindersAsync run.");
             }
         }

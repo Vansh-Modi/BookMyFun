@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
+using BookMyFun.Services.Common;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
@@ -172,6 +173,7 @@ namespace BookMyFun.Services
         private readonly IEmailQueueService _queue;
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<EmailBackgroundDispatcher> _logger;
+        private readonly ServiceResilienceState _resilienceState = new();
 
         public EmailBackgroundDispatcher(
             IEmailQueueService queue,
@@ -185,60 +187,78 @@ namespace BookMyFun.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("EmailBackgroundDispatcher trigger queue worker started.");
-
-            while (!stoppingToken.IsCancellationRequested)
+            try
             {
-                try
+                _logger.LogInformation("EmailBackgroundDispatcher trigger queue worker started.");
+
+                while (!stoppingToken.IsCancellationRequested)
                 {
-                    var message = await _queue.DequeueAsync(stoppingToken);
-                    if (message == null) continue;
-
-                    using var scope = _scopeFactory.CreateScope();
-
-                    if (string.Equals(message.Channel, "InApp", StringComparison.OrdinalIgnoreCase))
+                    try
                     {
-                        _logger.LogInformation("InApp notification processed for {Recipient} (Subject: {Subject})", message.ToEmail, message.Subject);
-                    }
-                    else if (string.Equals(message.Channel, "WhatsApp", StringComparison.OrdinalIgnoreCase))
-                    {
-                        var whatsAppService = scope.ServiceProvider.GetRequiredService<IWhatsAppService>();
-                        bool sent = await whatsAppService.SendWhatsAppMessageAsync(message.ToPhone, message.BodyHtml);
-                        if (!sent && message.RetryCount < 2)
+                        var message = await _queue.DequeueAsync(stoppingToken);
+                        if (message == null) continue;
+
+                        using var scope = _scopeFactory.CreateScope();
+
+                        if (string.Equals(message.Channel, "InApp", StringComparison.OrdinalIgnoreCase))
                         {
-                            message.RetryCount++;
-                            _logger.LogWarning("WhatsApp delivery failed for {ToPhone}. Re-enqueuing retry #{Retry}",
-                                message.ToPhone, message.RetryCount);
-                            await Task.Delay(1000 * message.RetryCount, stoppingToken);
-                            await _queue.EnqueueAsync(message);
+                            _logger.LogInformation("InApp notification processed for {Recipient} (Subject: {Subject})", message.ToEmail, message.Subject);
+                        }
+                        else if (string.Equals(message.Channel, "WhatsApp", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var whatsAppService = scope.ServiceProvider.GetRequiredService<IWhatsAppService>();
+                            bool sent = await whatsAppService.SendWhatsAppMessageAsync(message.ToPhone, message.BodyHtml);
+                            if (!sent && message.RetryCount < 2)
+                            {
+                                message.RetryCount++;
+                                _logger.LogWarning("WhatsApp delivery failed for {ToPhone}. Re-enqueuing retry #{Retry}",
+                                    message.ToPhone, message.RetryCount);
+                                await Task.Delay(1000 * message.RetryCount, stoppingToken);
+                                await _queue.EnqueueAsync(message);
+                            }
+                        }
+                        else
+                        {
+                            var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
+                            bool sent = await emailService.SendEmailAsync(message.ToEmail, message.Subject, message.BodyHtml);
+                            if (!sent && message.RetryCount < 2)
+                            {
+                                message.RetryCount++;
+                                _logger.LogWarning("Email delivery failed for {ToEmail}. Re-enqueuing retry #{Retry}",
+                                    message.ToEmail, message.RetryCount);
+                                await Task.Delay(1000 * message.RetryCount, stoppingToken);
+                                await _queue.EnqueueAsync(message);
+                            }
                         }
                     }
-                    else
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                     {
-                        var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
-                        bool sent = await emailService.SendEmailAsync(message.ToEmail, message.Subject, message.BodyHtml);
-                        if (!sent && message.RetryCount < 2)
-                        {
-                            message.RetryCount++;
-                            _logger.LogWarning("Email delivery failed for {ToEmail}. Re-enqueuing retry #{Retry}",
-                                message.ToEmail, message.RetryCount);
-                            await Task.Delay(1000 * message.RetryCount, stoppingToken);
-                            await _queue.EnqueueAsync(message);
-                        }
+                        break;
                     }
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Unexpected exception in EmailBackgroundDispatcher execution loop.");
-                    await Task.Delay(2000, stoppingToken);
+                    catch (Exception ex)
+                    {
+                        await BackgroundServiceResilienceHelper.HandleLoopExceptionAsync(
+                            ex,
+                            nameof(EmailBackgroundDispatcher),
+                            _logger,
+                            _resilienceState,
+                            stoppingToken);
+                    }
                 }
             }
-
-            _logger.LogInformation("EmailBackgroundDispatcher trigger queue worker stopped.");
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Graceful cancellation
+            }
+            catch (Exception ex)
+            {
+                var correlationId = Guid.NewGuid().ToString("N");
+                _logger.LogError(ex, "[{ServiceName}] [{CorrelationId}] Fatal unhandled exception in ExecuteAsync.", nameof(EmailBackgroundDispatcher), correlationId);
+            }
+            finally
+            {
+                _logger.LogInformation("EmailBackgroundDispatcher trigger queue worker stopped.");
+            }
         }
     }
 }

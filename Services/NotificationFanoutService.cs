@@ -1,5 +1,6 @@
 using BookMyFun.Models.Entities;
 using BookMyFun.Repositories;
+using BookMyFun.Services.Common;
 using Microsoft.Extensions.Logging;
 
 namespace BookMyFun.Services
@@ -110,8 +111,16 @@ namespace BookMyFun.Services
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to fanout notification for event {EventType} to User #{UserId}",
-                        payload.EventType, payload.RecipientUserId);
+                    if (BackgroundServiceResilienceHelper.IsMissingTableException(ex) || BackgroundServiceResilienceHelper.IsDatabaseUnreachableException(ex))
+                    {
+                        _logger.LogWarning("Failed to fanout notification for event {EventType} to User #{UserId} due to database availability: {Message}",
+                            payload.EventType, payload.RecipientUserId, ex.Message);
+                    }
+                    else
+                    {
+                        _logger.LogError(ex, "Failed to fanout notification for event {EventType} to User #{UserId}",
+                            payload.EventType, payload.RecipientUserId);
+                    }
                 }
             });
 

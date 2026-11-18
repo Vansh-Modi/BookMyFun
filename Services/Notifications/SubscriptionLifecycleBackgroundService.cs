@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using BookMyFun.Repositories;
+using BookMyFun.Services.Common;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -13,6 +15,7 @@ namespace BookMyFun.Services.Notifications
     {
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<SubscriptionLifecycleBackgroundService> _logger;
+        private readonly ServiceResilienceState _resilienceState = new();
 
         public SubscriptionLifecycleBackgroundService(
             IServiceProvider serviceProvider,
@@ -24,40 +27,69 @@ namespace BookMyFun.Services.Notifications
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("SubscriptionLifecycleBackgroundService initialized.");
-
-            // Wait 20 seconds before first run to allow app startup to settle
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(20), stoppingToken);
-            }
-            catch (OperationCanceledException)
-            {
-                return;
-            }
+                _logger.LogInformation("SubscriptionLifecycleBackgroundService initialized.");
 
-            while (!stoppingToken.IsCancellationRequested)
-            {
+                // Wait 20 seconds before first run to allow app startup to settle
                 try
                 {
-                    await ProcessSubscriptionLifecycleCycleAsync(stoppingToken);
+                    await Task.Delay(TimeSpan.FromSeconds(20), stoppingToken);
                 }
-                catch (Exception ex)
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
-                    _logger.LogError(ex, "Unhandled exception in SubscriptionLifecycleBackgroundService hourly run.");
+                    return;
                 }
 
-                try
+                while (!stoppingToken.IsCancellationRequested)
                 {
-                    await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
+                    bool iterationSuccess = false;
+                    try
+                    {
+                        await ProcessSubscriptionLifecycleCycleAsync(stoppingToken);
+                        iterationSuccess = true;
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        await BackgroundServiceResilienceHelper.HandleLoopExceptionAsync(
+                            ex,
+                            nameof(SubscriptionLifecycleBackgroundService),
+                            _logger,
+                            _resilienceState,
+                            stoppingToken);
+                    }
+
+                    if (iterationSuccess)
+                    {
+                        try
+                        {
+                            // 5 minutes between normal runs (within 1 to 5 minute requirement)
+                            await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+                        }
+                        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                        {
+                            break;
+                        }
+                    }
                 }
             }
-
-            _logger.LogInformation("SubscriptionLifecycleBackgroundService stopped.");
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Graceful cancellation
+            }
+            catch (Exception ex)
+            {
+                var correlationId = Guid.NewGuid().ToString("N");
+                _logger.LogError(ex, "[{ServiceName}] [{CorrelationId}] Fatal unhandled exception in ExecuteAsync.", nameof(SubscriptionLifecycleBackgroundService), correlationId);
+            }
+            finally
+            {
+                _logger.LogInformation("SubscriptionLifecycleBackgroundService stopped.");
+            }
         }
 
         public async Task ProcessSubscriptionLifecycleCycleAsync(CancellationToken cancellationToken = default)
@@ -93,6 +125,10 @@ namespace BookMyFun.Services.Notifications
             }
             catch (Exception ex)
             {
+                if (BackgroundServiceResilienceHelper.IsMissingTableException(ex) || BackgroundServiceResilienceHelper.IsDatabaseUnreachableException(ex))
+                {
+                    throw;
+                }
                 _logger.LogError(ex, "Error processing newly active subscriptions.");
             }
 
@@ -131,6 +167,10 @@ namespace BookMyFun.Services.Notifications
             }
             catch (Exception ex)
             {
+                if (BackgroundServiceResilienceHelper.IsMissingTableException(ex) || BackgroundServiceResilienceHelper.IsDatabaseUnreachableException(ex))
+                {
+                    throw;
+                }
                 _logger.LogError(ex, "Error processing expired subscriptions.");
             }
 
@@ -164,6 +204,10 @@ namespace BookMyFun.Services.Notifications
             }
             catch (Exception ex)
             {
+                if (BackgroundServiceResilienceHelper.IsMissingTableException(ex) || BackgroundServiceResilienceHelper.IsDatabaseUnreachableException(ex))
+                {
+                    throw;
+                }
                 _logger.LogError(ex, "Error processing 3-day subscription expiry warnings.");
             }
         }
