@@ -624,16 +624,38 @@ namespace BookMyFun.Services.Notifications
             => DispatchSubscriptionExpiringWarningAsync(ownerId, planName, endDate);
 
         // 16. Owner subscription expired: — | WEA | — | A | EA
-        public async Task DispatchSubscriptionExpiredAsync(int ownerId, string planName)
+        public async Task DispatchSubscriptionExpiredAsync(int ownerId, string planName, int subscriptionId = 0, int unpublishedCount = 0)
         {
-            int dateEntityId = int.Parse(DateTime.UtcNow.ToString("yyyyMMdd"));
+            int entityId = subscriptionId > 0 ? subscriptionId : int.Parse(DateTime.UtcNow.ToString("yyyyMMdd"));
             string title = $"Subscription Expired: {planName}";
-            string body = $"Your subscription '{planName}' has expired. Your listings have been unpublished.";
-            await EnqueueForUserAsync("SubscriptionExpired", dateEntityId, ownerId, "WEA", title, body, "/Owner/Subscriptions");
+            string body = unpublishedCount == 1
+                ? $"1 property has been unpublished from public search because your plan ended. Your property is still safely stored in your account, and you can republish it once a plan is active."
+                : $"{unpublishedCount} properties have been unpublished from public search because your plan ended. Your properties are still safely stored in your account, and you can choose which to republish once a plan is active.";
+
+            await EnqueueForUserAsync("SubscriptionExpired", entityId, ownerId, "WEA", title, body, "/Owner/Index#needs-attention");
 
             // Employee: A | Admin: EA
-            await EnqueueStaffAsync("SubscriptionExpired", dateEntityId, "A", "EA",
-                $"Owner Subscription Expired: User #{ownerId}", $"Owner #{ownerId} subscription '{planName}' expired.", "/Admin/ManageOwners");
+            await EnqueueStaffAsync("SubscriptionExpired", entityId, "A", "EA",
+                $"Owner Subscription Expired: User #{ownerId}", $"Owner #{ownerId} subscription '{planName}' expired. {unpublishedCount} properties unpublished.", "/Admin/ManageOwners");
+        }
+
+        public async Task DispatchPostPaymentPublishPromptAsync(int ownerId, int subscriptionId, string planName, List<string> unpublishedProperties, int maxListings)
+        {
+            int entityId = subscriptionId > 0 ? subscriptionId : int.Parse(DateTime.UtcNow.ToString("yyyyMMdd"));
+            string title = $"Plan Activated: {planName}";
+            string body;
+            if (unpublishedProperties != null && unpublishedProperties.Any())
+            {
+                var names = string.Join(", ", unpublishedProperties.Take(3));
+                var extra = unpublishedProperties.Count > 3 ? $" and {unpublishedProperties.Count - 3} more" : "";
+                body = $"Your {planName} is now active (allows up to {maxListings} live listings). You have {unpublishedProperties.Count} unpublished property(ies) ({names}{extra}) still in your account. Please go to your dashboard to choose which properties to publish.";
+            }
+            else
+            {
+                body = $"Your subscription '{planName}' is now active (allows up to {maxListings} live listings). You can now publish or create listings from your dashboard.";
+            }
+
+            await EnqueueForUserAsync("SubscriptionPaid_ChooseProperties", entityId, ownerId, "WEA", title, body, "/Owner/Index");
         }
 
         public async Task DispatchSubscriptionActivatedAsync(int ownerId, string planName, DateTime endDate, List<string>? republishedProperties = null)

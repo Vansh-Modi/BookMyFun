@@ -475,7 +475,7 @@ namespace BookMyFun.Repositories
                   )
                   AND EXISTS (
                       SELECT 1 FROM Properties p
-                      WHERE p.OwnerID = os.OwnerID AND p.ListingStatus = 'Active'
+                      WHERE p.OwnerID = os.OwnerID AND (p.ListingStatus = 'Live' OR p.ListingStatus = 'Active')
                   )
                 ORDER BY os.EndDate DESC";
 

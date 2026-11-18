@@ -26,6 +26,7 @@ namespace BookMyFun.Controllers
         private readonly ILegalDocumentService? _legalService;
         private readonly INotificationFanoutService? _notificationFanout;
         private readonly BookMyFun.Services.Notifications.INotificationDispatcherService? _notificationDispatcher;
+        private readonly IUserNotificationRepository? _userNotificationRepo;
 
         public OwnerController(
             IPropertyRepository propRepo,
@@ -40,7 +41,8 @@ namespace BookMyFun.Controllers
             IWhatsAppService? whatsAppService = null,
             ILegalDocumentService? legalService = null,
             INotificationFanoutService? notificationFanout = null,
-            BookMyFun.Services.Notifications.INotificationDispatcherService? notificationDispatcher = null)
+            BookMyFun.Services.Notifications.INotificationDispatcherService? notificationDispatcher = null,
+            IUserNotificationRepository? userNotificationRepo = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -55,6 +57,7 @@ namespace BookMyFun.Controllers
             _legalService = legalService;
             _notificationFanout = notificationFanout;
             _notificationDispatcher = notificationDispatcher;
+            _userNotificationRepo = userNotificationRepo;
         }
 
         private int GetCurrentUserId() => User.GetUserId();
@@ -709,7 +712,7 @@ namespace BookMyFun.Controllers
             if (prop == null) return NotFound();
             if (prop.OwnerID != ownerId && !User.IsInRole("Admin")) return Forbid();
 
-            if (!prop.IsApproved || (prop.ListingStatus != "Draft" && prop.ListingStatus != "Deactivated"))
+            if (!prop.IsApproved || (prop.ListingStatus != "Draft" && prop.ListingStatus != "Deactivated" && prop.ListingStatus != "Unpublished"))
             {
                 TempData["Error"] = "Property must be approved before publishing.";
                 return RedirectToAction(nameof(Index));
@@ -727,6 +730,14 @@ namespace BookMyFun.Controllers
             {
                 TempData["Error"] = "Your subscription has ended. Choose a plan to publish listings.";
                 return RedirectToAction(nameof(Subscriptions));
+            }
+
+            var ownerProps = await _propRepo.GetPropertiesByOwnerIdAsync(prop.OwnerID);
+            int liveCount = ownerProps.Count(p => p.IsApproved && (p.ListingStatus == "Live" || p.ListingStatus == "Active"));
+            if (liveCount >= activeSub.MaxListings)
+            {
+                TempData["Error"] = $"Cannot publish property. Your current plan allowance of {activeSub.MaxListings} live listing(s) has been reached. Please unpublish another listing or upgrade your subscription.";
+                return RedirectToAction(nameof(Index));
             }
 
             var (success, msg) = await _propRepo.PublishPropertyAsync(id, prop.OwnerID, activeSub.MaxListings);
@@ -1051,14 +1062,30 @@ namespace BookMyFun.Controllers
             // Check if active immediately or scheduled for future
             if (sub.StartDate <= DateTime.UtcNow)
             {
+                // When a paid plan becomes active, unpublished properties are NOT republished automatically.
+                // The owner chooses which to publish, up to the plan's MaxListings.
+                var unpubProps = (await _propRepo.GetPropertiesByOwnerIdAsync(ownerId))
+                    .Where(p => p.ListingStatus == "Unpublished" || p.ListingStatus == "Deactivated")
+                    .Select(p => p.Title)
+                    .ToList();
+
                 int limit = sub.MaxListings > 0 ? sub.MaxListings : 1;
-                var republished = await _subRepo.RepublishExpiredPropertiesAsync(ownerId, limit);
                 if (_notificationDispatcher != null)
                 {
-                    _ = _notificationDispatcher.DispatchSubscriptionActivatedAsync(ownerId, sub.PlanName ?? "Subscription", sub.EndDate, republished);
-                    _ = _notificationDispatcher.DispatchPlanPurchaseConfirmedAsync(ownerId, sub.PlanName ?? "Subscription", (sub.PricePaid ?? 0m), false, sub.StartDate);
+                    _ = _notificationDispatcher.DispatchPostPaymentPublishPromptAsync(
+                        ownerId,
+                        sub.SubscriptionID,
+                        sub.PlanName ?? "Subscription",
+                        unpubProps,
+                        limit);
+                    _ = _notificationDispatcher.DispatchPlanPurchaseConfirmedAsync(
+                        ownerId,
+                        sub.PlanName ?? "Subscription",
+                        (sub.PricePaid ?? 0m),
+                        false,
+                        sub.StartDate);
                 }
-                TempData["Success"] = $"Razorpay payment verified successfully! Your subscription to {sub.PlanName} is now active.";
+                TempData["Success"] = $"Razorpay payment verified successfully! Your subscription to {sub.PlanName} is now active. Please choose which properties to publish from your dashboard.";
             }
             else
             {
@@ -1069,6 +1096,21 @@ namespace BookMyFun.Controllers
                 TempData["Success"] = $"Razorpay payment verified successfully! Your subscription to {sub.PlanName} is scheduled to start on {sub.StartDate:dd MMM yyyy}.";
             }
             return RedirectToAction(nameof(Subscriptions));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> MarkExpiryNotificationsRead()
+        {
+            var ownerId = GetCurrentUserId();
+            int marked = 0;
+            int remaining = 0;
+            if (_userNotificationRepo != null)
+            {
+                marked = await _userNotificationRepo.MarkExpiryNotificationsReadAsync(ownerId);
+                remaining = await _userNotificationRepo.GetUnreadCountAsync(ownerId);
+            }
+            return Json(new { success = true, markedCount = marked, remainingUnread = remaining });
         }
 
         [HttpPost]

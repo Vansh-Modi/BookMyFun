@@ -45,7 +45,8 @@ namespace BookMyFun.Services.Notifications
         // 15 & 16. Subscription Lifecycle
         Task DispatchTrialExpiringWarningAsync(int ownerId, string planName, DateTime endDate) => Task.CompletedTask;
         Task DispatchSubscriptionExpiringWarningAsync(int ownerId, string planName, DateTime endDate) => Task.CompletedTask;
-        Task DispatchSubscriptionExpiredAsync(int ownerId, string planName) => Task.CompletedTask;
+        Task DispatchSubscriptionExpiredAsync(int ownerId, string planName, int subscriptionId = 0, int unpublishedCount = 0) => Task.CompletedTask;
+        Task DispatchPostPaymentPublishPromptAsync(int ownerId, int subscriptionId, string planName, List<string> unpublishedProperties, int maxListings) => Task.CompletedTask;
         Task DispatchSubscriptionActivatedAsync(int ownerId, string planName, DateTime endDate, List<string>? republishedProperties = null) => Task.CompletedTask;
         Task DispatchPlanPurchaseConfirmedAsync(int ownerId, string planName, decimal amount, bool isScheduled, DateTime startDate) => Task.CompletedTask;
 

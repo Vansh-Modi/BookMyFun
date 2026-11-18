@@ -75,14 +75,20 @@ namespace BookMyFun.Services.Notifications
                 {
                     if (cancellationToken.IsCancellationRequested) break;
 
+                    // When a paid plan becomes active, unpublished properties are NOT republished automatically.
+                    // The owner chooses which to publish, up to the plan's MaxListings.
+                    var unpubProps = (await propRepo.GetPropertiesByOwnerIdAsync(sub.OwnerID))
+                        .Where(p => p.ListingStatus == "Unpublished" || p.ListingStatus == "Deactivated")
+                        .Select(p => p.Title)
+                        .ToList();
+
                     int limit = sub.MaxListings > 0 ? sub.MaxListings : 1;
-                    var republished = await subRepo.RepublishExpiredPropertiesAsync(sub.OwnerID, limit);
-                    
-                    await dispatcher.DispatchSubscriptionActivatedAsync(
+                    await dispatcher.DispatchPostPaymentPublishPromptAsync(
                         sub.OwnerID,
+                        sub.SubscriptionID,
                         sub.PlanName ?? "Subscription",
-                        sub.EndDate,
-                        republished);
+                        unpubProps,
+                        limit);
                 }
             }
             catch (Exception ex)
@@ -93,6 +99,7 @@ namespace BookMyFun.Services.Notifications
             // 2. Process Expired Subscriptions (Hourly, No Grace Period)
             try
             {
+                var configRepo = scope.ServiceProvider.GetRequiredService<IConfigRepository>();
                 var expiredSubs = await subRepo.GetExpiredSubscriptionsForHourlyProcessAsync();
                 foreach (var sub in expiredSubs)
                 {
@@ -102,9 +109,20 @@ namespace BookMyFun.Services.Notifications
                         sub.OwnerID,
                         "Subscription expired");
 
+                    // Write one row to AuditLogs per owner, with the action, the count of properties affected, and the time.
+                    await configRepo.LogAuditAsync(
+                        sub.OwnerID,
+                        "SubscriptionExpired_PropertiesUnpublished",
+                        "OwnerSubscription",
+                        sub.SubscriptionID,
+                        $"Subscription #{sub.SubscriptionID} ({sub.PlanName}) expired for Owner #{sub.OwnerID}. Unpublished {unpublishedCount} live listing(s). Properties remain in owner account."
+                    );
+
                     await dispatcher.DispatchSubscriptionExpiredAsync(
                         sub.OwnerID,
-                        sub.PlanName ?? "Subscription");
+                        sub.PlanName ?? "Subscription",
+                        sub.SubscriptionID,
+                        unpublishedCount);
 
                     _logger.LogInformation(
                         "Processed expired subscription for owner #{OwnerId}. Unpublished {Count} properties.",

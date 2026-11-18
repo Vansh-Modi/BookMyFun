@@ -657,16 +657,16 @@ namespace BookMyFun.Repositories
         public async Task<(bool Success, string Message)> PublishPropertyAsync(int propertyId, int ownerId, int limit)
         {
             const string sql = @"
-                IF (SELECT COUNT(*) FROM Properties WHERE OwnerID = @OwnerID AND ListingStatus = 'Active' AND IsApproved = 1) < @Limit
+                IF (SELECT COUNT(*) FROM Properties WHERE OwnerID = @OwnerID AND (ListingStatus = 'Live' OR ListingStatus = 'Active') AND IsApproved = 1) < @Limit
                 BEGIN
                     UPDATE Properties
-                    SET ListingStatus = 'Active',
+                    SET ListingStatus = 'Live',
                         IsApproved = 1,
                         PublishedAt = GETUTCDATE(),
                         UnpublishReason = NULL
                     WHERE PropertyID = @PropertyID 
                       AND OwnerID = @OwnerID 
-                      AND ((IsApproved = 1 AND ListingStatus = 'Draft') OR ListingStatus = 'Deactivated');
+                      AND ((IsApproved = 1 AND ListingStatus = 'Draft') OR ListingStatus IN ('Unpublished', 'Deactivated'));
                     SELECT @@ROWCOUNT;
                 END
                 ELSE
@@ -695,11 +695,11 @@ namespace BookMyFun.Repositories
         {
             const string sql = @"
                 UPDATE Properties 
-                SET ListingStatus = 'Deactivated',
+                SET ListingStatus = 'Unpublished',
                     UnpublishReason = @UnpublishReason
                 WHERE PropertyID = @PropertyID 
                   AND OwnerID = @OwnerID 
-                  AND ListingStatus = 'Active'";
+                  AND (ListingStatus = 'Live' OR ListingStatus = 'Active')";
 
             var rows = await _db.ExecuteNonQueryAsync(sql,
                 new SqlParameter("@PropertyID", propertyId),
@@ -713,10 +713,10 @@ namespace BookMyFun.Repositories
         {
             const string sql = @"
                 UPDATE Properties 
-                SET ListingStatus = 'Deactivated',
+                SET ListingStatus = 'Unpublished',
                     UnpublishReason = @UnpublishReason
                 WHERE OwnerID = @OwnerID 
-                  AND ListingStatus = 'Active'";
+                  AND (ListingStatus = 'Live' OR ListingStatus = 'Active')";
 
             return await _db.ExecuteNonQueryAsync(sql,
                 new SqlParameter("@OwnerID", ownerId),
