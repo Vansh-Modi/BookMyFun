@@ -10,6 +10,7 @@ namespace BookMyFun.Models.Entities
         public string Body { get; set; } = string.Empty;
         public string? LinkUrl { get; set; }
         public bool IsRead { get; set; }
+        public DateTime? ReadAt { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

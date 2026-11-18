@@ -53,7 +53,8 @@ namespace BookMyFun.Repositories
             try
             {
                 string sql = $@"
-                    SELECT TOP ({Math.Clamp(limit, 1, 100)}) NotificationID, UserID, Title, Body, LinkUrl, IsRead, CreatedAt
+                    SELECT TOP ({Math.Clamp(limit, 1, 100)}) NotificationID, UserID, Title, Body, LinkUrl, IsRead, CreatedAt,
+                           CASE WHEN COL_LENGTH('dbo.UserNotifications', 'ReadAt') IS NOT NULL THEN ReadAt ELSE NULL END AS ReadAt
                     FROM dbo.UserNotifications
                     WHERE UserID = @UserID
                     ORDER BY CreatedAt DESC;";
@@ -66,7 +67,8 @@ namespace BookMyFun.Repositories
                     Body = reader.GetString(reader.GetOrdinal("Body")),
                     LinkUrl = reader.IsDBNull(reader.GetOrdinal("LinkUrl")) ? null : reader.GetString(reader.GetOrdinal("LinkUrl")),
                     IsRead = reader.GetBoolean(reader.GetOrdinal("IsRead")),
-                    CreatedAt = reader.GetDateTime(reader.GetOrdinal("CreatedAt"))
+                    CreatedAt = reader.GetDateTime(reader.GetOrdinal("CreatedAt")),
+                    ReadAt = reader.IsDBNull(reader.GetOrdinal("ReadAt")) ? null : reader.GetDateTime(reader.GetOrdinal("ReadAt"))
                 }, new SqlParameter("@UserID", userId));
             }
             catch (SqlException ex)
@@ -105,7 +107,16 @@ namespace BookMyFun.Repositories
         {
             try
             {
-                const string sql = "UPDATE dbo.UserNotifications SET IsRead = 1 WHERE NotificationID = @NotificationID AND UserID = @UserID;";
+                const string sql = @"
+                    IF COL_LENGTH('dbo.UserNotifications', 'ReadAt') IS NOT NULL
+                        UPDATE dbo.UserNotifications 
+                        SET IsRead = 1, ReadAt = COALESCE(ReadAt, SYSUTCDATETIME()) 
+                        WHERE NotificationID = @NotificationID AND UserID = @UserID;
+                    ELSE
+                        UPDATE dbo.UserNotifications 
+                        SET IsRead = 1 
+                        WHERE NotificationID = @NotificationID AND UserID = @UserID;";
+
                 int rows = await _db.ExecuteNonQueryAsync(sql,
                     new SqlParameter("@NotificationID", notificationId),
                     new SqlParameter("@UserID", userId));
@@ -120,6 +131,36 @@ namespace BookMyFun.Repositories
             {
                 _logger.LogWarning(ex, "Unexpected error marking notification #{NotificationId} as read.", notificationId);
                 return false;
+            }
+        }
+
+        public async Task<int> MarkExpiryNotificationsReadAsync(int userId)
+        {
+            try
+            {
+                const string sql = @"
+                    IF COL_LENGTH('dbo.UserNotifications', 'ReadAt') IS NOT NULL
+                        UPDATE dbo.UserNotifications 
+                        SET IsRead = 1, ReadAt = COALESCE(ReadAt, SYSUTCDATETIME()) 
+                        WHERE UserID = @UserID AND IsRead = 0 
+                          AND (Title LIKE '%Subscription Expired%' OR Title LIKE '%Subscription Active%' OR Title LIKE '%Plan Activated%' OR Title LIKE '%Subscription%');
+                    ELSE
+                        UPDATE dbo.UserNotifications 
+                        SET IsRead = 1 
+                        WHERE UserID = @UserID AND IsRead = 0 
+                          AND (Title LIKE '%Subscription Expired%' OR Title LIKE '%Subscription Active%' OR Title LIKE '%Plan Activated%' OR Title LIKE '%Subscription%');";
+
+                return await _db.ExecuteNonQueryAsync(sql, new SqlParameter("@UserID", userId));
+            }
+            catch (SqlException ex)
+            {
+                _logger.LogWarning(ex, "Failed to mark expiry notifications as read for UserID #{UserId}.", userId);
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Unexpected error marking expiry notifications as read for UserID #{UserId}.", userId);
+                return 0;
             }
         }
 

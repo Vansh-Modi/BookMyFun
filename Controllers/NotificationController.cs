@@ -43,9 +43,11 @@ namespace BookMyFun.Controllers
 
             var items = new List<object>();
 
-            if (dbNotifs != null && dbNotifs.Any())
+            // Bell notification: shows unread notifications for the current user only
+            var unreadDb = dbNotifs?.Where(n => !n.IsRead).Take(15).ToList();
+            if (unreadDb != null && unreadDb.Any())
             {
-                foreach (var n in dbNotifs)
+                foreach (var n in unreadDb)
                 {
                     items.Add(new
                     {
@@ -61,7 +63,8 @@ namespace BookMyFun.Controllers
             }
             else
             {
-                foreach (var n in memNotifs.Take(15))
+                var unreadMem = memNotifs.Where(n => !n.IsRead).Take(15).ToList();
+                foreach (var n in unreadMem)
                 {
                     items.Add(new
                     {

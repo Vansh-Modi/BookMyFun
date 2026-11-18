@@ -96,8 +96,23 @@ namespace BookMyFun.Tests
             public Task<bool> MarkAsReadAsync(int notificationId, int userId)
             {
                 var n = Notifications.FirstOrDefault(x => x.NotificationID == notificationId && x.UserID == userId);
-                if (n != null) n.IsRead = true;
+                if (n != null)
+                {
+                    n.IsRead = true;
+                    n.ReadAt = DateTime.UtcNow;
+                }
                 return Task.FromResult(true);
+            }
+
+            public Task<int> MarkExpiryNotificationsReadAsync(int userId)
+            {
+                var unreadExpiry = Notifications.Where(x => x.UserID == userId && !x.IsRead && (x.Title.Contains("Subscription Expired") || x.Title.Contains("Subscription Active") || x.Title.Contains("Plan Activated") || x.Title.Contains("Subscription"))).ToList();
+                foreach (var n in unreadExpiry)
+                {
+                    n.IsRead = true;
+                    n.ReadAt = DateTime.UtcNow;
+                }
+                return Task.FromResult(unreadExpiry.Count);
             }
 
             public Task<bool> TryRecordDispatchAsync(string notificationKey)

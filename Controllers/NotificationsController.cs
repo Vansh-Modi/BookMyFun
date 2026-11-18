@@ -21,13 +21,14 @@ namespace BookMyFun.Controllers
         {
             int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var notifications = await _notificationRepo.GetUserNotificationsAsync(userId, limit);
+            var unreadNotifications = notifications.Where(n => !n.IsRead).ToList();
             int unreadCount = await _notificationRepo.GetUnreadCountAsync(userId);
 
             return Json(new
             {
                 success = true,
                 unreadCount,
-                notifications
+                notifications = unreadNotifications
             });
         }
 
