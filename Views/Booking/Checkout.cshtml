@@ -604,7 +604,7 @@
                                     </div>
                                     <div>
                                         <h6 class="fw-bold mb-0 text-dark">Step 1: Choose Stay Purpose</h6>
-                                        <small class="text-muted">Select standard accommodation or plan a stay with celebration décor.</small>
+                                        <small class="text-muted" id="stayPurposeSubtitle">@(Model.IsEventServiceAvailable ? "Select standard accommodation or plan a stay with celebration décor." : "Select standard accommodation.")</small>
                                     </div>
                                 </div>
                                 <span class="badge bg-primary text-white rounded-pill px-2.5 py-1 small">Step 1</span>
@@ -618,15 +618,8 @@
                                 </div>
                             </div>
 
-                            <!-- 2-Day Lead Time Warning (Backward Compatibility) -->
-                            <div id="decorLeadTimeAlert" class="alert alert-warning border-0 small rounded-3 mb-3 d-none">
-                                <div class="d-flex align-items-center gap-2">
-                                    <i class="bi bi-exclamation-triangle-fill fs-5 text-warning flex-shrink-0"></i>
-                                    <div>
-                                        <strong>2-Day Advance Notice Required:</strong> Event setup &amp; floral décor services need at least 2 days' advance notice for crew dispatch and staging preparation.
-                                    </div>
-                                </div>
-                            </div>
+                            <!-- 2-Day Lead Time Warning (Removed from display as required by Part B) -->
+                            <div id="decorLeadTimeAlert" class="d-none" style="display:none;" aria-hidden="true"></div>
 
                             <!-- Two-Option Toggle: Standard Stay and Stay & Celebrate -->
                             <div class="btn-group w-100 p-1 bg-light rounded-pill border" role="group" aria-label="Stay Type Selection" id="stayTypeToggleGroup">
@@ -1408,10 +1401,8 @@ renderCompactCalendar();
                 lblEventStay.classList.remove('d-none');
                 lblEventStay.style.display = '';
             }
-            if (pageAlert) pageAlert.classList.add('d-none');
-        } else {
-            if (pageAlert) pageAlert.classList.remove('d-none');
         }
+        if (pageAlert) pageAlert.classList.add('d-none');
 
         return qualifies;
     }
@@ -1478,12 +1469,17 @@ renderCompactCalendar();
         const switchedAlert = document.getElementById('decorSwitchedAlert');
         const wasSelected = (toggleEventStay && toggleEventStay.checked) || confirmedEvent.isConfirmed;
         const isUserChange = currentEligibilityIsUserChange;
+        const reasonCode = (data.reasonCode || '').toLowerCase();
+        const stayPurposeSub = document.getElementById('stayPurposeSubtitle');
 
         if (hasActiveDecoratorInput) {
             hasActiveDecoratorInput.value = (data.reason && data.reason.indexOf("No active") !== -1) ? 'false' : 'true';
         }
 
         if (qualifies) {
+            if (stayPurposeSub) {
+                stayPurposeSub.textContent = 'Select standard accommodation or plan a stay with celebration décor.';
+            }
             if (toggleEventStay) {
                 toggleEventStay.classList.remove('d-none');
                 toggleEventStay.style.display = '';
@@ -1493,7 +1489,10 @@ renderCompactCalendar();
                 lblEventStay.classList.remove('d-none');
                 lblEventStay.style.display = '';
             }
-            if (switchedAlert) switchedAlert.classList.add('d-none');
+            if (switchedAlert) {
+                switchedAlert.classList.add('d-none');
+                switchedAlert.innerHTML = '';
+            }
 
             // If we previously auto-switched to Standard Stay due to a date change, restore Event Stay
             if (autoSwitchedToStandard) {
@@ -1520,23 +1519,6 @@ renderCompactCalendar();
                 renderOccasionChips(data.availableCategories);
             }
         } else {
-            // Only switch to Standard Stay if the guest changed the dates and latest response says unavailable
-            // Never switch on page load, and never switch because of an older response
-            if (isUserChange && wasSelected) {
-                savedEventBeforeAutoSwitch = { ...confirmedEvent };
-                autoSwitchedToStandard = true;
-                switchToStandardStay();
-                if (switchedAlert) {
-                    const msg = data.reason || "Décor needs more than 48 hours' notice, so we've switched you to a standard stay.";
-                    switchedAlert.innerHTML = `
-                        <div class="d-flex align-items-center gap-2">
-                            <i class="bi bi-info-circle-fill text-primary fs-5 flex-shrink-0"></i>
-                            <div>${escapeHtml(msg)}</div>
-                        </div>`;
-                    switchedAlert.classList.remove('d-none');
-                }
-            }
-
             if (toggleEventStay) {
                 toggleEventStay.classList.add('d-none');
                 toggleEventStay.style.display = 'none';
@@ -1544,6 +1526,41 @@ renderCompactCalendar();
             if (lblEventStay) {
                 lblEventStay.classList.add('d-none');
                 lblEventStay.style.display = 'none';
+            }
+            if (stayPurposeSub) {
+                stayPurposeSub.textContent = 'Select standard accommodation.';
+            }
+
+            if (reasonCode === 'too_soon') {
+                // Show notice only if guest had Event Stay selected and changed the dates
+                if (isUserChange && wasSelected) {
+                    savedEventBeforeAutoSwitch = { ...confirmedEvent };
+                    autoSwitchedToStandard = true;
+                    switchToStandardStay();
+                    if (switchedAlert) {
+                        switchedAlert.innerHTML = `
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-info-circle-fill text-primary fs-5 flex-shrink-0"></i>
+                                <div>Décor needs more than 48 hours' notice, so we've switched you to a standard stay.</div>
+                            </div>`;
+                        switchedAlert.classList.remove('d-none');
+                    }
+                } else {
+                    if (switchedAlert) {
+                        switchedAlert.classList.add('d-none');
+                        switchedAlert.innerHTML = '';
+                    }
+                }
+            } else {
+                // no_area_coverage, no_verified_manager, no_approved_portfolio, property_not_live, etc.
+                // Hide option and show nothing about Event Stay. No notice, no banner, no placeholder text, no greyed-out button.
+                if (wasSelected) {
+                    switchToStandardStay();
+                }
+                if (switchedAlert) {
+                    switchedAlert.classList.add('d-none');
+                    switchedAlert.innerHTML = '';
+                }
             }
         }
     }
