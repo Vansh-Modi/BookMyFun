@@ -1448,6 +1448,7 @@ renderCompactCalendar();
 
         const seq = ++latestEligibilitySeq;
         const isUserChange = isUserDateChangeTriggered;
+        isUserDateChangeTriggered = false;
 
         try {
             const res = await fetch(`/Booking/CelebrationEligibility?propertyId=${propId}&checkIn=${encodeURIComponent(inVal)}&checkOut=${encodeURIComponent(outVal)}`);
