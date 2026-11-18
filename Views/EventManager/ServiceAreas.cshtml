@@ -7,18 +7,18 @@
     var allDisplayLocations = new List<string>();
     foreach (var loc in allLocations)
     {
-        var trimmed = loc.Trim();
-        if (!string.IsNullOrWhiteSpace(trimmed) && !allDisplayLocations.Contains(trimmed, StringComparer.OrdinalIgnoreCase))
+        var norm = BookMyFun.Controllers.EventManagerController.TryNormalizeArea(loc, out var n) ? n : loc.Trim();
+        if (!string.IsNullOrWhiteSpace(norm) && !allDisplayLocations.Contains(norm, StringComparer.OrdinalIgnoreCase))
         {
-            allDisplayLocations.Add(trimmed);
+            allDisplayLocations.Add(norm);
         }
     }
     foreach (var area in currentAreas)
     {
-        var trimmed = area.Trim();
-        if (!string.IsNullOrWhiteSpace(trimmed) && !allDisplayLocations.Contains(trimmed, StringComparer.OrdinalIgnoreCase))
+        var norm = BookMyFun.Controllers.EventManagerController.TryNormalizeArea(area, out var n) ? n : area.Trim();
+        if (!string.IsNullOrWhiteSpace(norm) && !allDisplayLocations.Contains(norm, StringComparer.OrdinalIgnoreCase))
         {
-            allDisplayLocations.Add(trimmed);
+            allDisplayLocations.Add(norm);
         }
     }
 }
