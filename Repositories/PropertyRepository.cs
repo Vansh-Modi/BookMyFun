@@ -7,7 +7,7 @@ namespace BookMyFun.Repositories
     public interface IPropertyRepository
     {
         Task<Property?> GetByIdAsync(int propertyId);
-        Task<bool> IsPropertyPubliclyVisibleAsync(Property? property) => Task.FromResult(property != null && property.IsApproved && (property.ListingStatus == "Live" || property.ListingStatus == "Active"));
+        Task<bool> IsPropertyPubliclyVisibleAsync(Property? property) => Task.FromResult(property != null && property.ListingStatus != "Unpublished" && property.ListingStatus != "Deactivated");
         Task<List<Property>> GetAllPropertiesAsync(bool onlyApproved = false);
         Task<List<Property>> GetPropertiesByOwnerIdAsync(int ownerId);
         Task<List<Property>> SearchPropertiesAsync(string? location, int? propertyTypeId, int? occasionId, decimal? minPrice, decimal? maxPrice, int? guests);
