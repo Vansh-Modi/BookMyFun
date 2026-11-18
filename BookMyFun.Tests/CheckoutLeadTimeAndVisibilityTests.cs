@@ -10,19 +10,18 @@ namespace BookMyFun.Tests
     public class CheckoutLeadTimeAndVisibilityTests
     {
         [Fact]
-        public void CheckoutView_ContainsCheckDecorLeadTimeDefinition_AndSectionHidingRules()
+        public void CheckoutView_DecorLeadTimeAndSectionHidingRules()
         {
             var checkoutPath = TestPathHelper.GetPath("Views", "Booking", "Checkout.cshtml");
             Assert.True(File.Exists(checkoutPath), $"Checkout.cshtml not found at {checkoutPath}");
             var content = File.ReadAllText(checkoutPath);
 
-            // Task 1: checkDecorLeadTime must be defined in javascript
-            Assert.Contains("function checkDecorLeadTime()", content);
-            Assert.Contains("decorLeadTimeAlert", content);
+            // checkDecorLeadTime replaced by server eligibility service
+            Assert.DoesNotContain("checkDecorLeadTime", content);
             Assert.Contains("decor-pkg-radio", content);
 
             // Lead time check hooked into date events and initial load
-            Assert.Contains("checkDecorLeadTime();", content);
+            Assert.Contains("fetchCelebrationEligibility();", content);
 
             // Task 2: Hide decor section when no event managers are available or occasion is None
             Assert.Contains("id=\"decorUpsellSection\"", content);

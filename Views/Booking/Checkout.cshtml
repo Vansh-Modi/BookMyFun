@@ -980,7 +980,6 @@ renderCompactCalendar();
                 
 renderCompactCalendar();
                 calculateLiveTotal();
-                checkDecorLeadTime();
                 scheduleDateChangeEligibility();
             }
         });
@@ -1000,7 +999,6 @@ renderCompactCalendar();
                 
 renderCompactCalendar();
                 calculateLiveTotal();
-                checkDecorLeadTime();
                 scheduleDateChangeEligibility();
             }
         });
@@ -1014,7 +1012,6 @@ renderCompactCalendar();
                 
 renderCompactCalendar();
                 calculateLiveTotal();
-                checkDecorLeadTime();
                 scheduleDateChangeEligibility();
             }
         });
@@ -1028,7 +1025,6 @@ renderCompactCalendar();
                 
 renderCompactCalendar();
                 calculateLiveTotal();
-                checkDecorLeadTime();
                 scheduleDateChangeEligibility();
             }
         });
@@ -1082,7 +1078,6 @@ renderCompactCalendar();
         
 renderCompactCalendar();
         calculateLiveTotal();
-        checkDecorLeadTime();
         scheduleDateChangeEligibility();
     });
 
@@ -1155,7 +1150,6 @@ renderCompactCalendar();
         
 renderCompactCalendar();
         calculateLiveTotal();
-        checkDecorLeadTime();
         scheduleDateChangeEligibility();
     }
 
@@ -1351,62 +1345,6 @@ renderCompactCalendar();
         return new Date(kolkataStr);
     }
 
-    function checkDecorLeadTime() {
-        const kolkataNow = getKolkataNow();
-        // 48 hours threshold in ms
-        const leadLimitMs = kolkataNow.getTime() + (48 * 60 * 60 * 1000);
-
-        let checkInDateTime = new Date(selStart || todayDate);
-        const hourlyTimeInput = document.getElementById('hourlyCheckInTime');
-        if (currentMode === 'Hourly' && hourlyTimeInput && hourlyTimeInput.value) {
-            const [h, m] = hourlyTimeInput.value.split(':').map(Number);
-            checkInDateTime.setHours(h, m, 0, 0);
-        } else {
-            checkInDateTime.setHours(12, 0, 0, 0);
-        }
-
-        const checkInMs = checkInDateTime.getTime();
-        // Rule: Check-in is MORE than 48 hours after current time. Exactly 48 hours is NOT allowed.
-        const isMoreThan48Hours = checkInMs > leadLimitMs;
-
-        // Area check: At least one verified active decorator serves area
-        const hasDecorator = hasActiveDecoratorInput?.value === 'true';
-
-        // Check if selected dates are blocked / taken
-        let isDateTaken = false;
-        if (selStart) {
-            const cur = new Date(selStart);
-            const end = (currentMode === 'FullDay' && selEnd) ? new Date(selEnd) : new Date(selStart);
-            while (cur < end || (cur.getTime() === end.getTime() && currentMode !== 'FullDay')) {
-                const ymd = formatYmd(cur);
-                if (blockedDatesList.includes(ymd)) {
-                    isDateTaken = true;
-                    break;
-                }
-                cur.setDate(cur.getDate() + 1);
-            }
-        }
-
-        const qualifies = isMoreThan48Hours && hasDecorator && !isDateTaken;
-
-        const switchedAlert = document.getElementById('decorSwitchedAlert');
-        const pageAlert = document.getElementById('decorLeadTimeAlert');
-
-        if (qualifies) {
-            if (toggleEventStay) {
-                toggleEventStay.classList.remove('d-none');
-                toggleEventStay.style.display = '';
-            }
-            if (lblEventStay) {
-                lblEventStay.classList.remove('d-none');
-                lblEventStay.style.display = '';
-            }
-        }
-        if (pageAlert) pageAlert.classList.add('d-none');
-
-        return qualifies;
-    }
-
     let latestEligibilitySeq = 0;
     let isUserDateChangeTriggered = false;
     let dateChangeDebounceTimer = null;
@@ -1570,7 +1508,6 @@ renderCompactCalendar();
         lastFocusedElement = document.activeElement;
         tempModalEvent = { ...confirmedEvent };
 
-        checkDecorLeadTime();
         loadStayAndCelebrateData();
 
         if (planEventModal) {
@@ -1847,7 +1784,6 @@ renderCompactCalendar();
         }
 
         calculateLiveTotal();
-        checkDecorLeadTime();
 
         if (planEventModal) {
             planEventModal.hide();
@@ -2460,7 +2396,6 @@ renderCompactCalendar();
     renderCompactCalendar();
     adaptIdValidation();
     calculateLiveTotal();
-    checkDecorLeadTime();
     fetchCelebrationEligibility();
 </script>
 }

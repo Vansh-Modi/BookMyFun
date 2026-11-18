@@ -911,7 +911,7 @@ namespace BookMyFun.Tests
             Assert.Contains("applyCelebrationEligibility(data);", html);
 
             // 2. Wired to visibleCheckIn, visibleCheckOut, visibleHalfDay, visibleHourly, cCalResetBtn, handleCompactCalClick
-            Assert.Contains("checkDecorLeadTime();", html);
+            Assert.DoesNotContain("checkDecorLeadTime", html);
             Assert.Contains("fetchCelebrationEligibility();", html);
 
             // 3. Message on switch matches exact requirement
