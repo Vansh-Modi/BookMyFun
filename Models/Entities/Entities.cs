@@ -16,6 +16,15 @@ namespace BookMyFun.Models.Entities
         public string? AuthProviderKey { get; set; }
         public string? ProfilePictureUrl { get; set; }
         public bool WhatsAppNotificationsEnabled { get; set; } = true;
+        public string VerificationStatus { get; set; } = "Verified"; // 'Pending', 'Verified', 'Rejected'
+        public int? YearsOfExperience { get; set; }
+        public string? Bio { get; set; }
+        public string? CancellationPolicy { get; set; }
+        public bool NotificationEmailEnabled { get; set; } = true;
+        public bool NotificationInAppEnabled { get; set; } = true;
+        public bool NotificationWhatsAppEnabled { get; set; } = false;
+        public bool WhatsAppVerified { get; set; } = false;
+        public string? WhatsAppPhone { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 
@@ -60,6 +69,9 @@ namespace BookMyFun.Models.Entities
         public int DurationInDays { get; set; }
         public int MaxListings { get; set; }
         public bool IsActive { get; set; } = true;
+        public decimal CurrentPrice { get; set; }
+        public decimal? UpcomingPrice { get; set; }
+        public DateTime? UpcomingPriceDate { get; set; }
     }
 
     public class OwnerSubscription
@@ -71,10 +83,13 @@ namespace BookMyFun.Models.Entities
         public DateTime EndDate { get; set; }
         public string PaymentStatus { get; set; } = "Pending"; // 'Paid', 'Pending', 'Expired'
         public string? GatewayTransactionID { get; set; }
+        public decimal? PricePaid { get; set; }
 
         // Navigation helpers
         public string? PlanName { get; set; }
         public string? OwnerName { get; set; }
+        public int MaxListings { get; set; } = 1;
+        public bool IsTrial => PaymentStatus == "Trial";
     }
 
     public class Property
@@ -103,6 +118,20 @@ namespace BookMyFun.Models.Entities
         public string ListingStatus { get; set; } = "Draft"; // 'Draft', 'PendingPayment', 'Active', 'Expired'
         public bool IsApproved { get; set; }
         public bool IsFeatured { get; set; }
+        public string? CaretakerName { get; set; }
+        public string? CaretakerPhone { get; set; }
+        public bool OwnerIsCaretaker { get; set; } = false;
+        public string? Pincode { get; set; }
+        public string? NearbyAreaOrRoad { get; set; }
+        public string? City { get; set; }
+        public string? State { get; set; }
+        public bool MapUrlLocked { get; set; } = false;
+        public int? CreatedByUserID { get; set; }
+        public DateTime? ApprovedAt { get; set; }
+        public int? ApprovedByUserID { get; set; }
+        public DateTime? PublishedAt { get; set; }
+        public string? UnpublishReason { get; set; }
+        public string? RejectionReason { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Joined properties
@@ -203,6 +232,7 @@ namespace BookMyFun.Models.Entities
         public int PaymentID { get; set; }
         public int BookingID { get; set; }
         public string? GatewayTransactionID { get; set; }
+        public decimal? PricePaid { get; set; }
         public decimal Amount { get; set; }
         public string PaymentStatus { get; set; } = "Pending"; // 'Success', 'Failed'
         public DateTime PaymentDate { get; set; } = DateTime.UtcNow;
@@ -429,5 +459,41 @@ namespace BookMyFun.Models.Entities
         public DateTime AcceptedAt { get; set; } = DateTime.UtcNow;
         public string? IpAddress { get; set; }
         public string? PageUrl { get; set; }
+    }
+
+    public class SubscriptionPlanPrice
+    {
+        public int PriceID { get; set; }
+        public int PlanID { get; set; }
+        public decimal Price { get; set; }
+        public DateTime EffectiveFrom { get; set; }
+        public DateTime? EffectiveTo { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public string? PlanName { get; set; }
+    }
+
+    public class EventManagerPortfolio
+    {
+        public int PortfolioID { get; set; }
+        public int UserID { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string MediaUrl { get; set; } = string.Empty;
+        public string MediaType { get; set; } = "image"; // 'image', 'video'
+        public bool IsApproved { get; set; } = true;
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public string? ManagerName { get; set; }
+    }
+
+    public class FlaggedContactAttempt
+    {
+        public int FlagID { get; set; }
+        public int UserID { get; set; }
+        public string ContentType { get; set; } = string.Empty; // 'Bio', 'PackageDescription', 'PortfolioCaption', 'Review', 'ChatMessage'
+        public string RawContent { get; set; } = string.Empty;
+        public string FlaggedPatterns { get; set; } = string.Empty;
+        public string Status { get; set; } = "PendingReview"; // 'PendingReview', 'Reviewed', 'ActionTaken', 'Dismissed'
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public string? UserName { get; set; }
     }
 }

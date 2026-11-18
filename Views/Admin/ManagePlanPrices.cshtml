@@ -1,0 +1,122 @@
+@model BookMyFun.Models.ViewModels.PlanPriceCreateViewModel
+@{
+    ViewData["Title"] = "Manage Subscription Plan Prices";
+    var plan = ViewBag.Plan as BookMyFun.Models.Entities.SubscriptionPlan;
+    var prices = ViewBag.Prices as List<BookMyFun.Models.Entities.SubscriptionPlanPrice> ?? new();
+}
+
+<div class="dash-page-header mb-4">
+    <div>
+        <p class="dash-eyebrow">Platform Administration · Monetization &amp; Billing</p>
+        <h1 class="dash-title">Effective-Dated Prices for @plan?.PlanName</h1>
+        <p class="dash-subtitle">Schedule price changes over time with start and optional end dates. Existing active subscriptions retain their purchase price; new purchases use the price effective on the date of checkout.</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Schedule New Price Form -->
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm rounded-4 bg-card">
+            <div class="card-header bg-white py-3 border-bottom">
+                <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-tag-fill text-primary me-2"></i>Schedule New Effective Price</h5>
+            </div>
+            <div class="card-body p-4">
+                <form asp-action="CreatePlanPrice" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="PlanID" />
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-dark">Plan Name</label>
+                        <input type="text" class="form-control bg-light" value="@plan?.PlanName (Current Base: ₹@plan?.Price.ToString("N0"))" readonly />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-dark">New Price (₹) <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light fw-bold">₹</span>
+                            <input asp-for="Price" type="number" step="0.01" min="1" class="form-control" placeholder="e.g. 5999" required />
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-dark">Effective Start Date <span class="text-danger">*</span></label>
+                        <input asp-for="EffectiveFrom" type="date" class="form-control" required />
+                        <small class="form-text text-muted">Date when this price begins applying to new subscription checkouts.</small>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label small fw-semibold text-dark">Optional Effective End Date</label>
+                        <input asp-for="EffectiveTo" type="date" class="form-control" />
+                        <small class="form-text text-muted">Leave blank if this price remains active indefinitely until next change.</small>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 rounded-pill py-2.5 fw-bold shadow-sm">
+                        <i class="bi bi-calendar-check me-1"></i> Save Effective Price Schedule
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Existing Price Schedule Table -->
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-card">
+            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-clock-history text-secondary me-2"></i>Historical &amp; Scheduled Prices</h5>
+                <span class="badge bg-light text-dark border">@prices.Count Records</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Price ID</th>
+                            <th>Effective Price</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!prices.Any())
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">
+                                    No custom effective-dated prices configured yet. Default base price applies (₹@plan?.Price.ToString("N0")).
+                                </td>
+                            </tr>
+                        }
+                        @foreach (var pr in prices)
+                        {
+                            var isCurrent = pr.EffectiveFrom <= DateTime.UtcNow && (!pr.EffectiveTo.HasValue || pr.EffectiveTo.Value >= DateTime.UtcNow);
+                            var isUpcoming = pr.EffectiveFrom > DateTime.UtcNow;
+                            <tr>
+                                <td class="fw-bold">#@pr.PriceID</td>
+                                <td class="fw-bold fs-6 text-primary">₹@pr.Price.ToString("N0")</td>
+                                <td class="small text-muted">@pr.EffectiveFrom.ToString("dd MMM yyyy")</td>
+                                <td class="small text-muted">@(pr.EffectiveTo.HasValue ? pr.EffectiveTo.Value.ToString("dd MMM yyyy") : "Indefinite")</td>
+                                <td>
+                                    @if (isCurrent)
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1 rounded-pill small">
+                                            <i class="bi bi-check-circle-fill me-1"></i> Active Current
+                                        </span>
+                                    }
+                                    else if (isUpcoming)
+                                    {
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2.5 py-1 rounded-pill small">
+                                            <i class="bi bi-clock me-1"></i> Upcoming
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary px-2.5 py-1 rounded-pill small">Expired</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

@@ -210,7 +210,11 @@ namespace BookMyFun.Repositories
                     LEFT JOIN Users u ON a.PerformedByUserID = u.UserID
                     {whereSql}
                     ORDER BY a.Timestamp DESC
-                    OFFSET {offset} ROWS FETCH NEXT {pageSize} ROWS ONLY";
+                    OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
+
+                var dataParams = parameters.Select(p => new SqlParameter(p.ParameterName, p.Value)).ToList();
+                dataParams.Add(new SqlParameter("@Offset", offset));
+                dataParams.Add(new SqlParameter("@PageSize", pageSize));
 
                 var items = await _db.ExecuteReaderListAsync(dataSql, r => new AuditLog
                 {
@@ -223,7 +227,7 @@ namespace BookMyFun.Repositories
                     Timestamp = r.GetDateTime(r.GetOrdinal("Timestamp")),
                     PerformedByUserName = r.IsDBNull(r.GetOrdinal("PerformedByUserName")) ? null : r.GetString(r.GetOrdinal("PerformedByUserName")),
                     PerformedByUserEmail = r.IsDBNull(r.GetOrdinal("PerformedByUserEmail")) ? null : r.GetString(r.GetOrdinal("PerformedByUserEmail"))
-                }, parameters.ToArray());
+                }, dataParams.ToArray());
 
                 return (items, totalCount);
             }

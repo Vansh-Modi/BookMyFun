@@ -16,6 +16,14 @@ namespace BookMyFun.Services
             int maxHeight = 1080,
             long quality = 82L);
 
+        Task<(byte[] optimizedBytes, string extension, string contentType)> OptimizeAndWatermarkImageAsync(
+            Stream inputStream,
+            string originalExtension,
+            string watermarkText = "BOOKMYFUN",
+            int maxWidth = 1920,
+            int maxHeight = 1080,
+            long quality = 85L);
+
         bool IsImageExtension(string extension);
         bool IsModernImageFormat(string extension);
     }
@@ -169,5 +177,89 @@ namespace BookMyFun.Services
             }
             return null;
         }
+    
+        public async Task<(byte[] optimizedBytes, string extension, string contentType)> OptimizeAndWatermarkImageAsync(
+            Stream inputStream,
+            string originalExtension,
+            string watermarkText = "BOOKMYFUN",
+            int maxWidth = 1920,
+            int maxHeight = 1080,
+            long quality = 85L)
+        {
+            if (inputStream == null || inputStream.Length == 0)
+                throw new ValidationException("file", "Image stream is empty.");
+
+            if (inputStream.CanSeek) inputStream.Position = 0;
+
+            if (OperatingSystem.IsWindowsVersionAtLeast(6, 1))
+            {
+                try
+                {
+                    using var originalBitmap = new Bitmap(inputStream);
+                    int originalWidth = originalBitmap.Width;
+                    int originalHeight = originalBitmap.Height;
+
+                    int targetWidth = originalWidth;
+                    int targetHeight = originalHeight;
+
+                    if (originalWidth > maxWidth || originalHeight > maxHeight)
+                    {
+                        double ratioX = (double)maxWidth / originalWidth;
+                        double ratioY = (double)maxHeight / originalHeight;
+                        double ratio = Math.Min(ratioX, ratioY);
+
+                        targetWidth = Math.Max(1, (int)(originalWidth * ratio));
+                        targetHeight = Math.Max(1, (int)(originalHeight * ratio));
+                    }
+
+                    using var targetBitmap = new Bitmap(targetWidth, targetHeight, PixelFormat.Format32bppArgb);
+                    using (var graphics = Graphics.FromImage(targetBitmap))
+                    {
+                        graphics.CompositingQuality = CompositingQuality.HighQuality;
+                        graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                        graphics.SmoothingMode = SmoothingMode.HighQuality;
+                        graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+                        graphics.Clear(Color.White);
+                        graphics.DrawImage(originalBitmap, 0, 0, targetWidth, targetHeight);
+
+                        // Draw watermark branding in bottom-right corner
+                        int fontSize = Math.Max(14, targetWidth / 35);
+                        using var font = new Font("Arial", fontSize, FontStyle.Bold);
+                        string mark = $"✦ {watermarkText} VERIFIED";
+                        var size = graphics.MeasureString(mark, font);
+
+                        float x = targetWidth - size.Width - 20;
+                        float y = targetHeight - size.Height - 20;
+
+                        // Pill background
+                        using var brushBg = new SolidBrush(Color.FromArgb(160, 15, 23, 42)); // #0f172a at ~63%
+                        graphics.FillRectangle(brushBg, x - 10, y - 6, size.Width + 20, size.Height + 12);
+
+                        // Gold text
+                        using var brushText = new SolidBrush(Color.FromArgb(240, 245, 158, 11)); // #f59e0b
+                        graphics.DrawString(mark, font, brushText, x, y);
+                    }
+
+                    var jpegEncoder = GetEncoder(ImageFormat.Jpeg);
+                    if (jpegEncoder != null)
+                    {
+                        using var encoderParameters = new EncoderParameters(1);
+                        encoderParameters.Param[0] = new EncoderParameter(Encoder.Quality, Math.Clamp(quality, 40L, 100L));
+
+                        using var outputMs = new MemoryStream();
+                        targetBitmap.Save(outputMs, jpegEncoder, encoderParameters);
+                        return (outputMs.ToArray(), ".jpg", "image/jpeg");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "GDI+ watermarking exception; falling back to direct stream.");
+                }
+            }
+
+            return await OptimizeImageAsync(inputStream, originalExtension, maxWidth, maxHeight, quality);
+        }
+
     }
 }

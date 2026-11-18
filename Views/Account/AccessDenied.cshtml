@@ -1,0 +1,38 @@
+@{
+    ViewData["Title"] = "Access Restricted (403)";
+    Layout = "_Layout";
+    var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Client";
+    var (dashCtrl, dashAct) = BookMyFun.Services.Navigation.NavigationMenuDefinition.GetDashboardRouteForRole(userRole);
+    var dashTitle = BookMyFun.Services.Navigation.NavigationMenuDefinition.GetDashboardNameForRole(userRole);
+}
+
+<div class="container py-5 my-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-8 col-lg-6 text-center">
+            <div class="mb-4">
+                <div class="d-inline-flex align-items-center justify-content-center bg-light rounded-circle p-4 shadow-sm" style="width: 100px; height: 100px;">
+                    <i class="bi bi-shield-lock-fill fs-1 text-warning"></i>
+                </div>
+            </div>
+            <h1 class="h2 fw-bold text-dark mb-2">Access Restricted (403)</h1>
+            <p class="text-muted mb-4 lead fs-6">
+                You do not have permission to view or manage this section. Each dashboard is restricted to its authorized role.
+            </p>
+
+            <div class="d-flex flex-wrap justify-content-center gap-2">
+                @if (User.Identity?.IsAuthenticated == true)
+                {
+                    <a asp-controller="@dashCtrl" asp-action="@dashAct" class="btn btn-warning px-4 py-2 fw-semibold text-dark shadow-sm">
+                        <i class="bi bi-speedometer2 me-1"></i> Go to @dashTitle
+                    </a>
+                }
+                <button type="button" class="btn btn-outline-secondary px-4 py-2" onclick="if(history.length > 1){ history.back(); } else { window.location.href='/'; }">
+                    <i class="bi bi-arrow-left me-1"></i> Go Back
+                </button>
+                <a asp-controller="Home" asp-action="Index" class="btn btn-primary px-4 py-2">
+                    <i class="bi bi-house me-1"></i> Go to Homepage
+                </a>
+            </div>
+        </div>
+    </div>
+</div>

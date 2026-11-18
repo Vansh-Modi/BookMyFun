@@ -9,12 +9,17 @@ namespace BookMyFun.Data
 
         public DBHelper(IConfiguration configuration)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection") 
-                ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+            _connectionString = configuration.GetConnectionString("DefaultConnection") ?? string.Empty;
         }
+
+        public bool IsConfigured => !string.IsNullOrWhiteSpace(_connectionString);
 
         public SqlConnection CreateConnection()
         {
+            if (string.IsNullOrWhiteSpace(_connectionString))
+            {
+                throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+            }
             return new SqlConnection(_connectionString);
         }
 

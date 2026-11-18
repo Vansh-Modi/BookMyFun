@@ -15,6 +15,12 @@ namespace BookMyFun.Data
 
         public async Task InitializeAsync()
         {
+            if (!_dbHelper.IsConfigured)
+            {
+                _logger.LogWarning("Database initialization skipped: Configuration key 'ConnectionStrings:DefaultConnection' is missing, empty, or rejected.");
+                return;
+            }
+
             try
             {
                 var script = @"
@@ -81,6 +87,19 @@ BEGIN
         ALTER TABLE Users ADD WhatsAppNotificationsEnabled BIT NOT NULL DEFAULT 1 WITH VALUES;
     END
 
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Users') AND name = 'VerificationStatus')
+    BEGIN
+        ALTER TABLE Users ADD VerificationStatus NVARCHAR(30) NOT NULL DEFAULT 'Verified' WITH VALUES;
+        ALTER TABLE Users ADD YearsOfExperience INT NULL;
+        ALTER TABLE Users ADD Bio NVARCHAR(MAX) NULL;
+        ALTER TABLE Users ADD CancellationPolicy NVARCHAR(MAX) NULL;
+        ALTER TABLE Users ADD NotificationEmailEnabled BIT NOT NULL DEFAULT 1 WITH VALUES;
+        ALTER TABLE Users ADD NotificationInAppEnabled BIT NOT NULL DEFAULT 1 WITH VALUES;
+        ALTER TABLE Users ADD NotificationWhatsAppEnabled BIT NOT NULL DEFAULT 0 WITH VALUES;
+        ALTER TABLE Users ADD WhatsAppVerified BIT NOT NULL DEFAULT 0 WITH VALUES;
+        ALTER TABLE Users ADD WhatsAppPhone NVARCHAR(20) NULL;
+    END
+
     -- Ensure Role CHECK constraint supports all 5 roles (Admin, Employee, Owner, Client, EventManager)
     DECLARE @RoleConstraint NVARCHAR(200);
     SELECT @RoleConstraint = cc.name 
@@ -118,6 +137,18 @@ IF NOT EXISTS (SELECT 1 FROM SiteSettings WHERE SettingKey = 'PlatformCommission
 BEGIN
     INSERT INTO SiteSettings (SettingKey, SettingValue, IsEncrypted, UpdatedAt)
     VALUES ('PlatformCommissionPercent', '10.0', 0, GETDATE());
+END
+
+IF NOT EXISTS (SELECT 1 FROM SiteSettings WHERE SettingKey = 'SiteName')
+BEGIN
+    INSERT INTO SiteSettings (SettingKey, SettingValue, IsEncrypted, UpdatedAt)
+    VALUES ('SiteName', 'BookMyFun', 0, GETDATE());
+END
+
+IF NOT EXISTS (SELECT 1 FROM SiteSettings WHERE SettingKey = 'CopyrightText')
+BEGIN
+    INSERT INTO SiteSettings (SettingKey, SettingValue, IsEncrypted, UpdatedAt)
+    VALUES ('CopyrightText', '© 2026 BookMyFun. All rights reserved.', 0, GETDATE());
 END
 
 -- Seed Refund Rules & Decision Placeholders (D1, D2, D3)
@@ -309,6 +340,11 @@ BEGIN
         ALTER TABLE Properties ADD IsFeatured BIT DEFAULT 0;
     END
 
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Properties') AND name = 'IsFeatured')
+    BEGIN
+        ALTER TABLE Properties ADD IsFeatured BIT DEFAULT 0;
+    END
+
     IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Properties') AND name = 'MapUrl')
     BEGIN
         ALTER TABLE Properties ADD MapUrl NVARCHAR(1000) NULL;
@@ -322,6 +358,33 @@ BEGIN
     IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Properties') AND name = 'MaxStayNights')
     BEGIN
         ALTER TABLE Properties ADD MaxStayNights INT NOT NULL DEFAULT 30;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Properties') AND name = 'CaretakerName')
+    BEGIN
+        ALTER TABLE Properties ADD CaretakerName NVARCHAR(100) NULL;
+        ALTER TABLE Properties ADD CaretakerPhone NVARCHAR(20) NULL;
+        ALTER TABLE Properties ADD OwnerIsCaretaker BIT NOT NULL DEFAULT 0 WITH VALUES;
+        ALTER TABLE Properties ADD Pincode NVARCHAR(10) NULL;
+        ALTER TABLE Properties ADD NearbyAreaOrRoad NVARCHAR(200) NULL;
+        ALTER TABLE Properties ADD City NVARCHAR(100) NULL;
+        ALTER TABLE Properties ADD State NVARCHAR(100) NULL;
+        ALTER TABLE Properties ADD MapUrlLocked BIT NOT NULL DEFAULT 0 WITH VALUES;
+    END
+
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Properties') AND name = 'CreatedByUserID')
+    BEGIN
+        ALTER TABLE Properties ADD CreatedByUserID INT NULL;
+        ALTER TABLE Properties ADD ApprovedAt DATETIME2 NULL;
+        ALTER TABLE Properties ADD ApprovedByUserID INT NULL;
+        ALTER TABLE Properties ADD PublishedAt DATETIME2 NULL;
+        ALTER TABLE Properties ADD UnpublishReason NVARCHAR(200) NULL;
+        ALTER TABLE Properties ADD RejectionReason NVARCHAR(500) NULL;
+    END
+
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Properties_OwnerID_ListingStatus' AND object_id = OBJECT_ID('Properties'))
+    BEGIN
+        CREATE NONCLUSTERED INDEX IX_Properties_OwnerID_ListingStatus ON Properties (OwnerID, ListingStatus);
     END
 
     -- Ensure ListingStatus CHECK constraint supports Deactivated and Rejected
@@ -347,9 +410,29 @@ BEGIN
         PlanID INT NOT NULL FOREIGN KEY REFERENCES SubscriptionPlans(PlanID),
         StartDate DATETIME2 NOT NULL,
         EndDate DATETIME2 NOT NULL,
-        PaymentStatus NVARCHAR(20) CHECK (PaymentStatus IN ('Paid', 'Pending', 'Expired')) DEFAULT 'Pending',
-        GatewayTransactionID NVARCHAR(100)
+        PaymentStatus NVARCHAR(20) CHECK (PaymentStatus IN ('Paid', 'Pending', 'Expired', 'Scheduled', 'Cancelled')) DEFAULT 'Pending',
+        GatewayTransactionID NVARCHAR(100),
+        PricePaid DECIMAL(18,2) NULL
     );
+END
+ELSE
+BEGIN
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('OwnerSubscriptions') AND name = 'PricePaid')
+    BEGIN
+        ALTER TABLE OwnerSubscriptions ADD PricePaid DECIMAL(18,2) NULL;
+    END
+
+    DECLARE @SubStatusConstraint NVARCHAR(200);
+    SELECT @SubStatusConstraint = cc.name 
+    FROM sys.check_constraints cc
+    JOIN sys.columns c ON cc.parent_object_id = c.object_id AND cc.parent_column_id = c.column_id
+    WHERE cc.parent_object_id = OBJECT_ID('OwnerSubscriptions') AND c.name = 'PaymentStatus';
+
+    IF @SubStatusConstraint IS NOT NULL AND @SubStatusConstraint <> 'CK_OwnerSubscriptions_PaymentStatus_V2'
+    BEGIN
+        EXEC('ALTER TABLE OwnerSubscriptions DROP CONSTRAINT ' + @SubStatusConstraint);
+        ALTER TABLE OwnerSubscriptions ADD CONSTRAINT CK_OwnerSubscriptions_PaymentStatus_V3 CHECK (PaymentStatus IN ('Trial', 'Paid', 'Pending', 'Expired', 'Scheduled', 'Cancelled'));
+    END
 END
 
 -- 10. PropertyOccasions Table
@@ -919,6 +1002,56 @@ BEGIN
         NotificationKey NVARCHAR(200) PRIMARY KEY,
         DispatchedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
     );
+END
+
+-- 32. SubscriptionPlanPrices Table (Effective-dated pricing)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'SubscriptionPlanPrices')
+BEGIN
+    CREATE TABLE SubscriptionPlanPrices (
+        PriceID INT IDENTITY(1,1) PRIMARY KEY,
+        PlanID INT NOT NULL FOREIGN KEY REFERENCES SubscriptionPlans(PlanID) ON DELETE CASCADE,
+        Price DECIMAL(18,2) NOT NULL,
+        EffectiveFrom DATETIME2 NOT NULL,
+        EffectiveTo DATETIME2 NULL,
+        CreatedAt DATETIME2 DEFAULT GETUTCDATE()
+    );
+END
+
+-- 33. EventManagerPortfolios Table
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'EventManagerPortfolios')
+BEGIN
+    CREATE TABLE EventManagerPortfolios (
+        PortfolioID INT IDENTITY(1,1) PRIMARY KEY,
+        UserID INT NOT NULL FOREIGN KEY REFERENCES Users(UserID) ON DELETE CASCADE,
+        Title NVARCHAR(150) NOT NULL,
+        Description NVARCHAR(MAX) NULL,
+        MediaUrl NVARCHAR(MAX) NOT NULL,
+        MediaType NVARCHAR(20) DEFAULT 'image',
+        IsApproved BIT DEFAULT 1,
+        CreatedAt DATETIME2 DEFAULT GETUTCDATE()
+    );
+END
+
+-- 34. FlaggedContactAttempts Table
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'FlaggedContactAttempts')
+BEGIN
+    CREATE TABLE FlaggedContactAttempts (
+        FlagID INT IDENTITY(1,1) PRIMARY KEY,
+        UserID INT NOT NULL,
+        ContentType NVARCHAR(50) NOT NULL,
+        RawContent NVARCHAR(MAX) NOT NULL,
+        FlaggedPatterns NVARCHAR(500) NOT NULL,
+        Status NVARCHAR(30) DEFAULT 'PendingReview',
+        CreatedAt DATETIME2 DEFAULT GETUTCDATE()
+    );
+END
+
+-- 35. Fix EventPackages ownership: assign unowned packages to the seeded event manager
+IF EXISTS (SELECT * FROM sys.tables WHERE name = 'EventPackages') AND EXISTS (SELECT * FROM sys.tables WHERE name = 'Users')
+BEGIN
+    UPDATE EventPackages 
+    SET CreatedByUserID = (SELECT TOP 1 UserID FROM Users WHERE Role = 'EventManager')
+    WHERE CreatedByUserID IS NULL;
 END
 ";
 

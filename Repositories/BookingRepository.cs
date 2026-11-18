@@ -93,8 +93,9 @@ namespace BookMyFun.Repositories
 
         public async Task<List<Booking>> GetByOwnerIdAsync(int ownerId)
         {
+            // CRITICAL PRIVACY (Section 2B): Never return guest phone or email to owner API/UI
             const string sql = @"
-                SELECT b.*, p.Title AS PropertyTitle, u.FullName AS ClientName, u.Email AS ClientEmail, u.Phone AS ClientPhone, o.OccasionName,
+                SELECT b.*, p.Title AS PropertyTitle, u.FullName AS ClientName, CAST(NULL AS NVARCHAR(100)) AS ClientEmail, CAST(NULL AS NVARCHAR(20)) AS ClientPhone, o.OccasionName,
                        ep.Name AS EventPackageName, dec.FullName AS DecoratorName
                 FROM Bookings b
                 JOIN Properties p ON b.PropertyID = p.PropertyID

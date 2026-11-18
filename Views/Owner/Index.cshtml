@@ -1,18 +1,34 @@
 @model BookMyFun.Models.ViewModels.OwnerDashboardViewModel
 @{
     ViewData["Title"] = "Owner Partner Dashboard";
+    var scheduledSub = ViewBag.ScheduledSub as BookMyFun.Models.Entities.OwnerSubscription;
+    var notifPrefs = ViewBag.NotificationPreferences as BookMyFun.Models.ViewModels.OwnerNotificationPreferencesViewModel;
 }
 
 <!-- Page Header -->
-<div class="dash-page-header">
+<div class="dash-page-header mb-4">
     <div>
         <p class="dash-eyebrow">Partner Portal · Hosting Operations</p>
         <h1 class="dash-title">Owner Dashboard</h1>
-        <p class="dash-subtitle">Welcome back, <strong>@Model.Owner.FullName</strong> · Track your property performance, subscription allowance, and net earnings.</p>
+        <p class="dash-subtitle">Welcome back, <strong>@Model.Owner.FullName</strong> · Track your property listings, booking reservations, and net payouts.</p>
     </div>
     <div class="dash-actions">
-        <a asp-action="CreateProperty" class="dash-btn dash-btn-primary">
-            <i class="bi bi-plus-lg"></i> List New Property
+        @if (Model.CanAddProperty)
+        {
+            <a asp-action="CreateProperty" class="dash-btn dash-btn-primary">
+                <i class="bi bi-plus-lg"></i> List New Property
+            </a>
+        }
+        else
+        {
+            <span class="d-inline-block" tabindex="0" data-bs-toggle="tooltip" title="@(Model.AddPropertyDisabledReason ?? "Upgrade your plan to list more properties.")">
+                <button type="button" class="dash-btn dash-btn-primary disabled" style="pointer-events: none; opacity: 0.65;">
+                    <i class="bi bi-plus-lg"></i> List New Property
+                </button>
+            </span>
+        }
+        <a asp-action="NotificationSettings" class="dash-btn dash-btn-outline" style="border-color: var(--brand-amber); color: var(--brand-amber);">
+            <i class="bi bi-bell-fill"></i> Notification Channels
         </a>
         <a asp-action="DamageClaims" class="dash-btn dash-btn-outline">
             <i class="bi bi-shield-shaded"></i> Damage Claims
@@ -23,8 +39,43 @@
     </div>
 </div>
 
+@if (scheduledSub != null)
+{
+    <div class="alert alert-info border-0 shadow-sm rounded-4 mb-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div class="d-flex align-items-center gap-3">
+            <div class="rounded-circle bg-info bg-opacity-25 p-2.5 text-info">
+                <i class="bi bi-clock-history fs-4"></i>
+            </div>
+            <div>
+                <strong class="text-dark d-block">Upcoming Scheduled Plan: @scheduledSub.PlanName</strong>
+                <span class="small text-muted">Automatically takes effect on <strong>@scheduledSub.StartDate.ToString("dd MMM yyyy")</strong> when your active subscription completes.</span>
+            </div>
+        </div>
+        <form asp-action="CancelScheduledSubscription" method="post" class="d-inline" onsubmit="return confirm('Cancel this upcoming scheduled renewal for @scheduledSub.PlanName?');">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@scheduledSub.SubscriptionID" />
+            <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3 py-1.5 fw-semibold">
+                <i class="bi bi-x-circle me-1"></i> Cancel Scheduled Plan
+            </button>
+        </form>
+    </div>
+}
+
+@if (!Model.CanAddProperty)
+{
+    <div class="alert alert-warning border-0 shadow-sm rounded-4 mb-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-exclamation-triangle-fill fs-5 text-warning"></i>
+            <span class="small fw-semibold text-dark">@(Model.AddPropertyDisabledReason ?? "Your subscription has ended. Choose a plan to add listings.")</span>
+        </div>
+        <a asp-action="Subscriptions" class="btn btn-sm btn-warning rounded-pill px-3 py-1 fw-bold text-dark text-nowrap">
+            <i class="bi bi-gem me-1"></i>Upgrade Plan
+        </a>
+    </div>
+}
+
 <!-- Stat Cards Grid -->
-<div class="dash-stat-grid">
+<div class="dash-stat-grid mb-4">
     <a asp-action="Subscriptions" class="dash-stat-card text-decoration-none">
         <div class="dash-stat-top">
             <span class="dash-stat-label">Subscription Status</span>
@@ -34,8 +85,20 @@
         </div>
         @if (Model.ActiveSubscription != null)
         {
-            <div class="dash-stat-val text-success" style="font-size: 1.5rem;">@Model.ActiveSubscription.PlanName</div>
-            <div class="dash-stat-sub"><i class="bi bi-calendar-check me-1"></i>Valid till @Model.ActiveSubscription.EndDate.ToString("MMM dd, yyyy")</div>
+            var isTrial = Model.ActiveSubscription.IsTrial ||
+                          string.Equals(Model.ActiveSubscription.PaymentStatus, "Trial", StringComparison.OrdinalIgnoreCase) ||
+                          string.Equals(Model.ActiveSubscription.PlanName, "Free Trial", StringComparison.OrdinalIgnoreCase);
+            if (isTrial)
+            {
+                var daysLeft = Math.Max(0, (int)Math.Ceiling((Model.ActiveSubscription.EndDate - DateTime.UtcNow).TotalDays));
+                <div class="dash-stat-val text-success" style="font-size: 1.35rem;">Free Trial &middot; @daysLeft days left</div>
+                <div class="dash-stat-sub"><i class="bi bi-calendar-check me-1"></i>Valid till @Model.ActiveSubscription.EndDate.ToString("dd MMM yyyy")</div>
+            }
+            else
+            {
+                <div class="dash-stat-val text-success" style="font-size: 1.5rem;">@Model.ActiveSubscription.PlanName</div>
+                <div class="dash-stat-sub"><i class="bi bi-calendar-check me-1"></i>Active until @Model.ActiveSubscription.EndDate.ToString("dd MMM yyyy")</div>
+            }
         }
         else
         {
@@ -46,66 +109,374 @@
 
     <a asp-action="CreateProperty" class="dash-stat-card text-decoration-none">
         <div class="dash-stat-top">
-            <span class="dash-stat-label">Listing Quota</span>
+            <span class="dash-stat-label">Listing Allowance</span>
             <span class="dash-stat-icon icon-blue"><i class="bi bi-house-door-fill"></i></span>
         </div>
-        <div class="dash-stat-val">@Model.ActiveListingsCount <span class="text-muted fs-5 fw-normal">/ @Model.MaxListingsAllowed</span></div>
-        <div class="dash-stat-sub">Active Listings / Maximum Allowed</div>
+        <div class="dash-stat-val">@Model.TotalCountedListings <span class="text-muted fs-5 fw-normal">/ @Model.MaxListingsAllowed</span></div>
+        <div class="dash-stat-sub">Counted Listings / Maximum Allowed</div>
     </a>
 
-    <a asp-action="Subscriptions" class="dash-stat-card text-decoration-none">
+    <div class="dash-stat-card">
         <div class="dash-stat-top">
-            <span class="dash-stat-label">Host Earnings</span>
-            <span class="dash-stat-icon icon-amber"><i class="bi bi-wallet2"></i></span>
+            <span class="dash-stat-label">Total Payouts</span>
+            <span class="dash-stat-icon icon-emerald"><i class="bi bi-currency-rupee"></i></span>
         </div>
         <div class="dash-stat-val text-success">₹@Model.TotalEarnings.ToString("N2")</div>
-        <div class="dash-stat-sub">Total Payout for Completed Stays</div>
-    </a>
+        <div class="dash-stat-sub">Total Disbursed Net Earnings</div>
+    </div>
 </div>
 
-<!-- Main Details Grid -->
-<div class="row g-4">
-    <!-- Guest Bookings & Requests with Financial Transparency (Primary Section) -->
-    <div class="col-lg-8">
-        <div class="dash-card">
-            <div class="dash-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <div>
-                    <h3 class="dash-card-title mb-0"><i class="bi bi-cash-stack me-2 text-success"></i>Bookings &amp; Earnings Overview</h3>
-                    <small class="text-muted">Itemized stay revenue, platform commission deductions, and net host payouts</small>
-                </div>
-                <span class="dash-badge dash-badge-neutral">@Model.Bookings.Count total</span>
-            </div>
+<!-- ============================================================
+     SINGLE-COLUMN FULL-WIDTH STACKED LAYOUT (24px gap)
+     Section 2C: 1. Top Section "My Listings", 2. Bottom Section "Bookings & Earnings Overview"
+     ============================================================ -->
+<div class="owner-single-col-stack">
 
-            <!-- Booking Filter Tabs -->
-            <div class="p-3 border-bottom bg-light-subtle d-flex flex-wrap gap-2 align-items-center">
-                <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 filter-booking-btn active" onclick="filterOwnerBookings('all', this)">All (@Model.Bookings.Count)</button>
-                <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-booking-btn text-success" onclick="filterOwnerBookings('confirmed', this)">
+    <!-- 1. TOP SECTION: MY LISTINGS -->
+    <div class="dash-card">
+        <!-- Header row: title and icon on left, "+ Add" button on right -->
+        <div class="dash-card-header d-flex justify-content-between align-items-center">
+            <h3 class="dash-card-title mb-0">
+                <i class="bi bi-building text-primary me-2"></i>My Listings
+            </h3>
+            @if (Model.CanAddProperty)
+            {
+                <a asp-action="CreateProperty" class="btn btn-sm btn-primary rounded-pill px-3 py-1 fw-bold">
+                    <i class="bi bi-plus-lg me-1"></i>+ Add
+                </a>
+            }
+            else
+            {
+                <span class="d-inline-block" tabindex="0" data-bs-toggle="tooltip" title="@(Model.AddPropertyDisabledReason ?? "Upgrade your plan to list more properties.")">
+                    <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 py-1 fw-bold disabled" style="pointer-events: none; opacity: 0.65;">
+                        <i class="bi bi-plus-lg me-1"></i>+ Add
+                    </button>
+                </span>
+            }
+        </div>
+
+        <!-- Filter pills in one horizontal row: All, Live, Unpublished, Review, Rejected, with counts -->
+        <div class="p-3 border-bottom bg-light-subtle">
+            <div class="horizontal-pills-row">
+                <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 filter-owner-prop-btn active text-nowrap" onclick="filterOwnerProps('all', this)">
+                    All (@Model.Properties.Count)
+                </button>
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-owner-prop-btn text-success text-nowrap" onclick="filterOwnerProps('approved', this)">
+                    <i class="bi bi-check-circle-fill me-1"></i> Live (@Model.LiveListingsCount)
+                </button>
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-owner-prop-btn text-secondary text-nowrap" onclick="filterOwnerProps('deactivated', this)">
+                    <i class="bi bi-pause-circle-fill me-1"></i> Unpublished (@Model.Properties.Count(p => p.ListingStatus == "Deactivated"))
+                </button>
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-owner-prop-btn text-info-emphasis text-nowrap" onclick="filterOwnerProps('approved_draft', this)">
+                    <i class="bi bi-check2-circle me-1"></i> Approved (@Model.Properties.Count(p => p.IsApproved && p.ListingStatus == "Draft"))
+                </button>
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-owner-prop-btn text-warning text-nowrap" onclick="filterOwnerProps('waiting', this)">
+                    <i class="bi bi-clock-fill me-1"></i> Review (@Model.Properties.Count(p => !p.IsApproved && p.ListingStatus == "Draft"))
+                </button>
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-owner-prop-btn text-danger text-nowrap" onclick="filterOwnerProps('rejected', this)">
+                    <i class="bi bi-x-circle-fill me-1"></i> Rejected (@Model.Properties.Count(p => p.ListingStatus == "Rejected"))
+                </button>
+            </div>
+        </div>
+
+        <!-- Listing cards container: Single row on small screens, 2-3 cards grid on desktop -->
+        <div class="p-3">
+            @if (!Model.Properties.Any())
+            {
+                <div class="p-5 text-center text-muted">
+                    <i class="bi bi-house-add fs-1 text-muted opacity-50 d-block mb-3"></i>
+                    <h5 class="fw-bold">No properties listed yet</h5>
+                    <p class="small text-muted mb-3">List your farmhouses and private villas to begin receiving guest reservations.</p>
+                    <a asp-action="CreateProperty" class="btn btn-primary rounded-pill px-4">List Your First Farm</a>
+                </div>
+            }
+            else
+            {
+                <div class="listing-cards-grid" id="ownerPropsTrack">
+                    @foreach (var p in Model.Properties)
+                    {
+                        var isDeactivated = p.ListingStatus == "Deactivated";
+                        var isApprovedDraft = p.IsApproved && p.ListingStatus == "Draft";
+                        var propStatus = p.ListingStatus == "Rejected" ? "rejected" : (isDeactivated ? "deactivated" : (p.IsApproved && p.ListingStatus == "Active" ? "approved" : (isApprovedDraft ? "approved_draft" : "waiting")));
+                        
+                        <div class="owner-listing-card-wrapper owner-prop-row" data-status="@propStatus">
+                            <!-- Inside each card, lay out horizontally: [name, location, map link status, category tag] | [price per night] | [Live or Unpublished badge] | [Edit and Unpublish buttons] -->
+                            <div class="card border border-subtle shadow-xs rounded-4 p-3 h-100 d-flex flex-column justify-content-between bg-card">
+                                <div>
+                                    <!-- Top Row: Name, Location, Badges -->
+                                    <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                                        <div class="overflow-hidden">
+                                            <h6 class="fw-bold text-dark mb-1 text-truncate" title="@p.Title">
+                                                <i class="bi bi-house-door text-primary me-1"></i>@p.Title
+                                            </h6>
+                                            <div class="small text-muted mb-2 text-truncate">
+                                                <i class="bi bi-geo-alt-fill text-danger me-1"></i>@p.Location
+                                            </div>
+                                        </div>
+                                        <!-- Live or Unpublished badge -->
+                                        <div>
+                                            @if (p.ListingStatus == "Rejected")
+                                            {
+                                                <span class="badge bg-danger rounded-pill"><i class="bi bi-x-circle-fill me-1"></i>Rejected</span>
+                                                @if (!string.IsNullOrWhiteSpace(p.RejectionReason))
+                                                {
+                                                    <div class="small text-danger mt-1 text-truncate" title="@p.RejectionReason" style="max-width: 170px;">
+                                                        <i class="bi bi-exclamation-circle me-1"></i>@p.RejectionReason
+                                                    </div>
+                                                }
+                                            }
+                                            else if (p.ListingStatus == "Deactivated")
+                                            {
+                                                if (p.UnpublishReason == "Subscription expired")
+                                                {
+                                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill"><i class="bi bi-calendar-x me-1"></i>Subscription expired</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary rounded-pill"><i class="bi bi-pause-circle-fill me-1"></i>Unpublished</span>
+                                                    @if (!string.IsNullOrWhiteSpace(p.UnpublishReason))
+                                                    {
+                                                        <div class="small text-muted mt-1 text-truncate" title="@p.UnpublishReason" style="max-width: 170px;">
+                                                            @p.UnpublishReason
+                                                        </div>
+                                                    }
+                                                }
+                                            }
+                                            else if (p.IsApproved && p.ListingStatus == "Active")
+                                            {
+                                                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill"><i class="bi bi-check-circle-fill me-1"></i>Live</span>
+                                            }
+                                            else if (p.IsApproved && p.ListingStatus == "Draft")
+                                            {
+                                                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle rounded-pill"><i class="bi bi-check2-circle me-1"></i>Approved</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill"><i class="bi bi-clock-fill me-1"></i>Review</span>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <!-- Tags Row: Category Tag & Map Link Status -->
+                                    <div class="d-flex flex-wrap gap-1.5 align-items-center mb-3">
+                                        <!-- Category tag -->
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-1 px-2 rounded-pill small">
+                                            <i class="bi bi-tag-fill me-1"></i>@(string.IsNullOrWhiteSpace(p.PropertyTypeName) ? "Farmhouse / Villa" : p.PropertyTypeName)
+                                        </span>
+                                        <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none small text-muted" data-bs-toggle="modal" data-bs-target="#modalAssignCategory_@p.PropertyID">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </button>
+
+                                        <!-- Map Link status & Lock rule -->
+                                        @if (!string.IsNullOrWhiteSpace(p.MapUrl))
+                                        {
+                                            <a href="@p.MapUrl" target="_blank" rel="noopener noreferrer" class="badge bg-success-subtle text-success border border-success-subtle text-decoration-none py-1 px-2 rounded-pill small" title="Direct Map Link Verified">
+                                                <i class="bi bi-pin-map-fill me-1"></i>Map Link
+                                            </a>
+                                            <button type="button" class="badge bg-light text-secondary border py-1 px-2 rounded-pill small btn border-0" data-bs-toggle="modal" data-bs-target="#modalRequestMapChange_@p.PropertyID" title="Map Link is locked. Click to request change.">
+                                                <i class="bi bi-lock-fill text-muted me-1"></i>Locked
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-light text-muted border py-1 px-2 rounded-pill small">
+                                                <i class="bi bi-geo me-1"></i>No Map URL
+                                            </span>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill py-0 px-2" style="font-size: 0.70rem;" data-bs-toggle="modal" data-bs-target="#modalRequestMapChange_@p.PropertyID">
+                                                Add Map Link
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+
+                                <!-- Bottom Row: Price Per Night & Action Buttons -->
+                                <div class="pt-2 border-top d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="small text-muted d-block" style="font-size: 0.7rem;">Base Rate</span>
+                                        <strong class="text-success fs-6">₹@p.PricePerNight.ToString("N0") <span class="text-muted fw-normal small">/ night</span></strong>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-1.5">
+                                        <a asp-action="EditProperty" asp-route-id="@p.PropertyID" class="btn btn-sm btn-outline-primary rounded-pill py-1 px-2.5 fw-semibold" style="font-size: 0.75rem;">
+                                            <i class="bi bi-pencil me-1"></i>Edit
+                                        </a>
+                                        @if (p.ListingStatus == "Active")
+                                        {
+                                            <form asp-action="UnpublishProperty" asp-route-id="@p.PropertyID" method="post" class="d-inline" onsubmit="return confirm('Unpublish @p.Title? It will be hidden from travelers.');">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-sm btn-outline-warning rounded-pill py-1 px-2.5 fw-semibold" style="font-size: 0.75rem;" title="Unpublish">
+                                                    <i class="bi bi-pause-circle me-1"></i>Unpublish
+                                                </button>
+                                            </form>
+                                        }
+                                        else if ((p.IsApproved && p.ListingStatus == "Draft") || p.ListingStatus == "Deactivated")
+                                        {
+                                            var hasActivePlan = Model.ActiveSubscription != null;
+                                            var canPublish = hasActivePlan && (Model.LiveListingsCount < Model.MaxListingsAllowed);
+                                            string? pubBlockReason = null;
+                                            if (!hasActivePlan)
+                                            {
+                                                pubBlockReason = "Your subscription has ended. Choose a plan to publish listings.";
+                                            }
+                                            else if (Model.LiveListingsCount >= Model.MaxListingsAllowed)
+                                            {
+                                                pubBlockReason = $"Live listing allowance reached ({Model.LiveListingsCount} / {Model.MaxListingsAllowed}). Upgrade your plan to publish more listings.";
+                                            }
+
+                                            if (canPublish)
+                                            {
+                                                <form asp-action="PublishProperty" asp-route-id="@p.PropertyID" method="post" class="d-inline" onsubmit="return confirm('Publish and activate @p.Title?');">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-sm btn-outline-success rounded-pill py-1 px-2.5 fw-semibold" style="font-size: 0.75rem;" title="Publish listing">
+                                                        <i class="bi bi-play-circle me-1"></i>Publish
+                                                    </button>
+                                                </form>
+                                            }
+                                            else
+                                            {
+                                                <span class="d-inline-block" tabindex="0" data-bs-toggle="tooltip" title="@pubBlockReason">
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill py-1 px-2.5 fw-semibold disabled" style="font-size: 0.75rem; pointer-events: none; opacity: 0.65;">
+                                                        <i class="bi bi-play-circle me-1"></i>Publish
+                                                    </button>
+                                                </span>
+                                            }
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Modal: Request Map Link Change (Section 4a locked rule) -->
+                            <div class="modal fade" id="modalRequestMapChange_@p.PropertyID" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content border-0 shadow-lg rounded-4">
+                                        <div class="modal-header border-bottom py-3">
+                                            <h6 class="modal-title fw-bold text-dark">
+                                                <i class="bi bi-lock-fill text-warning me-2"></i>Map Link Change Request — @p.Title
+                                            </h6>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <form asp-action="RequestMapLinkChange" method="post">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="propertyId" value="@p.PropertyID" />
+                                            <div class="modal-body p-4">
+                                                <div class="alert alert-warning border-0 small rounded-3 mb-3">
+                                                    <i class="bi bi-info-circle-fill me-1"></i> For traveler navigation integrity, map location links are permanently locked after listing creation. Changes require administrator review.
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label small fw-semibold text-muted">Current Map Link</label>
+                                                    <input type="text" class="form-control form-control-sm bg-light" value="@(string.IsNullOrEmpty(p.MapUrl) ? "None set" : p.MapUrl)" readonly />
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label small fw-semibold text-dark">New Google Maps URL <span class="text-danger">*</span></label>
+                                                    <input type="url" name="newMapUrl" class="form-control form-control-sm" placeholder="https://maps.google.com/..." required />
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label small fw-semibold text-dark">Reason for Change <span class="text-danger">*</span></label>
+                                                    <textarea name="reason" class="form-control form-control-sm" rows="3" placeholder="Explain why the map pin location needs to be updated..." required></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer border-top bg-light py-2.5">
+                                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold">Submit Change Request</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Modal: Assign Category -->
+                            <div class="modal fade" id="modalAssignCategory_@p.PropertyID" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content border-0 shadow-lg rounded-4">
+                                        <div class="modal-header border-bottom py-3">
+                                            <h6 class="modal-title fw-bold text-dark">
+                                                <i class="bi bi-tag-fill text-primary me-2"></i>Assign Category — @p.Title
+                                            </h6>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <form asp-action="AssignCategory" method="post">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="propertyId" value="@p.PropertyID" />
+                                            <input type="hidden" name="returnUrl" value="/Owner/Index" />
+                                            <div class="modal-body p-4">
+                                                <div class="mb-3">
+                                                    <label class="form-label small fw-semibold">Choose Category</label>
+                                                    <select name="propertyTypeId" class="form-select form-select-sm">
+                                                        <option value="">-- Select from Existing Categories --</option>
+                                                        @foreach (var cat in Model.AvailableCategories)
+                                                        {
+                                                            <option value="@cat.PropertyTypeID" selected="@(p.PropertyTypeID == cat.PropertyTypeID)">@cat.TypeName</option>
+                                                        }
+                                                    </select>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label small fw-semibold">Or Create New Category</label>
+                                                    <input type="text" name="customCategory" class="form-control form-control-sm" placeholder="e.g. Eco Farm, Glamping, Cottage" />
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer border-top bg-light py-2.5">
+                                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold">Save Category</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- 2. BOTTOM SECTION: BOOKINGS & EARNINGS OVERVIEW -->
+    <div class="dash-card">
+        <!-- Header row: title and subtitle on left, "X total" badge on right -->
+        <div class="dash-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+                <h3 class="dash-card-title mb-0">
+                    <i class="bi bi-cash-stack text-success me-2"></i>Bookings &amp; Earnings Overview
+                </h3>
+                <small class="text-muted">Itemized stay revenue, guest confirmations, and net host payouts</small>
+            </div>
+            <span class="dash-badge dash-badge-neutral fs-6">@Model.Bookings.Count total</span>
+        </div>
+
+        <!-- Status pills in one horizontal row: All, Confirmed, Cancelled, Refunded, Damage Claimed -->
+        <div class="p-3 border-bottom bg-light-subtle">
+            <div class="horizontal-pills-row">
+                <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 filter-booking-btn active text-nowrap" onclick="filterOwnerBookings('all', this)">
+                    All (@Model.Bookings.Count)
+                </button>
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-booking-btn text-success text-nowrap" onclick="filterOwnerBookings('confirmed', this)">
                     <i class="bi bi-check-circle-fill me-1"></i> Confirmed (@Model.Bookings.Count(b => b.Status == "Confirmed"))
                 </button>
-                <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-booking-btn text-danger" onclick="filterOwnerBookings('cancelled', this)">
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-booking-btn text-danger text-nowrap" onclick="filterOwnerBookings('cancelled', this)">
                     <i class="bi bi-x-circle-fill me-1"></i> Cancelled (@Model.Bookings.Count(b => b.Status == "Cancelled"))
                 </button>
-                <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-booking-btn text-warning" onclick="filterOwnerBookings('refunded', this)">
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-booking-btn text-warning text-nowrap" onclick="filterOwnerBookings('refunded', this)">
                     <i class="bi bi-arrow-counterclockwise me-1"></i> Refunded (@Model.Bookings.Count(b => b.Status == "Refunded"))
                 </button>
-                <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-booking-btn text-info" onclick="filterOwnerBookings('damage', this)">
-                    <i class="bi bi-shield-exclamation me-1"></i> Damage Claimed (@Model.Bookings.Count(b => b.SecurityDepositStatus.Contains("Claimed")))
+                <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 filter-booking-btn text-info text-nowrap" onclick="filterOwnerBookings('damage', this)">
+                    <i class="bi bi-shield-exclamation me-1"></i> Damage Claimed (@Model.Bookings.Count(b => b.SecurityDepositStatus != null && b.SecurityDepositStatus.Contains("Claimed")))
                 </button>
             </div>
+        </div>
 
-            <div class="list-group list-group-flush" id="ownerBookingsList">
-                @if (!Model.Bookings.Any())
-                {
-                    <div class="p-5 text-center text-muted">
-                        <i class="bi bi-calendar-x fs-1 d-block mb-3 text-muted opacity-50"></i>
-                        <h5>No bookings received yet</h5>
-                        <p class="small text-muted mb-0">Bookings placed by travelers for your farmhouses and villas will appear here in real time.</p>
-                    </div>
-                }
+        <!-- Bookings full-width horizontal rows -->
+        <div class="p-3" id="ownerBookingsList">
+            @if (!Model.Bookings.Any())
+            {
+                <div class="p-5 text-center text-muted">
+                    <i class="bi bi-calendar-x fs-1 d-block mb-3 text-muted opacity-50"></i>
+                    <h5 class="fw-bold">No bookings received yet</h5>
+                    <p class="small text-muted mb-0">Bookings placed by travelers for your farmhouses and villas will appear here in real time.</p>
+                </div>
+            }
+            else
+            {
                 @foreach (var b in Model.Bookings)
                 {
-                    var bookingStatusClass = b.Status.ToLowerInvariant();
-                    var hasDamageClaim = b.SecurityDepositStatus.Contains("Claimed");
+                    var hasDamageClaim = b.SecurityDepositStatus != null && b.SecurityDepositStatus.Contains("Claimed");
                     var category = hasDamageClaim ? "damage" : (b.Status == "Cancelled" ? "cancelled" : (b.Status == "Confirmed" ? "confirmed" : "other"));
                     var propertyStayGross = Math.Max(0, b.TotalAmount - b.EventPackagePriceSnapshot);
                     var commRate = b.CommissionRateSnapshot > 0 ? b.CommissionRateSnapshot : 10.0m;
@@ -116,366 +487,100 @@
                         ? b.OwnerPayoutAmount 
                         : Math.Max(0, propertyStayGross - commission);
 
-                    <div class="list-group-item p-4 owner-booking-card" data-category="@category">
-                        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
-                            <div>
-                                <h5 class="fw-bold text-heading text-dark mb-1">
-                                    <i class="bi bi-house-door text-primary me-1"></i>@b.PropertyTitle
-                                </h5>
-                                <div class="text-muted small">
-                                    <i class="bi bi-calendar-event text-secondary me-1"></i>
-                                    <strong>@b.CheckInDate.ToString("MMM dd") &ndash; @b.CheckOutDate.ToString("MMM dd, yyyy")</strong>
-                                    <span class="mx-2">&bull;</span>
-                                    <span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 rounded-pill">@b.BookingType (@(b.SlotType ?? "Standard"))</span>
-                                </div>
+                    <!-- Full-width horizontal row: [property name, date range, slot badge] | [guest name] | [earnings: stay total, your payout] | [status badge and refund status] -->
+                    <div class="owner-booking-horizontal-row owner-booking-card" data-category="@category">
+                        <!-- Column 1: Property Name, Date Range, Slot Badge -->
+                        <div style="min-width: 240px; flex: 2;">
+                            <h6 class="fw-bold text-dark mb-1">
+                                <i class="bi bi-house-door text-primary me-1"></i>@b.PropertyTitle
+                            </h6>
+                            <div class="text-muted small">
+                                <i class="bi bi-calendar-event text-secondary me-1"></i>
+                                <strong>@b.CheckInDate.ToString("dd MMM yyyy") &ndash; @b.CheckOutDate.ToString("dd MMM yyyy")</strong>
                             </div>
-                            <div>
-                                @if (b.Status == "Confirmed")
-                                {
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1.5 rounded-pill"><i class="bi bi-check-circle-fill me-1"></i>Confirmed</span>
-                                }
-                                else if (b.Status == "Cancelled")
-                                {
-                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-1.5 rounded-pill"><i class="bi bi-x-circle-fill me-1"></i>Cancelled</span>
-                                    <span class="badge bg-light text-secondary border px-2 py-1 rounded-pill ms-1" style="font-size: 0.72rem;">Refund Status: Processed</span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-secondary px-3 py-1.5 rounded-pill">@b.Status</span>
-                                }
+                            <div class="mt-1">
+                                <span class="badge bg-secondary-subtle text-secondary border px-2 py-0.5 rounded-pill" style="font-size: 0.72rem;">
+                                    @b.BookingType (@(b.SlotType ?? "Standard"))
+                                </span>
                             </div>
                         </div>
 
-                        <div class="row g-3 align-items-center">
-                            <!-- Left: Guest Details -->
-                            <div class="col-md-5">
-                                <div class="p-3 bg-light rounded-3 border h-100">
-                                    <div class="text-uppercase small text-muted fw-bold mb-2" style="font-size: 0.72rem; letter-spacing: 0.05em;">Guest Information</div>
-                                    <div class="fw-bold text-dark"><i class="bi bi-person-fill text-primary me-1"></i>@b.ClientName</div>
-                                    <div class="small text-muted mt-1"><i class="bi bi-telephone me-1"></i>@(b.ClientPhone ?? "N/A")</div>
-                                    @if (b.SecurityDepositAmount > 0)
-                                    {
-                                        <div class="mt-2 pt-2 border-top small text-muted">
-                                            <span>Security Deposit:</span>
-                                            <strong class="text-dark">₹@b.SecurityDepositAmount.ToString("N0")</strong>
-                                            <span class="badge bg-light text-dark border ms-1">@b.SecurityDepositStatus</span>
-                                        </div>
-                                    }
-                                </div>
-                            </div>
-
-                            <!-- Right: Financial Breakdown -->
-                            <div class="col-md-7">
-                                <div class="p-3 bg-light rounded-3 border">
-                                    <div class="d-flex justify-content-between small text-muted mb-1">
-                                        <span>Stay Subtotal (Host Gross):</span>
-                                        <strong class="text-dark">₹@propertyStayGross.ToString("N2")</strong>
-                                    </div>
-                                    <div class="d-flex justify-content-between small text-muted mb-1">
-                                        <span>Platform Commission (@commRate.ToString("0.#")%):</span>
-                                        <span class="text-danger">-₹@commission.ToString("N2")</span>
-                                    </div>
-                                    <div class="d-flex justify-content-between small fw-bold text-success border-top pt-2 mt-1">
-                                        <span>Your Net Host Payout:</span>
-                                        <span class="fs-5">₹@netPayout.ToString("N2")</span>
-                                    </div>
-
-                                    @if (b.IsEventBooking && b.EventPackagePriceSnapshot > 0)
-                                    {
-                                        <div class="border-top pt-2 mt-2 p-2 bg-white rounded border">
-                                            <div class="d-flex justify-content-between small text-primary fw-semibold">
-                                                <span><i class="bi bi-palette2 me-1"></i>Guest Décor Add-on:</span>
-                                                <span>₹@b.EventPackagePriceSnapshot.ToString("N2")</span>
-                                            </div>
-                                            <div class="small text-muted mt-1" style="font-size: 0.75rem; line-height: 1.3;">
-                                                Package: <em>@(b.EventPackageName ?? "Event Staging")</em> (paid directly to Décor Studio).
-                                            </div>
-                                        </div>
-                                    }
-                                </div>
-                            </div>
+                        <!-- Column 2: Guest Name ONLY (Zero guest contact details leak!) -->
+                        <div style="min-width: 160px; flex: 1.5;">
+                            <span class="text-uppercase small text-muted fw-bold d-block" style="font-size: 0.68rem; letter-spacing: 0.05em;">Guest</span>
+                            <div class="fw-bold text-dark"><i class="bi bi-person-fill text-primary me-1"></i>@b.ClientName</div>
                         </div>
 
-                        @if (b.Status == "Confirmed")
-                        {
-                            <div class="d-flex justify-content-end gap-2 pt-2 mt-2 border-top">
-                                <a asp-action="BookingReceipt" asp-route-id="@b.BookingID" target="_blank" class="btn btn-sm btn-outline-success rounded-pill px-3 py-1" style="font-size: 0.78rem;" title="View Host Settlement Receipt">
-                                    <i class="bi bi-receipt me-1"></i>Host Receipt
-                                </a>
-                                <a asp-action="DamageClaims" class="btn btn-sm btn-outline-danger rounded-pill px-3 py-1" style="font-size: 0.78rem;">
-                                    <i class="bi bi-shield-exclamation me-1"></i> File Damage Claim
-                                </a>
-                            </div>
-                        }
-                    </div>
-                }
-            </div>
-        </div>
-    </div>
-
-    <!-- Property Listings (Secondary Section) -->
-    <div class="col-lg-4">
-        <div class="dash-card">
-            <div class="dash-card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <h3 class="dash-card-title mb-0"><i class="bi bi-building me-2 text-primary"></i>My Listings</h3>
-                <a asp-action="CreateProperty" class="dash-btn dash-btn-primary" style="padding: .3rem .75rem; font-size: .8rem;">
-                    <i class="bi bi-plus-lg"></i> Add
-                </a>
-            </div>
-
-            <!-- Property Status Filter Pills -->
-            <div class="p-2 border-bottom bg-light-subtle d-flex flex-wrap gap-1">
-                <button type="button" class="btn btn-sm btn-primary rounded-pill px-2.5 py-0 filter-owner-prop-btn active" style="font-size: .75rem;" onclick="filterOwnerProps('all', this)">
-                    All (@Model.Properties.Count)
-                </button>
-                <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-0 filter-owner-prop-btn text-success" style="font-size: .75rem;" onclick="filterOwnerProps('approved', this)">
-                    Live (@Model.Properties.Count(p => p.IsApproved && p.ListingStatus == "Active"))
-                </button>
-                <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-0 filter-owner-prop-btn text-secondary" style="font-size: .75rem;" onclick="filterOwnerProps('deactivated', this)">
-                    Unpublished (@Model.Properties.Count(p => p.ListingStatus == "Deactivated"))
-                </button>
-                <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-0 filter-owner-prop-btn text-warning" style="font-size: .75rem;" onclick="filterOwnerProps('waiting', this)">
-                    Review (@Model.Properties.Count(p => !p.IsApproved && p.ListingStatus != "Rejected" && p.ListingStatus != "Deactivated"))
-                </button>
-                <button type="button" class="btn btn-sm btn-light border rounded-pill px-2.5 py-0 filter-owner-prop-btn text-danger" style="font-size: .75rem;" onclick="filterOwnerProps('rejected', this)">
-                    Rejected (@Model.Properties.Count(p => p.ListingStatus == "Rejected"))
-                </button>
-            </div>
-
-            <div class="list-group list-group-flush">
-                @if (!Model.Properties.Any())
-                {
-                    <div class="p-4 text-center text-muted">
-                        <i class="bi bi-house-add fs-1 text-muted opacity-50 d-block mb-2"></i>
-                        No properties listed yet.<br />
-                        <a asp-action="CreateProperty" class="btn btn-sm btn-primary rounded-pill mt-2">List Your First Farm</a>
-                    </div>
-                }
-                @foreach (var p in Model.Properties)
-                {
-                    var isDeactivated = p.ListingStatus == "Deactivated";
-                    var propStatus = p.ListingStatus == "Rejected" ? "rejected" : (isDeactivated ? "deactivated" : (p.IsApproved && p.ListingStatus == "Active" ? "approved" : "waiting"));
-                    <div class="list-group-item p-3 owner-prop-row" data-status="@propStatus">
-                        <div class="d-flex justify-content-between align-items-start mb-1">
-                            <h6 class="fw-bold mb-0 text-heading text-dark text-truncate" style="max-width: 170px;">@p.Title</h6>
-                            <div class="d-flex align-items-center gap-1">
-                                <a asp-action="EditProperty" asp-route-id="@p.PropertyID" class="btn btn-sm btn-outline-primary rounded-pill py-0.5 px-2" style="font-size: 0.75rem;">
-                                    <i class="bi bi-pencil me-1"></i>Edit
-                                </a>
-                                @if (p.ListingStatus == "Active")
-                                {
-                                    <form asp-action="DeactivateProperty" asp-route-id="@p.PropertyID" asp-route-deactivate="true" method="post" class="d-inline" onsubmit="return confirm('Unpublish @p.Title? It will be temporarily hidden from travelers and searches.');">
-                                        @Html.AntiForgeryToken()
-                                        <button type="submit" class="btn btn-sm btn-outline-warning rounded-pill py-0.5 px-2" style="font-size: 0.75rem;" title="Deactivate / Unpublish">
-                                            <i class="bi bi-pause-circle me-1"></i>Unpublish
-                                        </button>
-                                    </form>
-                                }
-                                else if (p.ListingStatus == "Deactivated")
-                                {
-                                    <form asp-action="DeactivateProperty" asp-route-id="@p.PropertyID" asp-route-deactivate="false" method="post" class="d-inline" onsubmit="return confirm('Publish and reactivate @p.Title?');">
-                                        @Html.AntiForgeryToken()
-                                        <button type="submit" class="btn btn-sm btn-outline-success rounded-pill py-0.5 px-2" style="font-size: 0.75rem;" title="Activate / Publish">
-                                            <i class="bi bi-play-circle me-1"></i>Publish
-                                        </button>
-                                    </form>
-                                }
-                            </div>
+                        <!-- Column 3: Earnings (Stay total & Your payout ONLY - Zero commission lines/percentages) -->
+                        <div style="min-width: 180px; flex: 1.5;">
+                            <div class="small text-muted">Stay total: <strong class="text-dark">₹@propertyStayGross.ToString("N2")</strong></div>
+                            <div class="small text-muted">Your payout: <strong class="text-success fs-6">₹@netPayout.ToString("N2")</strong></div>
                         </div>
-                        <div class="small text-muted mb-2 d-flex flex-wrap align-items-center gap-2">
-                            <span><i class="bi bi-geo-alt-fill text-danger me-1"></i>@p.Location</span>
-                            @if (!string.IsNullOrWhiteSpace(p.MapUrl))
+
+                        <!-- Column 4: Status badge (Confirmed, Cancelled, Pending) and refund status + receipt action -->
+                        <div class="d-flex flex-wrap align-items-center justify-content-end gap-2" style="min-width: 180px; flex: 1.5;">
+                            @if (b.Status == "Confirmed")
                             {
-                                <a href="@p.MapUrl" target="_blank" class="badge bg-success-subtle text-success border border-success-subtle text-decoration-none py-1 px-2" title="Open verified Google Maps location in new tab">
-                                    <i class="bi bi-map-fill me-1"></i>Map Link
+                                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1.5 rounded-pill"><i class="bi bi-check-circle-fill me-1"></i>Confirmed</span>
+                                <a asp-action="BookingReceipt" asp-route-id="@b.BookingID" target="_blank" class="btn btn-sm btn-outline-success rounded-pill px-2.5 py-1" style="font-size: 0.75rem;" title="View Host Settlement Receipt">
+                                    <i class="bi bi-receipt me-1"></i>Receipt
                                 </a>
+                            }
+                            else if (b.Status == "Cancelled")
+                            {
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-1.5 rounded-pill"><i class="bi bi-x-circle-fill me-1"></i>Cancelled</span>
+                                <span class="badge bg-light text-secondary border px-2 py-1 rounded-pill" style="font-size: 0.7rem;">Refund Processed</span>
                             }
                             else
                             {
-                                <span class="badge bg-light text-muted border py-1 px-2">
-                                    <i class="bi bi-geo me-1"></i>No Map URL
-                                </span>
+                                <span class="badge bg-secondary px-3 py-1.5 rounded-pill">@b.Status</span>
                             }
-                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill py-0 px-2" style="font-size: 0.70rem;" data-bs-toggle="modal" data-bs-target="#modalUpdateMap_@p.PropertyID">
-                                <i class="bi bi-pin-map me-1"></i>@(string.IsNullOrWhiteSpace(p.MapUrl) ? "Add Map Link" : "Update Map Link")
-                            </button>
-                        </div>
-                        <div class="small text-muted mb-2 d-flex flex-wrap align-items-center gap-2">
-                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle py-1 px-2" title="Property Category">
-                                <i class="bi bi-tag-fill me-1"></i>@(string.IsNullOrWhiteSpace(p.PropertyTypeName) ? "Uncategorized" : p.PropertyTypeName)
-                            </span>
-                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill py-0 px-2" style="font-size: 0.70rem;" data-bs-toggle="modal" data-bs-target="#modalAssignCategory_@p.PropertyID">
-                                <i class="bi bi-tag me-1"></i>Assign Category
-                            </button>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <strong class="text-success small">₹@p.PricePerNight.ToString("N0") <span class="text-muted fw-normal">/ night</span></strong>
-                            <div>
-                                @if (p.ListingStatus == "Rejected")
-                                {
-                                    <span class="badge bg-danger"><i class="bi bi-x-circle-fill me-1"></i>Rejected</span>
-                                }
-                                else if (p.ListingStatus == "Deactivated")
-                                {
-                                    <span class="badge bg-secondary"><i class="bi bi-pause-circle-fill me-1"></i>Unpublished</span>
-                                }
-                                else if (p.IsApproved && p.ListingStatus == "Active")
-                                {
-                                    <span class="dash-badge dash-badge-success"><i class="bi bi-check-circle-fill"></i> Live</span>
-                                }
-                                else
-                                {
-                                    <span class="dash-badge dash-badge-warning"><i class="bi bi-clock-fill"></i> Review</span>
-                                }
-                            </div>
-                        </div>
-
-                        <!-- Modal: Update Map URL for @p.Title -->
-                        <div class="modal fade" id="modalUpdateMap_@p.PropertyID" tabindex="-1" aria-labelledby="modalLabel_@p.PropertyID" aria-hidden="true">
-                            <div class="modal-dialog modal-dialog-centered">
-                                <div class="modal-content border-0 shadow-lg rounded-4">
-                                    <div class="modal-header border-bottom py-3">
-                                        <h6 class="modal-title fw-bold text-dark" id="modalLabel_@p.PropertyID">
-                                            <i class="bi bi-pin-map-fill text-danger me-2"></i>Map Location Link — @p.Title
-                                        </h6>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
-                                    <form asp-action="UpdateLocationUrl" method="post">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="propertyId" value="@p.PropertyID" />
-                                        <input type="hidden" name="returnUrl" value="/Owner/Index" />
-                                        <div class="modal-body p-4">
-                                            <p class="text-muted small mb-3">
-                                                Submit or update your listing's exact Google Maps location link (e.g. share pin, directions URL). Confirmed guests receive this direct navigation link.
-                                            </p>
-                                            <div class="mb-3">
-                                                <label class="form-label fw-semibold small text-secondary">City / Region</label>
-                                                <input type="text" class="form-control form-control-sm bg-light" value="@p.Location" readonly />
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label fw-semibold small">Direct Google Maps / Location URL</label>
-                                                <div class="input-group">
-                                                    <span class="input-group-text bg-light"><i class="bi bi-link-45deg text-primary"></i></span>
-                                                    <input type="url" name="mapUrl" class="form-control" placeholder="https://maps.app.goo.gl/... or https://goo.gl/maps/..." value="@p.MapUrl" />
-                                                </div>
-                                                <small class="form-text text-muted">Leave empty to remove the direct map link.</small>
-                                            </div>
-                                            @if (!string.IsNullOrWhiteSpace(p.MapUrl))
-                                            {
-                                                <div class="alert alert-light border d-flex align-items-center justify-content-between p-2 mb-0">
-                                                    <span class="small text-truncate" style="max-width: 280px;"><i class="bi bi-check-circle-fill text-success me-1"></i>Current: @p.MapUrl</span>
-                                                    <a href="@p.MapUrl" target="_blank" class="btn btn-sm btn-outline-success py-0.5 px-2" style="font-size: 0.75rem;">
-                                                        <i class="bi bi-box-arrow-up-right me-1"></i>Open
-                                                    </a>
-                                                </div>
-                                            }
-                                        </div>
-                                        <div class="modal-footer border-top py-2 px-4 d-flex justify-content-between">
-                                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
-                                            <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3">
-                                                <i class="bi bi-save me-1"></i>Save Map Location Link
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Modal: Assign Category for @p.Title -->
-                        <div class="modal fade" id="modalAssignCategory_@p.PropertyID" tabindex="-1" aria-labelledby="modalCatLabel_@p.PropertyID" aria-hidden="true">
-                            <div class="modal-dialog modal-dialog-centered">
-                                <div class="modal-content border-0 shadow-lg rounded-4">
-                                    <div class="modal-header border-bottom py-3">
-                                        <h6 class="modal-title fw-bold text-dark" id="modalCatLabel_@p.PropertyID">
-                                            <i class="bi bi-tag-fill text-primary me-2"></i>Assign Category — @p.Title
-                                        </h6>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
-                                    <form asp-action="AssignCategory" method="post">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="propertyId" value="@p.PropertyID" />
-                                        <input type="hidden" name="returnUrl" value="/Owner/Index" />
-                                        <div class="modal-body p-4">
-                                            <p class="text-muted small mb-3">
-                                                Assign a standard category or create a custom category for your listing to increase discoverability on BookMyFun.
-                                            </p>
-                                            <div class="mb-3">
-                                                <label class="form-label fw-semibold small text-secondary">Current Category</label>
-                                                <input type="text" class="form-control form-control-sm bg-light" value="@(string.IsNullOrWhiteSpace(p.PropertyTypeName) ? "Uncategorized" : p.PropertyTypeName)" readonly />
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label fw-semibold small">Select Existing Category</label>
-                                                <select name="propertyTypeId" class="form-select form-select-sm">
-                                                    <option value="">-- Choose Category --</option>
-                                                    @if (Model.AvailableCategories != null)
-                                                    {
-                                                        foreach (var cat in Model.AvailableCategories)
-                                                        {
-                                                            <option value="@cat.PropertyTypeID" selected="@(cat.PropertyTypeID == p.PropertyTypeID ? "selected" : null)">@cat.TypeName</option>
-                                                        }
-                                                    }
-                                                </select>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label fw-semibold small">Or Enter a Custom Category</label>
-                                                <div class="input-group input-group-sm">
-                                                    <span class="input-group-text bg-light"><i class="bi bi-plus-circle text-primary"></i></span>
-                                                    <input type="text" name="customCategory" class="form-control" placeholder="e.g. Glamping, Treehouse, Eco-Stay, Beach House" maxlength="50" />
-                                                </div>
-                                                <small class="form-text text-muted">If specified, this new category will be created and assigned automatically.</small>
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer border-top py-2 px-4 d-flex justify-content-between">
-                                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
-                                            <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3">
-                                                <i class="bi bi-check2-circle me-1"></i>Save Category
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 }
-            </div>
+            }
         </div>
     </div>
 </div>
 
+@section Scripts {
 <script>
+    // Property Filter Pills
     function filterOwnerProps(status, btn) {
         document.querySelectorAll('.filter-owner-prop-btn').forEach(b => {
             b.classList.remove('active', 'btn-primary');
-            b.classList.add('btn-light', 'border');
+            b.classList.add('btn-light');
         });
+        btn.classList.remove('btn-light');
         btn.classList.add('active', 'btn-primary');
-        btn.classList.remove('btn-light', 'border');
 
-        document.querySelectorAll('.owner-prop-row').forEach(row => {
-            if (status === 'all' || row.getAttribute('data-status') === status) {
-                row.style.display = '';
+        const rows = document.querySelectorAll('.owner-prop-row');
+        rows.forEach(r => {
+            if (status === 'all' || r.getAttribute('data-status') === status) {
+                r.style.display = '';
             } else {
-                row.style.display = 'none';
+                r.style.display = 'none';
             }
         });
     }
 
-    function filterOwnerBookings(cat, btn) {
+    // Booking Filter Pills
+    function filterOwnerBookings(category, btn) {
         document.querySelectorAll('.filter-booking-btn').forEach(b => {
             b.classList.remove('active', 'btn-primary');
-            b.classList.add('btn-light', 'border');
+            b.classList.add('btn-light');
         });
+        btn.classList.remove('btn-light');
         btn.classList.add('active', 'btn-primary');
-        btn.classList.remove('btn-light', 'border');
 
-        document.querySelectorAll('.owner-booking-card').forEach(card => {
-            const c = card.getAttribute('data-category');
-            if (cat === 'all' || c === cat) {
-                card.style.display = '';
+        const cards = document.querySelectorAll('.owner-booking-card');
+        cards.forEach(c => {
+            if (category === 'all' || c.getAttribute('data-category') === category) {
+                c.style.display = '';
             } else {
-                card.style.display = 'none';
+                c.style.display = 'none';
             }
         });
     }
 </script>
-
+}

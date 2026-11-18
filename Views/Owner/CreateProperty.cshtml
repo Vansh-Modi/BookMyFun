@@ -21,6 +21,7 @@
             </div>
 
             <form asp-action="CreateProperty" method="post" id="propertyForm">
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger rounded-3 mb-3" role="alert"></div>
                 @Html.AntiForgeryToken()
                 <input type="hidden" asp-for="OwnerID" />
                 <input type="hidden" id="additionalMediaJson" name="AdditionalMediaJson" value="[]" />
@@ -58,88 +59,140 @@
                                 <label class="form-label fw-semibold">About the Property <span class="text-danger">*</span></label>
                                 <textarea asp-for="Description" class="form-control rounded-3" rows="4" placeholder="Describe the ambiance, surrounding natural landscape, guest accommodations, and nearby attractions..." required></textarea>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label class="form-label fw-semibold">Max Guest Capacity <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-people-fill text-muted"></i></span>
                                     <input asp-for="MaxGuests" type="number" min="1" max="1000" class="form-control" placeholder="e.g. 15" required />
                                 </div>
+                                <span asp-validation-for="MaxGuests" class="text-danger small"></span>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label class="form-label fw-semibold">Base Price Per Night (₹) <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light fw-bold text-muted">₹</span>
                                     <input asp-for="PricePerNight" type="number" step="0.01" min="100" class="form-control" placeholder="e.g. 7500" required />
                                 </div>
+                                <span asp-validation-for="PricePerNight" class="text-danger small"></span>
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold">Refundable Security Deposit (₹)</label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light fw-bold text-muted">₹</span>
-                                    <input asp-for="SecurityDepositAmount" type="number" step="0.01" min="0" class="form-control" placeholder="e.g. 2000" />
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">Min Stay (Nights) <span class="text-danger">*</span></label>
+                                <input asp-for="MinStayNights" type="number" min="1" max="365" class="form-control" required />
+                                <span asp-validation-for="MinStayNights" class="text-danger small"></span>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">Max Stay (Nights) <span class="text-danger">*</span></label>
+                                <input asp-for="MaxStayNights" type="number" min="1" max="365" class="form-control" required />
+                                <span asp-validation-for="MaxStayNights" class="text-danger small"></span>
+                            </div>
+                            <!-- Caretaker / Person Present at Property (Section 4b) -->
+                            <div class="col-12 mt-3 pt-3 border-top">
+                                <h6 class="fw-bold text-dark mb-2"><i class="bi bi-person-badge text-primary me-2"></i>Caretaker / Person Present at Property</h6>
+                                <p class="small text-muted mb-3">Add the contact details of the on-site caretaker who will hand over keys and receive guests. Phone numbers are private and visible to clients only after booking confirmation and full payment.</p>
+                                
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="chkOwnerIsCaretaker" asp-for="OwnerIsCaretaker" onchange="toggleCaretakerFields()">
+                                    <label class="form-check-label fw-semibold" for="chkOwnerIsCaretaker">I (the Owner / Host) am the caretaker present on-site</label>
                                 </div>
-                                <span class="form-text text-muted">Authorized at checkout; released post-checkout or used for damage claims.</span>
+
+                                <div class="row g-3" id="caretakerFieldsContainer">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold small">Caretaker Full Name</label>
+                                        <input asp-for="CaretakerName" id="caretakerNameInput" class="form-control" placeholder="e.g. Ramesh Kumar" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold small">Caretaker Contact Phone Number</label>
+                                        <input asp-for="CaretakerPhone" id="caretakerPhoneInput" type="tel" class="form-control" placeholder="10-digit mobile number" maxlength="10" />
+                                        <span asp-validation-for="CaretakerPhone" class="text-danger small d-block"></span>
+                                        <span class="form-text text-muted small"><i class="bi bi-shield-lock me-1"></i>Protected. Never published on public listings.</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- SECTION 2: LOCATION & GEOLOCATION -->
+                <!-- SECTION 2: INDIAN ADDRESS & VERIFIED GOOGLE MAP LINK (Section 4a & 4c) -->
                 <div class="card border-0 shadow-sm rounded-4 mb-4">
-                    <div class="card-header bg-white py-3 border-bottom border-light-subtle d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-geo-alt-fill text-danger me-2"></i>2. Location & Geolocation Coordinates</h5>
-                        <button type="button" class="btn btn-sm btn-outline-success rounded-pill" id="btnDetectLocation">
-                            <i class="bi bi-crosshair me-1"></i> Detect Current Location
-                        </button>
+                    <div class="card-header bg-white py-3 border-bottom border-light-subtle">
+                        <h5 class="mb-0 fw-bold text-dark"><i class="bi bi-geo-alt-fill text-danger me-2"></i>2. Indian Address &amp; Verified Map Location</h5>
                     </div>
                     <div class="card-body p-4">
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold">City / Region <span class="text-danger">*</span></label>
-                                <input asp-for="Location" class="form-control rounded-3" placeholder="e.g. Karjat, Maharashtra" required />
+                                <label class="form-label fw-semibold">Nearby Area or Road <span class="text-danger">*</span></label>
+                                <input asp-for="NearbyAreaOrRoad" id="nearbyAreaInput" class="form-control rounded-3" placeholder="e.g. Near Kadav Waterfall, Old Mumbai-Pune Highway" required />
+                                <div class="invalid-feedback">Please enter nearby area or road.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold">Formatted Full Address</label>
-                                <input asp-for="FormattedAddress" id="formattedAddress" class="form-control rounded-3" placeholder="e.g. Survey No. 42, Green Valley Road, Karjat 410201" />
+                                <label class="form-label fw-semibold">City / District <span class="text-danger">*</span></label>
+                                <input asp-for="City" id="cityInput" class="form-control rounded-3" placeholder="e.g. Karjat" required />
+                                <div class="invalid-feedback">Please enter city or district.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold">Latitude</label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light"><i class="bi bi-compass text-muted"></i></span>
-                                    <input asp-for="Latitude" id="latitude" type="number" step="0.0000001" class="form-control" placeholder="e.g. 18.9102" />
-                                </div>
+                                <label class="form-label fw-semibold">State / Union Territory <span class="text-danger">*</span></label>
+                                <select asp-for="State" id="stateSelect" class="form-select rounded-3" required>
+                                    <option value="">-- Select State / Union Territory --</option>
+                                    <option value="Andhra Pradesh">Andhra Pradesh</option>
+                                    <option value="Arunachal Pradesh">Arunachal Pradesh</option>
+                                    <option value="Assam">Assam</option>
+                                    <option value="Bihar">Bihar</option>
+                                    <option value="Chhattisgarh">Chhattisgarh</option>
+                                    <option value="Goa">Goa</option>
+                                    <option value="Gujarat">Gujarat</option>
+                                    <option value="Haryana">Haryana</option>
+                                    <option value="Himachal Pradesh">Himachal Pradesh</option>
+                                    <option value="Jharkhand">Jharkhand</option>
+                                    <option value="Karnataka">Karnataka</option>
+                                    <option value="Kerala">Kerala</option>
+                                    <option value="Madhya Pradesh">Madhya Pradesh</option>
+                                    <option value="Maharashtra" selected>Maharashtra</option>
+                                    <option value="Manipur">Manipur</option>
+                                    <option value="Meghalaya">Meghalaya</option>
+                                    <option value="Mizoram">Mizoram</option>
+                                    <option value="Nagaland">Nagaland</option>
+                                    <option value="Odisha">Odisha</option>
+                                    <option value="Punjab">Punjab</option>
+                                    <option value="Rajasthan">Rajasthan</option>
+                                    <option value="Sikkim">Sikkim</option>
+                                    <option value="Tamil Nadu">Tamil Nadu</option>
+                                    <option value="Telangana">Telangana</option>
+                                    <option value="Tripura">Tripura</option>
+                                    <option value="Uttar Pradesh">Uttar Pradesh</option>
+                                    <option value="Uttarakhand">Uttarakhand</option>
+                                    <option value="West Bengal">West Bengal</option>
+                                    <option value="Delhi">Delhi</option>
+                                    <option value="Chandigarh">Chandigarh</option>
+                                    <option value="Jammu and Kashmir">Jammu and Kashmir</option>
+                                    <option value="Ladakh">Ladakh</option>
+                                    <option value="Puducherry">Puducherry</option>
+                                </select>
+                                <span asp-validation-for="State" class="text-danger small d-block"></span>
+                                <div class="invalid-feedback">Please select an Indian state or UT.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold">Longitude</label>
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light"><i class="bi bi-compass text-muted"></i></span>
-                                    <input asp-for="Longitude" id="longitude" type="number" step="0.0000001" class="form-control" placeholder="e.g. 73.3283" />
-                                </div>
+                                <label class="form-label fw-semibold">Pincode (6 Digits) <span class="text-danger">*</span></label>
+                                <input asp-for="Pincode" id="pincodeInput" class="form-control rounded-3" placeholder="e.g. 410201" maxlength="6" pattern="^[1-9][0-9]{5}$" required />
+                                <span asp-validation-for="Pincode" class="text-danger small d-block"></span>
+                                <small class="form-text text-muted">Standard 6-digit Indian postal index number.</small>
+                                <div class="invalid-feedback">Please enter a valid 6-digit Indian PIN code.</div>
                             </div>
-                            <div class="col-12">
+
+                            <!-- Direct Google Maps Link (Location source & permanent lock) -->
+                            <div class="col-12 mt-3 pt-3 border-top">
                                 <label class="form-label fw-semibold">
-                                    <i class="bi bi-pin-map-fill text-danger me-1"></i>Direct Map / Location URL (Google Maps Link)
+                                    <i class="bi bi-pin-map-fill text-danger me-1"></i>Google Maps Location URL <span class="text-danger">*</span>
                                 </label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light"><i class="bi bi-link-45deg text-primary fs-5"></i></span>
-                                    <input asp-for="MapUrl" id="mapUrlInput" class="form-control" placeholder="Paste Google Maps share link, e.g. https://maps.app.goo.gl/... or https://goo.gl/maps/..." />
-                                    <a id="btnTestMapUrl" href="#" target="_blank" class="btn btn-outline-success d-none">
+                                    <input asp-for="MapUrl" id="mapUrlInput" type="url" class="form-control" placeholder="Paste Google Maps share link, e.g. https://maps.app.goo.gl/... or https://goo.gl/maps/..." required />
+                                    <a id="btnTestMapUrl" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline-success d-none">
                                         <i class="bi bi-box-arrow-up-right me-1"></i> Test Link
                                     </a>
                                 </div>
-                                <span class="form-text text-muted small">
-                                    <i class="bi bi-info-circle me-1"></i> Provide an exact Google Maps pin or location share link. Confirmed guests receive this direct navigation link on their reservation voucher and checkout summary.
-                                </span>
-                            </div>
-                            <div class="col-12">
-                                <div class="p-3 bg-light rounded-3 d-flex align-items-center justify-content-between">
-                                    <div>
-                                        <i class="bi bi-map-fill text-success me-2 fs-5"></i>
-                                        <span class="text-secondary small">Coordinates power accurate Google Maps preview and driving directions for confirmed guests.</span>
-                                    </div>
-                                    <a href="https://www.google.com/maps" target="_blank" class="btn btn-sm btn-outline-secondary rounded-pill">
-                                        <i class="bi bi-box-arrow-up-right me-1"></i> Open Google Maps
-                                    </a>
+                                <span asp-validation-for="MapUrl" class="text-danger small d-block mt-1"></span>
+                                <div class="alert alert-warning border-0 small rounded-3 mt-2 mb-0">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> <strong>Important Map Link Rule:</strong> Once your property is listed, this map location link will be permanently locked and cannot be edited by the owner directly. Confirmed guests rely on this link for driving directions.
                                 </div>
                             </div>
                         </div>
@@ -373,6 +426,73 @@
                     </button>
                 </div>
             </form>
+
+<!-- 2-Step Map Link Confirmation Modal (Section 4a) -->
+<div class="modal fade" id="modalMapConfirmStep1" tabindex="-1" aria-labelledby="mapConfirmStep1Label" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom py-3 bg-light">
+                <h5 class="modal-title fw-bold text-dark" id="mapConfirmStep1Label">
+                    <i class="bi bi-pin-map-fill text-danger me-2"></i>Step 1: Confirm Google Maps Location
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="text-dark fw-semibold mb-2">Please double check your Google Maps Location URL:</p>
+                <div class="p-3 bg-light rounded-3 border mb-3 text-break">
+                    <code id="displayMapUrlText" class="text-primary fw-bold">No URL entered</code>
+                </div>
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <a id="btnModalPreviewMap" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                        <i class="bi bi-box-arrow-up-right me-1"></i> Open in Google Maps
+                    </a>
+                    <span class="small text-muted">Test driving directions in new tab</span>
+                </div>
+                <p class="small text-muted mb-0">Ensure the pin drops directly at your property gate to prevent guest navigation issues.</p>
+            </div>
+            <div class="modal-footer border-top py-2.5">
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Go Back &amp; Edit</button>
+                <button type="button" class="btn btn-sm btn-primary rounded-pill px-4 fw-bold" id="btnProceedToStep2">
+                    Confirm Map URL &rarr;
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalMapConfirmStep2" tabindex="-1" aria-labelledby="mapConfirmStep2Label" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-bottom py-3 bg-warning text-dark">
+                <h5 class="modal-title fw-bold mb-0" id="mapConfirmStep2Label">
+                    <i class="bi bi-lock-fill me-2"></i>Step 2: Permanent Map Lock Acknowledgment
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-danger border-0 small rounded-3 mb-3">
+                    <i class="bi bi-shield-lock-fill me-1"></i> <strong>This map link cannot be changed after listing.</strong>
+                </div>
+                <p class="small text-muted mb-3">
+                    To prevent fraudulent address redirects and protect guest safety, all map links are permanently locked upon listing creation. Any subsequent change requires an official change request and administrator approval.
+                </p>
+                <div class="form-check p-3 bg-light rounded-3 border">
+                    <input class="form-check-input ms-0 me-2" type="checkbox" id="chkMapLockAcknowledge">
+                    <label class="form-check-label fw-bold text-dark" for="chkMapLockAcknowledge">
+                        I understand this map link cannot be changed after listing.
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer border-top py-2.5">
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-success rounded-pill px-4 fw-bold" id="btnFinalSubmitListing" disabled>
+                    <i class="bi bi-check-circle-fill me-1"></i> I Agree &amp; Submit Listing
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
         </div>
     </div>
 </div>
@@ -634,7 +754,7 @@
             updateMapTestBtn();
         }
 
-        document.getElementById("btnDetectLocation").addEventListener("click", function () {
+        document.getElementById("btnDetectLocation")?.addEventListener("click", function () {
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(function (pos) {
                     document.getElementById("latitude").value = pos.coords.latitude.toFixed(6);

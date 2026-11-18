@@ -1,26 +1,47 @@
+using System.Diagnostics;
 using System.Net;
-using System.Text.Json;
+using BookMyFun.Models;
 using BookMyFun.Services.Exceptions;
+using BookMyFun.Services.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 
 namespace BookMyFun.Services.Filters
 {
+    /// <summary>
+    /// Global exception filter for handling unhandled exceptions across controllers.
+    /// Returns standardized JSON payloads for API/AJAX callers and branded error views for browser navigation.
+    /// </summary>
     public class GlobalExceptionFilter : IExceptionFilter
     {
         private readonly ILogger<GlobalExceptionFilter> _logger;
         private readonly IHostEnvironment _env;
+        private readonly ICustomErrorHandlerService? _errorHandler;
 
-        public GlobalExceptionFilter(ILogger<GlobalExceptionFilter> logger, IHostEnvironment env)
+        public GlobalExceptionFilter(
+            ILogger<GlobalExceptionFilter> logger,
+            IHostEnvironment env,
+            ICustomErrorHandlerService? errorHandler = null)
         {
             _logger = logger;
             _env = env;
+            _errorHandler = errorHandler;
         }
 
         public void OnException(ExceptionContext context)
         {
             var exception = context.Exception;
             var request = context.HttpContext.Request;
+            string correlationId = Activity.Current?.Id ?? context.HttpContext.TraceIdentifier;
+
+            if (_errorHandler != null && !(exception is AppException))
+            {
+                context.Result = _errorHandler.OnUnhandledException(context.HttpContext, exception);
+                context.ExceptionHandled = true;
+                return;
+            }
 
             int statusCode = (int)HttpStatusCode.InternalServerError;
             string errorCode = "INTERNAL_SERVER_ERROR";
@@ -34,11 +55,14 @@ namespace BookMyFun.Services.Filters
                 message = appEx.Message;
                 validationErrors = appEx.ValidationErrors;
 
-                _logger.LogWarning(exception, "Handled application exception [{ErrorCode}] ({StatusCode}): {Message}", errorCode, statusCode, message);
+                _logger.LogWarning(exception, "[{CorrelationId}] Handled application exception [{ErrorCode}] ({StatusCode}): {Message}",
+                    correlationId, errorCode, statusCode, message);
             }
             else
             {
-                _logger.LogError(exception, "Unhandled system exception on {Method} {Path}", request.Method, request.Path);
+                _logger.LogError(exception, "[{CorrelationId}] Unhandled system exception on {Method} {Path}",
+                    correlationId, request.Method, request.Path);
+
                 if (_env.IsDevelopment())
                 {
                     message = exception.Message;
@@ -46,7 +70,7 @@ namespace BookMyFun.Services.Filters
             }
 
             bool isApiOrAjax = request.Headers["X-Requested-With"] == "XMLHttpRequest"
-                || (request.Headers.Accept.ToString().Contains("application/json", StringComparison.OrdinalIgnoreCase))
+                || request.Headers.Accept.ToString().Contains("application/json", StringComparison.OrdinalIgnoreCase)
                 || request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase);
 
             if (isApiOrAjax)
@@ -54,6 +78,8 @@ namespace BookMyFun.Services.Filters
                 var errorPayload = new
                 {
                     success = false,
+                    message = message,
+                    correlationId = correlationId,
                     error = new
                     {
                         code = errorCode,
@@ -71,20 +97,23 @@ namespace BookMyFun.Services.Filters
             {
                 if (_env.IsDevelopment())
                 {
-                    // Allow ASP.NET Core Developer Exception Page to render root exception in Development mode
+                    // Allow Developer Exception Page to render in Development mode
                     return;
                 }
 
-                // For standard Razor MVC pages
-                var modelMetadataProvider = context.HttpContext.RequestServices.GetService(typeof(Microsoft.AspNetCore.Mvc.ModelBinding.IModelMetadataProvider)) as Microsoft.AspNetCore.Mvc.ModelBinding.IModelMetadataProvider
-                    ?? new Microsoft.AspNetCore.Mvc.ModelBinding.EmptyModelMetadataProvider();
-
-                var viewData = new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(modelMetadataProvider, context.ModelState)
+                var vm = new ErrorViewModel
                 {
-                    Model = new BookMyFun.Models.ErrorViewModel
-                    {
-                        RequestId = System.Diagnostics.Activity.Current?.Id ?? context.HttpContext.TraceIdentifier
-                    },
+                    StatusCode = statusCode,
+                    RequestId = correlationId,
+                    Title = statusCode == 404 ? "Page Not Found (404)" :
+                            statusCode == 403 ? "Access Restricted (403)" :
+                            "Something Went Wrong (500)",
+                    Message = message
+                };
+
+                var viewData = new ViewDataDictionary<ErrorViewModel>(new EmptyModelMetadataProvider(), context.ModelState)
+                {
+                    Model = vm,
                     ["ErrorMessage"] = message,
                     ["ErrorCode"] = errorCode,
                     ["StatusCode"] = statusCode

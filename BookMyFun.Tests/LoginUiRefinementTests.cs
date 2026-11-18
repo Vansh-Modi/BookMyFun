@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc.Routing;
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using BookMyFun.Controllers;
@@ -13,7 +14,7 @@ namespace BookMyFun.Tests
     {
         private class StubUserRepo : IUserRepository
         {
-            public Task<User?> GetByEmailAsync(string email) => Task.FromResult<User?>(null);
+            public virtual Task<User?> GetByEmailAsync(string email) => Task.FromResult<User?>(null);
             public Task<User?> GetByIdAsync(int id) => Task.FromResult<User?>(null);
             public Task<User?> GetByPhoneAsync(string phone) => Task.FromResult<User?>(null);
             public Task<List<User>> GetUsersByRoleAsync(string role) => Task.FromResult(new List<User>());
@@ -248,6 +249,152 @@ namespace BookMyFun.Tests
             string legacyPlainTextInDb = "admin123";
             Assert.True(AccountController.VerifyPassword("admin123", legacyPlainTextInDb));
             Assert.False(AccountController.VerifyPassword("wrong", legacyPlainTextInDb));
+        }
+    
+        private class ThrowingUserRepo : StubUserRepo
+        {
+            public override Task<User?> GetByEmailAsync(string email) => throw new InvalidOperationException("Simulated database failure");
+        }
+
+        private class SuccessUserRepo : StubUserRepo
+        {
+            private readonly string _role;
+            public SuccessUserRepo(string role) { _role = role; }
+            public override Task<User?> GetByEmailAsync(string email) => Task.FromResult<User?>(new User
+            {
+                UserID = 1,
+                FullName = "Test User",
+                Email = email,
+                Role = _role,
+                PasswordHash = AccountController.HashPassword("ValidPassword123!"),
+                IsActive = true
+            });
+        }
+
+        private class StubUrlHelper : IUrlHelper
+        {
+            public ActionContext ActionContext => new ActionContext();
+            public string? Action(UrlActionContext actionContext) => null;
+            public string? Content(string? contentPath) => contentPath;
+            public bool IsLocalUrl(string? url) => url != null && url.StartsWith("/") && !url.StartsWith("//");
+            public string? Link(string? routeName, object? values) => null;
+            public string? RouteUrl(UrlRouteContext routeContext) => null;
+        }
+
+        [Fact]
+        public void LoginView_FormAndEnterKeyScript_ConfiguredCorrectly()
+        {
+            var viewPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "Views", "Account", "Login.cshtml");
+            if (!File.Exists(viewPath)) viewPath = Path.Combine(Directory.GetCurrentDirectory(), "Views", "Account", "Login.cshtml");
+            if (!File.Exists(viewPath)) viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Views", "Account", "Login.cshtml"));
+
+            var html = File.ReadAllText(viewPath);
+
+            Assert.Contains("method=\"post\"", html, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("id=\"loginForm\"", html);
+            Assert.Contains("type=\"submit\"", html);
+            Assert.Contains("id=\"btnLoginSubmit\"", html);
+            Assert.Contains("id=\"userEmail\"", html);
+            Assert.Contains("id=\"userPassword\"", html);
+            Assert.Contains("Enter", html);
+            Assert.Contains("btnLoginSubmit", html);
+            Assert.Contains("@Html.AntiForgeryToken()", html);
+        }
+
+        [Fact]
+        public async Task AccountController_LoginPost_WhenExceptionOccurs_ReturnsFriendlyMessageWithCorrelationId()
+        {
+            var userRepo = new ThrowingUserRepo();
+            var controller = new AccountController(
+                userRepo,
+                null!,
+                null!,
+                null!,
+                null!,
+                null!,
+                null!,
+                null!,
+                null!,
+                null!,
+                NullLogger<AccountController>.Instance
+            );
+
+            var result = await controller.Login(new LoginViewModel
+            {
+                Email = "test@bookmyfun.in",
+                Password = "Password123!"
+            }) as ViewResult;
+
+            Assert.NotNull(result);
+            var modelErrors = controller.ModelState[string.Empty]?.Errors;
+            var errorMessage = modelErrors?.FirstOrDefault()?.ErrorMessage;
+            Assert.NotNull(errorMessage);
+            Assert.Contains("Invalid username, email, or password.", errorMessage);
+        }
+
+        [Theory]
+        [InlineData("Admin", "Admin")]
+        [InlineData("Employee", "Employee")]
+        [InlineData("Owner", "Owner")]
+        [InlineData("EventManager", "EventManager")]
+        [InlineData("Client", "Client")]
+        public async Task AccountController_LoginPost_RedirectsToRoleDashboard(string role, string expectedController)
+        {
+            var userRepo = new SuccessUserRepo(role);
+            var controller = new AccountController(
+                userRepo,
+                null!,
+                null!,
+                null!,
+                null!,
+                null!,
+                null!,
+                null!,
+                null!,
+                null!,
+                NullLogger<AccountController>.Instance
+            );
+
+            var result = await controller.Login(new LoginViewModel
+            {
+                Email = "test@bookmyfun.in",
+                Password = "ValidPassword123!"
+            });
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("Index", redirect.ActionName);
+            Assert.Equal(expectedController, redirect.ControllerName);
+        }
+
+        [Fact]
+        public async Task AccountController_LoginPost_WithLocalReturnUrl_RedirectsToReturnUrl()
+        {
+            var userRepo = new SuccessUserRepo("Client");
+            var controller = new AccountController(
+                userRepo,
+                null!,
+                null!,
+                null!,
+                null!,
+                null!,
+                null!,
+                null!,
+                null!,
+                null!,
+                NullLogger<AccountController>.Instance
+            );
+
+            controller.Url = new StubUrlHelper();
+
+            var result = await controller.Login(new LoginViewModel
+            {
+                Email = "test@bookmyfun.in",
+                Password = "ValidPassword123!",
+                ReturnUrl = "/Booking/Checkout"
+            });
+
+            var redirect = Assert.IsType<RedirectResult>(result);
+            Assert.Equal("/Booking/Checkout", redirect.Url);
         }
     }
 }

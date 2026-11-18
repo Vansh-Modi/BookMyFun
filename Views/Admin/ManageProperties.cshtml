@@ -181,8 +181,9 @@
 
                                     @if (p.ListingStatus != "Rejected")
                                     {
-                                        <form asp-controller="@controllerName" asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="false" asp-route-status="Rejected" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1" onsubmit="return confirm('Reject property #@p.PropertyID? The owner will need to revise it.');">
+                                        <form asp-controller="@controllerName" asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="false" asp-route-status="Rejected" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1" onsubmit="const r = prompt('Please enter the rejection reason for property #@p.PropertyID:'); if (!r || !r.trim()) { alert('A rejection reason is required.'); return false; } this.elements['reason'].value = r.trim(); return true;">
                                             @Html.AntiForgeryToken()
+                                            <input type="hidden" name="reason" value="" />
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Reject Listing">
                                                 <i class="bi bi-x-lg me-1"></i> Reject
                                             </button>

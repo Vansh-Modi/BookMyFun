@@ -18,6 +18,9 @@
 
 <!-- Section Navigation Pills for Quick Access -->
 <div class="d-flex flex-wrap gap-2 mb-4">
+    <a href="#sec-brand" class="btn btn-sm btn-outline-primary rounded-pill px-3 @(activeSection == "sec-brand" ? "active" : "")" onclick="openSection('collapseBranding')">
+        <i class="bi bi-brush me-1"></i> Brand &amp; Identity
+    </a>
     <a href="#sec-commission" class="btn btn-sm btn-outline-primary rounded-pill px-3 @(activeSection == "sec-commission" ? "active" : "")" onclick="openSection('collapseCommission')">
         <i class="bi bi-percent me-1"></i> Commission
     </a>
@@ -44,7 +47,113 @@
 <!-- Collapsible Accordion: Single Open Section at a Time (Item 1 STRICT) -->
 <div class="accordion shadow-sm rounded-4 overflow-hidden" id="settingsAccordion">
 
-    <!-- 1. COMMISSION SECTION -->
+    <!-- 0. BRAND IDENTITY & SITE SETTINGS SECTION -->
+    <div class="accordion-item border-0 border-bottom" id="sec-brand">
+        <h2 class="accordion-header">
+            <button class="accordion-button @(activeSection == "sec-brand" ? "" : "collapsed") fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseBranding" aria-expanded="@(activeSection == "sec-brand" ? "true" : "false")" aria-controls="collapseBranding">
+                <i class="bi bi-brush text-primary fs-5 me-2"></i>
+                <div class="d-flex flex-column text-start">
+                    <span>1. Brand Identity, Logo &amp; Site Settings</span>
+                    <small class="text-muted fw-normal">Configure website name, brand logo, and footer copyright text across the platform.</small>
+                </div>
+            </button>
+        </h2>
+        <div id="collapseBranding" class="accordion-collapse collapse @(activeSection == "sec-brand" ? "show" : "")" data-bs-parent="#settingsAccordion">
+            <div class="accordion-body p-4 bg-body">
+                <div id="brandingAlertContainer"></div>
+                <form id="brandingForm" asp-action="SaveSiteBranding" method="post" enctype="multipart/form-data">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="removeLogo" id="removeLogoInput" value="false" />
+
+                    <!-- Site Name & Tagline -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold" for="siteNameInput">Website Brand Name <span class="text-danger">*</span></label>
+                            <input type="text" id="siteNameInput" name="siteName" value="@Model.SiteName" class="form-control" maxlength="100" required placeholder="BookMyFun" />
+                            <small class="text-muted">Displayed in navbar, browser tab title, login/register portals, and notifications.</small>
+                        </div>
+                        <div class="col-md-6 col-12">
+                            <label class="form-label fw-semibold" for="siteTaglineInput">Brand Tagline</label>
+                            <input type="text" id="siteTaglineInput" name="siteTagline" value="@Model.SiteTagline" class="form-control" maxlength="150" placeholder="Farmhouse, Villa &amp; Resort Rentals" />
+                            <small class="text-muted">Displayed in browser title bar and subtitle sections.</small>
+                        </div>
+                    </div>
+
+                    <!-- Copyright Text -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-12">
+                            <label class="form-label fw-semibold" for="copyrightTextInput">Footer Copyright Text</label>
+                            <input type="text" id="copyrightTextInput" name="copyrightText" value="@Model.CopyrightText" class="form-control" maxlength="200" placeholder="&copy; @DateTime.UtcNow.Year @Model.SiteName. All rights reserved." />
+                            <small class="text-muted">Displayed at the bottom of the public website and all dashboards. Defaults to standard copyright line if empty.</small>
+                        </div>
+                    </div>
+
+                    <!-- Logo Upload & Management -->
+                    <div class="p-3 rounded-4 bg-light border mb-4">
+                        <h6 class="fw-bold text-dark mb-2">
+                            <i class="bi bi-image text-success me-1"></i> Website Brand Logo
+                        </h6>
+                        <p class="small text-muted mb-3">
+                            Upload a brand logo (PNG, JPG, SVG, or WebP). Maximum file size: <strong>2 MB</strong>. Vector SVG (.svg) or high-res transparent PNG recommended.
+                        </p>
+
+                        <!-- Live Logo Preview Box -->
+                        <div class="d-flex flex-wrap align-items-center gap-3 p-3 bg-white border rounded-3 mb-3">
+                            <div class="text-center p-2 rounded-3 border bg-dark d-flex align-items-center justify-content-center" style="min-width: 140px; min-height: 70px;">
+                                @if (!string.IsNullOrEmpty(Model.LogoUrl))
+                                {
+                                    <img id="brandingLogoPreview" src="@Url.Content(Model.LogoUrl)" alt="Brand Logo Preview" 
+                                         style="max-height: 55px; max-width: 130px; object-fit: contain;" />
+                                    <div id="brandingLogoPlaceholder" class="text-warning text-center d-none">
+                                        <i class="bi @Model.SiteIcon fs-2"></i>
+                                        <div class="small text-white-50">Default Icon</div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div id="brandingLogoPlaceholder" class="text-warning text-center">
+                                        <i class="bi @Model.SiteIcon fs-2"></i>
+                                        <div class="small text-white-50">Default Icon</div>
+                                    </div>
+                                    <img id="brandingLogoPreview" src="" alt="Brand Logo Preview" 
+                                         class="d-none" style="max-height: 55px; max-width: 130px; object-fit: contain;" />
+                                }
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="fw-bold text-dark mb-1" id="previewStatusLabel">Active Logo Preview</div>
+                                <div class="small text-muted mb-2">
+                                    Current logo: <code class="text-primary" id="previewLogoPath">@(string.IsNullOrEmpty(Model.LogoUrl) ? "Default System Icon" : Model.LogoUrl)</code>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <button type="button" class="btn btn-sm btn-outline-danger" id="btnResetLogo" onclick="resetToDefaultLogo()">
+                                        <i class="bi bi-arrow-counterclockwise me-1"></i> Reset to Default Logo
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Upload File Input -->
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold" for="logoFileInput">Upload New Logo (PNG, JPG, SVG, WebP · Max 2MB)</label>
+                            <input type="file" name="logoFile" id="logoFileInput" accept=".png,.jpg,.jpeg,.svg,.webp" class="form-control" onchange="handleLogoFileSelect(this)" />
+                            <small class="text-muted">Files are stored securely in <code>/uploads/photos/</code> and refreshed dynamically across all layouts.</small>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="submit" id="btnSaveBranding" class="btn btn-primary px-4 fw-semibold shadow-sm d-inline-flex align-items-center">
+                            <span class="spinner-border spinner-border-sm me-2 d-none" id="saveBrandingSpinner" role="status" aria-hidden="true"></span>
+                            <i class="bi bi-check2-circle me-1" id="saveBrandingIcon"></i>
+                            <span id="saveBrandingText">Save Brand Settings</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. COMMISSION SECTION -->
     <div class="accordion-item border-0 border-bottom" id="sec-commission">
         <h2 class="accordion-header">
             <button class="accordion-button @(activeSection == "sec-commission" ? "" : "collapsed") fw-bold py-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCommission" aria-expanded="@(activeSection == "sec-commission" ? "true" : "false")" aria-controls="collapseCommission">
@@ -463,6 +572,7 @@
             const hash = window.location.hash;
             if (hash) {
                 const targetMap = {
+                    '#sec-brand': 'collapseBranding',
                     '#sec-commission': 'collapseCommission',
                     '#sec-refunds': 'collapseRefunds',
                     '#sec-payments': 'collapsePayments',
@@ -474,6 +584,139 @@
                 if (targetMap[hash]) {
                     openSection(targetMap[hash]);
                 }
+            }
+        });
+
+        function resetToDefaultLogo() {
+            document.getElementById('logoFileInput').value = '';
+            document.getElementById('removeLogoInput').value = 'true';
+            const preview = document.getElementById('brandingLogoPreview');
+            const placeholder = document.getElementById('brandingLogoPlaceholder');
+            if (preview) {
+                preview.src = '';
+                preview.classList.add('d-none');
+            }
+            if (placeholder) {
+                placeholder.classList.remove('d-none');
+            }
+            document.getElementById('previewLogoPath').textContent = 'Default System Icon (pending save)';
+            document.getElementById('previewStatusLabel').textContent = 'Default Icon (Pending Save)';
+        }
+
+        function handleLogoFileSelect(input) {
+            if (!input.files || !input.files[0]) return;
+            const file = input.files[0];
+            
+            // Validate size (max 2MB)
+            if (file.size > 2 * 1024 * 1024) {
+                alert('File size exceeds 2 MB. Please select a smaller image.');
+                input.value = '';
+                return;
+            }
+            
+            // Validate type
+            const ext = '.' + file.name.split('.').pop().toLowerCase();
+            const allowed = ['.png', '.jpg', '.jpeg', '.svg', '.webp'];
+            if (!allowed.includes(ext)) {
+                alert('Invalid file format. Please upload a PNG, JPG, SVG, or WebP file.');
+                input.value = '';
+                return;
+            }
+            
+            document.getElementById('removeLogoInput').value = 'false';
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const preview = document.getElementById('brandingLogoPreview');
+                const placeholder = document.getElementById('brandingLogoPlaceholder');
+                if (preview) {
+                    preview.src = e.target.result;
+                    preview.classList.remove('d-none');
+                }
+                if (placeholder) {
+                    placeholder.classList.add('d-none');
+                }
+                document.getElementById('previewLogoPath').textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+                document.getElementById('previewStatusLabel').textContent = 'Selected Logo Preview (Pending Save)';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        document.getElementById('brandingForm')?.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const form = this;
+            const btn = document.getElementById('btnSaveBranding');
+            const spinner = document.getElementById('saveBrandingSpinner');
+            const icon = document.getElementById('saveBrandingIcon');
+            const text = document.getElementById('saveBrandingText');
+            const alertBox = document.getElementById('brandingAlertContainer');
+
+            btn.disabled = true;
+            spinner.classList.remove('d-none');
+            icon.classList.add('d-none');
+            text.textContent = 'Saving Settings...';
+            alertBox.innerHTML = '';
+
+            try {
+                const formData = new FormData(form);
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    alertBox.innerHTML = `
+                        <div class="alert alert-success alert-dismissible fade show rounded-4 py-2 px-3 mb-3" role="alert">
+                            <i class="bi bi-check-circle-fill me-2"></i><strong>Success:</strong> ${data.message || 'Brand settings updated successfully!'}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    `;
+                    if (data.siteName) {
+                        document.querySelectorAll('.site-name-text').forEach(el => el.textContent = data.siteName);
+                        document.title = document.title.replace(/-\s*[^|]+\|/, `- ${data.siteName} |`);
+                    }
+                    if (data.copyrightText) {
+                        document.querySelectorAll('.site-copyright-text').forEach(el => el.textContent = data.copyrightText);
+                    }
+                    if (data.logoUrl) {
+                        document.querySelectorAll('.site-logo-img').forEach(el => {
+                            el.src = data.logoUrl;
+                            el.classList.remove('d-none');
+                        });
+                        document.querySelectorAll('.site-logo-icon').forEach(el => el.classList.add('d-none'));
+                        document.getElementById('previewLogoPath').textContent = data.logoUrl;
+                    } else if (data.logoUrl === '') {
+                        document.querySelectorAll('.site-logo-img').forEach(el => el.classList.add('d-none'));
+                        document.querySelectorAll('.site-logo-icon').forEach(el => el.classList.remove('d-none'));
+                        document.getElementById('previewLogoPath').textContent = 'Default System Icon';
+                    }
+                    document.getElementById('previewStatusLabel').textContent = 'Active Logo Preview';
+                    document.getElementById('logoFileInput').value = '';
+                    document.getElementById('removeLogoInput').value = 'false';
+                } else {
+                    alertBox.innerHTML = `
+                        <div class="alert alert-danger alert-dismissible fade show rounded-4 py-2 px-3 mb-3" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Error:</strong> ${data.message || 'Failed to save settings.'}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                alertBox.innerHTML = `
+                    <div class="alert alert-danger alert-dismissible fade show rounded-4 py-2 px-3 mb-3" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Network Error:</strong> Failed to connect to server. Please try again.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                `;
+            } finally {
+                btn.disabled = false;
+                spinner.classList.add('d-none');
+                icon.classList.remove('d-none');
+                text.textContent = 'Save Brand Settings';
             }
         });
     </script>

@@ -1,0 +1,317 @@
+@model BookMyFun.Models.ViewModels.EventManagerProfileViewModel
+@{
+    ViewData["Title"] = "Event Partner Profile & Showcase";
+}
+
+<div class="container-fluid px-0 px-md-3 py-3">
+    <!-- Breadcrumb & Top Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-2 border-bottom">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 small text-muted">
+                    <li class="breadcrumb-item"><a asp-action="Dashboard" class="text-decoration-none">Dashboard</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Profile Settings</li>
+                </ol>
+            </nav>
+            <h2 class="fw-bold mb-1">Event Partner Profile</h2>
+            <p class="text-muted small mb-0">Configure your brand presence, review verified credentials, and manage watermarked showcase items.</p>
+        </div>
+        <div class="d-flex gap-2 align-items-center mt-3 mt-md-0">
+            <a href="/EventManagers/Profile/@Model.UserID" target="_blank" class="btn btn-outline-primary btn-sm rounded-pill px-3 shadow-sm">
+                <i class="bi bi-box-arrow-up-right me-1"></i> View Public Showcase
+            </a>
+            <a asp-action="Dashboard" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                <i class="bi bi-speedometer2 me-1"></i> Dashboard
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show shadow-sm rounded-3 d-flex align-items-center gap-2 mb-4" role="alert">
+            <i class="bi bi-check-circle-fill fs-5 text-success"></i>
+            <div>@TempData["Success"]</div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm rounded-3 d-flex align-items-center gap-2 mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill fs-5 text-danger"></i>
+            <div>@TempData["Error"]</div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="alert alert-warning alert-dismissible fade show shadow-sm rounded-3 mb-4" role="alert">
+            <div class="fw-bold d-flex align-items-center gap-2 mb-1">
+                <i class="bi bi-shield-exclamation text-warning fs-5"></i>
+                <span>Please correct the following:</span>
+            </div>
+            <div asp-validation-summary="All" class="text-danger small mb-0"></div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Marketplace Identity Notice (Phase 8b) -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4 bg-light">
+        <div class="card-body p-3 p-md-4">
+            <div class="d-flex flex-column flex-sm-row align-items-sm-center gap-3">
+                <div class="position-relative text-center">
+                    <img src="@Model.DefaultAvatarUrl" alt="Default Verified Avatar" class="rounded-circle shadow-sm bg-white p-1" style="width: 72px; height: 72px; object-fit: cover;" />
+                    <span class="position-absolute bottom-0 end-0 bg-success text-white rounded-circle p-1 d-flex align-items-center justify-content-center" style="width: 24px; height: 24px;" title="Platform Default Avatar">
+                        <i class="bi bi-shield-check" style="font-size: 12px;"></i>
+                    </span>
+                </div>
+                <div class="flex-grow-1">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                        <h5 class="fw-bold mb-0">@Model.FullName</h5>
+                        <span class="badge @(Model.VerificationStatus == "Verified" ? "bg-success" : Model.VerificationStatus == "Rejected" ? "bg-danger" : "bg-warning text-dark") rounded-pill px-3 py-1">
+                            <i class="bi bi-patch-check-fill me-1"></i> @Model.VerificationStatus Partner
+                        </span>
+                    </div>
+                    <p class="small text-muted mb-0">
+                        <strong>Standard Platform Identity:</strong> To protect customer safety and maintain marketplace trust, all event managers display verified BookMyFun badges with standard platform avatars. Custom profile photo uploads and direct contact channels (phone, WhatsApp, email, external URLs) are blocked across public showcases.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Left Column: Profile Editor Form -->
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm rounded-3">
+                <div class="card-header bg-white py-3 border-bottom">
+                    <h5 class="fw-bold mb-0 text-dark">
+                        <i class="bi bi-pencil-square text-primary me-2"></i>Profile Details
+                    </h5>
+                    <small class="text-muted">Allowed profile fields per BookMyFun Partner Guidelines</small>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-action="Profile" method="post">
+                        @Html.AntiForgeryToken()
+
+                        <!-- Brand / Display Name -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-dark">
+                                Brand / Display Name <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" name="FullName" class="form-control" value="@Model.FullName" required maxlength="100" placeholder="e.g. Royal Decorators & Celebrations" />
+                            <div class="form-text small">Your business or trading name displayed on public booking cards.</div>
+                        </div>
+
+                        <!-- Years of Experience -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-dark">Years of Experience</label>
+                            <input type="number" name="YearsOfExperience" class="form-control" value="@Model.YearsOfExperience" min="0" max="50" placeholder="e.g. 5" />
+                            <div class="form-text small">Number of active years providing event design or catering services.</div>
+                        </div>
+
+                        <!-- Service Areas -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-dark">Service Areas</label>
+                            <input type="text" name="ServiceAreas" class="form-control" value="@Model.ServiceAreas" maxlength="500" placeholder="e.g. Lonavala, Khandala, Alibaug, Pune" />
+                            <div class="form-text small">Locations where you accept décor setups. Only properties in these areas will show your offerings.</div>
+                        </div>
+
+                        <!-- Bio -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-dark">
+                                Professional Bio
+                            </label>
+                            <textarea name="Bio" class="form-control" rows="5" maxlength="2000" placeholder="Describe your décor aesthetics, setup philosophy, floral and theme capabilities...">@Model.Bio</textarea>
+                            <div class="form-text small text-muted d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-shield-lock me-1"></i> Automated real-time privacy scanner masks phone numbers, emails, and external handles.</span>
+                                <span>Max 2000 chars</span>
+                            </div>
+                        </div>
+
+                        <!-- Event Types Handled -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-dark">Event Types Handled</label>
+                            <input type="text" name="EventTypesCommaSeparated" class="form-control" value="@Model.EventTypesCommaSeparated" maxlength="200" placeholder="Birthday, Anniversary, Poolside, Wedding, Corporate" />
+                            <div class="form-text small">Comma-separated event categories you specialize in.</div>
+                        </div>
+
+                        <!-- Cancellation & Replacement Policy -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold text-dark">Cancellation &amp; Replacement Policy</label>
+                            <textarea name="CancellationPolicy" class="form-control" rows="3" maxlength="1500" placeholder="e.g. Free cancellation up to 48 hours prior to check-in. Custom materials cost non-refundable within 48h.">@Model.CancellationPolicy</textarea>
+                            <div class="form-text small">Clearly explain your cancellation terms, weather contingency protocols, and material cost policies.</div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+                            <button type="submit" class="btn btn-primary fw-bold px-4 py-2 rounded-pill shadow-sm">
+                                <i class="bi bi-save2 me-1"></i> Save Profile Details
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Verification & Portfolio Management -->
+        <div class="col-lg-5">
+            <!-- 1. Partner Verification Card (Phase 8e) -->
+            <div class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0 text-dark">
+                        <i class="bi bi-patch-check text-success me-2"></i>Partner Verification
+                    </h5>
+                    <span class="badge @(Model.VerificationStatus == "Verified" ? "bg-success" : Model.VerificationStatus == "Rejected" ? "bg-danger" : "bg-warning text-dark") rounded-pill">
+                        @Model.VerificationStatus
+                    </span>
+                </div>
+                <div class="card-body p-3 p-md-4">
+                    @if (Model.VerificationStatus == "Verified")
+                    {
+                        <div class="text-center py-2">
+                            <i class="bi bi-check-circle-fill text-success fs-1 mb-2 d-block"></i>
+                            <h6 class="fw-bold mb-1">Your Account is Verified</h6>
+                            <p class="text-muted small mb-0">Your profile and active packages are visible to guests booking stays across your serviced regions.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="small text-muted mb-3">
+                            Upload government identity and business registration documents to get verified. Documents are stored in secure private storage (<span class="badge bg-secondary">PrivateDocuments</span>) and never exposed publicly.
+                        </p>
+
+                        <form asp-action="RequestVerification" method="post" enctype="multipart/form-data">
+                            @Html.AntiForgeryToken()
+                            <div class="mb-3">
+                                <label class="form-label small fw-semibold text-dark">Government ID Proof (Aadhar/Passport/PAN)</label>
+                                <input type="file" name="idProof" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png" />
+                                <div class="form-text small">Accepted: PDF, JPG, PNG (Max 5MB)</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-semibold text-dark">Business / GST / Trade Proof</label>
+                                <input type="file" name="businessProof" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png" />
+                                <div class="form-text small">Accepted: PDF, JPG, PNG (Max 5MB)</div>
+                            </div>
+                            <button type="submit" class="btn btn-outline-success btn-sm w-100 fw-bold rounded-pill">
+                                <i class="bi bi-upload me-1"></i> Submit Documents for Review
+                            </button>
+                        </form>
+                    }
+                </div>
+            </div>
+
+            <!-- 2. Portfolio Upload Card (Phase 8d) -->
+            <div class="card border-0 shadow-sm rounded-3">
+                <div class="card-header bg-white py-3 border-bottom">
+                    <h5 class="fw-bold mb-0 text-dark">
+                        <i class="bi bi-images text-info me-2"></i>Upload Showcase Item
+                    </h5>
+                    <small class="text-muted">Watermarked automatically &amp; submitted for admin approval</small>
+                </div>
+                <div class="card-body p-3 p-md-4">
+                    <form asp-action="UploadPortfolio" method="post" enctype="multipart/form-data">
+                        @Html.AntiForgeryToken()
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-dark">Item Title <span class="text-danger">*</span></label>
+                            <input type="text" name="Title" class="form-control form-control-sm" required maxlength="150" placeholder="e.g. Grand Poolside Fairy Light Canopy" />
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold text-dark">Media Type</label>
+                                <select name="MediaType" class="form-select form-select-sm">
+                                    <option value="image">Photo (JPG, PNG, WebP)</option>
+                                    <option value="video">Video (MP4, MOV)</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold text-dark">Select File <span class="text-danger">*</span></label>
+                                <input type="file" name="MediaFile" class="form-control form-control-sm" required accept=".jpg,.jpeg,.png,.webp,.mp4,.mov,.webm" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-dark">Caption / Description</label>
+                            <textarea name="Description" class="form-control form-control-sm" rows="2" maxlength="1000" placeholder="Highlight specific decor elements, floral arrangements, or lighting..."></textarea>
+                            <div class="form-text small">Any contact numbers or external links are automatically shielded.</div>
+                        </div>
+
+                        <button type="submit" class="btn btn-info text-white btn-sm w-100 fw-bold rounded-pill shadow-sm">
+                            <i class="bi bi-watermark me-1"></i> Apply Watermark &amp; Submit Item
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Showcase Gallery & Moderation Status -->
+    <div class="card border-0 shadow-sm rounded-3 mt-4">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="fw-bold mb-0 text-dark">
+                    <i class="bi bi-collection-play text-warning me-2"></i>My Portfolio Showcase (@Model.Portfolios.Count)
+                </h5>
+                <small class="text-muted">Items must be approved by platform administrators before appearing to travelers.</small>
+            </div>
+        </div>
+        <div class="card-body p-4">
+            @if (Model.Portfolios.Count == 0)
+            {
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-image fs-1 d-block mb-2 text-secondary"></i>
+                    <h6>No portfolio items uploaded yet</h6>
+                    <p class="small mb-0">Upload photos and short video clips of your previous setups to showcase your skills.</p>
+                </div>
+            }
+            else
+            {
+                <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3">
+                    @foreach (var item in Model.Portfolios)
+                    {
+                        <div class="col">
+                            <div class="card h-100 border shadow-sm rounded-3 overflow-hidden position-relative">
+                                @if (item.MediaType == "video")
+                                {
+                                    <div class="ratio ratio-16x9 bg-dark">
+                                        <video src="@item.MediaUrl" controls preload="metadata"></video>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="ratio ratio-16x9 bg-light">
+                                        <img src="@item.MediaUrl" alt="@item.Title" class="object-fit-cover" />
+                                    </div>
+                                }
+                                <div class="card-body p-2.5">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <h6 class="fw-bold mb-0 text-truncate" title="@item.Title">@item.Title</h6>
+                                        <span class="badge @(item.IsApproved ? "bg-success" : "bg-warning text-dark")" style="font-size: 0.7rem;">
+                                            @(item.IsApproved ? "Approved" : "Pending Review")
+                                        </span>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(item.Description))
+                                    {
+                                        <p class="small text-muted mb-2 text-truncate" title="@item.Description">@item.Description</p>
+                                    }
+                                    <div class="d-flex justify-content-between align-items-center pt-1 border-top">
+                                        <span class="small text-muted" style="font-size: 0.75rem;">
+                                            <i class="bi bi-shield-check text-primary me-1"></i> Watermarked
+                                        </span>
+                                        <form asp-action="DeletePortfolio" asp-route-id="@item.PortfolioID" method="post" onsubmit="return confirm('Are you sure you want to delete this portfolio item?');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-link text-danger p-0 border-0" title="Delete Item">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>

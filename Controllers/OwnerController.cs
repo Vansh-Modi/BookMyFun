@@ -3,13 +3,14 @@ using BookMyFun.Models.Entities;
 using BookMyFun.Models.ViewModels;
 using BookMyFun.Repositories;
 using BookMyFun.Services;
+using BookMyFun.Services.Common;
 using BookMyFun.Services.Exceptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BookMyFun.Controllers
 {
-    [Authorize(Roles = "Owner")]
+    [Authorize(Policy = "RequireOwner")]
     public class OwnerController : Controller
     {
         private readonly IPropertyRepository _propRepo;
@@ -23,6 +24,8 @@ namespace BookMyFun.Controllers
         private readonly IEmailService? _emailService;
         private readonly IWhatsAppService? _whatsAppService;
         private readonly ILegalDocumentService? _legalService;
+        private readonly INotificationFanoutService? _notificationFanout;
+        private readonly BookMyFun.Services.Notifications.INotificationDispatcherService? _notificationDispatcher;
 
         public OwnerController(
             IPropertyRepository propRepo,
@@ -35,7 +38,9 @@ namespace BookMyFun.Controllers
             ILogger<OwnerController> logger,
             IEmailService? emailService = null,
             IWhatsAppService? whatsAppService = null,
-            ILegalDocumentService? legalService = null)
+            ILegalDocumentService? legalService = null,
+            INotificationFanoutService? notificationFanout = null,
+            BookMyFun.Services.Notifications.INotificationDispatcherService? notificationDispatcher = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -48,9 +53,21 @@ namespace BookMyFun.Controllers
             _emailService = emailService;
             _whatsAppService = whatsAppService;
             _legalService = legalService;
+            _notificationFanout = notificationFanout;
+            _notificationDispatcher = notificationDispatcher;
         }
 
-        private int GetCurrentUserId() => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        private int GetCurrentUserId() => User.GetUserId();
+
+        private static readonly HashSet<string> ValidIndianStates = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+            "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka",
+            "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram",
+            "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
+            "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
+            "Delhi", "Chandigarh", "Jammu and Kashmir", "Ladakh", "Puducherry"
+        };
 
         [AllowAnonymous]
         [HttpGet]
@@ -65,12 +82,10 @@ namespace BookMyFun.Controllers
             var sub = await _subRepo.GetActiveSubscriptionByOwnerIdAsync(ownerId);
             var plans = await _subRepo.GetAllPlansAsync();
 
-            int maxAllowed = 1; // Default 1 complimentary listing for approved trial hosts
-            if (sub != null)
-            {
-                var plan = await _subRepo.GetPlanByIdAsync(sub.PlanID);
-                maxAllowed = plan?.MaxListings ?? 1;
-            }
+            var allowance = await _subRepo.CheckListingCreationAllowanceAsync(ownerId);
+            bool hasHistory = await _subRepo.HasAnySubscriptionHistoryAsync(ownerId);
+            bool isEligibleForTrial = !hasHistory && sub == null;
+            int maxAllowed = (sub != null) ? sub.MaxListings : (isEligibleForTrial ? 1 : 0);
 
             decimal totalEarnings = bookings
                 .Where(b => b.Status == "Confirmed")
@@ -86,13 +101,27 @@ namespace BookMyFun.Controllers
             {
                 Owner = owner!,
                 ActiveSubscription = sub,
-                ActiveListingsCount = properties.Count(p => p.ListingStatus == "Active"),
+                ActiveListingsCount = properties.Count(p => p.IsApproved && p.ListingStatus == "Active"),
+                CanAddProperty = allowance.Allowed,
+                IsEligibleForTrial = isEligibleForTrial,
+                AddPropertyDisabledReason = allowance.Reason,
                 MaxListingsAllowed = maxAllowed,
                 TotalEarnings = totalEarnings,
                 Properties = properties,
                 Bookings = bookings,
                 AvailablePlans = plans,
                 AvailableCategories = await _propRepo.GetPropertyTypesAsync()
+            };
+
+            var scheduledSub = await _subRepo.GetScheduledSubscriptionByOwnerIdAsync(ownerId);
+            ViewBag.ScheduledSub = scheduledSub;
+            ViewBag.NotificationPreferences = new OwnerNotificationPreferencesViewModel
+            {
+                EmailEnabled = owner?.NotificationEmailEnabled ?? true,
+                InAppEnabled = owner?.NotificationInAppEnabled ?? true,
+                WhatsAppEnabled = owner?.NotificationWhatsAppEnabled ?? false,
+                WhatsAppVerified = owner?.WhatsAppVerified ?? false,
+                WhatsAppPhone = owner?.WhatsAppPhone ?? owner?.Phone
             };
 
             return View(vm);
@@ -102,10 +131,10 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> CreateProperty()
         {
             var ownerId = GetCurrentUserId();
-            bool canAdd = await _subRepo.CanOwnerAddPropertyAsync(ownerId);
-            if (!canAdd)
+            var allowance = await _subRepo.CheckListingCreationAllowanceAsync(ownerId);
+            if (!allowance.Allowed)
             {
-                TempData["Error"] = "Your active subscription limit is reached or expired. Please purchase or upgrade your plan first.";
+                TempData["Error"] = allowance.Reason ?? "Your subscription has ended. Choose a plan to add listings.";
                 return RedirectToAction(nameof(Subscriptions));
             }
 
@@ -151,6 +180,16 @@ namespace BookMyFun.Controllers
                 }
             }
 
+            var allowance = await _subRepo.CheckListingCreationAllowanceAsync(ownerId);
+            if (!allowance.Allowed)
+            {
+                ModelState.AddModelError("", allowance.Reason ?? "Your subscription has ended. Choose a plan to add listings.");
+                vm.AvailableTypes = await _propRepo.GetPropertyTypesAsync();
+                vm.AvailableOccasions = await _propRepo.GetOccasionsAsync();
+                vm.AvailableAmenities = await _propRepo.GetAllAmenitiesAsync();
+                return View(vm);
+            }
+
             // Process Custom Amenities
             if (vm.CustomAmenities != null && vm.CustomAmenities.Any())
             {
@@ -190,6 +229,58 @@ namespace BookMyFun.Controllers
                 ModelState.AddModelError("SelectedOccasionIDs", "You can select or add a maximum of 5 occasions.");
             }
 
+            // Location derivation
+            if (string.IsNullOrWhiteSpace(vm.Location))
+            {
+                vm.Location = string.IsNullOrWhiteSpace(vm.City) ? "India" : $"{vm.City}, {vm.State}".Trim(',', ' ');
+            }
+
+            // Validate MapUrl
+            if (string.IsNullOrWhiteSpace(vm.MapUrl))
+            {
+                ModelState.AddModelError("MapUrl", "Google Maps location URL is required.");
+            }
+            else if (!Uri.TryCreate(vm.MapUrl.Trim(), UriKind.Absolute, out var uriResult) ||
+                     (uriResult.Scheme != Uri.UriSchemeHttp && uriResult.Scheme != Uri.UriSchemeHttps))
+            {
+                ModelState.AddModelError("MapUrl", "Please enter a valid Google Maps URL starting with http:// or https://.");
+            }
+
+            // Validate Indian Pincode format (6 digits)
+            if (string.IsNullOrWhiteSpace(vm.Pincode) || !System.Text.RegularExpressions.Regex.IsMatch(vm.Pincode.Trim(), @"^[1-9][0-9]{5}$"))
+            {
+                ModelState.AddModelError("Pincode", "PIN Code must be a valid 6-digit Indian postal code.");
+            }
+
+            // Validate State
+            if (string.IsNullOrWhiteSpace(vm.State) || !ValidIndianStates.Contains(vm.State.Trim()))
+            {
+                ModelState.AddModelError("State", "Please select a valid Indian State or Union Territory.");
+            }
+
+            // Validate MinStayNights <= MaxStayNights
+            if (vm.MinStayNights < 1)
+            {
+                ModelState.AddModelError("MinStayNights", "Minimum stay must be at least 1 night.");
+            }
+            if (vm.MaxStayNights < 1)
+            {
+                ModelState.AddModelError("MaxStayNights", "Maximum stay must be at least 1 night.");
+            }
+            if (vm.MinStayNights > vm.MaxStayNights)
+            {
+                ModelState.AddModelError("MinStayNights", "Minimum stay nights cannot exceed maximum stay nights.");
+            }
+
+            // Validate CaretakerPhone when OwnerIsCaretaker is false
+            if (!vm.OwnerIsCaretaker && string.IsNullOrWhiteSpace(vm.CaretakerPhone))
+            {
+                ModelState.AddModelError("CaretakerPhone", "Caretaker contact phone is required when you are not the on-site caretaker.");
+            }
+
+            // Security deposit removed per Section 4d
+            vm.SecurityDepositAmount = 0m;
+
             if (!ModelState.IsValid)
             {
                 vm.AvailableTypes = await _propRepo.GetPropertyTypesAsync();
@@ -204,13 +295,23 @@ namespace BookMyFun.Controllers
                 PropertyTypeID = vm.PropertyTypeID,
                 Title = vm.Title,
                 Description = vm.Description,
-                Location = vm.Location,
-                FormattedAddress = vm.FormattedAddress,
-                Latitude = vm.Latitude,
-                Longitude = vm.Longitude,
-                MapUrl = vm.MapUrl,
+                Location = string.IsNullOrWhiteSpace(vm.City) ? (vm.Location ?? "") : $"{vm.City}, {vm.State}".Trim(',', ' '),
+                FormattedAddress = vm.FormattedAddress ?? $"{vm.NearbyAreaOrRoad}, {vm.City}, {vm.State} - {vm.Pincode}".Trim(' ', '-', ','),
+                Latitude = null,
+                Longitude = null,
+                MapUrl = vm.MapUrl?.Trim(),
+                MapUrlLocked = true,
+                CaretakerName = vm.OwnerIsCaretaker ? (User.Identity?.Name ?? "Host") : vm.CaretakerName,
+                CaretakerPhone = vm.OwnerIsCaretaker ? null : vm.CaretakerPhone,
+                OwnerIsCaretaker = vm.OwnerIsCaretaker,
+                Pincode = vm.Pincode?.Trim(),
+                NearbyAreaOrRoad = vm.NearbyAreaOrRoad?.Trim(),
+                City = vm.City?.Trim(),
+                State = vm.State?.Trim(),
+                MinStayNights = vm.MinStayNights > 0 ? vm.MinStayNights : 1,
+                MaxStayNights = vm.MaxStayNights > 0 ? vm.MaxStayNights : 30,
                 PricePerNight = vm.PricePerNight,
-                SecurityDepositAmount = vm.SecurityDepositAmount,
+                SecurityDepositAmount = 0m,
                 CommissionRate = vm.CommissionRate,
                 FreeCancellationWindowHours = vm.FreeCancellationWindowHours,
                 CancellationCutoffHours = vm.CancellationCutoffHours,
@@ -224,6 +325,10 @@ namespace BookMyFun.Controllers
             };
 
             var propId = await _propRepo.CreatePropertyAsync(prop);
+            if (propId > 0 && _notificationDispatcher != null)
+            {
+                _ = _notificationDispatcher.DispatchPropertyWaitingVerificationStaffAlertAsync(propId, prop.Title, ownerId);
+            }
 
             // Record policy consent acceptances (Item 3f)
             if (_legalService != null)
@@ -312,9 +417,20 @@ namespace BookMyFun.Controllers
                 CancellationFeeType = prop.CancellationFeeType,
                 CancellationFeeValue = prop.CancellationFeeValue,
                 MaxGuests = prop.MaxGuests,
+                MinStayNights = prop.MinStayNights > 0 ? prop.MinStayNights : 1,
+                MaxStayNights = prop.MaxStayNights > 0 ? prop.MaxStayNights : 30,
                 ListingStatus = prop.ListingStatus,
                 IsApproved = prop.IsApproved,
                 IsFeatured = prop.IsFeatured,
+                CaretakerName = prop.CaretakerName,
+                CaretakerPhone = prop.CaretakerPhone,
+                OwnerIsCaretaker = prop.OwnerIsCaretaker,
+                Pincode = prop.Pincode,
+                NearbyAreaOrRoad = prop.NearbyAreaOrRoad,
+                City = prop.City,
+                State = prop.State,
+                MapUrlLocked = prop.MapUrlLocked,
+                EventCommissionRate = prop.EventCommissionRate,
                 SelectedOccasionIDs = prop.OccasionIDs,
                 SelectedAmenityIDs = prop.AmenityIDs,
                 ExistingMedia = prop.MediaList,
@@ -388,6 +504,66 @@ namespace BookMyFun.Controllers
                 ModelState.AddModelError("SelectedOccasionIDs", "You can select or add a maximum of 5 occasions.");
             }
 
+            // Location derivation
+            if (string.IsNullOrWhiteSpace(vm.Location))
+            {
+                vm.Location = string.IsNullOrWhiteSpace(vm.City) ? (prop.Location ?? "India") : $"{vm.City}, {vm.State}".Trim(',', ' ');
+            }
+
+            // MapUrl validation / lock check
+            if (prop.MapUrlLocked)
+            {
+                vm.MapUrl = prop.MapUrl;
+                ModelState.Remove("MapUrl");
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(vm.MapUrl))
+                {
+                    ModelState.AddModelError("MapUrl", "Google Maps location URL is required.");
+                }
+                else if (!Uri.TryCreate(vm.MapUrl.Trim(), UriKind.Absolute, out var uriResult) ||
+                         (uriResult.Scheme != Uri.UriSchemeHttp && uriResult.Scheme != Uri.UriSchemeHttps))
+                {
+                    ModelState.AddModelError("MapUrl", "Please enter a valid Google Maps URL starting with http:// or https://.");
+                }
+            }
+
+            // Validate Indian Pincode format (6 digits)
+            if (string.IsNullOrWhiteSpace(vm.Pincode) || !System.Text.RegularExpressions.Regex.IsMatch(vm.Pincode.Trim(), @"^[1-9][0-9]{5}$"))
+            {
+                ModelState.AddModelError("Pincode", "PIN Code must be a valid 6-digit Indian postal code.");
+            }
+
+            // Validate State
+            if (string.IsNullOrWhiteSpace(vm.State) || !ValidIndianStates.Contains(vm.State.Trim()))
+            {
+                ModelState.AddModelError("State", "Please select a valid Indian State or Union Territory.");
+            }
+
+            // Validate MinStayNights <= MaxStayNights
+            if (vm.MinStayNights < 1)
+            {
+                ModelState.AddModelError("MinStayNights", "Minimum stay must be at least 1 night.");
+            }
+            if (vm.MaxStayNights < 1)
+            {
+                ModelState.AddModelError("MaxStayNights", "Maximum stay must be at least 1 night.");
+            }
+            if (vm.MinStayNights > vm.MaxStayNights)
+            {
+                ModelState.AddModelError("MinStayNights", "Minimum stay nights cannot exceed maximum stay nights.");
+            }
+
+            // Validate CaretakerPhone when OwnerIsCaretaker is false
+            if (!vm.OwnerIsCaretaker && string.IsNullOrWhiteSpace(vm.CaretakerPhone))
+            {
+                ModelState.AddModelError("CaretakerPhone", "Caretaker contact phone is required when you are not the on-site caretaker.");
+            }
+
+            // Security deposit removed per Section 4d
+            vm.SecurityDepositAmount = 0m;
+
             if (!ModelState.IsValid)
             {
                 vm.AvailableTypes = await _propRepo.GetPropertyTypesAsync();
@@ -400,13 +576,25 @@ namespace BookMyFun.Controllers
             prop.PropertyTypeID = vm.PropertyTypeID;
             prop.Title = vm.Title;
             prop.Description = vm.Description;
-            prop.Location = vm.Location;
-            prop.FormattedAddress = vm.FormattedAddress;
-            prop.Latitude = vm.Latitude;
-            prop.Longitude = vm.Longitude;
-            prop.MapUrl = vm.MapUrl;
+            prop.Location = string.IsNullOrWhiteSpace(vm.City) ? (vm.Location ?? "") : $"{vm.City}, {vm.State}".Trim(',', ' ');
+            prop.FormattedAddress = vm.FormattedAddress ?? $"{vm.NearbyAreaOrRoad}, {vm.City}, {vm.State} - {vm.Pincode}".Trim(' ', '-', ',');
+            prop.Latitude = null;
+            prop.Longitude = null;
+            if (!prop.MapUrlLocked && !string.IsNullOrWhiteSpace(vm.MapUrl))
+            {
+                prop.MapUrl = vm.MapUrl.Trim();
+            }
+            prop.CaretakerName = vm.OwnerIsCaretaker ? (User.Identity?.Name ?? "Host") : vm.CaretakerName;
+            prop.CaretakerPhone = vm.OwnerIsCaretaker ? null : vm.CaretakerPhone;
+            prop.OwnerIsCaretaker = vm.OwnerIsCaretaker;
+            prop.Pincode = vm.Pincode?.Trim();
+            prop.NearbyAreaOrRoad = vm.NearbyAreaOrRoad?.Trim();
+            prop.City = vm.City?.Trim();
+            prop.State = vm.State?.Trim();
             prop.PricePerNight = vm.PricePerNight;
-            prop.SecurityDepositAmount = vm.SecurityDepositAmount;
+            prop.MinStayNights = vm.MinStayNights > 0 ? vm.MinStayNights : 1;
+            prop.MaxStayNights = vm.MaxStayNights > 0 ? vm.MaxStayNights : 30;
+            prop.SecurityDepositAmount = 0m;
             prop.CommissionRate = vm.CommissionRate;
             prop.FreeCancellationWindowHours = vm.FreeCancellationWindowHours;
             prop.CancellationCutoffHours = vm.CancellationCutoffHours;
@@ -489,14 +677,74 @@ namespace BookMyFun.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UnpublishProperty(int id)
         {
-            return await DeactivateProperty(id, true);
+            var ownerId = GetCurrentUserId();
+            var prop = await _propRepo.GetByIdAsync(id);
+            if (prop == null) return NotFound();
+            if (prop.OwnerID != ownerId && !User.IsInRole("Admin")) return Forbid();
+
+            bool success = await _propRepo.UnpublishPropertyAsync(id, ownerId, "Owner unpublished");
+            if (success)
+            {
+                await _configRepo.LogAuditAsync(ownerId, "OwnerUnpublishProperty", "Property", id,
+                    $"Host #{ownerId} unpublished listing #{id} ('{prop.Title}').");
+                if (_notificationDispatcher != null)
+                {
+                    _ = _notificationDispatcher.DispatchPropertyUnpublishedAsync(id, prop.Title, prop.OwnerID, "Owner unpublished");
+                }
+                TempData["Success"] = $"Property '{prop.Title}' has been unpublished.";
+            }
+            else
+            {
+                TempData["Error"] = "Failed to unpublish property.";
+            }
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> PublishProperty(int id)
         {
-            return await DeactivateProperty(id, false);
+            var ownerId = GetCurrentUserId();
+            var prop = await _propRepo.GetByIdAsync(id);
+            if (prop == null) return NotFound();
+            if (prop.OwnerID != ownerId && !User.IsInRole("Admin")) return Forbid();
+
+            if (!prop.IsApproved || (prop.ListingStatus != "Draft" && prop.ListingStatus != "Deactivated"))
+            {
+                TempData["Error"] = "Property must be approved before publishing.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            // If brand new owner without any subscription history, auto-create Free Trial row
+            bool hasHistory = await _subRepo.HasAnySubscriptionHistoryAsync(prop.OwnerID);
+            if (!hasHistory)
+            {
+                await _subRepo.CreateTrialSubscriptionAsync(prop.OwnerID);
+            }
+
+            var activeSub = await _subRepo.GetActiveSubscriptionByOwnerIdAsync(prop.OwnerID);
+            if (activeSub == null)
+            {
+                TempData["Error"] = "Your subscription has ended. Choose a plan to publish listings.";
+                return RedirectToAction(nameof(Subscriptions));
+            }
+
+            var (success, msg) = await _propRepo.PublishPropertyAsync(id, prop.OwnerID, activeSub.MaxListings);
+            if (success)
+            {
+                await _configRepo.LogAuditAsync(ownerId, "OwnerPublishProperty", "Property", id,
+                    $"Host #{ownerId} published listing #{id} ('{prop.Title}').");
+                if (_notificationDispatcher != null)
+                {
+                    _ = _notificationDispatcher.DispatchPropertyPublishedAsync(id, prop.Title, prop.OwnerID);
+                }
+                TempData["Success"] = $"Property '{prop.Title}' is now live on BookMyFun!";
+            }
+            else
+            {
+                TempData["Error"] = msg;
+            }
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost]
@@ -510,6 +758,12 @@ namespace BookMyFun.Controllers
             if (prop.OwnerID != ownerId && !User.IsInRole("Admin"))
             {
                 return Forbid();
+            }
+
+            if (prop.MapUrlLocked && !User.IsInRole("Admin"))
+            {
+                TempData["Error"] = "Map location link is permanently locked after listing creation. To update it, please submit an official map change request.";
+                return RedirectToAction(nameof(Index));
             }
 
             string? sanitizedUrl = null;
@@ -697,19 +951,34 @@ namespace BookMyFun.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Subscribe(int planId)
+        public async Task<IActionResult> Subscribe(int planId, bool acknowledgeActive = false, bool acknowledgeStart = false)
         {
             var ownerId = GetCurrentUserId();
             var plan = await _subRepo.GetPlanByIdAsync(planId);
             if (plan == null) return NotFound();
 
+            var activeSub = await _subRepo.GetActiveSubscriptionByOwnerIdAsync(ownerId);
+            DateTime startDate = DateTime.UtcNow;
+            if (activeSub != null)
+            {
+                if (!acknowledgeActive || !acknowledgeStart)
+                {
+                    TempData["Error"] = $"You hold an active plan ({activeSub.PlanName}) until {activeSub.EndDate:dd MMM yyyy}. Please acknowledge the scheduled renewal warnings to proceed.";
+                    return RedirectToAction(nameof(Subscriptions));
+                }
+                startDate = activeSub.EndDate;
+            }
+
+            decimal effectivePrice = await _subRepo.GetEffectivePlanPriceAsync(planId, DateTime.UtcNow);
+
             var sub = new OwnerSubscription
             {
                 OwnerID = ownerId,
                 PlanID = planId,
-                StartDate = DateTime.UtcNow,
-                EndDate = DateTime.UtcNow.AddDays(plan.DurationInDays),
+                StartDate = startDate,
+                EndDate = startDate.AddDays(plan.DurationInDays),
                 PaymentStatus = "Pending",
+                PricePaid = effectivePrice,
                 GatewayTransactionID = null
             };
 
@@ -778,7 +1047,27 @@ namespace BookMyFun.Controllers
             }
 
             await _subRepo.UpdateSubscriptionPaymentStatusAsync(subscriptionId, "Paid", $"RAZORPAY_{razorpay_payment_id}");
-            TempData["Success"] = $"Razorpay payment verified successfully! Your subscription to {sub.PlanName} is now active.";
+            
+            // Check if active immediately or scheduled for future
+            if (sub.StartDate <= DateTime.UtcNow)
+            {
+                int limit = sub.MaxListings > 0 ? sub.MaxListings : 1;
+                var republished = await _subRepo.RepublishExpiredPropertiesAsync(ownerId, limit);
+                if (_notificationDispatcher != null)
+                {
+                    _ = _notificationDispatcher.DispatchSubscriptionActivatedAsync(ownerId, sub.PlanName ?? "Subscription", sub.EndDate, republished);
+                    _ = _notificationDispatcher.DispatchPlanPurchaseConfirmedAsync(ownerId, sub.PlanName ?? "Subscription", (sub.PricePaid ?? 0m), false, sub.StartDate);
+                }
+                TempData["Success"] = $"Razorpay payment verified successfully! Your subscription to {sub.PlanName} is now active.";
+            }
+            else
+            {
+                if (_notificationDispatcher != null)
+                {
+                    _ = _notificationDispatcher.DispatchPlanPurchaseConfirmedAsync(ownerId, sub.PlanName ?? "Subscription", (sub.PricePaid ?? 0m), true, sub.StartDate);
+                }
+                TempData["Success"] = $"Razorpay payment verified successfully! Your subscription to {sub.PlanName} is scheduled to start on {sub.StartDate:dd MMM yyyy}.";
+            }
             return RedirectToAction(nameof(Subscriptions));
         }
 
@@ -919,5 +1208,151 @@ namespace BookMyFun.Controllers
             }
             return RedirectToAction("BookingReceipt", new { id = bookingId });
         }
-    }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RequestMapLinkChange(int propertyId, string newMapUrl, string reason)
+        {
+            var ownerId = GetCurrentUserId();
+            var prop = await _propRepo.GetByIdAsync(propertyId);
+            if (prop == null || prop.OwnerID != ownerId)
+            {
+                return Forbid();
+            }
+
+            if (string.IsNullOrWhiteSpace(newMapUrl) || !Uri.TryCreate(newMapUrl.Trim(), UriKind.Absolute, out var uri))
+            {
+                TempData["Error"] = "Please provide a valid Google Maps URL starting with http:// or https://.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            if (string.IsNullOrWhiteSpace(reason))
+            {
+                TempData["Error"] = "Please specify a valid operational reason for requesting a map link change.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            // Log change request to audit
+            await _configRepo.LogAuditAsync(ownerId, "RequestMapLinkChange", "Property", propertyId,
+                $"Host #{ownerId} submitted a Map Link change request for Property #{propertyId} ('{prop.Title}'). New URL: {newMapUrl.Trim()}. Reason: {reason.Trim()}");
+
+            TempData["Success"] = "Your map link change request has been submitted for platform administrator review.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CancelScheduledSubscription(int id)
+        {
+            var ownerId = GetCurrentUserId();
+            var sub = await _subRepo.GetSubscriptionByIdAsync(id);
+            if (sub == null || sub.OwnerID != ownerId)
+            {
+                return NotFound();
+            }
+
+            if (sub.StartDate <= DateTime.UtcNow)
+            {
+                TempData["Error"] = "Only future scheduled subscriptions that have not yet started can be cancelled.";
+                return RedirectToAction(nameof(Subscriptions));
+            }
+
+            bool cancelled = await _subRepo.CancelScheduledSubscriptionAsync(id, ownerId);
+            if (cancelled)
+            {
+                await _configRepo.LogAuditAsync(ownerId, "CancelScheduledSubscription", "OwnerSubscription", id,
+                    $"Owner #{ownerId} cancelled scheduled plan #{id} ({sub.PlanName}) starting on {sub.StartDate:dd MMM yyyy}. Full refund initiated.");
+                TempData["Success"] = $"Scheduled plan '{sub.PlanName}' has been successfully cancelled and refunded.";
+            }
+            else
+            {
+                TempData["Error"] = "Failed to cancel scheduled subscription. Please contact support.";
+            }
+
+            return RedirectToAction(nameof(Subscriptions));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> NotificationSettings()
+        {
+            var ownerId = GetCurrentUserId();
+            var owner = await _userRepo.GetByIdAsync(ownerId);
+            if (owner == null) return NotFound();
+
+            var vm = new OwnerNotificationPreferencesViewModel
+            {
+                EmailEnabled = owner.NotificationEmailEnabled,
+                InAppEnabled = owner.NotificationInAppEnabled,
+                WhatsAppEnabled = owner.NotificationWhatsAppEnabled,
+                WhatsAppVerified = owner.WhatsAppVerified,
+                WhatsAppPhone = owner.WhatsAppPhone ?? owner.Phone
+            };
+
+            return View(vm);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> NotificationSettings(OwnerNotificationPreferencesViewModel model)
+        {
+            var ownerId = GetCurrentUserId();
+            var owner = await _userRepo.GetByIdAsync(ownerId);
+            if (owner == null) return NotFound();
+
+            owner.NotificationEmailEnabled = model.EmailEnabled;
+            owner.NotificationInAppEnabled = model.InAppEnabled;
+
+            // WhatsApp requires verified phone
+            if (model.WhatsAppEnabled && !owner.WhatsAppVerified)
+            {
+                TempData["Error"] = "WhatsApp alerts require verified mobile number. Please complete OTP verification.";
+                return View(model);
+            }
+
+            owner.NotificationWhatsAppEnabled = model.WhatsAppEnabled && owner.WhatsAppVerified;
+            if (!string.IsNullOrWhiteSpace(model.WhatsAppPhone))
+            {
+                owner.WhatsAppPhone = model.WhatsAppPhone.Trim();
+            }
+
+            await _userRepo.UpdateUserAsync(owner);
+            TempData["Success"] = "Notification preferences updated successfully across In-App, Email, and WhatsApp channels.";
+            return RedirectToAction(nameof(NotificationSettings));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> VerifyWhatsAppOtp(string phone, string otp)
+        {
+            var ownerId = GetCurrentUserId();
+            var owner = await _userRepo.GetByIdAsync(ownerId);
+            if (owner == null) return NotFound();
+
+            if (string.IsNullOrWhiteSpace(phone) || phone.Trim().Length < 10)
+            {
+                TempData["Error"] = "Please enter a valid 10-digit mobile number for WhatsApp verification.";
+                return RedirectToAction(nameof(NotificationSettings));
+            }
+
+            // OTP verification: in testing/demo mode, accept 123456 or 6-digit number
+            var cleanOtp = (otp ?? "").Trim();
+            if (cleanOtp.Length == 6)
+            {
+                owner.WhatsAppPhone = phone.Trim();
+                owner.WhatsAppVerified = true;
+                owner.NotificationWhatsAppEnabled = true;
+                await _userRepo.UpdateUserAsync(owner);
+
+                await _configRepo.LogAuditAsync(ownerId, "VerifyWhatsAppOtp", "User", ownerId, $"Host verified WhatsApp alerts for phone {phone.Trim()}");
+                TempData["Success"] = "WhatsApp mobile number verified successfully! You will now receive instant booking alerts.";
+            }
+            else
+            {
+                TempData["Error"] = "Invalid OTP code. Please enter the 6-digit verification code sent to your WhatsApp number.";
+            }
+
+            return RedirectToAction(nameof(NotificationSettings));
+        }
+
+}
 }

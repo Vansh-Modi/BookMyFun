@@ -2,6 +2,7 @@ using BookMyFun.Models.Entities;
 using BookMyFun.Models.ViewModels;
 using BookMyFun.Repositories;
 using BookMyFun.Services.Exceptions;
+using BookMyFun.Services.Security;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -27,6 +28,7 @@ namespace BookMyFun.Services
         private readonly IWhatsAppService _whatsAppService;
         private readonly ILogger<PartnerLeadService> _logger;
         private readonly IConfiguration? _configuration;
+        private readonly IPasswordHasherService _passwordHasher;
 
         public PartnerLeadService(
             IPartnerLeadRepository leadRepo,
@@ -35,7 +37,8 @@ namespace BookMyFun.Services
             IEmailService emailService,
             IWhatsAppService whatsAppService,
             ILogger<PartnerLeadService> logger,
-            IConfiguration? configuration = null)
+            IConfiguration? configuration = null,
+            IPasswordHasherService? passwordHasher = null)
         {
             _leadRepo = leadRepo;
             _userRepo = userRepo;
@@ -44,6 +47,7 @@ namespace BookMyFun.Services
             _whatsAppService = whatsAppService;
             _logger = logger;
             _configuration = configuration;
+            _passwordHasher = passwordHasher ?? new PasswordHasherService();
         }
 
         public async Task<int> CreateLeadAsync(PartnerLeadCreateViewModel model)
@@ -99,7 +103,7 @@ namespace BookMyFun.Services
             string token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
             var expiresAt = DateTime.UtcNow.AddHours(48); // 48-hour expiration
             string internalSecret = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
-            string passwordHash = HashPassword(internalSecret);
+            string passwordHash = _passwordHasher.HashPassword(internalSecret);
 
             // Check if user already exists
             int accountId;
@@ -213,7 +217,7 @@ namespace BookMyFun.Services
 
             // Generate secure temporary initial password for approved owner
             string generatedPassword = $"Host@{RandomNumberGenerator.GetInt32(100000, 999999)}";
-            string passwordHash = HashPassword(generatedPassword);
+            string passwordHash = _passwordHasher.HashPassword(generatedPassword);
 
             bool approved = await _ownerReqRepo.ApproveOwnerRequestAsync(requestId, staffUserId, notes, passwordHash);
             if (!approved)
@@ -316,7 +320,7 @@ namespace BookMyFun.Services
                     Email = lead.Email,
                     Phone = lead.Phone,
                     Role = role,
-                    PasswordHash = HashPassword(model.Password),
+                    PasswordHash = _passwordHasher.HashPassword(model.Password),
                     SubscriptionTier = "Free",
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow
@@ -325,7 +329,7 @@ namespace BookMyFun.Services
             }
             else
             {
-                string newHash = HashPassword(model.Password);
+                string newHash = _passwordHasher.HashPassword(model.Password);
                 user.Role = role;
                 user.PasswordHash = newHash;
                 user.IsActive = true;

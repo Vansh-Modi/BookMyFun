@@ -2,59 +2,161 @@
 @{
     ViewData["Title"] = "Owner Subscription Plans";
     var activeSub = ViewBag.ActiveSub as BookMyFun.Models.Entities.OwnerSubscription;
+    var scheduledSub = ViewBag.ScheduledSub as BookMyFun.Models.Entities.OwnerSubscription;
+    var history = ViewBag.History as List<BookMyFun.Models.Entities.OwnerSubscription>;
 }
 
 <div class="text-center mb-5">
-    <h2 class="fw-bold">Monetization & Listing Plans for Property Owners</h2>
+    <h2 class="fw-bold">Monetization &amp; Listing Plans for Property Owners</h2>
     <p class="text-muted">Choose a subscription to list farmhouses, cottages, and luxury villas on BookMyFun.</p>
 </div>
 
+<!-- Active Subscription Banner -->
 @if (activeSub != null)
 {
-    <div class="alert alert-info text-center mb-4">
-        <i class="bi bi-shield-check"></i> You currently hold an active <strong>@activeSub.PlanName</strong> valid until <strong>@activeSub.EndDate.ToString("MMMM dd, yyyy")</strong>.
+    <div class="alert alert-success border-0 shadow-sm rounded-4 mb-4 d-flex align-items-center gap-3">
+        <div class="rounded-circle bg-success bg-opacity-25 p-2.5 text-success">
+            <i class="bi bi-patch-check-fill fs-3"></i>
+        </div>
+        <div>
+            <h6 class="fw-bold mb-1 text-dark">Active Subscription: @activeSub.PlanName</h6>
+            <div class="small text-muted">
+                Your current plan is active until <strong>@activeSub.EndDate.ToString("dd MMM yyyy")</strong>.
+            </div>
+        </div>
     </div>
 }
 
-<div class="row row-cols-1 row-cols-md-3 g-4 justify-content-center">
+<!-- Scheduled Subscription Banner (Section 3a) -->
+@if (scheduledSub != null)
+{
+    <div class="alert alert-info border-0 shadow-sm rounded-4 mb-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div class="d-flex align-items-center gap-3">
+            <div class="rounded-circle bg-info bg-opacity-25 p-2.5 text-info">
+                <i class="bi bi-calendar-event fs-3"></i>
+            </div>
+            <div>
+                <h6 class="fw-bold mb-1 text-dark">Scheduled Plan: @scheduledSub.PlanName</h6>
+                <div class="small text-muted">
+                    Scheduled to start automatically on <strong>@scheduledSub.StartDate.ToString("dd MMM yyyy")</strong> after your active plan ends. New listing limits will apply only after activation.
+                </div>
+            </div>
+        </div>
+        <form asp-action="CancelScheduledSubscription" method="post" class="d-inline" onsubmit="return confirm('Cancel this upcoming scheduled renewal for @scheduledSub.PlanName? You will receive a full refund consistent with our cancellation policy.');">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@scheduledSub.SubscriptionID" />
+            <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3 py-1.5 fw-semibold">
+                <i class="bi bi-x-circle me-1"></i> Cancel Scheduled Plan
+            </button>
+        </form>
+    </div>
+}
+
+<!-- Plan Pricing Cards -->
+<div class="row row-cols-1 row-cols-md-3 g-4 justify-content-center mb-5">
     @foreach (var plan in Model)
     {
+        var effPrice = plan.CurrentPrice > 0 ? plan.CurrentPrice : plan.Price;
         <div class="col">
-            <div class="card h-100 shadow-sm border-2 text-center @(plan.PlanName.Contains("Gold") || plan.PlanName.Contains("Pro") ? "border-warning" : "border-light")">
-                <div class="card-header bg-white border-0 pt-4">
-                    <h4 class="card-title fw-bold">@plan.PlanName</h4>
-                    <h2 class="display-6 fw-bold text-primary mt-2">₹@plan.Price.ToString("N0")</h2>
-                    <span class="text-muted">/ @plan.DurationInDays Days</span>
+            <div class="card h-100 shadow-sm border-2 text-center rounded-4 @(plan.PlanName.Contains("Gold") || plan.PlanName.Contains("Pro") ? "border-warning" : "border-light") bg-card">
+                <div class="card-header bg-transparent border-0 pt-4">
+                    <h4 class="card-title fw-bold text-dark mb-1">@plan.PlanName</h4>
+                    <h2 class="display-6 fw-bold text-primary mt-2 mb-0">₹@effPrice.ToString("N0")</h2>
+                    <span class="text-muted small">/ @plan.DurationInDays Days</span>
+
+                    @if (plan.UpcomingPrice.HasValue)
+                    {
+                        <div class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle py-1.5 px-3 rounded-pill mt-2 small text-wrap d-block">
+                            <i class="bi bi-info-circle me-1"></i>Price changes to ₹@plan.UpcomingPrice.Value.ToString("N0") on @(plan.UpcomingPriceDate?.ToString("dd MMM yyyy") ?? "soon")
+                        </div>
+                    }
                 </div>
-                <div class="card-body">
-                    <ul class="list-unstyled mb-4">
+                <div class="card-body p-4 d-flex flex-column justify-content-between">
+                    <ul class="list-unstyled mb-4 text-start small">
                         <li class="mb-2"><i class="bi bi-check2 text-success me-2"></i> List up to <strong>@plan.MaxListings Properties</strong></li>
-                        <li class="mb-2"><i class="bi bi-check2 text-success me-2"></i> Instant Guest WhatsApp Alerts</li>
+                        <li class="mb-2"><i class="bi bi-check2 text-success me-2"></i> In-App, Email &amp; WhatsApp Guest Alerts</li>
                         <li class="mb-2"><i class="bi bi-check2 text-success me-2"></i> Real-time Slot Availability Calendar</li>
-                        <li class="mb-2"><i class="bi bi-check2 text-success me-2"></i> Dedicated Partner Support</li>
+                        <li class="mb-2"><i class="bi bi-check2 text-success me-2"></i> Dedicated Partner Support Desk</li>
                     </ul>
 
-                    <form asp-action="Subscribe" method="post">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="planId" value="@plan.PlanID" />
-                        <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold shadow-sm">
-                            <i class="bi bi-credit-card-fill me-1"></i> Subscribe via Razorpay
+                    @if (activeSub != null)
+                    {
+                        <!-- Active subscription holds: Trigger 2-warning confirmation modal before checkout -->
+                        <button type="button" class="btn btn-warning w-100 py-2.5 fw-bold rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#modalSubWarning_@plan.PlanID">
+                            <i class="bi bi-calendar-plus me-1"></i> Schedule Plan Renewal
                         </button>
-                    </form>
+
+                        <!-- Modal: 2 Clear Warnings (Section 3a) -->
+                        <div class="modal fade" id="modalSubWarning_@plan.PlanID" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content border-0 shadow-lg rounded-4 text-start">
+                                    <div class="modal-header border-bottom py-3 bg-warning text-dark">
+                                        <h5 class="modal-title fw-bold mb-0">
+                                            <i class="bi bi-exclamation-triangle-fill me-2"></i>Active Subscription Notice
+                                        </h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <form asp-action="Subscribe" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="planId" value="@plan.PlanID" />
+                                        <div class="modal-body p-4">
+                                            <!-- Warning 1: Current plan active until end date -->
+                                            <div class="alert alert-info border-0 rounded-3 small mb-3">
+                                                <i class="bi bi-info-circle-fill me-1"></i> <strong>Notice 1:</strong> You already have an active subscription (<strong>@activeSub.PlanName</strong>) that remains fully active until <strong>@activeSub.EndDate.ToString("dd MMM yyyy")</strong>.
+                                            </div>
+
+                                            <!-- Warning 2: New plan starts only after current ends -->
+                                            <div class="alert alert-warning border-0 rounded-3 small mb-3">
+                                                <i class="bi bi-clock-history me-1"></i> <strong>Notice 2:</strong> This new subscription will be saved as <strong>Scheduled</strong> and will begin only on <strong>@activeSub.EndDate.ToString("dd MMM yyyy")</strong>. Your property listing limits will not increase early and will adjust on the scheduled activation date.
+                                            </div>
+
+                                            <div class="form-check p-3 bg-light rounded-3 border mb-3">
+                                                <input class="form-check-input ms-0 me-2" type="checkbox" name="acknowledgeActive" value="true" id="chkAckActive_@plan.PlanID" required>
+                                                <label class="form-check-label small fw-semibold text-dark" for="chkAckActive_@plan.PlanID">
+                                                    I acknowledge that my current @activeSub.PlanName remains active until @activeSub.EndDate.ToString("dd MMM yyyy").
+                                                </label>
+                                            </div>
+
+                                            <div class="form-check p-3 bg-light rounded-3 border">
+                                                <input class="form-check-input ms-0 me-2" type="checkbox" name="acknowledgeStart" value="true" id="chkAckStart_@plan.PlanID" required>
+                                                <label class="form-check-label small fw-semibold text-dark" for="chkAckStart_@plan.PlanID">
+                                                    I acknowledge that the new plan starts only after the current plan ends, and limits switch on the start date.
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer border-top py-2.5 bg-light">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" class="btn btn-sm btn-primary rounded-pill px-4 fw-bold">
+                                                Acknowledge &amp; Proceed to Checkout &rarr;
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <form asp-action="Subscribe" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="planId" value="@plan.PlanID" />
+                            <button type="submit" class="btn btn-primary w-100 py-2.5 fw-semibold rounded-pill shadow-sm">
+                                <i class="bi bi-credit-card-fill me-1"></i> Subscribe Now (₹@effPrice.ToString("N0"))
+                            </button>
+                        </form>
+                    }
                 </div>
             </div>
         </div>
     }
 </div>
 
-@{
-    var history = ViewBag.History as List<BookMyFun.Models.Entities.OwnerSubscription>;
-}
+<!-- Subscription History -->
 @if (history != null && history.Any())
 {
-    <div class="card shadow-sm border-0 rounded-4 mt-5">
+    <div class="card shadow-sm border-0 rounded-4">
         <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
-            <h5 class="fw-bold mb-0"><i class="bi bi-clock-history text-primary me-2"></i> Subscription &amp; Payment History</h5>
+            <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-clock-history text-primary me-2"></i> Subscription &amp; Payment History</h5>
             <span class="badge bg-light text-dark border">@history.Count Records</span>
         </div>
         <div class="table-responsive">
@@ -64,6 +166,7 @@
                         <th>Subscription Ref</th>
                         <th>Plan Name</th>
                         <th>Billing Cycle</th>
+                        <th>Price Paid</th>
                         <th>Payment Status</th>
                         <th>Razorpay Ref</th>
                         <th class="text-end">Actions</th>
@@ -74,18 +177,28 @@
                     {
                         <tr>
                             <td class="fw-bold">#@item.SubscriptionID</td>
-                            <td>
-                                <span class="fw-semibold">@item.PlanName</span>
-                            </td>
+                            <td><span class="fw-semibold">@item.PlanName</span></td>
                             <td class="small text-muted">
-                                @item.StartDate.ToString("MMM dd, yyyy") &rarr; @item.EndDate.ToString("MMM dd, yyyy")
+                                @item.StartDate.ToString("dd MMM yyyy") &rarr; @item.EndDate.ToString("dd MMM yyyy")
+                            </td>
+                            <td class="fw-semibold text-dark">
+                                @(item.PricePaid > 0 ? $"₹{item.PricePaid:N0}" : "—")
                             </td>
                             <td>
                                 @if (item.PaymentStatus == "Paid")
                                 {
-                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1 rounded-pill">
-                                        <i class="bi bi-check-circle-fill me-1"></i> Paid
-                                    </span>
+                                    @if (item.StartDate > DateTime.UtcNow)
+                                    {
+                                        <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-1 rounded-pill">
+                                            <i class="bi bi-clock-history me-1"></i> Scheduled
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1 rounded-pill">
+                                            <i class="bi bi-check-circle-fill me-1"></i> Paid
+                                        </span>
+                                    }
                                 }
                                 else if (item.PaymentStatus == "Pending")
                                 {
@@ -93,31 +206,36 @@
                                         <i class="bi bi-hourglass-split me-1"></i> Pending
                                     </span>
                                 }
+                                else if (item.PaymentStatus == "Cancelled")
+                                {
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-1 rounded-pill">
+                                        <i class="bi bi-x-circle me-1"></i> Cancelled
+                                    </span>
+                                }
                                 else
                                 {
                                     <span class="badge bg-secondary px-3 py-1 rounded-pill">@item.PaymentStatus</span>
                                 }
                             </td>
-                            <td class="small">
-                                @if (!string.IsNullOrWhiteSpace(item.GatewayTransactionID))
-                                {
-                                    <code>@item.GatewayTransactionID</code>
-                                }
-                                else
-                                {
-                                    <span class="text-muted">&mdash;</span>
-                                }
+                            <td class="small font-monospace text-muted">
+                                @(string.IsNullOrEmpty(item.GatewayTransactionID) ? "—" : item.GatewayTransactionID)
                             </td>
                             <td class="text-end">
-                                @if (item.PaymentStatus == "Pending")
+                                @if (item.PaymentStatus == "Paid" && item.StartDate > DateTime.UtcNow)
                                 {
-                                    <a asp-action="SubscriptionPayment" asp-route-id="@item.SubscriptionID" class="btn btn-sm btn-primary fw-bold">
-                                        <i class="bi bi-shield-check me-1"></i> Pay with Razorpay
-                                    </a>
+                                    <form asp-action="CancelScheduledSubscription" method="post" class="d-inline" onsubmit="return confirm('Cancel scheduled renewal?');">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@item.SubscriptionID" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-0.5" style="font-size: 0.75rem;">
+                                            Cancel
+                                        </button>
+                                    </form>
                                 }
-                                else
+                                else if (item.PaymentStatus == "Pending")
                                 {
-                                    <span class="text-muted small"><i class="bi bi-shield-lock-fill text-success"></i> Active</span>
+                                    <a asp-action="SubscriptionPayment" asp-route-id="@item.SubscriptionID" class="btn btn-sm btn-primary rounded-pill px-2.5 py-0.5" style="font-size: 0.75rem;">
+                                        Pay Now
+                                    </a>
                                 }
                             </td>
                         </tr>

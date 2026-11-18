@@ -1,17 +1,32 @@
 @model BookMyFun.Models.ViewModels.RegisterViewModel
+@inject BookMyFun.Services.ISiteSettingsService SettingsService
 @{
     ViewData["Title"] = "Create Account";
+    var site = await SettingsService.GetSettingsAsync();
+    var brandName = string.IsNullOrWhiteSpace(site?.SiteName) ? "BookMyFun" : site.SiteName;
+    var logoUrl = site?.LogoUrl ?? "";
+    var iconClass = string.IsNullOrWhiteSpace(site?.SiteIcon) ? "bi-house-heart-fill" : site.SiteIcon;
 }
 
 <div class="row justify-content-center my-4">
     <div class="col-md-7 col-lg-6">
         <div class="card shadow-lg border-0 p-4 p-md-5">
             <div class="text-center mb-4">
-                <div class="dash-stat-icon icon-blue mx-auto mb-3" style="width: 52px; height: 52px; font-size: 1.5rem;">
-                    <i class="bi bi-shield-lock-fill"></i>
-                </div>
-                <h3 class="fw-bold mb-1">Create Account</h3>
-                <p class="text-muted small mb-0">Create your account to explore stays and manage bookings</p>
+                <a asp-controller="Home" asp-action="Index" class="d-inline-flex flex-column align-items-center text-decoration-none mb-2">
+                    @if (!string.IsNullOrEmpty(logoUrl))
+                    {
+                        <img src="@Url.Content(logoUrl)" alt="@brandName" style="height: 48px; max-width: 180px; object-fit: contain;" class="mb-2" />
+                    }
+                    else
+                    {
+                        <div class="dash-stat-icon icon-blue mx-auto mb-2" style="width: 52px; height: 52px; font-size: 1.5rem;">
+                            <i class="bi @iconClass"></i>
+                        </div>
+                    }
+                    <h3 class="fw-bold mb-0 text-heading">@brandName</h3>
+                </a>
+                <h4 class="fw-bold mb-1 fs-5">Create Account</h4>
+                <p class="text-muted small mb-0">Join @brandName to explore stays and manage bookings</p>
             </div>
 
             <!-- Shared Google Identity Services Sign-Up -->

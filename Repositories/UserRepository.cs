@@ -104,7 +104,17 @@ namespace BookMyFun.Repositories
                     Role = @Role,
                     IsActive = @IsActive,
                     CustomCommissionRate = @CustomCommissionRate,
-                    SubscriptionTier = @SubscriptionTier
+                    SubscriptionTier = @SubscriptionTier,
+                    ProfilePictureUrl = COALESCE(@ProfilePictureUrl, ProfilePictureUrl),
+                    Bio = COALESCE(@Bio, Bio),
+                    YearsOfExperience = COALESCE(@YearsOfExperience, YearsOfExperience),
+                    CancellationPolicy = COALESCE(@CancellationPolicy, CancellationPolicy),
+                    VerificationStatus = COALESCE(@VerificationStatus, VerificationStatus),
+                    NotificationEmailEnabled = @NotificationEmailEnabled,
+                    NotificationInAppEnabled = @NotificationInAppEnabled,
+                    NotificationWhatsAppEnabled = @NotificationWhatsAppEnabled,
+                    WhatsAppVerified = @WhatsAppVerified,
+                    WhatsAppPhone = COALESCE(@WhatsAppPhone, WhatsAppPhone)
                 WHERE UserID = @UserID";
 
             var rows = await _db.ExecuteNonQueryAsync(sql,
@@ -114,6 +124,16 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@IsActive", user.IsActive),
                 new SqlParameter("@CustomCommissionRate", DBHelper.ToDbValue(user.CustomCommissionRate)),
                 new SqlParameter("@SubscriptionTier", user.SubscriptionTier ?? "Free"),
+                new SqlParameter("@ProfilePictureUrl", DBHelper.ToDbValue(user.ProfilePictureUrl)),
+                new SqlParameter("@Bio", DBHelper.ToDbValue(user.Bio)),
+                new SqlParameter("@YearsOfExperience", DBHelper.ToDbValue(user.YearsOfExperience)),
+                new SqlParameter("@CancellationPolicy", DBHelper.ToDbValue(user.CancellationPolicy)),
+                new SqlParameter("@VerificationStatus", DBHelper.ToDbValue(user.VerificationStatus)),
+                new SqlParameter("@NotificationEmailEnabled", user.NotificationEmailEnabled),
+                new SqlParameter("@NotificationInAppEnabled", user.NotificationInAppEnabled),
+                new SqlParameter("@NotificationWhatsAppEnabled", user.NotificationWhatsAppEnabled),
+                new SqlParameter("@WhatsAppVerified", user.WhatsAppVerified),
+                new SqlParameter("@WhatsAppPhone", DBHelper.ToDbValue(user.WhatsAppPhone)),
                 new SqlParameter("@UserID", user.UserID));
 
             return rows > 0;
@@ -254,6 +274,51 @@ namespace BookMyFun.Repositories
             {
                 user.ProfilePictureUrl = reader.GetString(picOrdinal);
             }
+
+            try {
+                int ord = reader.GetOrdinal("VerificationStatus");
+                if (ord >= 0 && !reader.IsDBNull(ord)) user.VerificationStatus = reader.GetString(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("Bio");
+                if (ord >= 0 && !reader.IsDBNull(ord)) user.Bio = reader.GetString(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("YearsOfExperience");
+                if (ord >= 0 && !reader.IsDBNull(ord)) user.YearsOfExperience = reader.GetInt32(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("CancellationPolicy");
+                if (ord >= 0 && !reader.IsDBNull(ord)) user.CancellationPolicy = reader.GetString(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("NotificationEmailEnabled");
+                if (ord >= 0 && !reader.IsDBNull(ord)) user.NotificationEmailEnabled = reader.GetBoolean(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("NotificationInAppEnabled");
+                if (ord >= 0 && !reader.IsDBNull(ord)) user.NotificationInAppEnabled = reader.GetBoolean(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("NotificationWhatsAppEnabled");
+                if (ord >= 0 && !reader.IsDBNull(ord)) user.NotificationWhatsAppEnabled = reader.GetBoolean(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("WhatsAppVerified");
+                if (ord >= 0 && !reader.IsDBNull(ord)) user.WhatsAppVerified = reader.GetBoolean(ord);
+            } catch { }
+
+            try {
+                int ord = reader.GetOrdinal("WhatsAppPhone");
+                if (ord >= 0 && !reader.IsDBNull(ord)) user.WhatsAppPhone = reader.GetString(ord);
+            } catch { }
 
             return user;
         }

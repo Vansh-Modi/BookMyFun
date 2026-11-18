@@ -3497,7 +3497,7 @@ body:has(.mobile-booking-bottom-bar) .mobile-bottom-bar {
 .dashboard-sidebar-content {
     flex: 1 1 auto;
     overflow-y: auto;
-    padding: 0.75rem 0.5rem;
+    padding: 1.25rem 0.65rem 0.75rem;
 }
 
 .dashboard-nav-item {
@@ -3599,5 +3599,496 @@ body:has(.mobile-booking-bottom-bar) .mobile-bottom-bar {
     }
     .dashboard-topbar {
         padding: 0.6rem 1rem;
+    }
+}
+
+
+/* ============================================================
+   GLOBAL DASHBOARD ENHANCEMENTS & WCAG AA TOKENS
+   Section 1, Section 2, Section 6 (Bug 1 footer overlap fix)
+   ============================================================ */
+
+/* Footer Overlap & Layout Fix (Section 6 Bug 1) */
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.dashboard-wrapper {
+    flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.dashboard-root {
+    flex: 1 0 auto;
+    display: flex;
+    min-height: calc(100vh - 60px);
+}
+
+.dashboard-main {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.dashboard-body {
+    flex: 1 1 auto;
+    padding: 1.5rem;
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 20px));
+}
+
+@media (max-width: 767.98px) {
+    .dashboard-body {
+        padding: 1rem 0.75rem;
+        padding-bottom: calc(6rem + env(safe-area-inset-bottom, 24px));
+    }
+}
+
+/* Sidebar Toggle & Drawer Mechanics (Section 1b) */
+@media (min-width: 992px) {
+    .dashboard-sidebar-container {
+        width: 260px;
+        transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+    }
+    .dashboard-sidebar-container.sidebar-collapsed {
+        width: 0 !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
+        border-right: none !important;
+        padding: 0 !important;
+        opacity: 0;
+        pointer-events: none;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .dashboard-sidebar-container {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        bottom: 0 !important;
+        height: 100vh !important;
+        width: 280px !important;
+        z-index: 1060 !important;
+        transform: translateX(-100%);
+        box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.35);
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        background-color: var(--bg-card);
+        display: flex !important;
+    }
+    .dashboard-sidebar-container.sidebar-mobile-drawer-open {
+        transform: translateX(0) !important;
+    }
+}
+
+.sidebar-drawer-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(2px);
+    z-index: 1055;
+    opacity: 0;
+    transition: opacity 0.25s ease-in-out;
+    pointer-events: none;
+}
+
+.sidebar-drawer-backdrop.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Notification Header Bell & Dropdown (Section 1a) */
+.notif-dropdown-panel {
+    border: 1px solid var(--border-subtle);
+    background-color: var(--bg-card);
+    color: var(--text-main);
+    z-index: 1080;
+}
+
+.notif-list-container::-webkit-scrollbar {
+    width: 6px;
+}
+.notif-list-container::-webkit-scrollbar-thumb {
+    background: var(--border-subtle);
+    border-radius: 4px;
+}
+
+/* Owner Dashboard Single Column Stack (Section 2C) */
+.owner-single-col-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    width: 100%;
+}
+
+.horizontal-pills-row {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 8px;
+    padding-bottom: 6px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+.horizontal-pills-row::-webkit-scrollbar {
+    height: 4px;
+}
+.horizontal-pills-row::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.4);
+    border-radius: 4px;
+}
+
+.listing-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 16px;
+}
+
+@media (max-width: 767.98px) {
+    .listing-cards-grid {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        gap: 16px;
+        padding-bottom: 12px;
+    }
+    .listing-cards-grid > .owner-listing-card-wrapper {
+        min-width: 310px;
+        scroll-snap-align: start;
+        flex-shrink: 0;
+    }
+}
+
+/* Horizontal Booking Row (Section 2C) */
+.owner-booking-horizontal-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 20px;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.owner-booking-horizontal-row:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+@media (max-width: 767.98px) {
+    .owner-booking-horizontal-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        padding: 14px;
+    }
+}
+
+/* Watermark Badge for Event Photos (Section 5c, 7) */
+.watermarked-photo-wrapper {
+    position: relative;
+    display: inline-block;
+    overflow: hidden;
+    border-radius: 10px;
+}
+.watermark-overlay-badge {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(4px);
+    color: #fbbf24;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    pointer-events: none;
+    letter-spacing: 0.03em;
+}
+
+/* WCAG AA Contrast Tokens */
+[data-theme="dark"] .text-muted {
+    color: #94a3b8 !important;
+}
+[data-theme="dark"] .bg-light-subtle {
+    background-color: rgba(30, 41, 59, 0.7) !important;
+}
+[data-theme="dark"] .border-subtle {
+    border-color: #334155 !important;
+}
+[data-theme="dark"] .badge.bg-secondary-subtle {
+    background-color: rgba(148, 163, 184, 0.2) !important;
+    color: #cbd5e1 !important;
+}
+[data-theme="dark"] .dash-stat-sub {
+    color: #94a3b8 !important;
+}
+
+/* ============================================================
+   DASHBOARD HEADER TOP NAVIGATION (Owner, Admin, Employee)
+   ============================================================ */
+.dashboard-header-nav-link {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.4rem !important;
+    font-size: 0.86rem !important;
+    font-weight: 500 !important;
+    padding: 0.4rem 0.75rem !important;
+    border-radius: 50rem !important;
+    white-space: nowrap !important;
+    color: rgba(255, 255, 255, 0.85) !important;
+    background-color: transparent !important;
+    border: 1px solid transparent !important;
+    transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, color 0.15s ease-in-out !important;
+}
+
+.dashboard-header-nav-link:hover,
+.dashboard-header-nav-link:focus {
+    color: #ffffff !important;
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+    text-decoration: none !important;
+}
+
+.dashboard-header-nav-link.active {
+    color: #facc15 !important;
+    background-color: rgba(250, 204, 21, 0.15) !important;
+    border-color: rgba(250, 204, 21, 0.35) !important;
+    font-weight: 600 !important;
+}
+
+.dashboard-header-nav-link i {
+    font-size: 1rem !important;
+    min-width: 18px !important;
+    text-align: center !important;
+}
+
+@media (max-width: 991.98px) {
+    .dashboard-header-nav-link {
+        font-size: 0.95rem !important;
+        padding: 0.65rem 0.85rem !important;
+        border-radius: 8px !important;
+        width: 100% !important;
+        margin-bottom: 0.25rem !important;
+    }
+}
+
+
+
+/* ============================================================
+   MAIN NAVIGATION DRAWER (HOMEPAGE & PUBLIC PAGES)
+   ============================================================ */
+.main-nav-drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 290px;
+    max-width: 85vw;
+    height: 100vh;
+    background-color: var(--bg-card);
+    color: var(--text-main);
+    border-right: 1px solid var(--border-subtle);
+    box-shadow: 4px 0 28px rgba(0, 0, 0, 0.35);
+    z-index: 1060;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.25s ease;
+    visibility: hidden;
+    overflow-y: auto;
+}
+
+.main-nav-drawer.open {
+    transform: translateX(0);
+    visibility: visible;
+}
+
+.main-nav-drawer-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: var(--bg-card);
+}
+
+.main-nav-drawer-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 1.25rem 0.75rem;
+}
+
+.main-nav-drawer-footer {
+    padding: 1rem 1.25rem;
+    border-top: 1px solid var(--border-subtle);
+    background-color: var(--bg-body);
+}
+
+.main-nav-drawer-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(2px);
+    z-index: 1055;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease-in-out, visibility 0.25s ease-in-out;
+}
+
+.main-nav-drawer-backdrop.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.main-nav-drawer-close {
+    color: var(--text-muted);
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.main-nav-drawer-close:hover,
+.main-nav-drawer-close:focus {
+    color: var(--text-main);
+    background-color: var(--border-subtle);
+}
+
+.header-account-avatar-btn:focus-visible,
+.main-nav-drawer-toggle:focus-visible,
+#mainHeaderNotifBell:focus-visible,
+#themeSwitchBtn:focus-visible {
+    outline: 2px solid #facc15 !important;
+    outline-offset: 2px;
+}
+
+.header-compact-signin {
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.header-compact-signin:hover,
+.header-compact-signin:focus {
+    background: rgba(255, 255, 255, 0.22) !important;
+    border-color: rgba(255, 255, 255, 0.4) !important;
+    color: #ffffff !important;
+}
+
+
+/* Navbar Header Responsive Balance & Zero Horizontal Overflow */
+.navbar > .container,
+.navbar > .container-fluid {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+}
+
+.site-header-brand-wrap {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    flex-shrink: 1;
+}
+
+.header-right-controls {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+@media (max-width: 575.98px) {
+    .navbar > .container,
+    .navbar > .container-fluid {
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+    }
+
+    .site-header-brand-wrap {
+        display: flex !important;
+        align-items: center !important;
+        min-width: 0 !important;
+        flex: 1 1 auto !important;
+        overflow: hidden !important;
+    }
+
+    .main-nav-drawer-toggle,
+    #dashboardSidebarToggle {
+        width: 34px !important;
+        height: 34px !important;
+        margin-right: 0.35rem !important;
+        flex-shrink: 0 !important;
+    }
+
+    .navbar-brand {
+        font-size: 1.05rem !important;
+        margin-right: 0.25rem !important;
+        max-width: none !important;
+        display: flex !important;
+        align-items: center !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
+    }
+
+    .navbar-brand .site-logo-img {
+        height: 26px !important;
+        flex-shrink: 0 !important;
+    }
+
+    .navbar-brand .site-logo-icon {
+        font-size: 1.25rem !important;
+        margin-right: 0.25rem !important;
+        flex-shrink: 0 !important;
+    }
+
+    .navbar-brand .site-name-text {
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+        min-width: 0 !important;
+    }
+
+    .header-right-controls {
+        display: flex !important;
+        align-items: center !important;
+        flex-shrink: 0 !important;
+        gap: 0.35rem !important;
+        margin-left: auto !important;
+    }
+
+    .header-compact-signin {
+        height: 34px !important;
+        padding: 0 0.55rem !important;
+        font-size: 0.8rem !important;
+        white-space: nowrap !important;
+    }
+
+    .theme-switch-btn,
+    #themeSwitchBtn,
+    #mainHeaderNotifBell {
+        width: 34px !important;
+        height: 34px !important;
+        flex-shrink: 0 !important;
+    }
+
+    .header-avatar-circle {
+        width: 34px !important;
+        height: 34px !important;
+        font-size: 0.85rem !important;
+        flex-shrink: 0 !important;
     }
 }

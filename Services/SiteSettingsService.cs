@@ -28,6 +28,7 @@ namespace BookMyFun.Services
         public string SiteTagline { get; set; } = "Farmhouse, Villa & Resort Rentals";
         public string LogoUrl { get; set; } = "";
         public string SiteIcon { get; set; } = "bi-house-heart-fill"; // Bootstrap Icon class
+        public string CopyrightText { get; set; } = "© 2026 BookMyFun. All rights reserved.";
         public string SupportPhone { get; set; } = "+91 (020) 4567-8900";
         public string WhatsAppNumber { get; set; } = "+91 99999 00001";
         public string SupportEmail { get; set; } = "support@bookmyfun.com";
@@ -85,6 +86,7 @@ namespace BookMyFun.Services
         private readonly DBHelper? _db;
         private readonly IBookingRepository? _bookingRepo;
         private readonly IPropertyRepository? _propRepo;
+        private readonly ILogger<SiteSettingsService>? _logger;
 
         private static SiteSettingsModel? _cachedSettings;
         private static DateTime _cacheExpiry = DateTime.MinValue;
@@ -106,12 +108,14 @@ namespace BookMyFun.Services
             IConfigRepository configRepo, 
             DBHelper? db = null,
             IBookingRepository? bookingRepo = null,
-            IPropertyRepository? propRepo = null)
+            IPropertyRepository? propRepo = null,
+            ILogger<SiteSettingsService>? logger = null)
         {
             _configRepo = configRepo;
             _db = db;
             _bookingRepo = bookingRepo;
             _propRepo = propRepo;
+            _logger = logger;
         }
 
         public async Task<SiteSettingsModel> GetSettingsAsync()
@@ -122,75 +126,90 @@ namespace BookMyFun.Services
                 return _cachedSettings;
             }
 
-            var settings = await _configRepo.GetAllSettingsAsync();
-            var dict = settings.ToDictionary(s => s.SettingKey, s => s.SettingValue ?? "");
-
-            var model = new SiteSettingsModel();
-
-            if (dict.TryGetValue("SiteName", out var name) && !string.IsNullOrWhiteSpace(name)) model.SiteName = name;
-            if (dict.TryGetValue("SiteTagline", out var tag) && !string.IsNullOrWhiteSpace(tag)) model.SiteTagline = tag;
-            if (dict.TryGetValue("LogoUrl", out var logo)) model.LogoUrl = logo;
-            if (dict.TryGetValue("SiteIcon", out var icon) && !string.IsNullOrWhiteSpace(icon)) model.SiteIcon = icon;
-            if (dict.TryGetValue("SupportPhone", out var phone) && !string.IsNullOrWhiteSpace(phone)) model.SupportPhone = phone;
-            if (dict.TryGetValue("WhatsAppNumber", out var wa) && !string.IsNullOrWhiteSpace(wa)) model.WhatsAppNumber = wa;
-            if (dict.TryGetValue("SupportEmail", out var email) && !string.IsNullOrWhiteSpace(email)) model.SupportEmail = email;
-            if (dict.TryGetValue("Address", out var addr) && !string.IsNullOrWhiteSpace(addr)) model.Address = addr;
-            if (dict.TryGetValue("FacebookUrl", out var fb) && !string.IsNullOrWhiteSpace(fb)) model.FacebookUrl = fb;
-            if (dict.TryGetValue("InstagramUrl", out var insta) && !string.IsNullOrWhiteSpace(insta)) model.InstagramUrl = insta;
-            if (dict.TryGetValue("YouTubeUrl", out var yt) && !string.IsNullOrWhiteSpace(yt)) model.YouTubeUrl = yt;
-            if (dict.TryGetValue("CurrencySymbol", out var cur) && !string.IsNullOrWhiteSpace(cur)) model.CurrencySymbol = cur;
-
-            if (dict.TryGetValue("PlatformCommissionPercent", out var comm) && decimal.TryParse(comm, out var cVal))
+            try
             {
-                model.PlatformCommissionPercent = cVal;
+                var settings = await _configRepo.GetAllSettingsAsync();
+                var dict = settings.ToDictionary(s => s.SettingKey, s => s.SettingValue ?? "");
+
+                var model = new SiteSettingsModel();
+
+                if (dict.TryGetValue("SiteName", out var name) && !string.IsNullOrWhiteSpace(name)) model.SiteName = name;
+                if (dict.TryGetValue("SiteTagline", out var tag) && !string.IsNullOrWhiteSpace(tag)) model.SiteTagline = tag;
+                if (dict.TryGetValue("LogoUrl", out var logo)) model.LogoUrl = logo;
+                if (dict.TryGetValue("SiteIcon", out var icon) && !string.IsNullOrWhiteSpace(icon)) model.SiteIcon = icon;
+                if (dict.TryGetValue("CopyrightText", out var cText) && !string.IsNullOrWhiteSpace(cText)) model.CopyrightText = cText;
+                if (dict.TryGetValue("SupportPhone", out var phone) && !string.IsNullOrWhiteSpace(phone)) model.SupportPhone = phone;
+                if (dict.TryGetValue("WhatsAppNumber", out var wa) && !string.IsNullOrWhiteSpace(wa)) model.WhatsAppNumber = wa;
+                if (dict.TryGetValue("SupportEmail", out var email) && !string.IsNullOrWhiteSpace(email)) model.SupportEmail = email;
+                if (dict.TryGetValue("Address", out var addr) && !string.IsNullOrWhiteSpace(addr)) model.Address = addr;
+                if (dict.TryGetValue("FacebookUrl", out var fb) && !string.IsNullOrWhiteSpace(fb)) model.FacebookUrl = fb;
+                if (dict.TryGetValue("InstagramUrl", out var insta) && !string.IsNullOrWhiteSpace(insta)) model.InstagramUrl = insta;
+                if (dict.TryGetValue("YouTubeUrl", out var yt) && !string.IsNullOrWhiteSpace(yt)) model.YouTubeUrl = yt;
+                if (dict.TryGetValue("CurrencySymbol", out var cur) && !string.IsNullOrWhiteSpace(cur)) model.CurrencySymbol = cur;
+
+                if (dict.TryGetValue("PlatformCommissionPercent", out var comm) && decimal.TryParse(comm, out var cVal))
+                {
+                    model.PlatformCommissionPercent = cVal;
+                }
+                if (dict.TryGetValue("EventPlatformCommissionPercent", out var eComm) && decimal.TryParse(eComm, out var ecVal))
+                {
+                    model.EventPlatformCommissionPercent = ecVal;
+                }
+
+                // Refunds
+                if (dict.TryGetValue("Refund:FreeCancellationWindowHours", out var fcw) && int.TryParse(fcw, out var fcwVal)) model.FreeCancellationWindowHours = fcwVal;
+                if (dict.TryGetValue("Refund:CancellationCutoffHours", out var cch) && int.TryParse(cch, out var cchVal)) model.CancellationCutoffHours = cchVal;
+                if (dict.TryGetValue("Refund:CancellationFeeType", out var cft) && !string.IsNullOrWhiteSpace(cft)) model.CancellationFeeType = cft;
+                if (dict.TryGetValue("Refund:CancellationFeeValue", out var cfv) && decimal.TryParse(cfv, out var cfvVal)) model.CancellationFeeValue = cfvVal;
+                if (dict.TryGetValue("Refund:ProcessingTimeline", out var rpt) && !string.IsNullOrWhiteSpace(rpt)) model.RefundProcessingTimeline = rpt;
+
+                // PENDING DECISION D1, D2, D3
+                if (dict.TryGetValue("Refund:D1_PartialCancellationCommissionPolicy", out var d1) && !string.IsNullOrWhiteSpace(d1)) model.D1_PartialCancellationCommissionPolicy = d1;
+                if (dict.TryGetValue("Refund:D2_Under72hOwnerPolicyOverride", out var d2) && !string.IsNullOrWhiteSpace(d2)) model.D2_Under72hOwnerPolicyOverride = d2;
+                if (dict.TryGetValue("Refund:D3_OwnerCancellationPenaltyAmount", out var d3) && decimal.TryParse(d3, out var d3Val)) model.D3_OwnerCancellationPenaltyAmount = d3Val;
+
+                // Payments
+                if (dict.TryGetValue("Payment:RazorpayKeyId", out var rzpKey)) model.RazorpayKeyId = rzpKey;
+                if (dict.TryGetValue("Payment:RazorpayKeySecret", out var rzpSec)) model.RazorpayKeySecret = rzpSec;
+
+                // Notifications
+                if (dict.TryGetValue("Notification:SmtpServer", out var smtpSrv)) model.SmtpServer = smtpSrv;
+                if (dict.TryGetValue("Notification:SmtpPort", out var smtpPrt) && int.TryParse(smtpPrt, out var smtpPrtVal)) model.SmtpPort = smtpPrtVal;
+                if (dict.TryGetValue("Notification:SmtpUsername", out var smtpUsr)) model.SmtpUsername = smtpUsr;
+                if (dict.TryGetValue("Notification:SmtpPassword", out var smtpPwd)) model.SmtpPassword = smtpPwd;
+                if (dict.TryGetValue("Notification:SmtpSenderEmail", out var smtpSnd)) model.SmtpSenderEmail = smtpSnd;
+                if (dict.TryGetValue("Notification:WhatsAppApiKey", out var waKey)) model.WhatsAppApiKey = waKey;
+                if (dict.TryGetValue("Notification:WhatsAppSenderPhone", out var waPh)) model.WhatsAppSenderPhone = waPh;
+
+                // Legal
+                if (dict.TryGetValue("Legal:PrivacyPolicyVersion", out var ppv) && !string.IsNullOrWhiteSpace(ppv)) model.PrivacyPolicyVersion = ppv;
+                if (dict.TryGetValue("Legal:TermsOfServiceVersion", out var tosv) && !string.IsNullOrWhiteSpace(tosv)) model.TermsOfServiceVersion = tosv;
+                if (dict.TryGetValue("Legal:RefundPolicyVersion", out var rpv) && !string.IsNullOrWhiteSpace(rpv)) model.RefundPolicyVersion = rpv;
+
+                // Feature Flags
+                if (dict.TryGetValue("Feature:GoogleLoginEnabled", out var gle) && bool.TryParse(gle, out var gleVal)) model.GoogleLoginEnabled = gleVal;
+                if (dict.TryGetValue("Feature:InstantOnlineBookingEnabled", out var ibe) && bool.TryParse(ibe, out var ibeVal)) model.InstantOnlineBookingEnabled = ibeVal;
+                if (dict.TryGetValue("Feature:WhatsAppNotificationsEnabled", out var wne) && bool.TryParse(wne, out var wneVal)) model.WhatsAppNotificationsEnabled = wneVal;
+
+                lock (_lock)
+                {
+                    _cachedSettings = model;
+                    _cacheExpiry = DateTime.UtcNow.AddMinutes(15);
+                }
+
+                return model;
             }
-            if (dict.TryGetValue("EventPlatformCommissionPercent", out var eComm) && decimal.TryParse(eComm, out var ecVal))
+            catch (Exception ex)
             {
-                model.EventPlatformCommissionPercent = ecVal;
+                _logger?.LogWarning(ex, "Failed to fetch site settings from database. Falling back to default in-memory site settings.");
+                var fallbackModel = new SiteSettingsModel();
+                lock (_lock)
+                {
+                    _cachedSettings = fallbackModel;
+                    _cacheExpiry = DateTime.UtcNow.AddMinutes(1);
+                }
+                return fallbackModel;
             }
-
-            // Refunds
-            if (dict.TryGetValue("Refund:FreeCancellationWindowHours", out var fcw) && int.TryParse(fcw, out var fcwVal)) model.FreeCancellationWindowHours = fcwVal;
-            if (dict.TryGetValue("Refund:CancellationCutoffHours", out var cch) && int.TryParse(cch, out var cchVal)) model.CancellationCutoffHours = cchVal;
-            if (dict.TryGetValue("Refund:CancellationFeeType", out var cft) && !string.IsNullOrWhiteSpace(cft)) model.CancellationFeeType = cft;
-            if (dict.TryGetValue("Refund:CancellationFeeValue", out var cfv) && decimal.TryParse(cfv, out var cfvVal)) model.CancellationFeeValue = cfvVal;
-            if (dict.TryGetValue("Refund:ProcessingTimeline", out var rpt) && !string.IsNullOrWhiteSpace(rpt)) model.RefundProcessingTimeline = rpt;
-
-            // PENDING DECISION D1, D2, D3
-            if (dict.TryGetValue("Refund:D1_PartialCancellationCommissionPolicy", out var d1) && !string.IsNullOrWhiteSpace(d1)) model.D1_PartialCancellationCommissionPolicy = d1;
-            if (dict.TryGetValue("Refund:D2_Under72hOwnerPolicyOverride", out var d2) && !string.IsNullOrWhiteSpace(d2)) model.D2_Under72hOwnerPolicyOverride = d2;
-            if (dict.TryGetValue("Refund:D3_OwnerCancellationPenaltyAmount", out var d3) && decimal.TryParse(d3, out var d3Val)) model.D3_OwnerCancellationPenaltyAmount = d3Val;
-
-            // Payments
-            if (dict.TryGetValue("Payment:RazorpayKeyId", out var rzpKey)) model.RazorpayKeyId = rzpKey;
-            if (dict.TryGetValue("Payment:RazorpayKeySecret", out var rzpSec)) model.RazorpayKeySecret = rzpSec;
-
-            // Notifications
-            if (dict.TryGetValue("Notification:SmtpServer", out var smtpSrv)) model.SmtpServer = smtpSrv;
-            if (dict.TryGetValue("Notification:SmtpPort", out var smtpPrt) && int.TryParse(smtpPrt, out var smtpPrtVal)) model.SmtpPort = smtpPrtVal;
-            if (dict.TryGetValue("Notification:SmtpUsername", out var smtpUsr)) model.SmtpUsername = smtpUsr;
-            if (dict.TryGetValue("Notification:SmtpPassword", out var smtpPwd)) model.SmtpPassword = smtpPwd;
-            if (dict.TryGetValue("Notification:SmtpSenderEmail", out var smtpSnd)) model.SmtpSenderEmail = smtpSnd;
-            if (dict.TryGetValue("Notification:WhatsAppApiKey", out var waKey)) model.WhatsAppApiKey = waKey;
-            if (dict.TryGetValue("Notification:WhatsAppSenderPhone", out var waPh)) model.WhatsAppSenderPhone = waPh;
-
-            // Legal
-            if (dict.TryGetValue("Legal:PrivacyPolicyVersion", out var ppv) && !string.IsNullOrWhiteSpace(ppv)) model.PrivacyPolicyVersion = ppv;
-            if (dict.TryGetValue("Legal:TermsOfServiceVersion", out var tosv) && !string.IsNullOrWhiteSpace(tosv)) model.TermsOfServiceVersion = tosv;
-            if (dict.TryGetValue("Legal:RefundPolicyVersion", out var rpv) && !string.IsNullOrWhiteSpace(rpv)) model.RefundPolicyVersion = rpv;
-
-            // Feature Flags
-            if (dict.TryGetValue("Feature:GoogleLoginEnabled", out var gle) && bool.TryParse(gle, out var gleVal)) model.GoogleLoginEnabled = gleVal;
-            if (dict.TryGetValue("Feature:InstantOnlineBookingEnabled", out var ibe) && bool.TryParse(ibe, out var ibeVal)) model.InstantOnlineBookingEnabled = ibeVal;
-            if (dict.TryGetValue("Feature:WhatsAppNotificationsEnabled", out var wne) && bool.TryParse(wne, out var wneVal)) model.WhatsAppNotificationsEnabled = wneVal;
-
-            lock (_lock)
-            {
-                _cachedSettings = model;
-                _cacheExpiry = DateTime.UtcNow.AddMinutes(15);
-            }
-
-            return model;
         }
 
         public async Task SaveSettingsAsync(SiteSettingsModel model)
@@ -199,6 +218,7 @@ namespace BookMyFun.Services
             await _configRepo.SetSettingValueAsync("SiteTagline", model.SiteTagline ?? "");
             await _configRepo.SetSettingValueAsync("LogoUrl", model.LogoUrl ?? "");
             await _configRepo.SetSettingValueAsync("SiteIcon", model.SiteIcon ?? "bi-house-heart-fill");
+            await _configRepo.SetSettingValueAsync("CopyrightText", model.CopyrightText ?? "© 2026 BookMyFun. All rights reserved.");
             await _configRepo.SetSettingValueAsync("SupportPhone", model.SupportPhone ?? "");
             await _configRepo.SetSettingValueAsync("WhatsAppNumber", model.WhatsAppNumber ?? "");
             await _configRepo.SetSettingValueAsync("SupportEmail", model.SupportEmail ?? "");

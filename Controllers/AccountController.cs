@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -5,6 +6,7 @@ using BookMyFun.Models.Entities;
 using BookMyFun.Models.ViewModels;
 using BookMyFun.Repositories;
 using BookMyFun.Services;
+using BookMyFun.Services.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
@@ -29,6 +31,8 @@ namespace BookMyFun.Controllers
         private readonly IWebHostEnvironment? _env;
         private readonly IHttpClientFactory? _httpClientFactory;
         private readonly ILegalDocumentService? _legalService;
+        private readonly ILoginLockoutService? _lockoutService;
+        private readonly IMemoryCache? _cache;
 
         public AccountController(
             IUserRepository userRepo, 
@@ -46,7 +50,9 @@ namespace BookMyFun.Controllers
             IConfiguration? configuration = null,
             IWebHostEnvironment? env = null,
             ILegalDocumentService? legalService = null,
-            IHttpClientFactory? httpClientFactory = null)
+            IHttpClientFactory? httpClientFactory = null,
+            ILoginLockoutService? lockoutService = null,
+            IMemoryCache? cache = null)
         {
             _userRepo = userRepo;
             _otpRepo = otpRepo;
@@ -64,6 +70,8 @@ namespace BookMyFun.Controllers
             _env = env;
             _legalService = legalService;
             _httpClientFactory = httpClientFactory;
+            _lockoutService = lockoutService;
+            _cache = cache;
         }
 
         [HttpPost]
@@ -91,6 +99,25 @@ namespace BookMyFun.Controllers
                 if (string.IsNullOrWhiteSpace(contact))
                 {
                     return Json(new { success = false, message = "Please provide an email or phone number." });
+                }
+
+                // Enforce contact rate limiting: max 3 requests in 10 minutes
+                if (_cache != null)
+                {
+                    string rateLimitKey = $"otp_rate_{contact.ToLowerInvariant()}";
+                    int count = _cache.GetOrCreate(rateLimitKey, entry =>
+                    {
+                        entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+                        return 0;
+                    });
+
+                    if (count >= 3)
+                    {
+                        _logger.LogWarning("Rate limit exceeded for OTP generation on contact {Contact}", contact);
+                        return Json(new { success = false, message = "Too many verification requests for this contact. Please wait a few minutes before trying again." });
+                    }
+
+                    _cache.Set(rateLimitKey, count + 1, TimeSpan.FromMinutes(10));
                 }
 
                 // Validate purpose-specific constraints
@@ -163,60 +190,91 @@ namespace BookMyFun.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Login(LoginViewModel model)
         {
-            if (!ModelState.IsValid) return View(model);
-
-            var user = await _userRepo.GetByEmailAsync(model.Email.Trim().ToLowerInvariant());
-            if (user == null || !VerifyPassword(model.Password, user.PasswordHash))
+            try
             {
-                ModelState.AddModelError("", "Invalid email or password.");
-                return View(model);
-            }
+                if (!ModelState.IsValid) return View(model);
 
-            // Auto-upgrade legacy plain-text password to SHA256 if needed
-            if (user.PasswordHash == model.Password)
-            {
-                try
+                string? clientIp = HttpContext?.Connection?.RemoteIpAddress?.ToString();
+
+                if (_lockoutService != null && _lockoutService.IsLockedOut(model.Email, clientIp, out var remaining))
                 {
-                    await _userRepo.ResetPasswordAsync(user.Email, HashPassword(model.Password));
+                    int remainingMinutes = (int)Math.Max(1, Math.Ceiling(remaining.TotalMinutes));
+                    ModelState.AddModelError("", $"Account is temporarily locked out due to multiple failed login attempts. Please try again after {remainingMinutes} minutes.");
+                    return View(model);
                 }
-                catch { }
-            }
 
-            if (!user.IsActive)
+                var user = await _userRepo.GetByEmailAsync(model.Email.Trim().ToLowerInvariant());
+                if (user == null || !VerifyPassword(model.Password, user.PasswordHash, out bool needsRehash))
+                {
+                    _lockoutService?.RecordFailedAttempt(model.Email, clientIp);
+                    ModelState.AddModelError("", "Invalid email or password.");
+                    return View(model);
+                }
+
+                _lockoutService?.ResetLockout(model.Email, clientIp);
+
+                // Auto-upgrade legacy plain-text or SHA256 password to modern PBKDF2 if needed
+                if (needsRehash)
+                {
+                    try
+                    {
+                        await _userRepo.ResetPasswordAsync(user.Email, HashPassword(model.Password));
+                    }
+                    catch { }
+                }
+
+                if (!user.IsActive)
+                {
+                    ModelState.AddModelError("", "This account is inactive or has been deactivated. Please contact support.");
+                    return View(model);
+                }
+
+                var claims = new List<Claim>
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.UserID.ToString()),
+                    new Claim(ClaimTypes.Name, user.FullName),
+                    new Claim(ClaimTypes.Email, user.Email),
+                    new Claim(ClaimTypes.Role, user.Role)
+                };
+
+                var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+                var authProperties = new AuthenticationProperties
+                {
+                    IsPersistent = model.RememberMe,
+                    ExpiresUtc = model.RememberMe ? DateTimeOffset.UtcNow.AddDays(14) : null
+                };
+                if (HttpContext != null) await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity), authProperties);
+
+                if (!string.IsNullOrEmpty(model.ReturnUrl))
+                {
+                    try
+                    {
+                        if (Url != null && Url.IsLocalUrl(model.ReturnUrl) &&
+                            !model.ReturnUrl.StartsWith("/Account/Login", StringComparison.OrdinalIgnoreCase) &&
+                            !model.ReturnUrl.StartsWith("/Account/Logout", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return Redirect(model.ReturnUrl);
+                        }
+                    }
+                    catch { }
+                }
+
+                return user.Role switch
+                {
+                    "Admin" => RedirectToAction("Index", "Admin"),
+                    "Employee" => RedirectToAction("Index", "Employee"),
+                    "Owner" => RedirectToAction("Index", "Owner"),
+                    "EventManager" => RedirectToAction("Index", "EventManager"),
+                    _ => RedirectToAction("Index", "Client")
+                };
+            }
+            catch (Exception ex)
             {
-                ModelState.AddModelError("", "This account is inactive or has been deactivated. Please contact support.");
+                var correlationId = HttpContext?.TraceIdentifier ?? Guid.NewGuid().ToString("N");
+                _logger?.LogError(ex, "Login POST failed with an unexpected error. CorrelationId: {CorrelationId}", correlationId);
+                ModelState.AddModelError("", "Invalid username, email, or password.");
                 return View(model);
             }
-
-            var claims = new List<Claim>
-            {
-                new Claim(ClaimTypes.NameIdentifier, user.UserID.ToString()),
-                new Claim(ClaimTypes.Name, user.FullName),
-                new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Role, user.Role)
-            };
-
-            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-            var authProperties = new AuthenticationProperties
-            {
-                IsPersistent = model.RememberMe,
-                ExpiresUtc = model.RememberMe ? DateTimeOffset.UtcNow.AddDays(14) : null
-            };
-            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity), authProperties);
-
-            if (!string.IsNullOrEmpty(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl))
-            {
-                return Redirect(model.ReturnUrl);
-            }
-
-            return user.Role switch
-            {
-                "Admin" => new RedirectToActionResult("Index", "Admin", null),
-                "Employee" => new RedirectToActionResult("Index", "Employee", null),
-                "Owner" => new RedirectToActionResult("Index", "Owner", null),
-                "EventManager" => new RedirectToActionResult("Index", "EventManager", null),
-                _ => new RedirectToActionResult("Index", "Client", null)
-            };
         }
 
         [HttpGet]
@@ -446,7 +504,7 @@ namespace BookMyFun.Controllers
                 ExpiresUtc = DateTimeOffset.UtcNow.AddDays(14)
             };
 
-            await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity), authProperties);
+            if (HttpContext != null) await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity), authProperties);
 
             TempData["Success"] = $"Welcome {user.FullName}! You have signed in successfully with {provider}.";
 
@@ -784,30 +842,22 @@ namespace BookMyFun.Controllers
 
         public IActionResult AccessDenied()
         {
+            var errorHandler = HttpContext?.RequestServices?.GetService<ICustomErrorHandlerService>();
+            if (errorHandler != null && HttpContext != null)
+            {
+                return errorHandler.OnAccessDenied(HttpContext);
+            }
             return View();
         }
 
-        public static string HashPassword(string password)
-        {
-            using var sha = SHA256.Create();
-            var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(password));
-            return Convert.ToBase64String(bytes);
-        }
+        private static readonly IPasswordHasherService _defaultHasher = new PasswordHasherService();
 
-        public static bool VerifyPassword(string password, string storedHash)
-        {
-            if (string.IsNullOrEmpty(password) || string.IsNullOrEmpty(storedHash))
-                return false;
+        public static string HashPassword(string password) => _defaultHasher.HashPassword(password);
 
-            // 1. Standard SHA-256 hash match
-            if (HashPassword(password) == storedHash)
-                return true;
+        public static bool VerifyPassword(string password, string storedHash) =>
+            _defaultHasher.VerifyPassword(password, storedHash, out _);
 
-            // 2. Backward compatibility for legacy or seeded plain-text credentials
-            if (password == storedHash)
-                return true;
-
-            return false;
-        }
+        public static bool VerifyPassword(string password, string storedHash, out bool needsRehash) =>
+            _defaultHasher.VerifyPassword(password, storedHash, out needsRehash);
     }
 }

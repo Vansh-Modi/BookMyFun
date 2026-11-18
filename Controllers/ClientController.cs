@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace BookMyFun.Controllers
 {
-    [Authorize(Roles = "Client")]
+    [Authorize(Policy = "RequireClient")]
     public class ClientController : Controller
     {
         private readonly IUserRepository _userRepo;
@@ -95,6 +95,12 @@ namespace BookMyFun.Controllers
 
             await _bookingRepo.AddReviewAsync(review);
             TempData["Success"] = "Thank you! Your review has been submitted.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpGet]
+        public IActionResult Receipts()
+        {
             return RedirectToAction(nameof(Index));
         }
     }

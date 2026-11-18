@@ -1,7 +1,9 @@
+using BookMyFun.Services.Security;
 using BookMyFun.Models;
 using BookMyFun.Models.Entities;
 using BookMyFun.Repositories;
-using BookMyFun.Services;
+using BookMyFun.Services;
+using BookMyFun.Services.Notifications;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 
@@ -16,6 +18,8 @@ namespace BookMyFun.Controllers
         private readonly IWhatsAppService _whatsAppService;
         private readonly IUserRepository _userRepo;
         private readonly ILegalDocumentService _legalService;
+        private readonly ICustomErrorHandlerService? _errorHandler;
+        private readonly INotificationDispatcherService? _notificationDispatcher;
 
         public HomeController(
             IPropertyRepository propRepo,
@@ -24,7 +28,9 @@ namespace BookMyFun.Controllers
             IEmailService emailService,
             IWhatsAppService whatsAppService,
             IUserRepository userRepo,
-            ILegalDocumentService legalService)
+            ILegalDocumentService legalService,
+            ICustomErrorHandlerService? errorHandler = null,
+            INotificationDispatcherService? notificationDispatcher = null)
         {
             _propRepo = propRepo;
             _contactRepo = contactRepo;
@@ -33,6 +39,8 @@ namespace BookMyFun.Controllers
             _whatsAppService = whatsAppService;
             _userRepo = userRepo;
             _legalService = legalService;
+            _errorHandler = errorHandler;
+            _notificationDispatcher = notificationDispatcher;
         }
 
         public async Task<IActionResult> Index()
@@ -73,7 +81,8 @@ namespace BookMyFun.Controllers
                 return View(model);
             }
 
-            int leadId = await _partnerLeadService.CreateLeadAsync(model);
+            int leadId = await _partnerLeadService.CreateLeadAsync(model);
+            _ = _notificationDispatcher?.DispatchPartnerLeadSubmittedAsync(leadId, model.FullName, model.PartnerType ?? "Partner");
 
             // Record policy consent acceptance
             try
@@ -235,10 +244,26 @@ namespace BookMyFun.Controllers
             return RedirectToAction(nameof(PrivacyPolicy));
         }
 
+        [Route("Home/Error/{statusCode:int?}")]
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-        public IActionResult Error()
+        public IActionResult Error(int? statusCode = null)
         {
-            return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+            if (_errorHandler != null)
+            {
+                return statusCode switch
+                {
+                    404 => _errorHandler.OnNotFound(HttpContext),
+                    403 => _errorHandler.OnAccessDenied(HttpContext),
+                    _ => _errorHandler.OnUnhandledException(HttpContext, new Exception($"HTTP Status Code {statusCode ?? 500}"))
+                };
+            }
+
+            int code = statusCode ?? 500;
+            return View(new ErrorViewModel
+            {
+                StatusCode = code,
+                RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier
+            });
         }
     }
 }

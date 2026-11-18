@@ -116,6 +116,20 @@
                         </a>
                     </div>
                 }
+                @if (Model.Booking.Status == "Confirmed")
+                {
+                    <div class="mt-2 pt-2 border-top">
+                        <div class="small fw-semibold text-dark"><i class="bi bi-person-badge-fill text-primary me-1"></i>On-Site Caretaker / Host Contact</div>
+                        <div class="small text-muted">Name: <strong class="text-dark">@(Model.Property?.CaretakerName ?? Model.Host?.FullName ?? "On-Site Host")</strong></div>
+                        @if (!string.IsNullOrEmpty(Model.Property?.CaretakerPhone) || !string.IsNullOrEmpty(Model.Host?.Phone))
+                        {
+                            var cPhone = !string.IsNullOrEmpty(Model.Property?.CaretakerPhone) ? Model.Property.CaretakerPhone : Model.Host?.Phone;
+                            <div class="small text-muted mt-0.5">
+                                Phone: <a href="tel:@cPhone" class="fw-bold text-success text-decoration-none"><i class="bi bi-telephone-fill me-1"></i>@cPhone</a>
+                            </div>
+                        }
+                    </div>
+                }
             </div>
         </div>
 

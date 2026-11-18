@@ -180,7 +180,7 @@ namespace BookMyFun.Controllers
         }
 
         [HttpPost("upload-id-document")]
-        [Authorize(Roles = "Client,Admin,Employee")]
+        [Authorize(Roles = "Admin,Employee")]
         [ValidateAntiForgeryToken]
         [RequestSizeLimit(6 * 1024 * 1024)] // 6MB limit
         public async Task<IActionResult> UploadIdDocument([FromForm] IFormFile file, [FromForm] string documentType, [FromForm] string? maskedIdentifier)
@@ -268,9 +268,19 @@ namespace BookMyFun.Controllers
             string physicalPath = _mediaStorage.GetPrivateDocumentPhysicalPath(key);
             if (!System.IO.File.Exists(physicalPath))
             {
-                byte[] placeholderSvg = System.Text.Encoding.UTF8.GetBytes(
-                    $"<svg xmlns='http://www.w3.org/2000/svg' width='600' height='380' viewBox='0 0 600 380'><rect width='600' height='380' fill='#f1f5f9' rx='12'/><rect x='40' y='40' width='520' height='300' fill='#ffffff' stroke='#cbd5e1' stroke-width='2' rx='8'/><text x='300' y='120' font-family='Arial, sans-serif' font-size='22' font-weight='bold' fill='#1e293b' text-anchor='middle'>Government Identification Document</text><text x='300' y='160' font-family='Arial, sans-serif' font-size='14' fill='#64748b' text-anchor='middle'>Key: {System.Net.WebUtility.HtmlEncode(key)}</text><rect x='80' y='200' width='440' height='70' fill='#e0e7ff' rx='6'/><text x='300' y='242' font-family='Arial, sans-serif' font-size='14' font-weight='bold' fill='#3730a3' text-anchor='middle'>Encrypted Private Vault Verified (15m Secure Token)</text></svg>");
-                return File(placeholderSvg, "image/svg+xml");
+                byte[] friendlySvg = System.Text.Encoding.UTF8.GetBytes(
+                    "<svg xmlns='http://www.w3.org/2000/svg' width='600' height='360' viewBox='0 0 600 360'>" +
+                    "<rect width='600' height='360' fill='#f8fafc' rx='12'/>" +
+                    "<rect x='30' y='30' width='540' height='300' fill='#ffffff' stroke='#e2e8f0' stroke-width='2' rx='8'/>" +
+                    "<circle cx='300' cy='110' r='30' fill='#fef3c7'/>" +
+                    "<text x='300' y='119' font-family='Arial, sans-serif' font-size='24' font-weight='bold' fill='#d97706' text-anchor='middle'>!</text>" +
+                    "<text x='300' y='170' font-family='Arial, sans-serif' font-size='18' font-weight='bold' fill='#1e293b' text-anchor='middle'>Document File Not Found in Vault</text>" +
+                    "<text x='300' y='202' font-family='Arial, sans-serif' font-size='13' fill='#64748b' text-anchor='middle'>The uploaded document file is unavailable or was not stored on disk.</text>" +
+                    "<text x='300' y='224' font-family='Arial, sans-serif' font-size='13' fill='#64748b' text-anchor='middle'>Please contact the guest to provide an updated copy of their ID document.</text>" +
+                    "<rect x='100' y='255' width='400' height='40' fill='#f1f5f9' rx='6'/>" +
+                    $"<text x='300' y='280' font-family='Arial, sans-serif' font-size='12' fill='#64748b' text-anchor='middle'>Reference Key: {System.Net.WebUtility.HtmlEncode(key)}</text>" +
+                    "</svg>");
+                return File(friendlySvg, "image/svg+xml");
             }
 
             string contentType = key.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? "application/pdf" :

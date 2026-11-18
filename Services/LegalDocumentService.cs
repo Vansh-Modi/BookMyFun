@@ -9,10 +9,12 @@ namespace BookMyFun.Services
     public class LegalDocumentService : ILegalDocumentService
     {
         private readonly ILegalDocumentRepository _repo;
+        private readonly BookMyFun.Services.Security.IHtmlSanitizerService _sanitizer;
 
-        public LegalDocumentService(ILegalDocumentRepository repo)
+        public LegalDocumentService(ILegalDocumentRepository repo, BookMyFun.Services.Security.IHtmlSanitizerService? sanitizer = null)
         {
             _repo = repo;
+            _sanitizer = sanitizer ?? new BookMyFun.Services.Security.HtmlSanitizerService();
         }
 
         public async Task<LegalDocument?> GetCurrentDocumentAsync(string documentType)
@@ -57,10 +59,11 @@ namespace BookMyFun.Services
 
             DateTime effDate = effectiveDate ?? DateTime.UtcNow;
 
+            string sanitizedBody = _sanitizer.Sanitize(body);
             return await _repo.CreateNewVersionAsync(
                 documentType,
                 title,
-                body,
+                sanitizedBody,
                 targetVersion,
                 effDate,
                 isDraft,
@@ -69,8 +72,15 @@ namespace BookMyFun.Services
 
         public async Task<bool> HasContentAsync(string documentType)
         {
-            var doc = await _repo.GetCurrentDocumentAsync(documentType);
-            return doc != null && !string.IsNullOrWhiteSpace(doc.Body);
+            try
+            {
+                var doc = await _repo.GetCurrentDocumentAsync(documentType);
+                return doc != null && !string.IsNullOrWhiteSpace(doc.Body);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public async Task<bool> AreAllStandardPoliciesPublishedAsync()
