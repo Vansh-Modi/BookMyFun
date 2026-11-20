@@ -10,7 +10,14 @@
             <div class="card-header bg-dark text-white p-4 d-flex justify-content-between align-items-center">
                 <div>
                     <h4 class="mb-1 text-warning fw-bold"><i class="bi bi-shield-lock-fill"></i> Subscription Payment Gateway</h4>
-                    <p class="mb-0 text-white-50 small">Subscription Ref: #@Model.SubscriptionID</p>
+                    @if (Model.SubscriptionID > 0)
+                    {
+                        <p class="mb-0 text-white-50 small">Subscription Ref: #@Model.SubscriptionID</p>
+                    }
+                    else
+                    {
+                        <p class="mb-0 text-white-50 small">Plan: @Model.PlanName</p>
+                    }
                 </div>
                 <div class="text-end">
                     <span class="badge bg-success p-2 fs-6">256-Bit SSL Encrypted</span>
@@ -118,19 +125,16 @@
                 <form id="razorpaySuccessForm" asp-action="VerifySubscriptionPayment" method="post" style="display:none;">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="subscriptionId" value="@Model.SubscriptionID" />
+                    <input type="hidden" name="planId" value="@Model.PlanID" />
                     <input type="hidden" name="razorpay_order_id" id="rzp_order_id" />
                     <input type="hidden" name="razorpay_payment_id" id="rzp_payment_id" />
                     <input type="hidden" name="razorpay_signature" id="rzp_signature" />
                 </form>
 
                 <div class="text-center mt-4">
-                    <form asp-action="CancelSubscriptionOrder" method="post" class="d-inline" onsubmit="return confirm('Do you want to cancel this subscription order?');">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="subscriptionId" value="@Model.SubscriptionID" />
-                        <button type="submit" class="btn btn-link text-danger text-decoration-none small">
-                            <i class="bi bi-x-circle"></i> Cancel Subscription &amp; Return
-                        </button>
-                    </form>
+                    <a asp-action="Subscriptions" class="btn btn-link text-danger text-decoration-none small">
+                        <i class="bi bi-x-circle"></i> Cancel Payment &amp; Return to Plans
+                    </a>
                 </div>
             </div>
         </div>
@@ -152,7 +156,7 @@
                             <h5 class="mb-0 fw-bold">BookMyFun</h5>
                             <span class="badge bg-warning text-dark py-0 px-2 small">Razorpay Verified</span>
                         </div>
-                        <div class="small text-white-50">Subscription #@Model.SubscriptionID &bull; @Model.PlanName</div>
+                        <div class="small text-white-50">@(Model.SubscriptionID > 0 ? $"Subscription #{Model.SubscriptionID} • " : "")@Model.PlanName</div>
                     </div>
                 </div>
                 <div class="text-end">

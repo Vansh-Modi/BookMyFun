@@ -739,17 +739,10 @@ namespace BookMyFun.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            // If brand new owner without any subscription history, auto-create Free Trial row
-            bool hasHistory = await _subRepo.HasAnySubscriptionHistoryAsync(prop.OwnerID);
-            if (!hasHistory)
-            {
-                await _subRepo.CreateTrialSubscriptionAsync(prop.OwnerID);
-            }
-
             var activeSub = await _subRepo.GetActiveSubscriptionByOwnerIdAsync(prop.OwnerID);
             if (activeSub == null)
             {
-                TempData["Error"] = "Your subscription has ended. Choose a plan to publish listings.";
+                TempData["Error"] = "Publishing requires an active subscription or free trial. Please choose an active plan to publish your listing.";
                 return RedirectToAction(nameof(Subscriptions));
             }
 
@@ -983,66 +976,117 @@ namespace BookMyFun.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Subscribe(int planId, bool acknowledgeActive = false, bool acknowledgeStart = false)
+        public async Task<IActionResult> Subscribe(int planId)
         {
-            var ownerId = GetCurrentUserId();
             var plan = await _subRepo.GetPlanByIdAsync(planId);
-            if (plan == null) return NotFound();
-
-            var activeSub = await _subRepo.GetActiveSubscriptionByOwnerIdAsync(ownerId);
-            DateTime startDate = DateTime.UtcNow;
-            if (activeSub != null)
+            if (plan == null || !plan.IsActive)
             {
-                if (!acknowledgeActive || !acknowledgeStart)
-                {
-                    TempData["Error"] = $"You hold an active plan ({activeSub.PlanName}) until {activeSub.EndDate:dd MMM yyyy}. Please acknowledge the scheduled renewal warnings to proceed.";
-                    return RedirectToAction(nameof(Subscriptions));
-                }
-                startDate = activeSub.EndDate;
-            }
-
-            decimal effectivePrice = await _subRepo.GetEffectivePlanPriceAsync(planId, DateTime.UtcNow);
-
-            var sub = new OwnerSubscription
-            {
-                OwnerID = ownerId,
-                PlanID = planId,
-                StartDate = startDate,
-                EndDate = startDate.AddDays(plan.DurationInDays),
-                PaymentStatus = "Pending",
-                PricePaid = effectivePrice,
-                GatewayTransactionID = null
-            };
-
-            var subscriptionId = await _subRepo.SubscribeOwnerAsync(sub);
-            return RedirectToAction(nameof(SubscriptionPayment), new { id = subscriptionId });
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> SubscriptionPayment(int id)
-        {
-            var ownerId = GetCurrentUserId();
-            var sub = await _subRepo.GetSubscriptionByIdAsync(id);
-            if (sub == null || sub.OwnerID != ownerId)
-            {
-                return NotFound();
-            }
-
-            if (sub.PaymentStatus == "Paid")
-            {
-                TempData["Info"] = "This subscription has already been activated.";
+                TempData["Error"] = "Selected subscription plan is not available.";
                 return RedirectToAction(nameof(Subscriptions));
             }
 
-            var plan = await _subRepo.GetPlanByIdAsync(sub.PlanID);
-            if (plan == null) return NotFound();
+            if (string.Equals(plan.PlanType, "Trial", StringComparison.OrdinalIgnoreCase))
+            {
+                return await StartFreeTrial();
+            }
+
+            return RedirectToAction(nameof(SubscriptionPayment), new { planId = plan.PlanID });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> StartFreeTrial()
+        {
+            var ownerId = GetCurrentUserId();
+            var user = await _userRepo.GetByIdAsync(ownerId);
+
+            if (user == null || user.TrialUsedAt.HasValue || await _subRepo.HasAnyTrialHistoryAsync(ownerId))
+            {
+                TempData["Error"] = "Free trial has already been used on this account.";
+                return RedirectToAction(nameof(Subscriptions));
+            }
+
+            var trialPlan = await _subRepo.GetActiveTrialPlanAsync();
+            if (trialPlan == null || !trialPlan.IsActive)
+            {
+                TempData["Error"] = "Free trial plan is currently deactivated or unavailable.";
+                return RedirectToAction(nameof(Subscriptions));
+            }
+
+            DateTime startDate = DateTime.UtcNow;
+            DateTime endDate = startDate.AddDays(trialPlan.DurationInDays);
+
+            var trialSub = new OwnerSubscription
+            {
+                OwnerID = ownerId,
+                PlanID = trialPlan.PlanID,
+                StartDate = startDate,
+                EndDate = endDate,
+                PaymentStatus = "Trial",
+                GatewayTransactionID = null,
+                PricePaid = 0m,
+                PlanNameSnapshot = trialPlan.PlanName,
+                MaxListingsSnapshot = 1,
+                DurationDaysSnapshot = trialPlan.DurationInDays
+            };
+
+            int subId = await _subRepo.SubscribeOwnerAsync(trialSub);
+            if (subId > 0)
+            {
+                await _userRepo.SetTrialUsedAsync(ownerId, startDate);
+                await _configRepo.LogAuditAsync(ownerId, "StartFreeTrial", "OwnerSubscription", subId,
+                    $"Owner #{ownerId} activated free trial ({trialPlan.DurationInDays} days, 1 property). Valid until {endDate:dd MMM yyyy}.");
+
+                if (_notificationDispatcher != null)
+                {
+                    _ = _notificationDispatcher.DispatchSubscriptionActivatedAsync(ownerId, trialPlan.PlanName, endDate);
+                }
+
+                TempData["Success"] = $"Your free trial of {trialPlan.PlanName} ({trialPlan.DurationInDays} days, 1 property) is now active! You can now publish your listing.";
+            }
+            else
+            {
+                TempData["Error"] = "Failed to activate free trial.";
+            }
+
+            return RedirectToAction(nameof(Subscriptions));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> SubscriptionPayment(int? id, int? planId)
+        {
+            var ownerId = GetCurrentUserId();
+            SubscriptionPlan? plan = null;
+
+            if (planId.HasValue && planId.Value > 0)
+            {
+                plan = await _subRepo.GetPlanByIdAsync(planId.Value);
+            }
+            else if (id.HasValue && id.Value > 0)
+            {
+                var sub = await _subRepo.GetSubscriptionByIdAsync(id.Value);
+                if (sub != null && sub.OwnerID == ownerId)
+                {
+                    plan = await _subRepo.GetPlanByIdAsync(sub.PlanID);
+                }
+                else
+                {
+                    plan = await _subRepo.GetPlanByIdAsync(id.Value);
+                }
+            }
+
+            if (plan == null || !plan.IsActive)
+            {
+                TempData["Error"] = "Selected subscription plan is not available.";
+                return RedirectToAction(nameof(Subscriptions));
+            }
 
             var owner = await _userRepo.GetByIdAsync(ownerId);
-            var order = await _paymentService.CreateOrderAsync(plan.Price, $"sub_{ownerId}_{plan.PlanID}_{sub.SubscriptionID}");
+            var order = await _paymentService.CreateOrderAsync(plan.Price, $"sub_{ownerId}_{plan.PlanID}_{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}");
 
             var vm = new SubscriptionPaymentViewModel
             {
-                SubscriptionID = sub.SubscriptionID,
+                SubscriptionID = 0,
                 PlanID = plan.PlanID,
                 PlanName = plan.PlanName,
                 DurationInDays = plan.DurationInDays,
@@ -1062,60 +1106,98 @@ namespace BookMyFun.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> VerifySubscriptionPayment(int subscriptionId, string razorpay_order_id, string razorpay_payment_id, string razorpay_signature)
+        public async Task<IActionResult> VerifySubscriptionPayment(int? subscriptionId, int? planId, string razorpay_order_id, string razorpay_payment_id, string razorpay_signature)
         {
             var ownerId = GetCurrentUserId();
-            var sub = await _subRepo.GetSubscriptionByIdAsync(subscriptionId);
-            if (sub == null || sub.OwnerID != ownerId)
+
+            // Resolve target plan
+            SubscriptionPlan? plan = null;
+            if (planId.HasValue && planId.Value > 0)
             {
-                return NotFound();
+                plan = await _subRepo.GetPlanByIdAsync(planId.Value);
+            }
+            else if (subscriptionId.HasValue && subscriptionId.Value > 0)
+            {
+                var sub = await _subRepo.GetSubscriptionByIdAsync(subscriptionId.Value);
+                if (sub != null && sub.OwnerID == ownerId)
+                {
+                    plan = await _subRepo.GetPlanByIdAsync(sub.PlanID);
+                }
+            }
+
+            if (plan == null || !plan.IsActive)
+            {
+                TempData["Error"] = "Subscription plan is not available.";
+                return RedirectToAction(nameof(Subscriptions));
             }
 
             bool isValid = await _paymentService.VerifyPaymentSignatureAsync(razorpay_order_id, razorpay_payment_id, razorpay_signature);
             if (!isValid)
             {
                 TempData["Error"] = "Payment signature verification failed. Please try again or reach our 24/7 helpdesk.";
-                return RedirectToAction(nameof(SubscriptionPayment), new { id = subscriptionId });
+                return RedirectToAction(nameof(SubscriptionPayment), new { planId = plan.PlanID });
             }
 
-            await _subRepo.UpdateSubscriptionPaymentStatusAsync(subscriptionId, "Paid", $"RAZORPAY_{razorpay_payment_id}");
-            
-            // Check if active immediately or scheduled for future
-            if (sub.StartDate <= DateTime.UtcNow)
+            // Check if owner holds active subscription; if so, schedule renewal
+            var activeSub = await _subRepo.GetActiveSubscriptionByOwnerIdAsync(ownerId);
+            DateTime startDate = activeSub != null ? activeSub.EndDate : DateTime.UtcNow;
+            DateTime endDate = startDate.AddDays(plan.DurationInDays);
+
+            var newSub = new OwnerSubscription
             {
-                // When a paid plan becomes active, unpublished properties are NOT republished automatically.
-                // The owner chooses which to publish, up to the plan's MaxListings.
+                OwnerID = ownerId,
+                PlanID = plan.PlanID,
+                StartDate = startDate,
+                EndDate = endDate,
+                PaymentStatus = "Paid",
+                GatewayTransactionID = $"RAZORPAY_{razorpay_payment_id}",
+                PricePaid = plan.Price,
+                PlanNameSnapshot = plan.PlanName,
+                MaxListingsSnapshot = plan.MaxListings,
+                DurationDaysSnapshot = plan.DurationInDays
+            };
+
+            int newSubId = await _subRepo.SubscribeOwnerAsync(newSub);
+
+            // Log audit
+            await _configRepo.LogAuditAsync(ownerId, "PurchaseSubscriptionPlan", "OwnerSubscription", newSubId,
+                $"Owner #{ownerId} purchased {plan.PlanName} for ₹{plan.Price:N0}. Start: {startDate:dd MMM yyyy}, End: {endDate:dd MMM yyyy}, Gateway: RAZORPAY_{razorpay_payment_id}.");
+
+            // Check if active immediately or scheduled for future
+            if (startDate <= DateTime.UtcNow)
+            {
                 var unpubProps = (await _propRepo.GetPropertiesByOwnerIdAsync(ownerId))
                     .Where(p => p.ListingStatus == "Unpublished" || p.ListingStatus == "Deactivated")
                     .Select(p => p.Title)
                     .ToList();
 
-                int limit = sub.MaxListings > 0 ? sub.MaxListings : 1;
+                int limit = plan.MaxListings > 0 ? plan.MaxListings : 1;
                 if (_notificationDispatcher != null)
                 {
                     _ = _notificationDispatcher.DispatchPostPaymentPublishPromptAsync(
                         ownerId,
-                        sub.SubscriptionID,
-                        sub.PlanName ?? "Subscription",
+                        newSubId,
+                        plan.PlanName,
                         unpubProps,
                         limit);
                     _ = _notificationDispatcher.DispatchPlanPurchaseConfirmedAsync(
                         ownerId,
-                        sub.PlanName ?? "Subscription",
-                        (sub.PricePaid ?? 0m),
+                        plan.PlanName,
+                        plan.Price,
                         false,
-                        sub.StartDate);
+                        startDate);
                 }
-                TempData["Success"] = $"Razorpay payment verified successfully! Your subscription to {sub.PlanName} is now active. Please choose which properties to publish from your dashboard.";
+                TempData["Success"] = $"Razorpay payment verified successfully! Your subscription to {plan.PlanName} is now active. Please choose which properties to publish from your dashboard.";
             }
             else
             {
                 if (_notificationDispatcher != null)
                 {
-                    _ = _notificationDispatcher.DispatchPlanPurchaseConfirmedAsync(ownerId, sub.PlanName ?? "Subscription", (sub.PricePaid ?? 0m), true, sub.StartDate);
+                    _ = _notificationDispatcher.DispatchPlanPurchaseConfirmedAsync(ownerId, plan.PlanName, plan.Price, true, startDate);
                 }
-                TempData["Success"] = $"Razorpay payment verified successfully! Your subscription to {sub.PlanName} is scheduled to start on {sub.StartDate:dd MMM yyyy}.";
+                TempData["Success"] = $"Razorpay payment verified successfully! Your subscription to {plan.PlanName} is scheduled to start on {startDate:dd MMM yyyy}.";
             }
+
             return RedirectToAction(nameof(Subscriptions));
         }
 

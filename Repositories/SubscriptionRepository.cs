@@ -489,7 +489,7 @@ namespace BookMyFun.Repositories
 
         public async Task<int> GetLiveListingCountAsync(int ownerId)
         {
-            const string sql = "SELECT COUNT(*) FROM Properties WHERE OwnerID = @OwnerID AND ListingStatus = 'Active' AND IsApproved = 1";
+            const string sql = "SELECT COUNT(*) FROM Properties WHERE OwnerID = @OwnerID AND (ListingStatus = 'Active' OR ListingStatus = 'Live') AND IsApproved = 1";
             var res = await _db.ExecuteScalarAsync(sql, new SqlParameter("@OwnerID", ownerId));
             return res != null ? Convert.ToInt32(res) : 0;
         }
@@ -509,20 +509,14 @@ namespace BookMyFun.Repositories
                 return (false, $"Listing allowance reached ({count}/{limit}). Please upgrade your subscription plan to add more properties.", count, limit);
             }
 
-            bool hasHistory = await HasAnySubscriptionHistoryAsync(ownerId);
-            if (!hasHistory)
+            // An owner with no plan can add one property. It counts toward the trial's limit of 1, and cannot be published until a plan is active.
+            const int noPlanLimit = 1;
+            if (count < noPlanLimit)
             {
-                // New owner eligible for Free Trial (allowance: 1)
-                const int trialLimit = 1;
-                if (count < trialLimit)
-                {
-                    return (true, null, count, trialLimit);
-                }
-                return (false, "Trial allowance reached (1 listing). Publish your first property to activate your trial, or upgrade to add more.", count, trialLimit);
+                return (true, null, count, noPlanLimit);
             }
 
-            // Prior subscription or trial has ended
-            return (false, "Your subscription has ended. Choose a plan to add listings.", count, 0);
+            return (false, "Free listing limit reached (1 property). Choose an active subscription plan to list more properties.", count, noPlanLimit);
         }
 
         public async Task<int> GetTrialDurationDaysAsync()
@@ -611,11 +605,11 @@ namespace BookMyFun.Repositories
                 JOIN SubscriptionPlans sp ON os.PlanID = sp.PlanID
                 JOIN Users u ON os.OwnerID = u.UserID
                 WHERE (os.EndDate < GETUTCDATE() AND os.EndDate < GETDATE())
-                  AND os.PaymentStatus IN ('Paid', 'Trial', 'Expired')
+                  AND os.PaymentStatus IN ('Paid', 'Trial', 'AdminGranted', 'Expired')
                   AND NOT EXISTS (
                       SELECT 1 FROM OwnerSubscriptions os2
                       WHERE os2.OwnerID = os.OwnerID
-                        AND os2.PaymentStatus IN ('Paid', 'Trial', 'Scheduled')
+                        AND os2.PaymentStatus IN ('Paid', 'Trial', 'AdminGranted', 'Scheduled')
                         AND (os2.EndDate >= GETUTCDATE() OR os2.EndDate >= GETDATE())
                   )
                   AND EXISTS (
