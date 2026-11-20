@@ -965,12 +965,29 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> Subscriptions()
         {
             var ownerId = GetCurrentUserId();
-            var plans = await _subRepo.GetAllPlansAsync();
+            var user = await _userRepo.GetByIdAsync(ownerId);
+            bool trialUsed = user?.TrialUsedAt.HasValue == true || await _subRepo.HasAnyTrialHistoryAsync(ownerId);
+
+            var allPlans = await _subRepo.GetAllPlansAsync();
+            // Shows only active plans. Hides the trial card once it has been used or the plan is deactivated.
+            var plans = allPlans
+                .Where(p => p.IsActive && !string.Equals(p.PlanType, "AdminGranted", StringComparison.OrdinalIgnoreCase))
+                .Where(p =>
+                {
+                    bool isTrial = string.Equals(p.PlanType, "Trial", StringComparison.OrdinalIgnoreCase) || p.PlanName.Equals("Free Trial", StringComparison.OrdinalIgnoreCase);
+                    if (isTrial && trialUsed) return false;
+                    return true;
+                })
+                .ToList();
+
             var activeSub = await _subRepo.GetActiveSubscriptionByOwnerIdAsync(ownerId);
+            var scheduledSub = await _subRepo.GetScheduledSubscriptionByOwnerIdAsync(ownerId);
             var history = await _subRepo.GetSubscriptionHistoryByOwnerIdAsync(ownerId);
 
             ViewBag.ActiveSub = activeSub;
+            ViewBag.ScheduledSub = scheduledSub;
             ViewBag.History = history;
+            ViewBag.TrialUsed = trialUsed;
             return View(plans);
         }
 

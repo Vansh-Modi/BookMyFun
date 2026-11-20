@@ -432,7 +432,7 @@ namespace BookMyFun.Repositories
                 FROM OwnerSubscriptions os
                 LEFT JOIN SubscriptionPlans sp ON os.PlanID = sp.PlanID
                 JOIN Users u ON os.OwnerID = u.UserID
-                WHERE os.OwnerID = @OwnerID
+                WHERE os.OwnerID = @OwnerID AND os.PaymentStatus <> 'Pending'
                 ORDER BY os.StartDate DESC";
 
             return await _db.ExecuteReaderListAsync(sql, MapOwnerSub, new SqlParameter("@OwnerID", ownerId));
