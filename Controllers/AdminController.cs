@@ -2930,5 +2930,199 @@ namespace BookMyFun.Controllers
             var model = await _healthCheckService.RunDiagnosticsAsync();
             return View(model);
         }
+
+        // --- Subscription Plans Management (Admin Only) ---
+        [HttpGet]
+        public async Task<IActionResult> SubscriptionPlans()
+        {
+            var plans = await _subRepo.GetAllPlansAsync(onlyActive: false);
+            var owners = await _userRepo.GetUsersByRoleAsync("Owner");
+
+            var vm = new AdminSubscriptionPlansViewModel
+            {
+                Plans = plans,
+                Owners = owners.Where(o => o.IsActive).OrderBy(o => o.FullName).ToList(),
+                PlanForm = new SubscriptionPlanFormModel(),
+                GrantForm = new GrantSubscriptionPlanFormModel
+                {
+                    StartDate = DateTime.UtcNow.Date
+                }
+            };
+
+            return View(vm);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SaveSubscriptionPlan(SubscriptionPlanFormModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                TempData["Error"] = "Please provide valid inputs for all required fields.";
+                return RedirectToAction(nameof(SubscriptionPlans));
+            }
+
+            var adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+            // Name uniqueness check
+            bool isUnique = await _subRepo.IsPlanNameUniqueAsync(model.PlanName, model.PlanID > 0 ? model.PlanID : null);
+            if (!isUnique)
+            {
+                TempData["Error"] = $"A subscription plan with the name '{model.PlanName}' already exists. Plan names must be unique.";
+                return RedirectToAction(nameof(SubscriptionPlans));
+            }
+
+            if (model.PlanID == 0)
+            {
+                var plan = new SubscriptionPlan
+                {
+                    PlanName = model.PlanName.Trim(),
+                    PlanType = model.PlanType,
+                    Price = model.Price,
+                    DurationInDays = model.DurationInDays,
+                    MaxListings = model.MaxListings,
+                    Description = model.Description?.Trim(),
+                    IsActive = model.IsActive
+                };
+
+                int newId = await _subRepo.CreatePlanAsync(plan);
+                if (newId <= 0)
+                {
+                    TempData["Error"] = "Unable to create subscription plan. Please check the details.";
+                    return RedirectToAction(nameof(SubscriptionPlans));
+                }
+
+                await _configRepo.LogAuditAsync(adminId, "CreateSubscriptionPlan", "SubscriptionPlan", newId,
+                    $"Admin created subscription plan '{plan.PlanName}' ({plan.PlanType}, ₹{plan.Price:N0}, {plan.DurationInDays} days, limit {plan.MaxListings}).");
+
+                TempData["Success"] = $"Subscription plan '{plan.PlanName}' created successfully.";
+            }
+            else
+            {
+                var existing = await _subRepo.GetPlanByIdAsync(model.PlanID);
+                if (existing == null) return NotFound();
+
+                existing.PlanName = model.PlanName.Trim();
+                existing.PlanType = model.PlanType;
+                existing.Price = model.Price;
+                existing.DurationInDays = model.DurationInDays;
+                existing.MaxListings = model.MaxListings;
+                existing.Description = model.Description?.Trim();
+                existing.IsActive = model.IsActive;
+
+                bool updated = await _subRepo.UpdatePlanAsync(existing);
+                if (!updated)
+                {
+                    TempData["Error"] = "Unable to update subscription plan.";
+                    return RedirectToAction(nameof(SubscriptionPlans));
+                }
+
+                await _configRepo.LogAuditAsync(adminId, "EditSubscriptionPlan", "SubscriptionPlan", model.PlanID,
+                    $"Admin updated subscription plan #{model.PlanID} ('{model.PlanName}', ₹{model.Price:N0}, {model.DurationInDays} days, limit {model.MaxListings}). Changes apply to new purchases only.");
+
+                TempData["Success"] = $"Plan '{existing.PlanName}' updated successfully. Changes apply to new purchases only. Existing subscriptions keep their current terms.";
+            }
+
+            return RedirectToAction(nameof(SubscriptionPlans));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeactivateSubscriptionPlan(int planId)
+        {
+            var adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var plan = await _subRepo.GetPlanByIdAsync(planId);
+            if (plan == null) return NotFound();
+
+            bool deactivated = await _subRepo.DeactivatePlanAsync(planId);
+            if (deactivated)
+            {
+                await _configRepo.LogAuditAsync(adminId, "DeactivateSubscriptionPlan", "SubscriptionPlan", planId,
+                    $"Admin deactivated subscription plan #{planId} ('{plan.PlanName}'). New purchases disabled.");
+
+                TempData["Success"] = $"Subscription plan '{plan.PlanName}' deactivated successfully. Existing subscriptions remain active until expiry.";
+            }
+            else
+            {
+                TempData["Error"] = "Failed to deactivate subscription plan.";
+            }
+
+            return RedirectToAction(nameof(SubscriptionPlans));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> GrantSubscriptionPlan(GrantSubscriptionPlanFormModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                TempData["Error"] = "Please fill in all required fields for the plan grant.";
+                return RedirectToAction(nameof(SubscriptionPlans));
+            }
+
+            var adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var plan = await _subRepo.GetPlanByIdAsync(model.PlanID);
+            if (plan == null)
+            {
+                TempData["Error"] = "Selected subscription plan does not exist.";
+                return RedirectToAction(nameof(SubscriptionPlans));
+            }
+
+            var owner = await _userRepo.GetByIdAsync(model.OwnerID);
+            if (owner == null)
+            {
+                TempData["Error"] = "Selected owner does not exist.";
+                return RedirectToAction(nameof(SubscriptionPlans));
+            }
+
+            int duration = model.OverrideDurationDays.HasValue && model.OverrideDurationDays.Value > 0
+                ? model.OverrideDurationDays.Value
+                : plan.DurationInDays;
+
+            int limit = model.OverrideMaxListings.HasValue && model.OverrideMaxListings.Value > 0
+                ? model.OverrideMaxListings.Value
+                : plan.MaxListings;
+
+            DateTime startDate = model.StartDate.ToUniversalTime();
+            DateTime endDate = model.EndDate.HasValue
+                ? model.EndDate.Value.ToUniversalTime()
+                : startDate.AddDays(duration);
+
+            var grantSub = new OwnerSubscription
+            {
+                OwnerID = model.OwnerID,
+                PlanID = plan.PlanID,
+                StartDate = startDate,
+                EndDate = endDate,
+                PaymentStatus = "AdminGranted",
+                PricePaid = 0m,
+                GatewayTransactionID = null,
+                PlanNameSnapshot = plan.PlanName,
+                MaxListingsSnapshot = limit,
+                DurationDaysSnapshot = duration,
+                GrantedByUserID = adminId,
+                GrantReason = model.GrantReason.Trim()
+            };
+
+            int subId = await _subRepo.GrantSubscriptionAsync(grantSub);
+            if (subId > 0)
+            {
+                await _configRepo.LogAuditAsync(adminId, "GrantSubscriptionPlan", "OwnerSubscription", subId,
+                    $"Admin granted '{plan.PlanName}' to Owner #{model.OwnerID} ({owner.FullName}) from {startDate:dd MMM yyyy} to {endDate:dd MMM yyyy} (Limit: {limit}). Reason: {model.GrantReason}");
+
+                if (_notificationDispatcher != null)
+                {
+                    _ = _notificationDispatcher.DispatchSubscriptionActivatedAsync(model.OwnerID, plan.PlanName, endDate);
+                }
+
+                TempData["Success"] = $"Admin-granted subscription successfully assigned to {owner.FullName}. Limit: {limit} listings, Valid until: {endDate:dd MMM yyyy}.";
+            }
+            else
+            {
+                TempData["Error"] = "Failed to grant subscription plan.";
+            }
+
+            return RedirectToAction(nameof(SubscriptionPlans));
+        }
     }
 }

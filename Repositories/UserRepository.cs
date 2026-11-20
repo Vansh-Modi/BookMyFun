@@ -18,6 +18,7 @@ namespace BookMyFun.Repositories
         Task<bool> UpdateUserTierAndCommissionAsync(int userId, string subscriptionTier, decimal? customCommissionRate);
         Task<bool> UpdateUserCommissionRateAsync(int userId, decimal? customCommissionRate);
         Task<bool> LinkAuthProviderAsync(int userId, string provider, string providerKey, string? profilePic = null);
+        Task<bool> SetTrialUsedAsync(int userId, DateTime? usedAt = null) => Task.FromResult(true);
     }
 
     public class UserRepository : IUserRepository
@@ -320,7 +321,22 @@ namespace BookMyFun.Repositories
                 if (ord >= 0 && !reader.IsDBNull(ord)) user.WhatsAppPhone = reader.GetString(ord);
             } catch { }
 
+            try {
+                int ord = reader.GetOrdinal("TrialUsedAt");
+                if (ord >= 0 && !reader.IsDBNull(ord)) user.TrialUsedAt = reader.GetDateTime(ord);
+            } catch { }
+
             return user;
+        }
+
+        public async Task<bool> SetTrialUsedAsync(int userId, DateTime? usedAt = null)
+        {
+            var dt = usedAt ?? DateTime.UtcNow;
+            const string sql = "UPDATE Users SET TrialUsedAt = @TrialUsedAt WHERE UserID = @UserID";
+            var rows = await _db.ExecuteNonQueryAsync(sql,
+                new SqlParameter("@TrialUsedAt", dt),
+                new SqlParameter("@UserID", userId));
+            return rows > 0;
         }
     }
 }

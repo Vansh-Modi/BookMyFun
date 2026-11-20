@@ -1095,4 +1095,63 @@ namespace BookMyFun.Models.ViewModels
         public DateTime CheckedAt { get; set; } = DateTime.UtcNow;
         public Dictionary<string, int> CountsByCategory { get; set; } = new();
     }
+
+    // --- Subscription Plan System ViewModels ---
+    public class AdminSubscriptionPlansViewModel
+    {
+        public List<BookMyFun.Models.Entities.SubscriptionPlan> Plans { get; set; } = new();
+        public List<BookMyFun.Models.Entities.User> Owners { get; set; } = new();
+        public SubscriptionPlanFormModel PlanForm { get; set; } = new();
+        public GrantSubscriptionPlanFormModel GrantForm { get; set; } = new();
+    }
+
+    public class SubscriptionPlanFormModel
+    {
+        public int PlanID { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Plan name is required.")]
+        [System.ComponentModel.DataAnnotations.StringLength(100, ErrorMessage = "Plan name cannot exceed 100 characters.")]
+        public string PlanName { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Plan type is required.")]
+        public string PlanType { get; set; } = "Paid"; // 'Trial', 'Paid', 'AdminGranted'
+
+        [System.ComponentModel.DataAnnotations.Range(0, 1000000, ErrorMessage = "Price must be 0 or greater.")]
+        public decimal Price { get; set; } = 0m;
+
+        [System.ComponentModel.DataAnnotations.Range(1, 730, ErrorMessage = "Duration must be between 1 and 730 days.")]
+        public int DurationInDays { get; set; } = 30;
+
+        [System.ComponentModel.DataAnnotations.Range(1, 50, ErrorMessage = "Listing limit must be between 1 and 50.")]
+        public int MaxListings { get; set; } = 1;
+
+        [System.ComponentModel.DataAnnotations.StringLength(500, ErrorMessage = "Description cannot exceed 500 characters.")]
+        public string? Description { get; set; }
+
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class GrantSubscriptionPlanFormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Please select an owner.")]
+        public int OwnerID { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Please select a plan.")]
+        public int PlanID { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Start date is required.")]
+        public DateTime StartDate { get; set; } = DateTime.UtcNow.Date;
+
+        public DateTime? EndDate { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Range(1, 730, ErrorMessage = "Overridden duration must be between 1 and 730 days.")]
+        public int? OverrideDurationDays { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Range(1, 50, ErrorMessage = "Overridden limit must be between 1 and 50.")]
+        public int? OverrideMaxListings { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Reason is required.")]
+        [System.ComponentModel.DataAnnotations.StringLength(300, ErrorMessage = "Reason cannot exceed 300 characters.")]
+        public string GrantReason { get; set; } = string.Empty;
+    }
 }

@@ -34,6 +34,11 @@ namespace BookMyFun.Repositories
         Task<(decimal Price, DateTime EffectiveFrom)?> GetUpcomingPlanPriceAsync(int planId, DateTime? asOfDate = null) => Task.FromResult<(decimal Price, DateTime EffectiveFrom)?>(null);
         Task<int> CreatePlanPriceAsync(SubscriptionPlanPrice price) => Task.FromResult(1);
         Task<List<SubscriptionPlanPrice>> GetPlanPricesByPlanIdAsync(int planId) => Task.FromResult(new List<SubscriptionPlanPrice>());
+        Task<bool> DeactivatePlanAsync(int planId) => Task.FromResult(false);
+        Task<int> GrantSubscriptionAsync(OwnerSubscription grantSub) => Task.FromResult(0);
+        Task<SubscriptionPlan?> GetActiveTrialPlanAsync() => Task.FromResult<SubscriptionPlan?>(null);
+        Task<bool> HasAnyTrialHistoryAsync(int ownerId) => Task.FromResult(false);
+        Task<bool> IsPlanNameUniqueAsync(string planName, int? excludePlanId = null) => Task.FromResult(true);
     }
 
     public class SubscriptionRepository : ISubscriptionRepository
@@ -45,10 +50,9 @@ namespace BookMyFun.Repositories
             _db = db;
         }
 
-        public async Task<List<SubscriptionPlan>> GetAllPlansAsync(bool onlyActive = true)
+        private static SubscriptionPlan MapSubscriptionPlan(SqlDataReader r)
         {
-            var sql = "SELECT * FROM SubscriptionPlans" + (onlyActive ? " WHERE IsActive = 1" : "") + " ORDER BY Price ASC";
-            var plans = await _db.ExecuteReaderListAsync(sql, r => new SubscriptionPlan
+            var plan = new SubscriptionPlan
             {
                 PlanID = r.GetInt32(r.GetOrdinal("PlanID")),
                 PlanName = r.GetString(r.GetOrdinal("PlanName")),
@@ -57,7 +61,44 @@ namespace BookMyFun.Repositories
                 MaxListings = r.GetInt32(r.GetOrdinal("MaxListings")),
                 IsActive = r.GetBoolean(r.GetOrdinal("IsActive")),
                 CurrentPrice = r.GetDecimal(r.GetOrdinal("Price"))
-            });
+            };
+
+            try
+            {
+                int ord = r.GetOrdinal("PlanType");
+                if (!r.IsDBNull(ord)) plan.PlanType = r.GetString(ord);
+            }
+            catch { }
+
+            try
+            {
+                int ord = r.GetOrdinal("Description");
+                if (!r.IsDBNull(ord)) plan.Description = r.GetString(ord);
+            }
+            catch { }
+
+            try
+            {
+                int ord = r.GetOrdinal("OwnerCount");
+                if (!r.IsDBNull(ord)) plan.OwnerCount = r.GetInt32(ord);
+            }
+            catch { }
+
+            return plan;
+        }
+
+        public async Task<List<SubscriptionPlan>> GetAllPlansAsync(bool onlyActive = true)
+        {
+            var sql = @"
+                SELECT sp.*,
+                       (SELECT COUNT(DISTINCT os.OwnerID) 
+                        FROM OwnerSubscriptions os 
+                        WHERE os.PlanID = sp.PlanID) AS OwnerCount
+                FROM SubscriptionPlans sp"
+                + (onlyActive ? " WHERE sp.IsActive = 1" : "")
+                + " ORDER BY sp.Price ASC";
+
+            var plans = await _db.ExecuteReaderListAsync(sql, MapSubscriptionPlan);
 
             // Populate effective and upcoming prices (Section 3b)
             var now = DateTime.UtcNow;
@@ -77,30 +118,59 @@ namespace BookMyFun.Repositories
 
         public async Task<SubscriptionPlan?> GetPlanByIdAsync(int planId)
         {
-            const string sql = "SELECT * FROM SubscriptionPlans WHERE PlanID = @PlanID";
-            return await _db.ExecuteReaderSingleAsync(sql, r => new SubscriptionPlan
+            const string sql = @"
+                SELECT sp.*,
+                       (SELECT COUNT(DISTINCT os.OwnerID) 
+                        FROM OwnerSubscriptions os 
+                        WHERE os.PlanID = sp.PlanID) AS OwnerCount
+                FROM SubscriptionPlans sp
+                WHERE sp.PlanID = @PlanID";
+            return await _db.ExecuteReaderSingleAsync(sql, MapSubscriptionPlan, new SqlParameter("@PlanID", planId));
+        }
+
+        public async Task<bool> IsPlanNameUniqueAsync(string planName, int? excludePlanId = null)
+        {
+            string sql = "SELECT COUNT(*) FROM SubscriptionPlans WHERE LOWER(LTRIM(RTRIM(PlanName))) = LOWER(LTRIM(RTRIM(@PlanName)))";
+            if (excludePlanId.HasValue)
             {
-                PlanID = r.GetInt32(r.GetOrdinal("PlanID")),
-                PlanName = r.GetString(r.GetOrdinal("PlanName")),
-                Price = r.GetDecimal(r.GetOrdinal("Price")),
-                DurationInDays = r.GetInt32(r.GetOrdinal("DurationInDays")),
-                MaxListings = r.GetInt32(r.GetOrdinal("MaxListings")),
-                IsActive = r.GetBoolean(r.GetOrdinal("IsActive"))
-            }, new SqlParameter("@PlanID", planId));
+                sql += " AND PlanID <> @ExcludePlanID";
+            }
+            var res = await _db.ExecuteScalarAsync(sql,
+                new SqlParameter("@PlanName", planName.Trim()),
+                new SqlParameter("@ExcludePlanID", (object?)excludePlanId ?? DBNull.Value));
+            return res != null && Convert.ToInt32(res) == 0;
         }
 
         public async Task<int> CreatePlanAsync(SubscriptionPlan plan)
         {
+            if (!await IsPlanNameUniqueAsync(plan.PlanName))
+            {
+                return -1; // Duplicate name
+            }
+
             const string sql = @"
-                INSERT INTO SubscriptionPlans (PlanName, Price, DurationInDays, MaxListings, IsActive)
-                OUTPUT INSERTED.PlanID
-                VALUES (@PlanName, @Price, @DurationInDays, @MaxListings, @IsActive)";
+                IF COL_LENGTH('SubscriptionPlans', 'PlanType') IS NOT NULL
+                BEGIN
+                    EXEC sp_executesql N'INSERT INTO SubscriptionPlans (PlanName, PlanType, Price, DurationInDays, MaxListings, Description, IsActive)
+                    OUTPUT INSERTED.PlanID
+                    VALUES (@PlanName, @PlanType, @Price, @DurationInDays, @MaxListings, @Description, @IsActive)',
+                    N'@PlanName NVARCHAR(100), @PlanType NVARCHAR(50), @Price DECIMAL(18,2), @DurationInDays INT, @MaxListings INT, @Description NVARCHAR(500), @IsActive BIT',
+                    @PlanName, @PlanType, @Price, @DurationInDays, @MaxListings, @Description, @IsActive;
+                END
+                ELSE
+                BEGIN
+                    INSERT INTO SubscriptionPlans (PlanName, Price, DurationInDays, MaxListings, IsActive)
+                    OUTPUT INSERTED.PlanID
+                    VALUES (@PlanName, @Price, @DurationInDays, @MaxListings, @IsActive);
+                END";
 
             var res = await _db.ExecuteScalarAsync(sql,
-                new SqlParameter("@PlanName", plan.PlanName),
+                new SqlParameter("@PlanName", plan.PlanName.Trim()),
+                new SqlParameter("@PlanType", string.IsNullOrWhiteSpace(plan.PlanType) ? "Paid" : plan.PlanType),
                 new SqlParameter("@Price", plan.Price),
                 new SqlParameter("@DurationInDays", plan.DurationInDays),
                 new SqlParameter("@MaxListings", plan.MaxListings),
+                new SqlParameter("@Description", (object?)plan.Description ?? DBNull.Value),
                 new SqlParameter("@IsActive", plan.IsActive));
 
             return res != null ? Convert.ToInt32(res) : 0;
@@ -108,32 +178,74 @@ namespace BookMyFun.Repositories
 
         public async Task<bool> UpdatePlanAsync(SubscriptionPlan plan)
         {
+            if (!await IsPlanNameUniqueAsync(plan.PlanName, plan.PlanID))
+            {
+                return false;
+            }
+
             const string sql = @"
-                UPDATE SubscriptionPlans 
-                SET PlanName = @PlanName, 
-                    Price = @Price, 
-                    DurationInDays = @DurationInDays, 
-                    MaxListings = @MaxListings, 
-                    IsActive = @IsActive
-                WHERE PlanID = @PlanID";
+                IF COL_LENGTH('SubscriptionPlans', 'PlanType') IS NOT NULL
+                BEGIN
+                    EXEC sp_executesql N'UPDATE SubscriptionPlans 
+                    SET PlanName = @PlanName, 
+                        PlanType = @PlanType,
+                        Price = @Price, 
+                        DurationInDays = @DurationInDays, 
+                        MaxListings = @MaxListings, 
+                        Description = @Description,
+                        IsActive = @IsActive
+                    WHERE PlanID = @PlanID',
+                    N'@PlanName NVARCHAR(100), @PlanType NVARCHAR(50), @Price DECIMAL(18,2), @DurationInDays INT, @MaxListings INT, @Description NVARCHAR(500), @IsActive BIT, @PlanID INT',
+                    @PlanName, @PlanType, @Price, @DurationInDays, @MaxListings, @Description, @IsActive, @PlanID;
+                END
+                ELSE
+                BEGIN
+                    UPDATE SubscriptionPlans 
+                    SET PlanName = @PlanName, 
+                        Price = @Price, 
+                        DurationInDays = @DurationInDays, 
+                        MaxListings = @MaxListings, 
+                        IsActive = @IsActive
+                    WHERE PlanID = @PlanID;
+                END";
 
             var rows = await _db.ExecuteNonQueryAsync(sql,
-                new SqlParameter("@PlanName", plan.PlanName),
+                new SqlParameter("@PlanName", plan.PlanName.Trim()),
+                new SqlParameter("@PlanType", string.IsNullOrWhiteSpace(plan.PlanType) ? "Paid" : plan.PlanType),
                 new SqlParameter("@Price", plan.Price),
                 new SqlParameter("@DurationInDays", plan.DurationInDays),
                 new SqlParameter("@MaxListings", plan.MaxListings),
+                new SqlParameter("@Description", (object?)plan.Description ?? DBNull.Value),
                 new SqlParameter("@IsActive", plan.IsActive),
                 new SqlParameter("@PlanID", plan.PlanID));
 
             return rows > 0;
         }
 
+        public async Task<bool> DeactivatePlanAsync(int planId)
+        {
+            const string sql = "UPDATE SubscriptionPlans SET IsActive = 0 WHERE PlanID = @PlanID";
+            var rows = await _db.ExecuteNonQueryAsync(sql, new SqlParameter("@PlanID", planId));
+            return rows > 0;
+        }
+
         public async Task<int> SubscribeOwnerAsync(OwnerSubscription sub)
         {
             const string sql = @"
-                INSERT INTO OwnerSubscriptions (OwnerID, PlanID, StartDate, EndDate, PaymentStatus, GatewayTransactionID, PricePaid)
-                OUTPUT INSERTED.SubscriptionID
-                VALUES (@OwnerID, @PlanID, @StartDate, @EndDate, @PaymentStatus, @GatewayTransactionID, @PricePaid)";
+                IF COL_LENGTH('OwnerSubscriptions', 'PlanNameSnapshot') IS NOT NULL
+                BEGIN
+                    EXEC sp_executesql N'INSERT INTO OwnerSubscriptions (OwnerID, PlanID, StartDate, EndDate, PaymentStatus, GatewayTransactionID, PricePaid, PlanNameSnapshot, MaxListingsSnapshot, DurationDaysSnapshot, GrantedByUserID, GrantReason)
+                    OUTPUT INSERTED.SubscriptionID
+                    VALUES (@OwnerID, @PlanID, @StartDate, @EndDate, @PaymentStatus, @GatewayTransactionID, @PricePaid, @PlanNameSnapshot, @MaxListingsSnapshot, @DurationDaysSnapshot, @GrantedByUserID, @GrantReason)',
+                    N'@OwnerID INT, @PlanID INT, @StartDate DATETIME, @EndDate DATETIME, @PaymentStatus NVARCHAR(50), @GatewayTransactionID NVARCHAR(255), @PricePaid DECIMAL(18,2), @PlanNameSnapshot NVARCHAR(100), @MaxListingsSnapshot INT, @DurationDaysSnapshot INT, @GrantedByUserID INT, @GrantReason NVARCHAR(300)',
+                    @OwnerID, @PlanID, @StartDate, @EndDate, @PaymentStatus, @GatewayTransactionID, @PricePaid, @PlanNameSnapshot, @MaxListingsSnapshot, @DurationDaysSnapshot, @GrantedByUserID, @GrantReason;
+                END
+                ELSE
+                BEGIN
+                    INSERT INTO OwnerSubscriptions (OwnerID, PlanID, StartDate, EndDate, PaymentStatus, GatewayTransactionID, PricePaid)
+                    OUTPUT INSERTED.SubscriptionID
+                    VALUES (@OwnerID, @PlanID, @StartDate, @EndDate, @PaymentStatus, @GatewayTransactionID, @PricePaid);
+                END";
 
             var res = await _db.ExecuteScalarAsync(sql,
                 new SqlParameter("@OwnerID", sub.OwnerID),
@@ -142,21 +254,55 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@EndDate", sub.EndDate),
                 new SqlParameter("@PaymentStatus", sub.PaymentStatus),
                 new SqlParameter("@GatewayTransactionID", DBHelper.ToDbValue(sub.GatewayTransactionID)),
-                new SqlParameter("@PricePaid", (object?)sub.PricePaid ?? DBNull.Value));
+                new SqlParameter("@PricePaid", (object?)sub.PricePaid ?? DBNull.Value),
+                new SqlParameter("@PlanNameSnapshot", (object?)sub.PlanNameSnapshot ?? DBNull.Value),
+                new SqlParameter("@MaxListingsSnapshot", (object?)sub.MaxListingsSnapshot ?? DBNull.Value),
+                new SqlParameter("@DurationDaysSnapshot", (object?)sub.DurationDaysSnapshot ?? DBNull.Value),
+                new SqlParameter("@GrantedByUserID", (object?)sub.GrantedByUserID ?? DBNull.Value),
+                new SqlParameter("@GrantReason", (object?)sub.GrantReason ?? DBNull.Value));
 
             return res != null ? Convert.ToInt32(res) : 0;
         }
 
+        public async Task<int> GrantSubscriptionAsync(OwnerSubscription grantSub)
+        {
+            return await SubscribeOwnerAsync(grantSub);
+        }
+
+        public async Task<SubscriptionPlan?> GetActiveTrialPlanAsync()
+        {
+            const string sql = @"
+                SELECT TOP 1 sp.*,
+                       (SELECT COUNT(DISTINCT os.OwnerID) 
+                        FROM OwnerSubscriptions os 
+                        WHERE os.PlanID = sp.PlanID) AS OwnerCount
+                FROM SubscriptionPlans sp 
+                WHERE (sp.PlanType = 'Trial' OR sp.PlanName = 'Free Trial') AND sp.IsActive = 1 
+                ORDER BY sp.PlanID ASC";
+            return await _db.ExecuteReaderSingleAsync(sql, MapSubscriptionPlan);
+        }
+
+        public async Task<bool> HasAnyTrialHistoryAsync(int ownerId)
+        {
+            const string sql = @"
+                SELECT TOP 1 1 
+                FROM OwnerSubscriptions os
+                LEFT JOIN SubscriptionPlans sp ON os.PlanID = sp.PlanID
+                WHERE os.OwnerID = @OwnerID 
+                  AND (os.PaymentStatus = 'Trial' OR sp.PlanType = 'Trial' OR sp.PlanName = 'Free Trial')";
+            var res = await _db.ExecuteScalarAsync(sql, new SqlParameter("@OwnerID", ownerId));
+            return res != null && Convert.ToInt32(res) == 1;
+        }
+
         public async Task<OwnerSubscription?> GetActiveSubscriptionByOwnerIdAsync(int ownerId)
         {
-            // PaymentStatus IN ('Paid', 'Trial'), StartDate <= GETUTCDATE() so scheduled plans do NOT grant limits early
             const string sql = @"
                 SELECT TOP 1 os.*, sp.PlanName, sp.MaxListings, u.FullName AS OwnerName
                 FROM OwnerSubscriptions os
-                JOIN SubscriptionPlans sp ON os.PlanID = sp.PlanID
+                LEFT JOIN SubscriptionPlans sp ON os.PlanID = sp.PlanID
                 JOIN Users u ON os.OwnerID = u.UserID
                 WHERE os.OwnerID = @OwnerID 
-                  AND os.PaymentStatus IN ('Paid', 'Trial') 
+                  AND os.PaymentStatus IN ('Paid', 'Trial', 'AdminGranted') 
                   AND (os.StartDate <= SYSDATETIME() OR os.StartDate <= GETUTCDATE())
                   AND (os.EndDate >= GETDATE() OR os.EndDate >= GETUTCDATE())
                 ORDER BY os.EndDate DESC";
@@ -169,12 +315,11 @@ namespace BookMyFun.Repositories
             const string sql = @"
                 SELECT TOP 1 os.*, sp.PlanName, sp.MaxListings, u.FullName AS OwnerName
                 FROM OwnerSubscriptions os
-                JOIN SubscriptionPlans sp ON os.PlanID = sp.PlanID
+                LEFT JOIN SubscriptionPlans sp ON os.PlanID = sp.PlanID
                 JOIN Users u ON os.OwnerID = u.UserID
                 WHERE os.OwnerID = @OwnerID 
                   AND os.PaymentStatus IN ('Paid', 'Scheduled')
-                  AND os.StartDate > SYSDATETIME()
-                  AND os.StartDate > GETUTCDATE()
+                  AND (os.StartDate > SYSDATETIME() OR os.StartDate > GETUTCDATE())
                 ORDER BY os.StartDate ASC";
 
             return await _db.ExecuteReaderSingleAsync(sql, MapOwnerSub, new SqlParameter("@OwnerID", ownerId));
@@ -283,9 +428,9 @@ namespace BookMyFun.Repositories
         public async Task<List<OwnerSubscription>> GetSubscriptionHistoryByOwnerIdAsync(int ownerId)
         {
             const string sql = @"
-                SELECT os.*, sp.PlanName, u.FullName AS OwnerName
+                SELECT os.*, sp.PlanName, sp.MaxListings, u.FullName AS OwnerName
                 FROM OwnerSubscriptions os
-                JOIN SubscriptionPlans sp ON os.PlanID = sp.PlanID
+                LEFT JOIN SubscriptionPlans sp ON os.PlanID = sp.PlanID
                 JOIN Users u ON os.OwnerID = u.UserID
                 WHERE os.OwnerID = @OwnerID
                 ORDER BY os.StartDate DESC";
@@ -296,9 +441,9 @@ namespace BookMyFun.Repositories
         public async Task<OwnerSubscription?> GetSubscriptionByIdAsync(int subscriptionId)
         {
             const string sql = @"
-                SELECT os.*, sp.PlanName, u.FullName AS OwnerName
+                SELECT os.*, sp.PlanName, sp.MaxListings, u.FullName AS OwnerName
                 FROM OwnerSubscriptions os
-                JOIN SubscriptionPlans sp ON os.PlanID = sp.PlanID
+                LEFT JOIN SubscriptionPlans sp ON os.PlanID = sp.PlanID
                 JOIN Users u ON os.OwnerID = u.UserID
                 WHERE os.SubscriptionID = @SubscriptionID";
 
@@ -586,16 +731,66 @@ namespace BookMyFun.Repositories
                 EndDate = r.GetDateTime(r.GetOrdinal("EndDate")),
                 PaymentStatus = r.GetString(r.GetOrdinal("PaymentStatus")),
                 GatewayTransactionID = r.IsDBNull(r.GetOrdinal("GatewayTransactionID")) ? null : r.GetString(r.GetOrdinal("GatewayTransactionID")),
-                                PlanName = r.GetString(r.GetOrdinal("PlanName")),
                 OwnerName = r.GetString(r.GetOrdinal("OwnerName"))
             };
 
             try
             {
-                int maxOrd = r.GetOrdinal("MaxListings");
-                if (!r.IsDBNull(maxOrd)) sub.MaxListings = r.GetInt32(maxOrd);
+                int ord = r.GetOrdinal("PlanNameSnapshot");
+                if (!r.IsDBNull(ord)) sub.PlanNameSnapshot = r.GetString(ord);
             }
             catch { }
+
+            try
+            {
+                int ord = r.GetOrdinal("MaxListingsSnapshot");
+                if (!r.IsDBNull(ord)) sub.MaxListingsSnapshot = r.GetInt32(ord);
+            }
+            catch { }
+
+            try
+            {
+                int ord = r.GetOrdinal("DurationDaysSnapshot");
+                if (!r.IsDBNull(ord)) sub.DurationDaysSnapshot = r.GetInt32(ord);
+            }
+            catch { }
+
+            try
+            {
+                int ord = r.GetOrdinal("GrantedByUserID");
+                if (!r.IsDBNull(ord)) sub.GrantedByUserID = r.GetInt32(ord);
+            }
+            catch { }
+
+            try
+            {
+                int ord = r.GetOrdinal("GrantReason");
+                if (!r.IsDBNull(ord)) sub.GrantReason = r.GetString(ord);
+            }
+            catch { }
+
+            if (!string.IsNullOrEmpty(sub.PlanNameSnapshot))
+            {
+                sub.PlanName = sub.PlanNameSnapshot;
+            }
+            else
+            {
+                try { sub.PlanName = r.GetString(r.GetOrdinal("PlanName")); } catch { }
+            }
+
+            if (sub.MaxListingsSnapshot.HasValue && sub.MaxListingsSnapshot.Value > 0)
+            {
+                sub.MaxListings = sub.MaxListingsSnapshot.Value;
+            }
+            else
+            {
+                try
+                {
+                    int maxOrd = r.GetOrdinal("MaxListings");
+                    if (!r.IsDBNull(maxOrd)) sub.MaxListings = r.GetInt32(maxOrd);
+                }
+                catch { }
+            }
 
             try
             {

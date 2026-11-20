@@ -69,6 +69,12 @@
             <span class="nav-text">Add Property</span>
         </a>
     </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "SubscriptionPlans" ? "active" : "")" asp-controller="Admin" asp-action="SubscriptionPlans">
+            <i class="bi bi-award text-primary"></i>
+            <span class="nav-text">Subscription Plans</span>
+        </a>
+    </li>
 
     <!-- 4. Users and Partners -->
     <li class="dashboard-nav-heading">Users &amp; Partners</li>

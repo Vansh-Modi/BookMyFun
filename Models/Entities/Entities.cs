@@ -25,6 +25,7 @@ namespace BookMyFun.Models.Entities
         public bool NotificationWhatsAppEnabled { get; set; } = false;
         public bool WhatsAppVerified { get; set; } = false;
         public string? WhatsAppPhone { get; set; }
+        public DateTime? TrialUsedAt { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 
@@ -65,6 +66,8 @@ namespace BookMyFun.Models.Entities
     {
         public int PlanID { get; set; }
         public string PlanName { get; set; } = string.Empty;
+        public string PlanType { get; set; } = "Paid"; // 'Trial', 'Paid', 'AdminGranted'
+        public string? Description { get; set; }
         public decimal Price { get; set; }
         public int DurationInDays { get; set; }
         public int MaxListings { get; set; }
@@ -72,6 +75,7 @@ namespace BookMyFun.Models.Entities
         public decimal CurrentPrice { get; set; }
         public decimal? UpcomingPrice { get; set; }
         public DateTime? UpcomingPriceDate { get; set; }
+        public int OwnerCount { get; set; }
     }
 
     public class OwnerSubscription
@@ -81,15 +85,21 @@ namespace BookMyFun.Models.Entities
         public int PlanID { get; set; }
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
-        public string PaymentStatus { get; set; } = "Pending"; // 'Paid', 'Pending', 'Expired'
+        public string PaymentStatus { get; set; } = "Pending"; // 'Paid', 'Pending', 'Expired', 'Trial', 'AdminGranted'
         public string? GatewayTransactionID { get; set; }
         public decimal? PricePaid { get; set; }
+        public string? PlanNameSnapshot { get; set; }
+        public int? MaxListingsSnapshot { get; set; }
+        public int? DurationDaysSnapshot { get; set; }
+        public int? GrantedByUserID { get; set; }
+        public string? GrantReason { get; set; }
 
         // Navigation helpers
         public string? PlanName { get; set; }
         public string? OwnerName { get; set; }
         public int MaxListings { get; set; } = 1;
         public bool IsTrial => PaymentStatus == "Trial";
+        public bool IsAdminGranted => GrantedByUserID.HasValue || PaymentStatus == "AdminGranted";
     }
 
     public class Property
