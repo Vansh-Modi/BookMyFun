@@ -232,20 +232,9 @@ namespace BookMyFun.Repositories
         public async Task<int> SubscribeOwnerAsync(OwnerSubscription sub)
         {
             const string sql = @"
-                IF COL_LENGTH('OwnerSubscriptions', 'PlanNameSnapshot') IS NOT NULL
-                BEGIN
-                    EXEC sp_executesql N'INSERT INTO OwnerSubscriptions (OwnerID, PlanID, StartDate, EndDate, PaymentStatus, GatewayTransactionID, PricePaid, PlanNameSnapshot, MaxListingsSnapshot, DurationDaysSnapshot, GrantedByUserID, GrantReason)
-                    OUTPUT INSERTED.SubscriptionID
-                    VALUES (@OwnerID, @PlanID, @StartDate, @EndDate, @PaymentStatus, @GatewayTransactionID, @PricePaid, @PlanNameSnapshot, @MaxListingsSnapshot, @DurationDaysSnapshot, @GrantedByUserID, @GrantReason)',
-                    N'@OwnerID INT, @PlanID INT, @StartDate DATETIME, @EndDate DATETIME, @PaymentStatus NVARCHAR(50), @GatewayTransactionID NVARCHAR(255), @PricePaid DECIMAL(18,2), @PlanNameSnapshot NVARCHAR(100), @MaxListingsSnapshot INT, @DurationDaysSnapshot INT, @GrantedByUserID INT, @GrantReason NVARCHAR(300)',
-                    @OwnerID, @PlanID, @StartDate, @EndDate, @PaymentStatus, @GatewayTransactionID, @PricePaid, @PlanNameSnapshot, @MaxListingsSnapshot, @DurationDaysSnapshot, @GrantedByUserID, @GrantReason;
-                END
-                ELSE
-                BEGIN
-                    INSERT INTO OwnerSubscriptions (OwnerID, PlanID, StartDate, EndDate, PaymentStatus, GatewayTransactionID, PricePaid)
-                    OUTPUT INSERTED.SubscriptionID
-                    VALUES (@OwnerID, @PlanID, @StartDate, @EndDate, @PaymentStatus, @GatewayTransactionID, @PricePaid);
-                END";
+                INSERT INTO OwnerSubscriptions (OwnerID, PlanID, StartDate, EndDate, PaymentStatus, GatewayTransactionID, PricePaid, PlanNameSnapshot, MaxListingsSnapshot, DurationDaysSnapshot, GrantedByUserID, GrantReason)
+                OUTPUT INSERTED.SubscriptionID
+                VALUES (@OwnerID, @PlanID, @StartDate, @EndDate, @PaymentStatus, @GatewayTransactionID, @PricePaid, @PlanNameSnapshot, @MaxListingsSnapshot, @DurationDaysSnapshot, @GrantedByUserID, @GrantReason);";
 
             var res = await _db.ExecuteScalarAsync(sql,
                 new SqlParameter("@OwnerID", sub.OwnerID),

@@ -14,7 +14,7 @@ public static class TestHelper
         var config = new ConfigurationManager();
         string connStr = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
             ?? Environment.GetEnvironmentVariable("TEST_CONNECTION_STRING")
-            ?? "Data Source=.\\SQLEXPRESS;Integrated Security=True;TrustServerCertificate=True;";
+            ?? "Data Source=.\\SQLEXPRESS;Initial Catalog=BookMyFun;Integrated Security=True;TrustServerCertificate=True;";
 
         config["ConnectionStrings:DefaultConnection"] = connStr;
         config["Razorpay:KeyId"] = "rzp_test_bookmyfun_demo";

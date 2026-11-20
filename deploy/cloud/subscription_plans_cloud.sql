@@ -141,6 +141,28 @@ BEGIN TRY
         BEGIN
             PRINT 'Column GrantReason already exists on dbo.OwnerSubscriptions.';
         END
+
+        -- Update PaymentStatus CHECK constraint to include 'AdminGranted'
+        DECLARE @SubStatusConstraint NVARCHAR(200);
+        SELECT @SubStatusConstraint = cc.name 
+        FROM sys.check_constraints cc
+        JOIN sys.columns c ON cc.parent_object_id = c.object_id AND cc.parent_column_id = c.column_id
+        WHERE cc.parent_object_id = OBJECT_ID('dbo.OwnerSubscriptions') AND c.name = 'PaymentStatus';
+
+        IF @SubStatusConstraint IS NOT NULL AND @SubStatusConstraint <> 'CK_OwnerSubscriptions_PaymentStatus_V4'
+        BEGIN
+            DECLARE @DropConstraintSql NVARCHAR(500) = N'ALTER TABLE dbo.OwnerSubscriptions DROP CONSTRAINT ' + QUOTENAME(@SubStatusConstraint);
+            EXEC sp_executesql @DropConstraintSql;
+            ALTER TABLE dbo.OwnerSubscriptions ADD CONSTRAINT CK_OwnerSubscriptions_PaymentStatus_V4 
+            CHECK (PaymentStatus IN ('Trial', 'Paid', 'Pending', 'Expired', 'Scheduled', 'Cancelled', 'AdminGranted'));
+            PRINT 'Updated PaymentStatus check constraint on OwnerSubscriptions to CK_OwnerSubscriptions_PaymentStatus_V4.';
+        END
+        ELSE IF @SubStatusConstraint IS NULL
+        BEGIN
+            ALTER TABLE dbo.OwnerSubscriptions ADD CONSTRAINT CK_OwnerSubscriptions_PaymentStatus_V4 
+            CHECK (PaymentStatus IN ('Trial', 'Paid', 'Pending', 'Expired', 'Scheduled', 'Cancelled', 'AdminGranted'));
+            PRINT 'Created PaymentStatus check constraint CK_OwnerSubscriptions_PaymentStatus_V4 on OwnerSubscriptions.';
+        END
     END
 
     -- 4. Create PhotoShootRequests Table

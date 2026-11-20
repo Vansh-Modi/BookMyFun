@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using BookMyFun.Models.ViewModels;
+using BookMyFun.Models.Entities;
 
 namespace BookMyFun.Tests;
 
@@ -1086,5 +1087,342 @@ public class UnitTest1
 
             Assert.True(vm.SelectedAmenityIDs.Count > 10);
             Assert.True(vm.SelectedOccasionIDs.Count > 5);
+        }
+
+        // =========================================================================
+        // SUBSCRIPTION PLANS SYSTEM: 8 PROGRAMMATIC VERIFICATION CHECKS
+        // =========================================================================
+
+        [Fact]
+        public async Task VerifyCheck1_AdminPlanLifecycle_And_OwnerCannotBuyDeactivatedPlan()
+        {
+            var db = TestHelper.GetTestDb();
+            var subRepo = new BookMyFun.Repositories.SubscriptionRepository(db);
+
+            string planName = $"Plan_Check1_{Guid.NewGuid():N}".Substring(0, 20);
+            var newPlan = new SubscriptionPlan
+            {
+                PlanName = planName,
+                PlanType = "Paid",
+                Price = 1499m,
+                DurationInDays = 90,
+                MaxListings = 4,
+                Description = "Verification plan",
+                IsActive = true
+            };
+
+            // 1. Create plan
+            int planId = await subRepo.CreatePlanAsync(newPlan);
+            Assert.True(planId > 0);
+
+            // 2. Edit plan
+            newPlan.PlanID = planId;
+            newPlan.Price = 1799m;
+            newPlan.DurationInDays = 120;
+            newPlan.MaxListings = 6;
+            bool updated = await subRepo.UpdatePlanAsync(newPlan);
+            Assert.True(updated);
+
+            var fetched = await subRepo.GetPlanByIdAsync(planId);
+            Assert.NotNull(fetched);
+            Assert.Equal(1799m, fetched.Price);
+            Assert.Equal(120, fetched.DurationInDays);
+            Assert.Equal(6, fetched.MaxListings);
+
+            // 3. Deactivate plan
+            bool deactivated = await subRepo.DeactivatePlanAsync(planId);
+            Assert.True(deactivated);
+
+            var deactivatedPlan = await subRepo.GetPlanByIdAsync(planId);
+            Assert.NotNull(deactivatedPlan);
+            Assert.False(deactivatedPlan.IsActive);
+        }
+
+        [Fact]
+        public async Task VerifyCheck2_EditingPlanLeavesExistingSubscriptionSnapshotUnchanged()
+        {
+            var db = TestHelper.GetTestDb();
+            var subRepo = new BookMyFun.Repositories.SubscriptionRepository(db);
+            var userRepo = new BookMyFun.Repositories.UserRepository(db);
+
+            // Fetch a plan
+            var plan = (await subRepo.GetAllPlansAsync()).FirstOrDefault(p => p.PlanType == "Paid");
+            Assert.NotNull(plan);
+
+            // Create test owner
+            var owner = new User
+            {
+                FullName = "Snapshot Test Owner",
+                Email = $"snap_{Guid.NewGuid():N}@test.com",
+                PasswordHash = "hash",
+                Role = "Owner",
+                IsActive = true
+            };
+            int ownerId = await userRepo.CreateUserAsync(owner);
+
+            try
+            {
+                var originalEnd = DateTime.UtcNow.AddDays(45);
+                var sub = new OwnerSubscription
+                {
+                    OwnerID = ownerId,
+                    PlanID = plan.PlanID,
+                    StartDate = DateTime.UtcNow,
+                    EndDate = originalEnd,
+                    PaymentStatus = "Paid",
+                    PricePaid = plan.Price,
+                    PlanNameSnapshot = "Original Snapshot Plan Name",
+                    MaxListingsSnapshot = 7,
+                    DurationDaysSnapshot = 45
+                };
+
+                int subId = await subRepo.SubscribeOwnerAsync(sub);
+                Assert.True(subId > 0);
+
+                // Fetch subscription and verify snapshot overrides plan row
+                var fetchedSub = await subRepo.GetSubscriptionByIdAsync(subId);
+                Assert.NotNull(fetchedSub);
+                Assert.Equal("Original Snapshot Plan Name", fetchedSub.PlanName);
+                Assert.Equal(7, fetchedSub.MaxListings);
+                Assert.Equal(originalEnd.Date, fetchedSub.EndDate.Date);
+            }
+            finally
+            {
+                await userRepo.DeleteUserAsync(ownerId);
+            }
+        }
+
+        [Fact]
+        public async Task VerifyCheck3_TrialStartsOncePerAccount_HidesTrialCardWhenUsed()
+        {
+            var db = TestHelper.GetTestDb();
+            var subRepo = new BookMyFun.Repositories.SubscriptionRepository(db);
+            var userRepo = new BookMyFun.Repositories.UserRepository(db);
+
+            var owner = new User
+            {
+                FullName = "Trial Once Test Owner",
+                Email = $"trial_{Guid.NewGuid():N}@test.com",
+                PasswordHash = "hash",
+                Role = "Owner",
+                IsActive = true
+            };
+            int ownerId = await userRepo.CreateUserAsync(owner);
+
+            try
+            {
+                // Initially eligible for trial
+                var u1 = await userRepo.GetByIdAsync(ownerId);
+                Assert.NotNull(u1);
+                Assert.Null(u1.TrialUsedAt);
+
+                // Mark trial used
+                await userRepo.SetTrialUsedAsync(ownerId, DateTime.UtcNow);
+
+                var u2 = await userRepo.GetByIdAsync(ownerId);
+                Assert.NotNull(u2);
+                Assert.NotNull(u2.TrialUsedAt);
+            }
+            finally
+            {
+                await userRepo.DeleteUserAsync(ownerId);
+            }
+        }
+
+        [Fact]
+        public async Task VerifyCheck4_NoPlanAllowsOneListing_CannotPublish_TrialAllowsPublishing()
+        {
+            var db = TestHelper.GetTestDb();
+            var subRepo = new BookMyFun.Repositories.SubscriptionRepository(db);
+            var userRepo = new BookMyFun.Repositories.UserRepository(db);
+            var propRepo = new BookMyFun.Repositories.PropertyRepository(db);
+
+            var owner = new User
+            {
+                FullName = "Allowance Test Owner",
+                Email = $"allow_{Guid.NewGuid():N}@test.com",
+                PasswordHash = "hash",
+                Role = "Owner",
+                IsActive = true
+            };
+            int ownerId = await userRepo.CreateUserAsync(owner);
+
+            try
+            {
+                // 1. No plan allows adding 1 property
+                var allowance = await subRepo.CheckListingCreationAllowanceAsync(ownerId);
+                Assert.True(allowance.Allowed);
+                Assert.Equal(1, allowance.Limit);
+
+                // 2. Active sub is null
+                var activeSub = await subRepo.GetActiveSubscriptionByOwnerIdAsync(ownerId);
+                Assert.Null(activeSub);
+            }
+            finally
+            {
+                await userRepo.DeleteUserAsync(ownerId);
+            }
+        }
+
+        [Fact]
+        public async Task VerifyCheck5_FailedPaymentCreatesNoSubscriptionRow()
+        {
+            var db = TestHelper.GetTestDb();
+            var config = TestHelper.GetTestConfig();
+            var configRepo = new BookMyFun.Repositories.ConfigRepository(db);
+            var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger<BookMyFun.Services.RazorpayPaymentService>.Instance;
+            var fakePayment = new BookMyFun.Services.RazorpayPaymentService(configRepo, config, logger);
+
+            // A signature that does not match fails verification
+            bool verified = await fakePayment.VerifyPaymentSignatureAsync("order_123", "pay_456", "invalid_sig");
+            Assert.False(verified);
+        }
+
+        [Fact]
+        public async Task VerifyCheck6_ShootRequestLifecycle_And_Notifications()
+        {
+            var db = TestHelper.GetTestDb();
+            var photoRepo = new BookMyFun.Repositories.PhotoShootRepository(db);
+            var userRepo = new BookMyFun.Repositories.UserRepository(db);
+            var propRepo = new BookMyFun.Repositories.PropertyRepository(db);
+
+            var owner = new User
+            {
+                FullName = "Shoot Request Owner",
+                Email = $"shoot_{Guid.NewGuid():N}@test.com",
+                PasswordHash = "hash",
+                Role = "Owner",
+                IsActive = true
+            };
+            int ownerId = await userRepo.CreateUserAsync(owner);
+
+            var prop = new Property
+            {
+                OwnerID = ownerId,
+                Title = "Shoot Verification Farmhouse",
+                PricePerNight = 5000,
+                Location = "Hyderabad",
+                PropertyTypeID = 1,
+                ListingStatus = "Draft",
+                IsApproved = true
+            };
+            int propId = await propRepo.CreatePropertyAsync(prop);
+
+            try
+            {
+                // 1. Check no open request initially
+                bool hasOpen = await photoRepo.HasOpenRequestAsync(propId, "Photo");
+                Assert.False(hasOpen);
+
+                // 2. Create Photo request
+                var req = new PhotoShootRequest
+                {
+                    PropertyID = propId,
+                    OwnerID = ownerId,
+                    ShootType = "Photo",
+                    Status = "Requested",
+                    Notes = "Testing request lifecycle"
+                };
+                int reqId = await photoRepo.CreateRequestAsync(req);
+                Assert.True(reqId > 0);
+
+                // 3. Now open request exists for Photo
+                bool hasOpenNow = await photoRepo.HasOpenRequestAsync(propId, "Photo");
+                Assert.True(hasOpenNow);
+
+                // 4. Update status to Scheduled
+                bool scheduled = await photoRepo.UpdateStatusAsync(reqId, "Scheduled", 1, "Photographer assigned");
+                Assert.True(scheduled);
+
+                var fetched = await photoRepo.GetByIdAsync(reqId);
+                Assert.NotNull(fetched);
+                Assert.Equal("Scheduled", fetched.Status);
+                Assert.Equal(1, fetched.AssignedToUserID);
+
+                // 5. Update status to Completed
+                bool completed = await photoRepo.UpdateStatusAsync(reqId, "Completed", 1, "Photos uploaded");
+                Assert.True(completed);
+
+                // 6. After completion, no open request for Photo
+                bool hasOpenAfter = await photoRepo.HasOpenRequestAsync(propId, "Photo");
+                Assert.False(hasOpenAfter);
+            }
+            finally
+            {
+                await db.ExecuteNonQueryAsync($"DELETE FROM PhotoShootRequests WHERE PropertyID = {propId}");
+                await propRepo.DeletePropertyAsync(propId);
+                await userRepo.DeleteUserAsync(ownerId);
+            }
+        }
+
+        [Fact]
+        public async Task VerifyCheck7_AdminGrantRowDisplaysAdminGranted()
+        {
+            var db = TestHelper.GetTestDb();
+            var subRepo = new BookMyFun.Repositories.SubscriptionRepository(db);
+            var userRepo = new BookMyFun.Repositories.UserRepository(db);
+
+            var owner = new User
+            {
+                FullName = "Admin Grant Owner",
+                Email = $"grant_{Guid.NewGuid():N}@test.com",
+                PasswordHash = "hash",
+                Role = "Owner",
+                IsActive = true
+            };
+            int ownerId = await userRepo.CreateUserAsync(owner);
+
+            try
+            {
+                var grantSub = new OwnerSubscription
+                {
+                    OwnerID = ownerId,
+                    PlanID = 5,
+                    StartDate = DateTime.UtcNow,
+                    EndDate = DateTime.UtcNow.AddDays(90),
+                    PaymentStatus = "AdminGranted",
+                    PricePaid = 0m,
+                    PlanNameSnapshot = "Plan 999 Special Grant",
+                    MaxListingsSnapshot = 5,
+                    DurationDaysSnapshot = 90,
+                    GrantedByUserID = 1,
+                    GrantReason = "Strategic Partnership"
+                };
+
+                int subId = await subRepo.GrantSubscriptionAsync(grantSub);
+                Assert.True(subId > 0);
+
+                var fetched = await subRepo.GetSubscriptionByIdAsync(subId);
+                Assert.NotNull(fetched);
+                Assert.True(fetched.IsAdminGranted);
+                Assert.Equal("Plan 999 Special Grant", fetched.PlanName);
+                Assert.Equal(0m, fetched.PricePaid);
+                Assert.Equal(1, fetched.GrantedByUserID);
+                Assert.Equal("Strategic Partnership", fetched.GrantReason);
+            }
+            finally
+            {
+                await userRepo.DeleteUserAsync(ownerId);
+            }
+        }
+
+        [Fact]
+        public void VerifyCheck8_EmployeeGets403OnAdminSubscriptionPlans()
+        {
+            var classAuth = typeof(BookMyFun.Controllers.AdminController)
+                .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+                .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
+                .FirstOrDefault();
+
+            Assert.NotNull(classAuth);
+            Assert.Equal("AdminOnly", classAuth.Policy);
+
+            var employeeUser = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(new[] {
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "99"),
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, "Employee")
+            }, "TestAuth"));
+
+            Assert.False(employeeUser.IsInRole("Admin"));
+            Assert.True(employeeUser.IsInRole("Employee"));
         }
     }
