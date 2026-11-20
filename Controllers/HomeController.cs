@@ -20,6 +20,7 @@ namespace BookMyFun.Controllers
         private readonly ILegalDocumentService _legalService;
         private readonly ICustomErrorHandlerService? _errorHandler;
         private readonly INotificationDispatcherService? _notificationDispatcher;
+        private readonly IHtmlSanitizerService? _sanitizer;
 
         public HomeController(
             IPropertyRepository propRepo,
@@ -30,7 +31,8 @@ namespace BookMyFun.Controllers
             IUserRepository userRepo,
             ILegalDocumentService legalService,
             ICustomErrorHandlerService? errorHandler = null,
-            INotificationDispatcherService? notificationDispatcher = null)
+            INotificationDispatcherService? notificationDispatcher = null,
+            IHtmlSanitizerService? sanitizer = null)
         {
             _propRepo = propRepo;
             _contactRepo = contactRepo;
@@ -41,6 +43,7 @@ namespace BookMyFun.Controllers
             _legalService = legalService;
             _errorHandler = errorHandler;
             _notificationDispatcher = notificationDispatcher;
+            _sanitizer = sanitizer;
         }
 
         public async Task<IActionResult> Index()
@@ -167,6 +170,16 @@ namespace BookMyFun.Controllers
                 return View(model);
             }
 
+            if (_sanitizer != null)
+            {
+                model.Name = _sanitizer.Sanitize(model.Name);
+                if (!string.IsNullOrWhiteSpace(model.Subject))
+                {
+                    model.Subject = _sanitizer.Sanitize(model.Subject);
+                }
+                model.Message = _sanitizer.Sanitize(model.Message);
+            }
+
             int contactId = await _contactRepo.CreateContactAsync(model);
 
             // Notify Customer Support Executives and Staff
@@ -233,6 +246,21 @@ namespace BookMyFun.Controllers
                 Title = "Refund and Cancellation Policy",
                 DocumentType = "RefundPolicy",
                 Body = "<p>Policy not yet published. Please contact support.</p>",
+                Version = "1.0",
+                EffectiveDate = DateTime.UtcNow,
+                IsDraft = true
+            });
+        }
+
+        [HttpGet("/cookie-policy")]
+        public async Task<IActionResult> CookiePolicy()
+        {
+            var doc = await _legalService.GetCurrentDocumentAsync("CookiePolicy");
+            return View("LegalDocumentView", doc ?? new LegalDocument
+            {
+                Title = "Cookie Policy",
+                DocumentType = "CookiePolicy",
+                Body = "<p><strong>DRAFT: requires legal review before publishing.</strong></p><p>This Cookie Policy outlines how Nayesta uses essential and analytics cookies on our platform. The detailed policy draft is currently being prepared for legal review.</p>",
                 Version = "1.0",
                 EffectiveDate = DateTime.UtcNow,
                 IsDraft = true

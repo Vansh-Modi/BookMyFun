@@ -52,16 +52,76 @@ namespace BookMyFun.Services
         private int _count = 0;
         private int _notificationIdCounter = 0;
 
+        private const int MaxTrackedCapacity = 50000;
+        private static readonly TimeSpan RetentionPeriod = TimeSpan.FromHours(24);
+        private DateTime _lastCleanupTime = DateTime.UtcNow;
+        private readonly object _cleanupLock = new();
+
         public bool TryAcquireNotificationKey(string notificationKey)
         {
             if (string.IsNullOrWhiteSpace(notificationKey)) return false;
-            return _dispatchedNotificationKeys.TryAdd(notificationKey, DateTime.UtcNow);
+            var now = DateTime.UtcNow;
+            CleanStaleKeys(now);
+            return _dispatchedNotificationKeys.TryAdd(notificationKey, now);
         }
 
         public bool HasNotificationKey(string notificationKey)
         {
             if (string.IsNullOrWhiteSpace(notificationKey)) return false;
             return _dispatchedNotificationKeys.ContainsKey(notificationKey);
+        }
+
+        private void CleanStaleKeys(DateTime now)
+        {
+            if (now - _lastCleanupTime < TimeSpan.FromMinutes(10) && _dispatchedNotificationKeys.Count < MaxTrackedCapacity)
+            {
+                return;
+            }
+
+            if (System.Threading.Monitor.TryEnter(_cleanupLock))
+            {
+                try
+                {
+                    if (now - _lastCleanupTime >= TimeSpan.FromMinutes(10) || _dispatchedNotificationKeys.Count >= MaxTrackedCapacity)
+                    {
+                        var cutoff = now - RetentionPeriod;
+                        foreach (var kvp in _dispatchedNotificationKeys)
+                        {
+                            if (kvp.Value < cutoff)
+                            {
+                                _dispatchedNotificationKeys.TryRemove(kvp.Key, out _);
+                            }
+                        }
+
+                        if (_dispatchedNotificationKeys.Count >= MaxTrackedCapacity)
+                        {
+                            var excess = _dispatchedNotificationKeys.OrderBy(k => k.Value).Take(_dispatchedNotificationKeys.Count - MaxTrackedCapacity + 5000).ToList();
+                            foreach (var old in excess)
+                            {
+                                _dispatchedNotificationKeys.TryRemove(old.Key, out _);
+                            }
+                        }
+
+                        foreach (var kvp in _inAppNotifications)
+                        {
+                            lock (kvp.Value)
+                            {
+                                kvp.Value.RemoveAll(i => i.CreatedAtUtc < cutoff);
+                            }
+                            if (kvp.Value.Count == 0)
+                            {
+                                _inAppNotifications.TryRemove(kvp.Key, out _);
+                            }
+                        }
+
+                        _lastCleanupTime = now;
+                    }
+                }
+                finally
+                {
+                    System.Threading.Monitor.Exit(_cleanupLock);
+                }
+            }
         }
 
         public EmailQueueService(ILogger<EmailQueueService> logger)
@@ -79,6 +139,8 @@ namespace BookMyFun.Services
 
         public void AddInAppNotification(int userId, string title, string message, string type = "KycRejection", string? actionUrl = null)
         {
+            var now = DateTime.UtcNow;
+            CleanStaleKeys(now);
             int id = Interlocked.Increment(ref _notificationIdCounter);
             var item = new InAppNotificationItem
             {
@@ -88,7 +150,7 @@ namespace BookMyFun.Services
                 Message = message,
                 NotificationType = type,
                 ActionUrl = actionUrl,
-                CreatedAtUtc = DateTime.UtcNow,
+                CreatedAtUtc = now,
                 IsRead = false
             };
 
@@ -98,7 +160,12 @@ namespace BookMyFun.Services
                 {
                     lock (list)
                     {
+                        list.RemoveAll(i => now - i.CreatedAtUtc > RetentionPeriod);
                         list.Insert(0, item);
+                        if (list.Count > 1000)
+                        {
+                            list.RemoveRange(1000, list.Count - 1000);
+                        }
                     }
                     return list;
                 });

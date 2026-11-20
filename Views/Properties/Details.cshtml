@@ -2,7 +2,7 @@
 @{
     ViewData["Title"] = Model.Title + " - Property Details";
     var reviews = ViewBag.Reviews as List<BookMyFun.Models.Entities.CustomerReview> ?? new();
-    double avgRating = reviews.Any() ? reviews.Average(r => r.Rating) : 5.0;
+    double? avgRating = reviews.Any() ? reviews.Average(r => r.Rating) : null;
 
     // Single source of truth: PropertyMedia (MediaType: "image" or "video", or "photo" from legacy data). Ordered by SortOrder, then MediaID.
     var rawMedia = (Model.MediaList ?? new List<BookMyFun.Models.Entities.PropertyMedia>())
@@ -185,11 +185,11 @@
                             <h2 class="fw-bold mb-1 text-dark">@Model.Title</h2>
                             <p class="text-muted mb-0"><i class="bi bi-geo-alt-fill text-danger me-1"></i> @Model.Location</p>
                         </div>
-                        @if (reviews.Any())
+                        @if (reviews.Any() && avgRating.HasValue)
                         {
                             <div class="text-end">
                                 <div class="badge bg-warning text-dark fs-6 px-3 py-2 rounded-pill shadow-sm">
-                                    ⭐ @avgRating.ToString("0.0") (@reviews.Count reviews)
+                                    ⭐ @avgRating.Value.ToString("0.0") (@reviews.Count reviews)
                                 </div>
                             </div>
                         }
@@ -298,13 +298,13 @@
                         </div>
                     </div>
 
-                    @if (reviews.Any())
+                    @if (reviews.Any() && avgRating.HasValue)
                     {
                         <!-- Reviews Section -->
                         <hr class="my-4" />
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <h4 class="fw-bold mb-0 text-dark">Guest Reviews (@reviews.Count)</h4>
-                            <span class="text-warning fs-5">⭐ @avgRating.ToString("0.0") / 5.0</span>
+                            <span class="text-warning fs-5">⭐ @avgRating.Value.ToString("0.0") / 5.0</span>
                         </div>
 
                         <div class="list-group list-group-flush">
@@ -406,8 +406,7 @@
                             <strong class="text-dark" id="calcStaySubtotal">₹@((Model.PricePerNight * Math.Max(1, nights)).ToString("N0"))</strong>
                         </div>
                         <div class="d-flex justify-content-between mb-1 small text-muted">
-                            <span>Taxes &amp; Platform Fee</span>
-                            <span>Included</span>
+                            <span>Total payable</span>
                         </div>
                         <hr class="my-2" />
                         <div class="d-flex justify-content-between align-items-baseline">
@@ -1026,6 +1025,11 @@
         function formatDateDisplay(d) {
             const shortMonths = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
             return String(d.getDate()).padStart(2, '0') + ' ' + shortMonths[d.getMonth()];
+        }
+
+        // B7: Analytics property_view (consent-gated, property ID only, no PII)
+        if (typeof window.trackAnalyticsEvent === 'function') {
+            window.trackAnalyticsEvent('property_view', { property_id: @Model.PropertyID });
         }
     })();
 </script>

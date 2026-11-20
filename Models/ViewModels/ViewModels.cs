@@ -103,6 +103,7 @@ namespace BookMyFun.Models.ViewModels
         public string? MapUrl { get; set; }
         public bool MapUrlLocked { get; set; } = false;
         public bool IsFeatured { get; set; }
+        public bool PhotoOwnershipDeclaration { get; set; }
 
         // Caretaker details (Section 4b)
         [MaxLength(100)]
@@ -179,9 +180,9 @@ namespace BookMyFun.Models.ViewModels
         public string ProfileImageUrl { get; set; } = "/images/default-avatar.svg";
         public string? ServiceAreas { get; set; }
         public int YearsOfExperience { get; set; } = 3;
-        public double AverageRating { get; set; } = 4.9;
-        public int ReviewCount { get; set; } = 12;
-        public int EventsCompleted { get; set; } = 25;
+        public double? AverageRating { get; set; }
+        public int? ReviewCount { get; set; }
+        public int? EventsCompleted { get; set; }
         public decimal StartingPrice { get; set; }
         public List<BookMyFun.Models.Entities.EventPackage> PackagesForOccasion { get; set; } = new();
         public List<string> PortfolioSampleUrls { get; set; } = new();
@@ -878,8 +879,15 @@ namespace BookMyFun.Models.ViewModels
         public bool IsAdminOrStaffView { get; set; } = false;
     }
 
+    public static class AppConstants
+    {
+        public const int MinCompletedEventsToShowStats = 10;
+    }
+
     public class EventManagerPublicProfileViewModel
     {
+        public const int MinCompletedEventsToShowStats = AppConstants.MinCompletedEventsToShowStats;
+
         public int ManagerID { get; set; }
         public string FullName { get; set; } = string.Empty;
         public string? ProfilePictureUrl { get; set; }
@@ -891,10 +899,10 @@ namespace BookMyFun.Models.ViewModels
         public List<string> EventTypesHandled { get; set; } = new();
         public List<BookMyFun.Models.Entities.EventManagerPortfolio> PortfolioItems { get; set; } = new();
         public List<BookMyFun.Models.Entities.EventPackage> Packages { get; set; } = new();
-        public int EventsCompleted { get; set; } = 18;
-        public int RepeatClientsCount { get; set; } = 6;
-        public int OnTimePercentage { get; set; } = 99;
-        public string AverageResponseTime { get; set; } = "Within 1 hour";
+        public int? EventsCompleted { get; set; }
+        public int? RepeatClientsCount { get; set; }
+        public int? OnTimePercentage { get; set; }
+        public string? AverageResponseTime { get; set; }
         public List<EventManagerReviewItem> Reviews { get; set; } = new();
         public List<string> PastVenues { get; set; } = new();
 
@@ -902,8 +910,8 @@ namespace BookMyFun.Models.ViewModels
         public int? PropertyID { get; set; }
         public int? OccasionID { get; set; }
         public string? OccasionName { get; set; }
-        public double AverageRating { get; set; } = 4.9;
-        public int ReviewCount { get; set; } = 42;
+        public double? AverageRating { get; set; }
+        public int? ReviewCount { get; set; }
         public decimal StartingPrice { get; set; }
         public int? SelectedPackageID { get; set; }
     }
@@ -982,6 +990,8 @@ namespace BookMyFun.Models.ViewModels
         public IFormFile? MediaFile { get; set; }
 
         public string MediaType { get; set; } = "image"; // 'image', 'video'
+
+        public bool PhotoOwnershipDeclaration { get; set; }
     }
 
     public class OwnerNotificationPreferencesViewModel

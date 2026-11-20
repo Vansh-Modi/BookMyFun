@@ -460,13 +460,13 @@
 
             <div class="card shadow-sm border-0 rounded-4 overflow-hidden mb-4">
                 <div class="card-header bg-dark text-white p-3.5 d-flex align-items-center justify-content-between">
-                    <h5 class="mb-0 fw-bold"><i class="bi bi-calendar-check text-warning me-2"></i>Reservation &amp; Instant Checkout</h5>
-                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1">100% Verified Stay</span>
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-calendar-check text-warning me-2"></i>Booking &amp; Instant Checkout</h5>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1"><i class="bi bi-patch-check-fill me-1"></i>Verified Stay</span>
                 </div>
                 <div class="card-body p-4">
                     <!-- Property Summary Strip -->
                     <div class="d-flex align-items-center gap-3 mb-4 pb-3 border-bottom">
-                        <img src="@Model.ImageUrl" class="rounded-3 shadow-xs" style="height: 80px; width: 100px; object-fit: cover;" onerror="this.src='/images/placeholder.jpg';" />
+                        <img src="@(string.IsNullOrEmpty(Model.ImageUrl) ? "/images/placeholder.jpg" : Model.ImageUrl)" class="rounded-3 shadow-xs" style="height: 80px; width: 100px; object-fit: cover;" onerror="this.src='/images/placeholder.jpg';" />
                         <div>
                             <h4 class="fw-bold mb-1 text-dark">@Model.PropertyTitle</h4>
                             <p class="text-muted small mb-1"><i class="bi bi-geo-alt-fill text-danger me-1"></i>@Model.Location</p>
@@ -682,26 +682,26 @@
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label small fw-semibold" for="guestPhone">Contact Mobile Number <span class="text-danger">*</span></label>
-                                    <input type="tel" id="guestPhone" asp-for="GuestPhone" class="form-control form-control-sm" placeholder="10-digit mobile number" maxlength="10" />
+                                    <input type="tel" id="guestPhone" asp-for="GuestPhone" class="form-control form-control-sm" placeholder="10-digit mobile number" maxlength="10" data-clarity-mask="true" />
                                     <div class="inline-error-text" id="guestPhoneError">Please enter a valid 10-digit mobile number.</div>
                                 </div>
 
-                                <!-- ID Type & Masked Input -->
+                                <!-- ID Type & Masked Input (B11a & B11b) -->
                                 <div class="col-md-4">
                                     <label class="form-label small fw-semibold" for="idTypeSelect">ID Type <span class="text-danger">*</span></label>
                                     <select asp-for="DocumentType" class="form-select form-select-sm" id="idTypeSelect" onchange="adaptIdValidation()">
-                                        <option value="Aadhaar">Aadhaar Card</option>
-                                        <option value="PAN">PAN Card</option>
+                                        <option value="Aadhaar (masked copy)">Aadhaar (masked copy)</option>
+                                        <option value="Driving Licence">Driving Licence</option>
+                                        <option value="Voter ID">Voter ID</option>
+                                        <option value="PAN">PAN</option>
                                         <option value="Passport">Passport</option>
-                                        <option value="DrivingLicense">Driving License</option>
-                                        <option value="VoterID">Voter ID</option>
                                     </select>
                                 </div>
                                 <div class="col-md-8">
                                     <label class="form-label small fw-semibold" id="idNumberLabel" for="idNumberInput">
                                         Document Number <span class="text-danger">*</span>
                                     </label>
-                                    <input asp-for="IdDocumentNumber" class="form-control form-control-sm" id="idNumberInput" placeholder="1234 5678 9012" oninput="formatAndValidateIdNumber(true)" onblur="formatAndValidateIdNumber(false)" />
+                                    <input asp-for="IdDocumentNumber" class="form-control form-control-sm" id="idNumberInput" placeholder="1234 5678 9012" data-clarity-mask="true" oninput="formatAndValidateIdNumber(true)" onblur="formatAndValidateIdNumber(false)" />
                                     <small class="form-text text-muted d-block" id="idFormatHelperText">Format: 12 digits numeric (e.g. 1234 5678 9012)</small>
                                     <div class="inline-error-text" id="idNumberError">Invalid ID format. Please check the expected format.</div>
                                 </div>
@@ -712,10 +712,13 @@
                                         Attach ID Photo / PDF <span class="text-danger" id="idFileRequiredStar" style="@(Model.IsClientAlreadyVerified || !string.IsNullOrEmpty(Model.ExistingDocumentKey) ? "display:none;" : "")">*</span>
                                         <span class="text-muted fw-normal" id="idFileOptionalHint" style="@(Model.IsClientAlreadyVerified || !string.IsNullOrEmpty(Model.ExistingDocumentKey) ? "" : "display:none;")">(Optional - verified ID already on record)</span>
                                     </label>
-                                    <input asp-for="IdDocumentFile" type="file" id="idFileInput" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.pdf" required />
+                                    <input asp-for="IdDocumentFile" type="file" id="idFileInput" class="form-control form-control-sm" accept=".jpg,.jpeg,.png,.pdf" data-clarity-mask="true" required />
                                     <span asp-validation-for="IdDocumentFile" class="text-danger small d-block mt-1"></span>
                                     <div class="inline-error-text" id="idFileError">Please upload a copy of your document (JPG, PNG, or PDF, max 5MB).</div>
-                                    <small class="text-muted" style="font-size: 0.72rem;"><i class="bi bi-shield-lock me-1"></i>Stored encrypted in compliance vault. Only JPG, PNG, and PDF up to 5MB are accepted.</small>
+                                    <div class="text-muted small mt-1" style="font-size: 0.74rem;">
+                                        <i class="bi bi-info-circle text-primary me-1"></i><strong>Aadhaar notice:</strong> Upload a copy with the first 8 digits masked. Only the last 4 digits should be visible.
+                                    </div>
+                                    <small class="text-muted d-block mt-0.5" style="font-size: 0.72rem;"><i class="bi bi-shield-lock me-1"></i>Stored privately in an encrypted vault and viewed only by authorised verification staff. Only JPG, PNG, and PDF up to 5MB are accepted.</small>
                                 </div>
                             </div>
                         </div>
@@ -732,8 +735,7 @@
                                 <strong id="summaryDecorAmount">+ ₹0</strong>
                             </div>
                             <div class="d-flex justify-content-between mb-2 small text-muted">
-                                <span>Taxes &amp; Platform Fee</span>
-                                <span>Included</span>
+                                <span>Total payable</span>
                             </div>
                             <hr class="my-2 border-secondary border-opacity-25" />
                             <div class="d-flex justify-content-between align-items-center">
@@ -741,9 +743,6 @@
                                     <span class="text-muted small d-block">Total Payable Amount</span>
                                     <h3 class="fw-bold text-success mb-0" id="finalTotalPayable">₹@Model.PricePerNight.ToString("N0")</h3>
                                 </div>
-                                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1.5 small">
-                                    <i class="bi bi-shield-check me-1"></i>No Hidden Fees
-                                </span>
                             </div>
                         </div>
 
@@ -1648,10 +1647,10 @@ renderCompactCalendar();
     function sortPackages(itemsList) {
         if (currentSort === 'top-rated') {
             itemsList.sort((a, b) => {
-                const rA = Number(a.mgr.averageRating || 4.9);
-                const rB = Number(b.mgr.averageRating || 4.9);
+                const rA = a.mgr.averageRating != null && !isNaN(Number(a.mgr.averageRating)) ? Number(a.mgr.averageRating) : 0;
+                const rB = b.mgr.averageRating != null && !isNaN(Number(b.mgr.averageRating)) ? Number(b.mgr.averageRating) : 0;
                 if (rB !== rA) return rB - rA;
-                return (b.mgr.eventsCompleted || 0) - (a.mgr.eventsCompleted || 0);
+                return ((b.mgr.eventsCompleted || 0) - (a.mgr.eventsCompleted || 0));
             });
         } else if (currentSort === 'lowest-price') {
             itemsList.sort((a, b) => Number(a.pkg.basePrice) - Number(b.pkg.basePrice));
@@ -1660,8 +1659,10 @@ renderCompactCalendar();
 
     function renderSingleManagerCard(pkg, mgr, showCategory) {
         const isSelected = tempModalEvent.packageId && String(tempModalEvent.packageId) === String(pkg.packageId);
-        const rating = Number(mgr.averageRating || 4.9).toFixed(1);
-        const eventsCompleted = mgr.eventsCompleted || 25;
+        const hasRating = mgr.averageRating != null && !isNaN(Number(mgr.averageRating));
+        const rating = hasRating ? Number(mgr.averageRating).toFixed(1) : null;
+        const hasEvents = mgr.eventsCompleted != null && Number(mgr.eventsCompleted) >= 10;
+        const eventsCompleted = hasEvents ? Number(mgr.eventsCompleted) : null;
         const priceFormatted = Number(pkg.basePrice).toLocaleString('en-IN');
         const inclusions = escapeHtml(pkg.includedItems || pkg.description || 'Full farm staging, floral décor & lighting setup');
 
@@ -1680,12 +1681,10 @@ renderCompactCalendar();
                         <span class="badge bg-primary text-white py-0.5 px-2 rounded-pill small verified-badge" style="font-size: 0.68rem;">
                             <i class="bi bi-patch-check-fill me-1"></i>Verified
                         </span>
-                        <span class="badge bg-warning bg-opacity-25 text-dark small manager-rating" style="font-size: 0.72rem;">
-                            ★ ${rating}
-                        </span>
+                        ${hasEvents ? `
                         <span class="badge bg-light text-muted border small events-completed" style="font-size: 0.70rem;">
                             ${eventsCompleted} events completed
-                        </span>
+                        </span>` : ''}
                     </div>
                     <div class="text-end flex-shrink-0">
                         <strong class="text-primary fs-6 package-price">+ ₹${priceFormatted}</strong>
@@ -2086,6 +2085,9 @@ renderCompactCalendar();
             errorMsg: () => 'Voter ID must be 3 letters followed by 7 digits (e.g. ABC1234567).'
         }
     };
+    ID_CONFIGS['Aadhaar (masked copy)'] = ID_CONFIGS.Aadhaar;
+    ID_CONFIGS['Driving Licence'] = ID_CONFIGS.DrivingLicense;
+    ID_CONFIGS['Voter ID'] = ID_CONFIGS.VoterID;
 
     function adaptIdValidation() {
         const type = idTypeSelect.value;
@@ -2397,5 +2399,10 @@ renderCompactCalendar();
     adaptIdValidation();
     calculateLiveTotal();
     fetchCelebrationEligibility();
+
+    // B7: Analytics checkout_start (consent-gated, property ID and generic fields only, no PII)
+    if (typeof window.trackAnalyticsEvent === 'function') {
+        window.trackAnalyticsEvent('checkout_start', { property_id: @Model.PropertyID, booking_type: '@Model.BookingType' });
+    }
 </script>
 }

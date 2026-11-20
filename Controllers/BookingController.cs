@@ -635,8 +635,8 @@ namespace BookMyFun.Controllers
                         displayName = first.DisplayName,
                         profileImageUrl = "/images/default-avatar.svg",
                         isVerified = first.IsVerified,
-                        averageRating = first.Rating,
-                        rating = first.Rating,
+                        averageRating = (double?)null,
+                        rating = (double?)null,
                         eventsCompleted = first.EventsCompleted,
                         startingPrice = g.Min(p => p.Price),
                         profileLink = first.ProfileLink,
@@ -760,14 +760,25 @@ namespace BookMyFun.Controllers
                         ModelState.AddModelError("GuestPhone", "Please enter a valid 10-digit mobile number.");
                     }
 
-                    // ID Number validation
-                    var docType = model.DocumentType ?? "Aadhaar";
+                    // ID Number validation (B11a & B11b)
+                    var docType = (model.DocumentType ?? "Aadhaar (masked copy)").Trim();
+                    bool isAadhaar = docType.Equals("Aadhaar", StringComparison.OrdinalIgnoreCase) || docType.Equals("Aadhaar (masked copy)", StringComparison.OrdinalIgnoreCase);
+                    bool isPAN = docType.Equals("PAN", StringComparison.OrdinalIgnoreCase);
+                    bool isPassport = docType.Equals("Passport", StringComparison.OrdinalIgnoreCase);
+                    bool isDL = docType.Equals("Driving Licence", StringComparison.OrdinalIgnoreCase) || docType.Equals("DrivingLicense", StringComparison.OrdinalIgnoreCase);
+                    bool isVoter = docType.Equals("Voter ID", StringComparison.OrdinalIgnoreCase) || docType.Equals("VoterID", StringComparison.OrdinalIgnoreCase);
+
+                    if (!isAadhaar && !isPAN && !isPassport && !isDL && !isVoter)
+                    {
+                        ModelState.AddModelError("DocumentType", "Document type must be one of: Aadhaar (masked copy), Driving Licence, Voter ID, PAN, Passport.");
+                    }
+
                     var rawId = (model.IdDocumentNumber ?? "").Trim();
                     if (string.IsNullOrWhiteSpace(rawId))
                     {
                         ModelState.AddModelError("IdDocumentNumber", $"Please provide your {docType} number.");
                     }
-                    else if (docType == "Aadhaar")
+                    else if (isAadhaar)
                     {
                         var rawDigits = rawId.Replace(" ", "");
                         model.IdDocumentNumber = rawDigits; // store raw 12 digits
@@ -776,7 +787,7 @@ namespace BookMyFun.Controllers
                             ModelState.AddModelError("IdDocumentNumber", $"Aadhaar must be 12 digits. You have entered {rawDigits.Length}.");
                         }
                     }
-                    else if (docType == "PAN")
+                    else if (isPAN)
                     {
                         var panUpper = rawId.ToUpperInvariant();
                         model.IdDocumentNumber = panUpper;
@@ -785,7 +796,7 @@ namespace BookMyFun.Controllers
                             ModelState.AddModelError("IdDocumentNumber", "PAN must be 10 characters in AAAAA9999A format.");
                         }
                     }
-                    else if (docType == "Passport")
+                    else if (isPassport)
                     {
                         var passUpper = rawId.ToUpperInvariant();
                         model.IdDocumentNumber = passUpper;
@@ -794,7 +805,7 @@ namespace BookMyFun.Controllers
                             ModelState.AddModelError("IdDocumentNumber", "Passport must be 1 letter followed by 7 digits (e.g. A1234567).");
                         }
                     }
-                    else if (docType == "DrivingLicense")
+                    else if (isDL)
                     {
                         var dlClean = rawId.ToUpperInvariant().Replace(" ", "").Replace("-", "");
                         model.IdDocumentNumber = dlClean;
@@ -803,7 +814,7 @@ namespace BookMyFun.Controllers
                             ModelState.AddModelError("IdDocumentNumber", "Driving License must start with a 2-letter state code followed by 13 to 15 alphanumeric characters.");
                         }
                     }
-                    else if (docType == "VoterID")
+                    else if (isVoter)
                     {
                         var voterUpper = rawId.ToUpperInvariant();
                         model.IdDocumentNumber = voterUpper;

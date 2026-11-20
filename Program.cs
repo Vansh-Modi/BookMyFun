@@ -118,6 +118,7 @@ builder.Services.AddScoped<IWebhookEventRepository, WebhookEventRepository>();
 builder.Services.AddScoped<ILegalDocumentRepository, LegalDocumentRepository>();
 
 // Core Security & Domain Services
+builder.Services.AddSingleton<IPrivateDocumentEncryptionService, PrivateDocumentEncryptionService>();
 builder.Services.AddSingleton<IPasswordHasherService, PasswordHasherService>();
 builder.Services.AddSingleton<ILoginLockoutService, LoginLockoutService>();
 builder.Services.AddSingleton<IHtmlSanitizerService, HtmlSanitizerService>();
@@ -268,16 +269,23 @@ EnsureDirectoryWritable(uploadsDirectory, app.Logger);
 // Instead, read the highest applied migration from dbo.SchemaVersion and log a single warning if behind.
 using (var scope = app.Services.CreateScope())
 {
-    var schemaService = scope.ServiceProvider.GetRequiredService<BookMyFun.Services.Database.ISchemaVersionService>();
-    var schemaStatus = await schemaService.CheckSchemaStatusAsync();
-    if (schemaStatus.IsBehind)
+    try
     {
-        app.Logger.LogWarning("Schema verification check: Database is at version {CurrentVersion} (missing: {MissingVersions}). Running in degraded compatibility mode.",
-            schemaStatus.CurrentVersion, string.Join(", ", schemaStatus.MissingVersions));
+        var schemaService = scope.ServiceProvider.GetRequiredService<BookMyFun.Services.Database.ISchemaVersionService>();
+        var schemaStatus = await schemaService.CheckSchemaStatusAsync();
+        if (schemaStatus.IsBehind)
+        {
+            app.Logger.LogWarning("Schema verification check: Database is at version {CurrentVersion} (missing: {MissingVersions}). Running in degraded compatibility mode.",
+                schemaStatus.CurrentVersion, string.Join(", ", schemaStatus.MissingVersions));
+        }
+        else
+        {
+            app.Logger.LogInformation("Database schema verified at version {Version}.", schemaStatus.CurrentVersion);
+        }
     }
-    else
+    catch (Exception ex)
     {
-        app.Logger.LogInformation("Database schema verified at version {Version}.", schemaStatus.CurrentVersion);
+        app.Logger.LogWarning(ex, "Schema check skipped: database was unreachable or encountered an error at startup. Continuing startup in degraded mode.");
     }
 }
 

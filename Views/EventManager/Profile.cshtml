@@ -74,7 +74,7 @@
                         </span>
                     </div>
                     <p class="small text-muted mb-0">
-                        <strong>Standard Platform Identity:</strong> To protect customer safety and maintain marketplace trust, all event managers display verified BookMyFun badges with standard platform avatars. Custom profile photo uploads and direct contact channels (phone, WhatsApp, email, external URLs) are blocked across public showcases.
+                        <strong>Standard Platform Identity:</strong> To protect customer safety and maintain marketplace trust, all event managers display verified Nayesta badges with standard platform avatars. Custom profile photo uploads and direct contact channels (phone, WhatsApp, email, external URLs) are blocked across public showcases.
                     </p>
                 </div>
             </div>
@@ -89,7 +89,7 @@
                     <h5 class="fw-bold mb-0 text-dark">
                         <i class="bi bi-pencil-square text-primary me-2"></i>Profile Details
                     </h5>
-                    <small class="text-muted">Allowed profile fields per BookMyFun Partner Guidelines</small>
+                    <small class="text-muted">Allowed profile fields per Nayesta Partner Guidelines</small>
                 </div>
                 <div class="card-body p-4">
                     <form asp-action="Profile" method="post">
@@ -184,14 +184,20 @@
                         <form asp-action="RequestVerification" method="post" enctype="multipart/form-data">
                             @Html.AntiForgeryToken()
                             <div class="mb-3">
-                                <label class="form-label small fw-semibold text-dark">Government ID Proof (Aadhar/Passport/PAN)</label>
-                                <input type="file" name="idProof" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png" />
-                                <div class="form-text small">Accepted: PDF, JPG, PNG (Max 5MB)</div>
+                                <label class="form-label small fw-semibold text-dark">Government ID Proof (Aadhaar / Driving Licence / Voter ID / PAN / Passport)</label>
+                                <input type="file" name="idProof" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png" data-clarity-mask="true" required />
+                                <div class="form-text small">Accepted: PDF, JPG, PNG (Max 5MB). Stored in encrypted private vault.</div>
+                                <div class="text-muted small mt-1" style="font-size: 0.74rem;">
+                                    <i class="bi bi-info-circle text-primary me-1"></i><strong>Aadhaar notice:</strong> Upload a copy with the first 8 digits masked. Only the last 4 digits should be visible.
+                                </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label small fw-semibold text-dark">Business / GST / Trade Proof</label>
-                                <input type="file" name="businessProof" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png" />
+                                <input type="file" name="businessProof" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png" data-clarity-mask="true" />
                                 <div class="form-text small">Accepted: PDF, JPG, PNG (Max 5MB)</div>
+                            </div>
+                            <div class="mb-3">
+                                <partial name="_PolicyConsentCheckbox" />
                             </div>
                             <button type="submit" class="btn btn-outline-success btn-sm w-100 fw-bold rounded-pill">
                                 <i class="bi bi-upload me-1"></i> Submit Documents for Review
@@ -227,7 +233,7 @@
                             </div>
                             <div class="col-6">
                                 <label class="form-label small fw-semibold text-dark">Select File <span class="text-danger">*</span></label>
-                                <input type="file" name="MediaFile" class="form-control form-control-sm" required accept=".jpg,.jpeg,.png,.webp,.mp4,.mov,.webm" />
+                                <input type="file" name="MediaFile" class="form-control form-control-sm" required accept=".jpg,.jpeg,.png,.webp,.mp4,.mov,.webm" data-clarity-mask="true" />
                             </div>
                         </div>
 
@@ -235,6 +241,15 @@
                             <label class="form-label small fw-semibold text-dark">Caption / Description</label>
                             <textarea name="Description" class="form-control form-control-sm" rows="2" maxlength="1000" placeholder="Highlight specific decor elements, floral arrangements, or lighting..."></textarea>
                             <div class="form-text small">Any contact numbers or external links are automatically shielded.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="portfolioOwnershipCheck" name="PhotoOwnershipDeclaration" value="true" required />
+                                <label class="form-check-label small fw-semibold text-dark" for="portfolioOwnershipCheck">
+                                    I confirm I own these photos or have written permission to use them, and that they show the property accurately. <span class="text-danger">*</span>
+                                </label>
+                            </div>
                         </div>
 
                         <button type="submit" class="btn btn-info text-white btn-sm w-100 fw-bold rounded-pill shadow-sm">

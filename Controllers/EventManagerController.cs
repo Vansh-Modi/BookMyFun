@@ -157,6 +157,15 @@ namespace BookMyFun.Controllers
             {
                 model.IncludedItems = await _privacyScanner.ScanMaskAndLogAsync(userId, "PackageIncludedItems", model.IncludedItems);
             }
+
+            // HTML sanitization before saving
+            model.Name = _sanitizer != null ? _sanitizer.Sanitize(model.Name) : model.Name;
+            model.Description = _sanitizer != null ? _sanitizer.Sanitize(model.Description) : model.Description;
+            if (!string.IsNullOrWhiteSpace(model.IncludedItems))
+            {
+                model.IncludedItems = _sanitizer != null ? _sanitizer.Sanitize(model.IncludedItems) : model.IncludedItems;
+            }
+
             string? mediaUrl = model.MediaUrl?.Trim();
 
             // Direct image file upload handling
@@ -218,8 +227,8 @@ namespace BookMyFun.Controllers
 
             var userId = GetCurrentUserId();
             var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
-            // Section 5d Bug Fix: Event manager owning the package or unassigned package can edit
-            if (!isStaffOrAdmin && pkg.CreatedByUserID != null && pkg.CreatedByUserID != userId)
+            // Only admins/staff or the manager who created the package can edit (blocking null CreatedByUserID)
+            if (!isStaffOrAdmin && (pkg.CreatedByUserID == null || pkg.CreatedByUserID != userId))
             {
                 return Forbid();
             }
@@ -254,8 +263,8 @@ namespace BookMyFun.Controllers
 
             var userId = GetCurrentUserId();
             var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
-            // Section 5d Bug Fix: Event manager owning the package or unassigned package can edit
-            if (!isStaffOrAdmin && existing.CreatedByUserID != null && existing.CreatedByUserID != userId)
+            // Only admins/staff or the manager who created the package can edit (blocking null CreatedByUserID)
+            if (!isStaffOrAdmin && (existing.CreatedByUserID == null || existing.CreatedByUserID != userId))
             {
                 return Forbid();
             }
@@ -265,6 +274,14 @@ namespace BookMyFun.Controllers
             if (!string.IsNullOrWhiteSpace(model.IncludedItems))
             {
                 model.IncludedItems = await _privacyScanner.ScanMaskAndLogAsync(userId, "PackageIncludedItems", model.IncludedItems);
+            }
+
+            // HTML sanitization before saving
+            model.Name = _sanitizer != null ? _sanitizer.Sanitize(model.Name) : model.Name;
+            model.Description = _sanitizer != null ? _sanitizer.Sanitize(model.Description) : model.Description;
+            if (!string.IsNullOrWhiteSpace(model.IncludedItems))
+            {
+                model.IncludedItems = _sanitizer != null ? _sanitizer.Sanitize(model.IncludedItems) : model.IncludedItems;
             }
 
             string? mediaUrl = model.MediaUrl?.Trim();
@@ -318,8 +335,8 @@ namespace BookMyFun.Controllers
 
             var userId = GetCurrentUserId();
             var isStaffOrAdmin = User.IsInRole("Admin") || User.IsInRole("Employee");
-            // Section 5d Bug Fix: Event manager owning the package or unassigned package can edit
-            if (!isStaffOrAdmin && pkg.CreatedByUserID != null && pkg.CreatedByUserID != userId)
+            // Only admins/staff or the manager who created the package can edit (blocking null CreatedByUserID)
+            if (!isStaffOrAdmin && (pkg.CreatedByUserID == null || pkg.CreatedByUserID != userId))
             {
                 return Forbid();
             }
@@ -931,6 +948,14 @@ namespace BookMyFun.Controllers
                 return RedirectToAction(nameof(Profile));
             }
 
+            // Mandatory photo ownership declaration (B10c)
+            bool declared = model.PhotoOwnershipDeclaration || (Request.HasFormContentType && Request.Form["PhotoOwnershipDeclaration"] == "true");
+            if (!declared)
+            {
+                TempData["Error"] = "You must confirm photo ownership or rights to publish these photos.";
+                return RedirectToAction(nameof(Profile));
+            }
+
             try
             {
                 string mediaType = string.Equals(model.MediaType, "video", StringComparison.OrdinalIgnoreCase) ? "video" : "image";
@@ -1089,6 +1114,11 @@ namespace BookMyFun.Controllers
 
             ViewBag.TotalPayout = totalPayout;
             ViewBag.User = user;
+
+            ViewBag.Reviews = new List<EventManagerReviewItem>();
+            ViewBag.AverageRating = (double?)null;
+            ViewBag.ReviewCount = (int?)null;
+
             return View("Inbox", allSetups);
         }
 
@@ -1161,17 +1191,12 @@ namespace BookMyFun.Controllers
                 eventTypes = new List<string> { "Birthday", "Wedding", "Corporate", "Anniversary", "Celebration" };
             }
 
-            // Verified client reviews from completed bookings
+            // Verified client reviews and completed events from database
             var assignedBookings = await _eventRepo.GetAssignedEventBookingsAsync(id);
-            int eventsCompleted = assignedBookings.Count(b => b.Status == "Completed" || b.SetupStatus == "Completed" || b.SetupStatus == "Inspected");
-            if (eventsCompleted == 0) eventsCompleted = 24;
+            int realEventsCompleted = assignedBookings.Count(b => b.Status == "Completed" || b.SetupStatus == "Completed" || b.SetupStatus == "Inspected");
 
-            var reviews = new List<EventManagerReviewItem>
-            {
-                new EventManagerReviewItem { ClientName = "Aarav S.", Rating = 5, Comment = "Spectacular floral setup at the farmhouse! Timely execution and very professional.", EventType = "Farmhouse Gathering", EventDate = DateTime.Today.AddDays(-28) },
-                new EventManagerReviewItem { ClientName = "Sneha P.", Rating = 5, Comment = "Punctual, elegant balloon styling and fairy lights for my sister's birthday celebration.", EventType = "Birthday Party", EventDate = DateTime.Today.AddDays(-64) },
-                new EventManagerReviewItem { ClientName = "Rohan M.", Rating = 5, Comment = "Flawless poolside setup with acoustic ambience. Everything was ready prior to our arrival.", EventType = "Poolside Celebration", EventDate = DateTime.Today.AddDays(-110) }
-            };
+            int? displayEventsCompleted = realEventsCompleted >= AppConstants.MinCompletedEventsToShowStats ? realEventsCompleted : null;
+            var displayReviews = new List<EventManagerReviewItem>();
 
             var vm = new EventManagerPublicProfileViewModel
             {
@@ -1188,15 +1213,15 @@ namespace BookMyFun.Controllers
                 EventTypesHandled = eventTypes,
                 Packages = displayPackages.OrderBy(p => p.BasePrice).ToList(),
                 PortfolioItems = approvedPortfolios,
-                EventsCompleted = eventsCompleted,
-                RepeatClientsCount = 12,
-                OnTimePercentage = 99,
-                AverageResponseTime = "Within 1 hour",
-                AverageRating = 4.9,
-                ReviewCount = 42,
+                EventsCompleted = displayEventsCompleted,
+                RepeatClientsCount = null,
+                OnTimePercentage = null,
+                AverageResponseTime = null,
+                AverageRating = null,
+                ReviewCount = null,
                 StartingPrice = displayPackages.Any() ? displayPackages.Min(p => p.BasePrice) : 0,
-                PastVenues = new List<string> { "Whispering Pines Eco Farm", "Saffron Villa", "The Palms Retreat", "Meadow Green Farm" },
-                Reviews = reviews,
+                PastVenues = new List<string>(),
+                Reviews = displayReviews,
                 PropertyID = propertyId,
                 OccasionID = occasionId,
                 OccasionName = occasionName

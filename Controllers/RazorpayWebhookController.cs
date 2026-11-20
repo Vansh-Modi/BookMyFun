@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace BookMyFun.Controllers
 {
     [ApiController]
+    [Route("api/razorpaywebhook")]
     [Route("api/webhooks/razorpay")]
     [Route("webhook/razorpay")]
     [AllowAnonymous]
@@ -71,7 +72,17 @@ namespace BookMyFun.Controllers
                 return BadRequest(new { error = "Request body cannot be empty." });
             }
 
-            // 2. Resolve Razorpay Webhook Secret from configuration
+            // 2. Verify X-Razorpay-Signature Header presence before any processing or database call
+            if (!Request.Headers.TryGetValue("X-Razorpay-Signature", out var signatureHeader) || 
+                string.IsNullOrWhiteSpace(signatureHeader.FirstOrDefault()))
+            {
+                _logger.LogWarning("Razorpay webhook rejected: Missing X-Razorpay-Signature header.");
+                return BadRequest(new { error = "Missing X-Razorpay-Signature header." });
+            }
+
+            string providedSignature = signatureHeader.FirstOrDefault()!.Trim().ToLowerInvariant();
+
+            // 3. Resolve Razorpay Webhook Secret from configuration
             string? webhookSecret = _configuration["Razorpay:WebhookSecret"];
             if (string.IsNullOrWhiteSpace(webhookSecret))
             {
@@ -116,16 +127,7 @@ namespace BookMyFun.Controllers
                 return BadRequest(new { error = "Webhook secret not configured." });
             }
 
-            // 3. Verify X-Razorpay-Signature Header
-            if (!Request.Headers.TryGetValue("X-Razorpay-Signature", out var signatureHeader) || 
-                string.IsNullOrWhiteSpace(signatureHeader.FirstOrDefault()))
-            {
-                _logger.LogWarning("Razorpay webhook rejected: Missing X-Razorpay-Signature header.");
-                return BadRequest(new { error = "Missing X-Razorpay-Signature header." });
-            }
-
-            string providedSignature = signatureHeader.FirstOrDefault()!.Trim().ToLowerInvariant();
-
+            // 4. Verify Cryptographic HMAC-SHA256 Signature using constant-time comparison
             try
             {
                 using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(webhookSecret.Trim()));
@@ -147,7 +149,7 @@ namespace BookMyFun.Controllers
                 return BadRequest(new { error = "Signature verification failed." });
             }
 
-            // 4. Parse Webhook Event JSON
+            // 5. Parse Webhook Event JSON (database mutations happen only after signature passes)
             JsonDocument jsonDoc;
             try
             {

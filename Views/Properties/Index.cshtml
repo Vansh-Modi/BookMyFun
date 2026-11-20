@@ -421,7 +421,7 @@
     <div class="luxe-header d-flex flex-column flex-md-row justify-content-between align-items-md-end gap-3">
         <div>
             <div class="luxe-eyebrow">
-                <i class="bi bi-shield-check"></i> BookMyFun Verified Escapes
+                <i class="bi bi-shield-check"></i> Nayesta Verified Escapes
             </div>
             <h1 class="luxe-title">Farmhouse &amp; Villa Rentals</h1>
             <p class="luxe-subtitle">
@@ -821,7 +821,7 @@
                     <div class="property-card h-100 position-relative @(isUnavailable ? "property-card-unavailable" : "")" data-card-url="@Url.Action("Details", "Properties", new { id = p.PropertyID, checkIn = selectedCheckIn, checkOut = selectedCheckOut })">
                         <!-- Property Image with Type & Verified Badges -->
                         <div class="property-card-img-wrap">
-                            <img src="@p.PrimaryImageUrl" alt="@p.Title" loading="lazy" decoding="async" onerror="this.src='/images/placeholder.jpg';" />
+                            <img src="@(string.IsNullOrEmpty(p.PrimaryImageUrl) ? "/images/placeholder.jpg" : p.PrimaryImageUrl)" alt="@p.Title" loading="lazy" decoding="async" onerror="this.src='/images/placeholder.jpg';" />
                             
                             <!-- Category Badge (top-left) -->
                             <span class="property-badge-type">
@@ -837,7 +837,7 @@
                             else
                             {
                                 <span class="property-badge-verified">
-                                    <i class="bi bi-patch-check-fill text-success"></i> 100% Verified
+                                    <i class="bi bi-patch-check-fill text-success"></i> Verified
                                 </span>
                             }
                         </div>
@@ -1497,6 +1497,11 @@
         }
         pageInput.value = page;
         form.submit();
+    }
+
+    // B7: Analytics search (consent-gated, search type and count only, no PII)
+    if (typeof window.trackAnalyticsEvent === 'function') {
+        window.trackAnalyticsEvent('search', { search_term_type: 'location', item_count: @Model.Count() });
     }
 </script>
 }

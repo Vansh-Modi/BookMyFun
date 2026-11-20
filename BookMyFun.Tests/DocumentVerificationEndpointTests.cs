@@ -69,7 +69,7 @@ namespace BookMyFun.Tests
         }
 
         [Fact]
-        public void ViewPrivateDocument_WhenFileMissing_ReturnsFriendlySvg_NotRawPath()
+        public async Task ViewPrivateDocument_WhenFileMissing_ReturnsFriendlySvg_NotRawPath()
         {
             var fakeStorage = new FakeMediaStorageService();
             var logger = NullLogger<MediaController>.Instance;
@@ -87,7 +87,7 @@ namespace BookMyFun.Tests
                 HttpContext = new DefaultHttpContext { User = user }
             };
 
-            var result = controller.ViewPrivateDocument("doc_client_5_identity.pdf", "valid_test_token");
+            var result = await controller.ViewPrivateDocument("doc_client_5_identity.pdf", "valid_test_token");
 
             // Must return a FileContentResult with SVG image/svg+xml
             var fileResult = Assert.IsType<FileContentResult>(result);

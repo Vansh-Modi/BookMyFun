@@ -50,6 +50,18 @@ namespace BookMyFun.Repositories
                 IsDraft = true,
                 IsCurrent = true,
                 CreatedAt = DateTime.UtcNow
+            },
+            ["CookiePolicy"] = new LegalDocument
+            {
+                DocumentID = 4,
+                DocumentType = "CookiePolicy",
+                Title = "Cookie Policy",
+                Body = "<p><strong>DRAFT: requires legal review before publishing.</strong></p><p>This Cookie Policy outlines how Nayesta uses essential and analytics cookies on our platform.</p>",
+                Version = "1.0",
+                EffectiveDate = DateTime.UtcNow,
+                IsDraft = true,
+                IsCurrent = true,
+                CreatedAt = DateTime.UtcNow
             }
         };
 

@@ -21,18 +21,21 @@ namespace BookMyFun.Services
         private readonly IConfiguration _config;
         private readonly ILogger<MediaStorageService> _logger;
         private readonly IImageOptimizationService _imageOptimizer;
+        private readonly BookMyFun.Services.Security.IPrivateDocumentEncryptionService? _encryptionService;
         private readonly byte[] _tokenSigningKey;
 
         public MediaStorageService(
             IWebHostEnvironment env,
             IConfiguration config,
             ILogger<MediaStorageService> logger,
-            IImageOptimizationService imageOptimizer)
+            IImageOptimizationService imageOptimizer,
+            BookMyFun.Services.Security.IPrivateDocumentEncryptionService? encryptionService = null)
         {
             _env = env;
             _config = config;
             _logger = logger;
             _imageOptimizer = imageOptimizer;
+            _encryptionService = encryptionService;
 
             string? configuredSecret = _config["Security:TokenSecret"];
             if (!string.IsNullOrWhiteSpace(configuredSecret))
@@ -123,6 +126,12 @@ namespace BookMyFun.Services
             if (file.Length > 5 * 1024 * 1024)
                 throw new ValidationException("file", "Document exceeds maximum permitted size of 5MB.");
 
+            if (_encryptionService == null || !_encryptionService.IsEncryptionConfigured())
+            {
+                _logger.LogError("Private document upload refused: ID_ENCRYPTION_KEY environment variable is missing or invalid.");
+                throw new ValidationException("file", "ID document upload is currently unavailable due to server encryption configuration.");
+            }
+
             string safeExtension = await ValidateDocumentMagicBytesAsync(file);
 
             string documentId = Guid.NewGuid().ToString("N");
@@ -134,9 +143,7 @@ namespace BookMyFun.Services
                 Directory.CreateDirectory(privateRoot);
             }
 
-            string fullPhysicalPath = Path.Combine(privateRoot, safeFileName);
-
-            // Server-Side Optimization for raster ID documents (PNG/JPG) to minimize private storage footprint
+            byte[] plaintextBytes;
             if ((safeExtension == ".jpg" || safeExtension == ".png") && _imageOptimizer.IsImageExtension(safeExtension))
             {
                 using var readStream = file.OpenReadStream();
@@ -149,17 +156,18 @@ namespace BookMyFun.Services
 
                 safeExtension = optimizedExt;
                 safeFileName = $"doc_client_{clientId}_{documentId}{safeExtension}";
-                fullPhysicalPath = Path.Combine(privateRoot, safeFileName);
-
-                await File.WriteAllBytesAsync(fullPhysicalPath, optimizedBytes);
+                plaintextBytes = optimizedBytes;
             }
             else
             {
-                using (var stream = new FileStream(fullPhysicalPath, FileMode.Create))
-                {
-                    await file.CopyToAsync(stream);
-                }
+                using var ms = new MemoryStream();
+                await file.CopyToAsync(ms);
+                plaintextBytes = ms.ToArray();
             }
+
+            byte[] encryptedBytes = _encryptionService.EncryptDocument(plaintextBytes);
+            string fullPhysicalPath = Path.Combine(privateRoot, safeFileName);
+            await File.WriteAllBytesAsync(fullPhysicalPath, encryptedBytes);
 
             return safeFileName;
         }

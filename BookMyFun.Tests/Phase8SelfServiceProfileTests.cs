@@ -344,7 +344,8 @@ public class Phase8SelfServiceProfileTests
             Title = "Stunning Wedding Canopy",
             MediaType = "video",
             MediaFile = file,
-            Description = "Call me 9876543210 for decor inquiries."
+            Description = "Call me 9876543210 for decor inquiries.",
+            PhotoOwnershipDeclaration = true
         };
 
         var result = await controller.UploadPortfolio(model);
@@ -361,6 +362,60 @@ public class Phase8SelfServiceProfileTests
         // Rule 8c: Caption contact details masked
         Assert.DoesNotContain("9876543210", item.Description);
         Assert.Contains("[Contact Details Masked]", item.Description);
+    }
+
+    [Fact]
+    public async Task UploadPortfolio_WithoutPhotoOwnershipDeclaration_RejectsUpload()
+    {
+        var userRepo = new FakeUserRepository
+        {
+            Users = { new User { UserID = 7, FullName = "Creative Events", Role = "EventManager", IsActive = true } }
+        };
+        var eventRepo = new FakeEventPackageRepository();
+        var configRepo = new FakeConfigRepository();
+        var privacyScanner = new FakeContactPrivacyScanner();
+        var mediaStorage = new FakeMediaStorageService();
+
+        var controller = new EventManagerController(
+            eventRepo,
+            mediaStorage,
+            configRepo,
+            NullLogger<EventManagerController>.Instance,
+            userRepo,
+            privacyScanner
+        );
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.User = new System.Security.Claims.ClaimsPrincipal(
+            new System.Security.Claims.ClaimsIdentity(new[]
+            {
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "7")
+            }, "TestAuth")
+        );
+        controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
+        controller.TempData = new TempDataDictionary(httpContext, new TestTempDataProvider());
+
+        var content = "dummy-video-data"u8.ToArray();
+        var file = new FormFile(new MemoryStream(content), 0, content.Length, "MediaFile", "portfolio.mp4");
+
+        var model = new EventManagerPortfolioUploadViewModel
+        {
+            Title = "Stunning Wedding Canopy",
+            MediaType = "video",
+            MediaFile = file,
+            Description = "Call me for decor inquiries.",
+            PhotoOwnershipDeclaration = false // Unticked
+        };
+
+        var result = await controller.UploadPortfolio(model);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Profile", redirect.ActionName);
+
+        // Must NOT save portfolio
+        Assert.Empty(eventRepo.Portfolios);
+        Assert.True(controller.TempData.ContainsKey("Error"));
+        Assert.Contains("ownership", controller.TempData["Error"]?.ToString() ?? "", StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

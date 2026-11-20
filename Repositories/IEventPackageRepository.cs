@@ -1,4 +1,5 @@
 using BookMyFun.Models.Entities;
+using BookMyFun.Models.ViewModels;
 
 namespace BookMyFun.Repositories
 {
@@ -14,6 +15,7 @@ namespace BookMyFun.Repositories
         Task<bool> DeletePackageAsync(int packageId);
 
         Task<List<Booking>> GetAssignedEventBookingsAsync(int decoratorUserId);
+        Task<(double? AverageRating, int ReviewCount, List<EventManagerReviewItem> Reviews)> GetManagerReviewsAndRatingAsync(int decoratorUserId) => Task.FromResult<(double?, int, List<EventManagerReviewItem>)>((null, 0, new List<EventManagerReviewItem>()));
         Task<List<Booking>> GetAllEventBookingsAsync();
         Task<bool> UpdateSetupStatusAsync(int bookingId, string setupStatus, string? setupProofMediaUrls, int? decoratorId);
         Task<bool> AssignDecoratorAsync(int bookingId, int decoratorUserId);

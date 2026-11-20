@@ -1,5 +1,6 @@
 using BookMyFun.Data;
 using BookMyFun.Models.Entities;
+using BookMyFun.Models.ViewModels;
 using Microsoft.Data.SqlClient;
 
 namespace BookMyFun.Repositories
@@ -161,6 +162,37 @@ namespace BookMyFun.Repositories
         public async Task<List<Booking>> GetAllEventBookingsAsync()
         {
             return await GetAssignedEventBookingsAsync(0);
+        }
+
+        public async Task<(double? AverageRating, int ReviewCount, List<EventManagerReviewItem> Reviews)> GetManagerReviewsAndRatingAsync(int decoratorUserId)
+        {
+            const string sql = @"
+                SELECT cr.Rating, cr.Comment, cr.CreatedAt, u.FullName AS ClientName,
+                       ISNULL(ep.Name, 'Curated Celebration') AS EventType
+                FROM CustomerReviews cr
+                INNER JOIN Bookings b ON cr.BookingID = b.BookingID
+                INNER JOIN Users u ON cr.ClientID = u.UserID
+                LEFT JOIN EventPackages ep ON b.EventPackageID = ep.PackageID
+                WHERE b.DecoratorAssignedID = @DecoratorID
+                  AND (b.Status = 'Completed' OR b.SetupStatus = 'Completed' OR b.SetupStatus = 'Inspected')
+                ORDER BY cr.CreatedAt DESC";
+
+            var items = await _db.ExecuteReaderListAsync(sql, r => new EventManagerReviewItem
+            {
+                ClientName = r.GetString(r.GetOrdinal("ClientName")),
+                Rating = r.GetInt32(r.GetOrdinal("Rating")),
+                Comment = r.IsDBNull(r.GetOrdinal("Comment")) ? null : r.GetString(r.GetOrdinal("Comment")),
+                EventType = r.GetString(r.GetOrdinal("EventType")),
+                EventDate = r.GetDateTime(r.GetOrdinal("CreatedAt"))
+            }, new SqlParameter("@DecoratorID", decoratorUserId));
+
+            if (!items.Any())
+            {
+                return (null, 0, new List<EventManagerReviewItem>());
+            }
+
+            double avg = items.Average(i => i.Rating);
+            return (avg, items.Count, items);
         }
 
         public async Task<bool> UpdateSetupStatusAsync(int bookingId, string setupStatus, string? setupProofMediaUrls, int? decoratorId)

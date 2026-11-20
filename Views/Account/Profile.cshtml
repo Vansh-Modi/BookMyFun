@@ -104,8 +104,9 @@
                         <ol class="mb-2 ps-3 mt-1 text-dark">
                             <li>Ensure the document image is sharp, clear, and completely legible with all text and borders visible.</li>
                             <li>Verify that the document is non-expired and that the name matches your profile name (<strong>@Model.FullName</strong>).</li>
-                            <li>Accepted government documents: Aadhaar Card, Passport, or Driver's License.</li>
-                            <li>Resubmit your document using the panel below, or re-upload during your next reservation checkout.</li>
+                            <li>Accepted government documents: Aadhaar (masked copy), Driving Licence, Voter ID, PAN, Passport.</li>
+                            <li>Aadhaar guidance: Upload a copy with the first 8 digits masked. Only the last 4 digits should be visible.</li>
+                            <li>Resubmit your document using the panel below, or re-upload during your next booking checkout.</li>
                         </ol>
                     </div>
                     <button type="button" class="btn btn-sm btn-danger rounded-pill px-3 fw-semibold" data-bs-toggle="collapse" data-bs-target="#kycResubmitCollapse" aria-expanded="false">
@@ -119,20 +120,25 @@
                                     <div class="col-md-4">
                                         <label class="form-label small fw-semibold">Document Type</label>
                                         <select name="documentType" id="profileDocType" class="form-select form-select-sm" required>
-                                            <option value="Aadhaar">Aadhaar Card</option>
+                                            <option value="Aadhaar (masked copy)">Aadhaar (masked copy)</option>
+                                            <option value="Driving Licence">Driving Licence</option>
+                                            <option value="Voter ID">Voter ID</option>
+                                            <option value="PAN">PAN</option>
                                             <option value="Passport">Passport</option>
-                                            <option value="DrivingLicense">Driving License</option>
                                         </select>
                                     </div>
                                     <div class="col-md-5">
                                         <label class="form-label small fw-semibold">New ID File (PDF, PNG, JPG - max 6MB)</label>
-                                        <input type="file" name="file" id="profileDocFile" class="form-control form-control-sm" accept=".pdf,.png,.jpg,.jpeg" required />
+                                        <input type="file" name="file" id="profileDocFile" class="form-control form-control-sm" accept=".pdf,.png,.jpg,.jpeg" data-clarity-mask="true" required />
                                     </div>
                                     <div class="col-md-3">
                                         <button type="button" class="btn btn-sm btn-primary w-100 fw-semibold" onclick="resubmitKycDocument()">
                                             <i class="bi bi-cloud-arrow-up me-1"></i> Upload &amp; Resubmit
                                         </button>
                                     </div>
+                                </div>
+                                <div class="mt-2 text-muted small" style="font-size: 0.74rem;">
+                                    <i class="bi bi-info-circle text-primary me-1"></i><strong>Aadhaar notice:</strong> Upload a copy with the first 8 digits masked. Only the last 4 digits should be visible.
                                 </div>
                                 <div class="mt-3">
                                     <partial name="_PolicyConsentCheckbox" />
@@ -167,7 +173,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold small">Contact Phone Number</label>
-                                <input asp-for="Phone" class="form-control rounded-3" placeholder="+91 9876543210" />
+                                <input asp-for="Phone" class="form-control rounded-3" placeholder="+91 9876543210" data-clarity-mask="true" />
                                 <span asp-validation-for="Phone" class="text-danger small"></span>
                             </div>
                             <div class="col-md-12">
@@ -175,6 +181,10 @@
                                 <input asp-for="Email" class="form-control rounded-3 bg-light" readonly />
                                 <div class="form-text small">Email cannot be changed directly for security and cryptographic authentication auditability.</div>
                             </div>
+                        </div>
+
+                        <div class="mt-3">
+                            <partial name="_PolicyConsentCheckbox" model="@("PrivacyOnly")" />
                         </div>
 
                         <div class="text-end mt-4">
@@ -208,7 +218,7 @@
                     @if (Model.Role == "Client")
                     {
                         <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
-                            <span class="text-muted">Reservations Made:</span>
+                            <span class="text-muted">Bookings Made:</span>
                             <span class="badge bg-primary rounded-pill">@Model.TotalBookingsCount</span>
                         </li>
                         @if (Model.KycStatus == "Rejected")
@@ -247,7 +257,7 @@
                     {
                         <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-2">
                             <span class="text-muted">Role Description:</span>
-                            <span class="badge bg-primary">Event Decor &amp; Celebration Manager</span>
+                            <span class="badge bg-primary">Event Décor &amp; Celebration Manager</span>
                         </li>
                     }
                     else
@@ -309,7 +319,7 @@
                             <i class="bi bi-search me-2"></i> Browse Farmhouse Rentals
                         </a>
                         <a asp-controller="Client" asp-action="Index" class="btn btn-outline-secondary rounded-3 text-start p-2.5">
-                            <i class="bi bi-calendar-check me-2"></i> View My Reservations
+                            <i class="bi bi-calendar-check me-2"></i> View My Bookings
                         </a>
                     }
                     else if (Model.Role == "Owner")
@@ -327,7 +337,7 @@
                     else if (Model.Role == "EventManager")
                     {
                         <a asp-controller="EventManager" asp-action="Dashboard" class="btn btn-outline-warning text-dark rounded-3 text-start p-2.5">
-                            <i class="bi bi-palette2 me-2"></i> Decor Packages &amp; Orders
+                            <i class="bi bi-palette2 me-2"></i> Décor Packages &amp; Orders
                         </a>
                     }
                     else if (Model.Role == "Employee" || Model.Role == "Admin")
@@ -431,7 +441,7 @@
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
                     <div>
                         <h6 class="fw-bold text-danger mb-1"><i class="bi bi-box-arrow-right me-1"></i>Account Session</h6>
-                        <p class="text-muted small mb-0">Sign out of your active BookMyFun session across this device.</p>
+                        <p class="text-muted small mb-0">Sign out of your active Nayesta session across this device.</p>
                     </div>
                     <button type="button" class="btn btn-outline-danger rounded-pill px-4 fw-semibold" data-bs-toggle="modal" data-bs-target="#logoutConfirmModal">
                         <i class="bi bi-box-arrow-right me-1"></i> Log Out

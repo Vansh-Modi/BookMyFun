@@ -5,6 +5,7 @@ using BookMyFun.Repositories;
 using BookMyFun.Services;
 using BookMyFun.Services.Common;
 using BookMyFun.Services.Exceptions;
+using BookMyFun.Services.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -27,6 +28,7 @@ namespace BookMyFun.Controllers
         private readonly INotificationFanoutService? _notificationFanout;
         private readonly BookMyFun.Services.Notifications.INotificationDispatcherService? _notificationDispatcher;
         private readonly IUserNotificationRepository? _userNotificationRepo;
+        private readonly IHtmlSanitizerService? _sanitizer;
 
         public OwnerController(
             IPropertyRepository propRepo,
@@ -42,7 +44,8 @@ namespace BookMyFun.Controllers
             ILegalDocumentService? legalService = null,
             INotificationFanoutService? notificationFanout = null,
             BookMyFun.Services.Notifications.INotificationDispatcherService? notificationDispatcher = null,
-            IUserNotificationRepository? userNotificationRepo = null)
+            IUserNotificationRepository? userNotificationRepo = null,
+            IHtmlSanitizerService? sanitizer = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -58,6 +61,7 @@ namespace BookMyFun.Controllers
             _notificationFanout = notificationFanout;
             _notificationDispatcher = notificationDispatcher;
             _userNotificationRepo = userNotificationRepo;
+            _sanitizer = sanitizer;
         }
 
         private int GetCurrentUserId() => User.GetUserId();
@@ -170,6 +174,13 @@ namespace BookMyFun.Controllers
                 if (consent != "true")
                 {
                     ModelState.AddModelError("", "You must agree to the Terms of Service, Privacy Policy, and Refund Policy to list a property.");
+                }
+
+                // Mandatory photo ownership declaration (B10c)
+                string? photoDecl = Request.Form["PhotoOwnershipDeclaration"];
+                if (photoDecl != "true" && !vm.PhotoOwnershipDeclaration)
+                {
+                    ModelState.AddModelError("PhotoOwnershipDeclaration", "I confirm I own these photos or have written permission to use them, and that they show the property accurately.");
                 }
             }
 
@@ -296,8 +307,8 @@ namespace BookMyFun.Controllers
             {
                 OwnerID = ownerId,
                 PropertyTypeID = vm.PropertyTypeID,
-                Title = vm.Title,
-                Description = vm.Description,
+                Title = _sanitizer != null ? _sanitizer.Sanitize(vm.Title) : vm.Title,
+                Description = _sanitizer != null ? _sanitizer.Sanitize(vm.Description) : vm.Description,
                 Location = string.IsNullOrWhiteSpace(vm.City) ? (vm.Location ?? "") : $"{vm.City}, {vm.State}".Trim(',', ' '),
                 FormattedAddress = vm.FormattedAddress ?? $"{vm.NearbyAreaOrRoad}, {vm.City}, {vm.State} - {vm.Pincode}".Trim(' ', '-', ','),
                 Latitude = null,
@@ -395,7 +406,7 @@ namespace BookMyFun.Controllers
             var prop = await _propRepo.GetByIdAsync(id);
             if (prop == null) return NotFound();
 
-            if (prop.OwnerID != ownerId && !User.IsInRole("Admin"))
+            if ((prop.OwnerID <= 0 || prop.OwnerID != ownerId) && !User.IsInRole("Admin") && !User.IsInRole("Employee"))
             {
                 return Forbid();
             }
@@ -453,9 +464,19 @@ namespace BookMyFun.Controllers
             var prop = await _propRepo.GetByIdAsync(vm.PropertyID);
             if (prop == null) return NotFound();
 
-            if (prop.OwnerID != ownerId && !User.IsInRole("Admin"))
+            if ((prop.OwnerID <= 0 || prop.OwnerID != ownerId) && !User.IsInRole("Admin") && !User.IsInRole("Employee"))
             {
                 return Forbid();
+            }
+
+            // Mandatory photo ownership declaration (B10c)
+            if (Request.HasFormContentType)
+            {
+                string? photoDecl = Request.Form["PhotoOwnershipDeclaration"];
+                if (photoDecl != "true" && !vm.PhotoOwnershipDeclaration)
+                {
+                    ModelState.AddModelError("PhotoOwnershipDeclaration", "I confirm I own these photos or have written permission to use them, and that they show the property accurately.");
+                }
             }
 
             // Process Custom Category
@@ -577,8 +598,8 @@ namespace BookMyFun.Controllers
             }
 
             prop.PropertyTypeID = vm.PropertyTypeID;
-            prop.Title = vm.Title;
-            prop.Description = vm.Description;
+            prop.Title = _sanitizer != null ? _sanitizer.Sanitize(vm.Title) : vm.Title;
+            prop.Description = _sanitizer != null ? _sanitizer.Sanitize(vm.Description) : vm.Description;
             prop.Location = string.IsNullOrWhiteSpace(vm.City) ? (vm.Location ?? "") : $"{vm.City}, {vm.State}".Trim(',', ' ');
             prop.FormattedAddress = vm.FormattedAddress ?? $"{vm.NearbyAreaOrRoad}, {vm.City}, {vm.State} - {vm.Pincode}".Trim(' ', '-', ',');
             prop.Latitude = null;

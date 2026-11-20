@@ -8,6 +8,7 @@ namespace BookMyFun.Repositories
     {
         Task<int> InsertVerificationAsync(ClientIdVerification verification);
         Task<ClientIdVerification?> GetVerificationByIdAsync(int verificationId);
+        Task<ClientIdVerification?> GetVerificationByStorageKeyAsync(string storageKey) => Task.FromResult<ClientIdVerification?>(null);
         Task<ClientIdVerification?> GetVerificationByClientIdAsync(int clientId);
         Task<List<ClientIdVerification>> GetAllVerificationsAsync(string? status = null);
         Task<bool> ReviewVerificationAsync(int verificationId, string status, int verifiedByUserId, string? rejectionReason = null);
@@ -51,6 +52,19 @@ namespace BookMyFun.Repositories
                 WHERE civ.VerificationID = @VerificationID";
 
             return await _db.ExecuteReaderSingleAsync(sql, MapVerification, new SqlParameter("@VerificationID", verificationId));
+        }
+
+        public async Task<ClientIdVerification?> GetVerificationByStorageKeyAsync(string storageKey)
+        {
+            const string sql = @"
+                SELECT TOP 1 civ.*, u.FullName AS ClientName, u.Email AS ClientEmail, staff.FullName AS VerifiedByUserName
+                FROM ClientIdVerifications civ
+                JOIN Users u ON civ.ClientID = u.UserID
+                LEFT JOIN Users staff ON civ.VerifiedByUserID = staff.UserID
+                WHERE civ.DocumentStorageKey = @DocumentStorageKey
+                ORDER BY civ.CreatedAt DESC";
+
+            return await _db.ExecuteReaderSingleAsync(sql, MapVerification, new SqlParameter("@DocumentStorageKey", storageKey));
         }
 
         public async Task<ClientIdVerification?> GetVerificationByClientIdAsync(int clientId)

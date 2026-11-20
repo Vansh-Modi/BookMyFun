@@ -20,8 +20,8 @@ namespace BookMyFun.Services.Checkout
         public int ManagerId { get; set; }
         public string DisplayName { get; set; } = string.Empty;
         public bool IsVerified { get; set; }
-        public double Rating { get; set; } = 5.0;
-        public int EventsCompleted { get; set; }
+        public double? Rating { get; set; }
+        public int? EventsCompleted { get; set; }
         public string ProfileLink { get; set; } = string.Empty;
     }
 

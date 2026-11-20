@@ -24,6 +24,7 @@ namespace BookMyFun.Repositories
         Task<List<Payment>> GetPaymentsByBookingIdAsync(int bookingId);
         Task<List<CustomerReview>> GetReviewsByPropertyIdAsync(int propertyId);
         Task<int> AddReviewAsync(CustomerReview review);
+        Task<bool> HasReviewForBookingAsync(int bookingId) => Task.FromResult(false);
         Task<bool> UpdateBookingEventCommissionAsync(int bookingId, decimal newEventCommissionRate);
         Task<List<Booking>> GetBookingsByPropertyIdAsync(int propertyId) => Task.FromResult(new List<Booking>());
     }
@@ -333,6 +334,13 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@Comment", DBHelper.ToDbValue(review.Comment)));
 
             return result != null ? Convert.ToInt32(result) : 0;
+        }
+
+        public async Task<bool> HasReviewForBookingAsync(int bookingId)
+        {
+            const string sql = "SELECT COUNT(1) FROM CustomerReviews WHERE BookingID = @BookingID";
+            var count = await _db.ExecuteScalarAsync(sql, new SqlParameter("@BookingID", bookingId));
+            return count != null && Convert.ToInt32(count) > 0;
         }
 
         public async Task<bool> UpdateBookingEventCommissionAsync(int bookingId, decimal newEventCommissionRate)

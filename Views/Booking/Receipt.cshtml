@@ -45,9 +45,9 @@
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
                 <div>
                     <h1 class="receipt-brand-title">
-                        <i class="bi bi-shield-fill-check text-warning"></i> BOOKMYFUN
+                        <i class="bi bi-shield-fill-check text-warning"></i> NAYESTA
                     </h1>
-                    <div class="receipt-brand-subtitle">Official Reservation Voucher &amp; Tax Receipt</div>
+                    <div class="receipt-brand-subtitle">Official Booking Voucher &amp; Receipt</div>
                 </div>
                 <div class="text-end">
                     <span class="receipt-badge-verified">
@@ -238,7 +238,7 @@
                                     <div class="fw-bold text-primary">
                                         <i class="bi bi-palette2 me-1"></i>Celebration Décor: @(Model.Booking.EventPackageName ?? "Curated Décor Package")
                                     </div>
-                                    <div class="text-muted small">Executed by Verified BookMyFun Event Decorator Studio</div>
+                                    <div class="text-muted small">Executed by Verified Nayesta Event Décor Studio</div>
                                 </td>
                                 <td><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">Décor Add-on</span></td>
                                 <td class="text-end fw-semibold text-primary">₹@Model.EventPackagePrice.ToString("N2")</td>
@@ -257,14 +257,7 @@
                             </tr>
                         }
 
-                        <tr>
-                            <td>
-                                <div class="text-muted">Platform Facilitation &amp; GST</div>
-                                <div class="text-muted small">Standard Indian GST and platform insurance protection included</div>
-                            </td>
-                            <td><span class="badge bg-light text-muted border">Taxes &amp; Fees</span></td>
-                            <td class="text-end text-muted">₹0.00</td>
-                        </tr>
+
 
                         <!-- Total Paid Row -->
                         <tr class="receipt-total-row">

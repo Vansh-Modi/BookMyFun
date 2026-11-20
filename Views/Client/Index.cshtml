@@ -1,6 +1,6 @@
 @model BookMyFun.Models.ViewModels.ClientDashboardViewModel
 @{
-    ViewData["Title"] = "My Reservations & Stays";
+    ViewData["Title"] = "My Bookings & Stays";
     var verification = ViewBag.Verification as BookMyFun.Models.Entities.ClientIdVerification;
     var todayInIst = ViewBag.TodayInIst != null ? (DateTime)ViewBag.TodayInIst : DateTime.Today;
     var refundMap = ViewBag.RefundMap as Dictionary<int, BookMyFun.Models.Entities.BookingRefund> ?? new Dictionary<int, BookMyFun.Models.Entities.BookingRefund>();
@@ -131,7 +131,7 @@
                     </span>
                 }
             </div>
-            <h1 class="h3 fw-bold text-dark mb-1">My Reservations &amp; Stays</h1>
+            <h1 class="h3 fw-bold text-dark mb-1">My Bookings &amp; Stays</h1>
             <p class="text-muted small mb-0">Welcome back, <strong>@Model.Client.FullName</strong> · View upcoming trips, download tax receipts, and leave host reviews.</p>
         </div>
         <div>
@@ -147,7 +147,7 @@
         <div class="card border-0 shadow-sm rounded-4 text-center py-5 px-3 mb-4">
             <div class="py-5">
                 <i class="bi bi-calendar-x fs-1 text-muted opacity-50 mb-3 d-block"></i>
-                <h4 class="fw-bold text-dark mb-2">No Reservations Found</h4>
+                <h4 class="fw-bold text-dark mb-2">No Bookings Found</h4>
                 <p class="text-muted small mb-4" style="max-width: 420px; margin: 0 auto;">
                     You haven't booked any farm stays yet. Discover handcrafted countryside villas with private pools and scenic views.
                 </p>
@@ -326,7 +326,7 @@
         <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
             <div class="modal-header bg-light border-0 py-3">
                 <h5 class="modal-title fw-bold text-dark">
-                    <i class="bi bi-shield-slash text-danger me-2"></i>Cancel Reservation &amp; Refund Quote
+                    <i class="bi bi-shield-slash text-danger me-2"></i>Cancel Booking &amp; Refund Quote
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -500,7 +500,7 @@
                 document.getElementById('cancelModalLoading').style.display = 'none';
                 document.getElementById('cancelModalContent').style.display = 'block';
             } else {
-                alert('Cancellation is closed: ' + (data.message || 'Cannot cancel this reservation.'));
+                alert('Cancellation is closed: ' + (data.message || 'Cannot cancel this booking.'));
                 modal.hide();
             }
         } catch (err) {

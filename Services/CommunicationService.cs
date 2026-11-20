@@ -180,7 +180,7 @@ namespace BookMyFun.Services
 
                 var mail = new MailMessage
                 {
-                    From = new MailAddress(senderAddress, "BookMyFun"),
+                    From = new MailAddress(senderAddress, "Nayesta"),
                     Subject = subject,
                     Body = bodyHtml,
                     IsBodyHtml = true
@@ -225,23 +225,23 @@ namespace BookMyFun.Services
             switch (purpose?.ToLowerInvariant())
             {
                 case "forgotpassword":
-                    subject = "Reset your BookMyFun password";
+                    subject = "Reset your Nayesta password";
                     purposeHeadline = "Password Reset Request";
-                    purposeDescription = "We received a request to reset the password for your BookMyFun account. Enter the verification code below to set a new password:";
+                    purposeDescription = "We received a request to reset the password for your Nayesta account. Enter the verification code below to set a new password:";
                     securityNote = "If you did not request this password reset, please ignore this email or contact support immediately if you suspect unauthorized activity.";
                     break;
                 case "login":
-                    subject = "Your BookMyFun sign-in code";
+                    subject = "Your Nayesta sign-in code";
                     purposeHeadline = "Secure Account Sign-In";
-                    purposeDescription = "Use this verification code to complete your sign-in to BookMyFun:";
-                    securityNote = "Never share this code with anyone. BookMyFun employees will never ask for your verification code.";
+                    purposeDescription = "Use this verification code to complete your sign-in to Nayesta:";
+                    securityNote = "Never share this code with anyone. Nayesta employees will never ask for your verification code.";
                     break;
                 case "registration":
                 default:
-                    subject = "Your BookMyFun verification code";
+                    subject = "Your Nayesta verification code";
                     purposeHeadline = "Account Email Verification";
-                    purposeDescription = "Thank you for creating an account with BookMyFun! Please verify your email address with the verification code below:";
-                    securityNote = "This code confirms your email address and activates your BookMyFun guest account.";
+                    purposeDescription = "Thank you for creating an account with Nayesta! Please verify your email address with the verification code below:";
+                    securityNote = "This code confirms your email address and activates your Nayesta guest account.";
                     break;
             }
 
@@ -263,7 +263,7 @@ namespace BookMyFun.Services
                     <!-- Header -->
                     <tr>
                         <td style='background: linear-gradient(135deg, #0B4F6C 0%, #01BAEF 100%); padding: 32px 30px; text-align: center;'>
-                            <h1 style='color: #FFFFFF; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.02em;'>BookMyFun</h1>
+                            <h1 style='color: #FFFFFF; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.02em;'>Nayesta</h1>
                             <p style='color: #E0F2FE; font-size: 13px; font-weight: 500; margin: 6px 0 0; text-transform: uppercase; letter-spacing: 0.05em;'>Luxury Farmhouse & Resort Booking</p>
                         </td>
                     </tr>
@@ -290,7 +290,7 @@ namespace BookMyFun.Services
                     <tr>
                         <td style='background-color: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 20px 30px; text-align: center;'>
                             <p style='font-size: 12px; color: #94A3B8; margin: 0; line-height: 1.5;'>
-                                &copy; {DateTime.UtcNow.Year} BookMyFun Technologies. All rights reserved.<br>
+                                &copy; {DateTime.UtcNow.Year} Nayesta. All rights reserved.<br>
                                 Need assistance? Visit our <a href='https://bookmyfun.in/Home/Contact' style='color: #0B4F6C; text-decoration: underline;'>Help Center</a>.
                             </p>
                         </td>
@@ -313,7 +313,7 @@ Verification Code: {otpCode}
 Security Notice: {securityNote}
 
 Need assistance? Visit https://bookmyfun.in/Home/Contact
-© {DateTime.UtcNow.Year} BookMyFun Technologies. All rights reserved.";
+© {DateTime.UtcNow.Year} Nayesta. All rights reserved.";
 
             return await SendEmailAsync(toEmail, subject, bodyHtml, plainTextBody);
         }
@@ -471,8 +471,8 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
                     <div style='max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);'>
                         <div style='background: linear-gradient(135deg, #0b4f6c 0%, #01baef 100%); padding: 32px 28px; text-align: center; color: #ffffff;'>
                             <span style='background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: bold; letter-spacing: 0.05em; text-transform: uppercase;'>Official Booking Receipt &amp; Gate Pass</span>
-                            <h1 style='margin: 12px 0 4px; font-size: 24px; font-weight: 800; letter-spacing: -0.02em;'>BookMyFun</h1>
-                            <p style='margin: 0; font-size: 14px; opacity: 0.9;'>Reservation #{receipt.Booking.BookingID} &bull; {receipt.ReceiptNumber}</p>
+                            <h1 style='margin: 12px 0 4px; font-size: 24px; font-weight: 800; letter-spacing: -0.02em;'>Nayesta</h1>
+                            <p style='margin: 0; font-size: 14px; opacity: 0.9;'>Booking #{receipt.Booking.BookingID} &bull; {receipt.ReceiptNumber}</p>
                         </div>
 
                         <div style='padding: 28px;'>
@@ -543,13 +543,13 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
                         </div>
 
                         <div style='background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px; text-align: center; font-size: 12px; color: #64748b;'>
-                            <p style='margin: 0 0 6px;'>BookMyFun &bull; Luxury Farmhouses, Villas &amp; Celebration Resorts</p>
+                            <p style='margin: 0 0 6px;'>Nayesta &bull; Luxury Farmhouses, Villas &amp; Celebration Resorts</p>
                             <p style='margin: 0;'>For instant assistance, contact our 24/7 helpdesk at <a href='mailto:support@bookmyfun.in' style='color: #0b4f6c;'>support@bookmyfun.in</a></p>
                         </div>
                     </div>
                 </div>";
 
-            string subject = $"Official Booking Receipt & Tax Invoice #{receipt.ReceiptNumber} - {receipt.Property?.Title ?? "BookMyFun"}";
+            string subject = $"Official Booking Receipt & Tax Invoice #{receipt.ReceiptNumber} - {receipt.Property?.Title ?? "Nayesta"}";
             await EnqueueEmailAsync(toEmail, subject, html, "BookingReceipt");
             return true;
         }
@@ -569,7 +569,7 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
                     <div style='max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);'>
                         <div style='background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 32px 28px; text-align: center; color: #ffffff;'>
                             <span style='background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: bold; letter-spacing: 0.05em; text-transform: uppercase;'>Host Partner Settlement Statement</span>
-                            <h1 style='margin: 12px 0 4px; font-size: 24px; font-weight: 800; letter-spacing: -0.02em;'>BookMyFun Host Partner</h1>
+                            <h1 style='margin: 12px 0 4px; font-size: 24px; font-weight: 800; letter-spacing: -0.02em;'>Nayesta Host Partner</h1>
                             <p style='margin: 0; font-size: 14px; opacity: 0.9;'>Settlement #{receipt.HostReceiptNumber} &bull; Booking #{receipt.Booking.BookingID}</p>
                         </div>
 
@@ -634,13 +634,13 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
                         </div>
 
                         <div style='background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px; text-align: center; font-size: 12px; color: #64748b;'>
-                            <p style='margin: 0 0 6px;'>BookMyFun Host Partner Network</p>
+                            <p style='margin: 0 0 6px;'>Nayesta Host Partner Network</p>
                             <p style='margin: 0;'>Host support desk: <a href='mailto:partners@bookmyfun.in' style='color: #059669;'>partners@bookmyfun.in</a></p>
                         </div>
                     </div>
                 </div>";
 
-            string subject = $"Host Settlement Statement #{receipt.HostReceiptNumber} - {receipt.Property?.Title ?? "BookMyFun"}";
+            string subject = $"Host Settlement Statement #{receipt.HostReceiptNumber} - {receipt.Property?.Title ?? "Nayesta"}";
             await EnqueueEmailAsync(toEmail, subject, html, "OwnerSettlementReceipt");
             return true;
         }
@@ -649,8 +649,8 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
         {
             var text = $"🎉 Hi {clientName}, your booking #{bookingId} for '{propertyTitle}' is confirmed!\n\n" +
                        $"💰 Total Amount Paid: ₹{amount:N2}\n" +
-                       $"📅 Check-in details and digital entry pass are now accessible in your BookMyFun dashboard.\n\n" +
-                       $"Thank you for booking with BookMyFun!";
+                       $"📅 Check-in details and digital entry pass are now accessible in your Nayesta dashboard.\n\n" +
+                       $"Thank you for booking with Nayesta!";
             await EnqueueWhatsAppAsync(phoneNumber, text, "WhatsAppNotification");
             return true;
         }
@@ -677,7 +677,7 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
                        $"• Total Paid: ₹{totalAmount:N2}\n\n" +
                        $"📥 *View / Download Tax Receipt & Gate Pass:*\n" +
                        $"{receiptUrl}\n\n" +
-                       $"Please carry valid government photo IDs for all check-in guests. We look forward to hosting you!\n— Team BookMyFun";
+                       $"Please carry valid government photo IDs for all check-in guests. We look forward to hosting you!\n— Team Nayesta";
 
             await EnqueueWhatsAppAsync(phoneNumber, text, "WhatsAppNotification");
             return true;
@@ -744,7 +744,7 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
                        $"• Net Host Payout: ₹{hostPayout:N2}{decorNote}\n\n" +
                        $"📄 *View Official Host Settlement Receipt:*\n" +
                        $"{settlementReceiptUrl}\n\n" +
-                       $"Sign in to your Host Dashboard to access guest details and prepare the property for arrival.\n— Team BookMyFun";
+                       $"Sign in to your Host Dashboard to access guest details and prepare the property for arrival.\n— Team Nayesta";
 
             await EnqueueWhatsAppAsync(phoneNumber, text, "WhatsAppNotification");
             return true;
@@ -762,7 +762,7 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
         {
             var text = $"🎪 New Event Staging Order!\n\n" +
                        $"Hello {eventManagerName},\n" +
-                       $"A new event setup order has been booked on BookMyFun!\n\n" +
+                       $"A new event setup order has been booked on Nayesta!\n\n" +
                        $"• Booking Ref: #{bookingId}\n" +
                        $"• Venue: {propertyTitle}\n" +
                        $"• Event Date: {eventDate:dd MMM yyyy}\n" +
@@ -808,18 +808,18 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
             });
 
             // 2. Dispatch transactional notification email via EmailQueueService
-            string subject = "Identity Verification Update: Action Required - BookMyFun";
+            string subject = "Identity Verification Update: Action Required - Nayesta";
             string bodyHtml = $@"
 <div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
     <div style=""border-bottom: 2px solid #ef4444; padding-bottom: 16px; margin-bottom: 20px;"">
         <h2 style=""color: #dc2626; margin: 0 0 6px 0; font-size: 20px;"">Identity Verification (KYC) Update</h2>
-        <p style=""margin: 0; color: #64748b; font-size: 14px;"">BookMyFun Guest Identity & Trust Compliance</p>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">Nayesta Guest Identity & Trust Compliance</p>
     </div>
 
     <p style=""font-size: 15px; line-height: 1.6;"">Dear <strong>{WebUtility.HtmlEncode(clientName)}</strong>,</p>
 
     <p style=""font-size: 14px; line-height: 1.6; color: #334155;"">
-        Our verification team has reviewed your submitted <strong>{WebUtility.HtmlEncode(docName)}</strong> for your BookMyFun account. Unfortunately, your verification could not be approved at this time.
+        Our verification team has reviewed your submitted <strong>{WebUtility.HtmlEncode(docName)}</strong> for your Nayesta account. Unfortunately, your verification could not be approved at this time.
     </p>
 
     <div style=""background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 20px 0;"">
@@ -840,12 +840,12 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
             <li>Ensure the image or PDF is crisp, clear, unblurred, and has all four corners visible.</li>
             <li>Verify that the document is non-expired and that the name exactly matches your account name (<strong>{WebUtility.HtmlEncode(clientName)}</strong>).</li>
             <li>Accepted documents: Government-issued Aadhaar Card, Passport, or Driving License.</li>
-            <li>You can resubmit immediately from your <a href=""https://bookmyfun.com/Account/Profile"" style=""color: #2563eb; text-decoration: underline;"">Account Profile</a> or during your next reservation checkout.</li>
+            <li>You can resubmit immediately from your <a href=""https://bookmyfun.com/Account/Profile"" style=""color: #2563eb; text-decoration: underline;"">Account Profile</a> or during your next booking checkout.</li>
         </ol>
     </div>
 
     <div style=""border-top: 1px solid #e2e8f0; padding-top: 16px; margin-top: 24px; font-size: 12px; color: #94a3b8; text-align: center;"">
-        BookMyFun Hospitality Marketplace · Private Document Vault Security<br/>
+        Nayesta Hospitality Marketplace · Private Document Vault Security<br/>
         If you have questions, reply directly to this notification or contact our support team.
     </div>
 </div>";
@@ -889,12 +889,12 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
             // 2. Transactional Email
             if (!string.IsNullOrWhiteSpace(clientEmail) && _emailQueue.TryAcquireNotificationKey($"cancellation_{bookingId}_client_email"))
             {
-                string subject = $"Booking #{bookingId} Cancellation & Refund Confirmation - BookMyFun";
+                string subject = $"Booking #{bookingId} Cancellation & Refund Confirmation - Nayesta";
                 string bodyHtml = $@"
 <div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
     <div style=""border-bottom: 2px solid #ef4444; padding-bottom: 16px; margin-bottom: 20px;"">
         <h2 style=""color: #dc2626; margin: 0 0 6px 0; font-size: 20px;"">Booking Cancellation Notice</h2>
-        <p style=""margin: 0; color: #64748b; font-size: 14px;"">BookMyFun Reservation Transparency</p>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">Nayesta Booking Transparency</p>
     </div>
     <p style=""font-size: 15px; line-height: 1.6;"">Your reservation for <strong>{WebUtility.HtmlEncode(propertyTitle)}</strong> (Booking #{bookingId}) has been cancelled.</p>
     <div style=""background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;"">
@@ -945,12 +945,12 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
             // 2. Transactional Email
             if (!string.IsNullOrWhiteSpace(ownerEmail) && _emailQueue.TryAcquireNotificationKey($"cancellation_{bookingId}_owner_email"))
             {
-                string subject = $"Booking #{bookingId} Cancelled - Host Update - BookMyFun";
+                string subject = $"Booking #{bookingId} Cancelled - Host Update - Nayesta";
                 string bodyHtml = $@"
 <div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
     <div style=""border-bottom: 2px solid #3b82f6; padding-bottom: 16px; margin-bottom: 20px;"">
         <h2 style=""color: #1e40af; margin: 0 0 6px 0; font-size: 20px;"">Host Booking Update</h2>
-        <p style=""margin: 0; color: #64748b; font-size: 14px;"">BookMyFun Host Settlement</p>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">Nayesta Host Settlement</p>
     </div>
     <p style=""font-size: 15px; line-height: 1.6;"">Booking #{bookingId} for your listing <strong>{WebUtility.HtmlEncode(propertyTitle)}</strong> has been cancelled.</p>
     <div style=""background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;"">
@@ -1012,7 +1012,7 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
 <div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
     <div style=""border-bottom: 2px solid #0284c7; padding-bottom: 16px; margin-bottom: 20px;"">
         <h2 style=""color: #0284c7; margin: 0 0 6px 0; font-size: 20px;"">Booking Confirmed!</h2>
-        <p style=""margin: 0; color: #64748b; font-size: 14px;"">Thank you for booking with BookMyFun</p>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">Thank you for booking with Nayesta</p>
     </div>
     <p style=""font-size: 15px; line-height: 1.6;"">Dear <strong>{WebUtility.HtmlEncode(client.FullName)}</strong>,</p>
     <p style=""font-size: 14px; line-height: 1.6; color: #334155;"">Your reservation for <strong>{WebUtility.HtmlEncode(property.Title)}</strong> has been confirmed.</p>
@@ -1051,7 +1051,7 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
                                  $"• Check-Out: {booking.CheckOutDate:dd MMM yyyy}\n" +
                                  $"• Guests: {guests}\n" +
                                  $"• Amount Paid: ₹{booking.TotalAmount:N2}\n\n" +
-                                 $"View your booking & pass: {bookingUrl}\n— Team BookMyFun";
+                                 $"View your booking & pass: {bookingUrl}\n— Team Nayesta";
                     await EnqueueWhatsAppAsync(client.Phone.Trim(), msg, "BookingConfirmation");
                 }
             }
@@ -1093,7 +1093,7 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
 <div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
     <div style=""border-bottom: 2px solid #16a34a; padding-bottom: 16px; margin-bottom: 20px;"">
         <h2 style=""color: #16a34a; margin: 0 0 6px 0; font-size: 20px;"">New Confirmed Reservation</h2>
-        <p style=""margin: 0; color: #64748b; font-size: 14px;"">BookMyFun Host Partner Network</p>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">Nayesta Host Partner Network</p>
     </div>
     <p style=""font-size: 15px; line-height: 1.6;"">Hello <strong>{WebUtility.HtmlEncode(owner.FullName)}</strong>,</p>
     <p style=""font-size: 14px; line-height: 1.6; color: #334155;"">A new confirmed booking has been made for your listing <strong>{WebUtility.HtmlEncode(property.Title)}</strong>.</p>
@@ -1121,16 +1121,16 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
                     string key = $"booking_{booking.BookingID}_owner_whatsapp";
                     if (owner.WhatsAppNotificationsEnabled && !string.IsNullOrWhiteSpace(owner.Phone) && _emailQueue.TryAcquireNotificationKey(key))
                     {
-                        string msg = $"🏡 *New Reservation Confirmed!*\n\n" +
+                        string msg = $"🏡 *New Booking Confirmed!*\n\n" +
                                      $"Hello {owner.FullName},\n" +
-                                     $"A new reservation has been confirmed for *{property.Title}*.\n\n" +
+                                     $"A new booking has been confirmed for *{property.Title}*.\n\n" +
                                      $"• Booking Ref: #{booking.BookingID}\n" +
                                      $"• Dates: {booking.CheckInDate:dd MMM yyyy} to {booking.CheckOutDate:dd MMM yyyy}\n" +
                                      $"• Guests: {guests}\n" +
                                      $"• Client: {client.FullName} ({client.Phone ?? "N/A"})\n" +
                                      $"• Owner Payout: ₹{ownerPayout:N2}\n" +
                                      $"• Hold Status: {holdStatus}\n\n" +
-                                     $"Please check your Host Dashboard to prepare for arrival.\n— Team BookMyFun";
+                                     $"Please check your Host Dashboard to prepare for arrival.\n— Team Nayesta";
                         await EnqueueWhatsAppAsync(owner.Phone.Trim(), msg, "OwnerBookingAlert");
                     }
                 }
@@ -1181,10 +1181,10 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
 <div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
     <div style=""border-bottom: 2px solid #8b5cf6; padding-bottom: 16px; margin-bottom: 20px;"">
         <h2 style=""color: #8b5cf6; margin: 0 0 6px 0; font-size: 20px;"">New Event Décor Staging Order</h2>
-        <p style=""margin: 0; color: #64748b; font-size: 14px;"">BookMyFun Event Services</p>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">Nayesta Event Services</p>
     </div>
     <p style=""font-size: 15px; line-height: 1.6;"">Hello <strong>{WebUtility.HtmlEncode(eventManager.FullName)}</strong>,</p>
-    <p style=""font-size: 14px; line-height: 1.6; color: #334155;"">A new event package has been booked on BookMyFun.</p>
+    <p style=""font-size: 14px; line-height: 1.6; color: #334155;"">A new event package has been booked on Nayesta.</p>
     <div style=""background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 20px 0;"">
         <div style=""margin-bottom: 8px;""><strong>Booking Reference:</strong> #{booking.BookingID}</div>
         <div style=""margin-bottom: 8px;""><strong>Package Name:</strong> {WebUtility.HtmlEncode(packageName)}</div>
@@ -1209,13 +1209,13 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
                     {
                         string msg = $"🎪 *New Event Staging Order!*\n\n" +
                                      $"Hello {eventManager.FullName},\n" +
-                                     $"A new event package order is booked on BookMyFun.\n\n" +
+                                     $"A new event package order is booked on Nayesta.\n\n" +
                                      $"• Booking Ref: #{booking.BookingID}\n" +
                                      $"• Package: {packageName}\n" +
                                      $"• Date: {eventDate:dd MMM yyyy}\n" +
                                      $"• Venue: {venue}\n" +
                                      $"• Setup Deadline: {deadlineStr}\n\n" +
-                                     $"Please log in to your Event Manager portal to coordinate staging.\n— Team BookMyFun";
+                                     $"Please log in to your Event Manager portal to coordinate staging.\n— Team Nayesta";
                         await EnqueueWhatsAppAsync(eventManager.Phone.Trim(), msg, "EventManagerSetupAlert");
                     }
                 }
@@ -1271,12 +1271,12 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
                 string key = $"cancellation_{booking.BookingID}_client_email";
                 if (!string.IsNullOrWhiteSpace(client.Email) && _emailQueue.TryAcquireNotificationKey(key))
                 {
-                    string subject = $"Booking #{booking.BookingID} Cancellation & Refund Summary - BookMyFun";
+                    string subject = $"Booking #{booking.BookingID} Cancellation & Refund Summary - Nayesta";
                     string bodyHtml = $@"
 <div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
     <div style=""border-bottom: 2px solid #ef4444; padding-bottom: 16px; margin-bottom: 20px;"">
         <h2 style=""color: #dc2626; margin: 0 0 6px 0; font-size: 20px;"">Booking Cancellation Notice</h2>
-        <p style=""margin: 0; color: #64748b; font-size: 14px;"">BookMyFun Reservation Transparency</p>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">Nayesta Booking Transparency</p>
     </div>
     <p style=""font-size: 15px; line-height: 1.6;"">Dear <strong>{WebUtility.HtmlEncode(client.FullName)}</strong>,</p>
     <p style=""font-size: 14px; line-height: 1.6; color: #334155;"">Your booking #{booking.BookingID} for <strong>{WebUtility.HtmlEncode(property.Title)}</strong> has been cancelled.</p>
@@ -1311,7 +1311,7 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
                                  $"• Gateway/Fee Deduction: ₹{gatewayDeduction:N2}\n" +
                                  $"• Net Refund: ₹{netRefund:N2}\n" +
                                  $"• Expected Timeline: {expectedTimeline}\n\n" +
-                                 $"View details on your BookMyFun dashboard.\n— Team BookMyFun";
+                                 $"View details on your Nayesta dashboard.\n— Team Nayesta";
                     await EnqueueWhatsAppAsync(client.Phone.Trim(), msg, "BookingCancellation");
                 }
             }
@@ -1348,12 +1348,12 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
                     string key = $"cancellation_{booking.BookingID}_owner_email";
                     if (!string.IsNullOrWhiteSpace(owner.Email) && _emailQueue.TryAcquireNotificationKey(key))
                     {
-                        string subject = $"Booking #{booking.BookingID} Cancelled - Host Settlement Update - BookMyFun";
+                        string subject = $"Booking #{booking.BookingID} Cancelled - Host Settlement Update - Nayesta";
                         string bodyHtml = $@"
 <div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
     <div style=""border-bottom: 2px solid #ef4444; padding-bottom: 16px; margin-bottom: 20px;"">
         <h2 style=""color: #dc2626; margin: 0 0 6px 0; font-size: 20px;"">Host Booking Cancellation Update</h2>
-        <p style=""margin: 0; color: #64748b; font-size: 14px;"">BookMyFun Host Settlement</p>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">Nayesta Host Settlement</p>
     </div>
     <p style=""font-size: 15px; line-height: 1.6;"">Hello <strong>{WebUtility.HtmlEncode(owner.FullName)}</strong>,</p>
     <p style=""font-size: 14px; line-height: 1.6; color: #334155;"">Booking #{booking.BookingID} for your listing <strong>{WebUtility.HtmlEncode(property.Title)}</strong> has been cancelled.</p>
@@ -1385,7 +1385,7 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
                                      $"• Cancellation Reason: {reason}\n" +
                                      $"• Payout Adjustment: ₹{ownerPayoutAdjustment:N2}\n" +
                                      $"• Held Balance Change: ₹{heldBalanceChange:N2}\n\n" +
-                                     $"Check your Host Dashboard for updated records.\n— Team BookMyFun";
+                                     $"Check your Host Dashboard for updated records.\n— Team Nayesta";
                         await EnqueueWhatsAppAsync(owner.Phone.Trim(), msg, "OwnerBookingAlert");
                     }
                 }
@@ -1430,7 +1430,7 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
 <div style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1e293b; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;"">
     <div style=""border-bottom: 2px solid #ef4444; padding-bottom: 16px; margin-bottom: 20px;"">
         <h2 style=""color: #dc2626; margin: 0 0 6px 0; font-size: 20px;"">Event Package Staging Cancelled</h2>
-        <p style=""margin: 0; color: #64748b; font-size: 14px;"">BookMyFun Event Services</p>
+        <p style=""margin: 0; color: #64748b; font-size: 14px;"">Nayesta Event Services</p>
     </div>
     <p style=""font-size: 15px; line-height: 1.6;"">Hello <strong>{WebUtility.HtmlEncode(eventManager.FullName)}</strong>,</p>
     <p style=""font-size: 14px; line-height: 1.6; color: #334155;"">Booking #{booking.BookingID} at <strong>{WebUtility.HtmlEncode(property.Title)}</strong> has been cancelled.</p>
@@ -1460,7 +1460,7 @@ Need assistance? Visit https://bookmyfun.in/Home/Contact
                                      $"Booking #{booking.BookingID} at *{property.Title}* was cancelled.\n\n" +
                                      $"• Package: {packageName} is cancelled\n" +
                                      $"• Action: No setup needed\n\n" +
-                                     $"Your staging schedule has been updated automatically.\n— Team BookMyFun";
+                                     $"Your staging schedule has been updated automatically.\n— Team Nayesta";
                         await EnqueueWhatsAppAsync(eventManager.Phone.Trim(), msg, "EventManagerAlert");
                     }
                 }

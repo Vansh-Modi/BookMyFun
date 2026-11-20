@@ -34,7 +34,7 @@
                 </div>
                 <div>
                     <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1 rounded-pill fw-bold text-uppercase mb-2" style="font-size: 0.72rem; letter-spacing: 0.05em;">
-                        <i class="bi bi-shield-check me-1"></i>Reservation Secured &amp; Paid
+                        <i class="bi bi-shield-check me-1"></i>Booking Secured &amp; Paid
                     </span>
                     <h1 class="h3 fw-bold mb-1 text-white">BOOKING CONFIRMED!</h1>
                     <p class="text-white-50 mb-0 small">
@@ -308,7 +308,7 @@
                     </div>
                     <h6 class="fw-bold text-dark mb-1">1. Confirmation Dispatched</h6>
                     <p class="small text-muted mb-0" style="line-height: 1.5;">
-                        Your reservation voucher and entry receipt are confirmed and synchronized with our host network.
+                        Your booking voucher and entry receipt are confirmed and synchronized with our host network.
                     </p>
                 </div>
                 <div class="mt-3 pt-2 border-top text-muted small" style="font-size: 0.75rem;">
@@ -401,7 +401,7 @@
                     <h4 class="fw-bold text-dark mb-0">Official Tax Invoices &amp; Digital Entry Passes</h4>
                 </div>
                 <p class="text-muted small mb-0" style="line-height: 1.5;">
-                    Download your formal GST tax invoice, print gate pass vouchers, or share reservation coordinates directly with your travel companions.
+                    Download your booking receipt, print gate pass vouchers, or share booking coordinates directly with your travel companions.
                 </p>
             </div>
             <div class="col-lg-5 text-lg-end">
@@ -508,7 +508,7 @@
                           "🗓 Stay: @Model.Booking.CheckInDate.ToString("ddd, MMM dd") - @Model.Booking.CheckOutDate.ToString("ddd, MMM dd, yyyy")\n" +
                           @if (!string.IsNullOrEmpty(Model.Property?.MapUrl)) { <text>"🗺 Location: @Model.Property.MapUrl\n" +</text> }
                           "🎫 Booking Ref: #@Model.Booking.BookingID\n" +
-                          "🌟 Booked with BookMyFun Luxury Retreats";
+                          "🌟 Booked with Nayesta Luxury Retreats";
 
             navigator.clipboard.writeText(summary).then(function() {
                 var btn = document.getElementById('btnShareReservation');
@@ -524,6 +524,11 @@
                     }, 2500);
                 }
             });
+        }
+
+        // B7: Analytics booking_completed (consent-gated, property ID and generic amount only, no PII)
+        if (typeof window.trackAnalyticsEvent === 'function') {
+            window.trackAnalyticsEvent('booking_completed', { property_id: @Model.Booking.PropertyID, value: @Model.Booking.TotalAmount, currency: 'INR' });
         }
     </script>
 }
