@@ -1,0 +1,215 @@
+@model BookMyFun.Models.Entities.PhotoShootRequest
+@{
+    ViewData["Title"] = $"Shoot Request #{Model.RequestID} - Staff Queue";
+    var currentCtrl = ViewContext.RouteData.Values["controller"]?.ToString() ?? "Employee";
+    var prop = ViewBag.Property as BookMyFun.Models.Entities.Property;
+    var staffUsers = ViewBag.StaffUsers as List<BookMyFun.Models.Entities.User> ?? new List<BookMyFun.Models.Entities.User>();
+    var currentUserId = int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out int parsedId) ? parsedId : 0;
+}
+
+<div class="mb-3">
+    <a asp-action="NeedsAttention" asp-route-filter="PhotoShoot" class="btn btn-sm btn-outline-secondary rounded-pill">
+        <i class="bi bi-arrow-left me-1"></i> Back to Needs Attention Queue
+    </a>
+</div>
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-xs" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i>@TempData["Success"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-xs" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["Error"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+<div class="dash-page-header mb-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+        <div>
+            <p class="dash-eyebrow">Operations · Shoot Request #@Model.RequestID</p>
+            <h1 class="dash-title">@Model.ShootType Shoot: @(Model.PropertyTitle ?? "Property Listing")</h1>
+            <p class="dash-subtitle">Included in owner subscription plan. Staff coordinate schedule, photography, and video coverage on the day.</p>
+        </div>
+        <div>
+            @if (Model.Status == "Requested")
+            {
+                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 rounded-pill fs-6">
+                    <i class="bi bi-clock-fill me-1"></i> Requested
+                </span>
+            }
+            else if (Model.Status == "Scheduled")
+            {
+                <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-2 rounded-pill fs-6">
+                    <i class="bi bi-calendar-check-fill me-1"></i> Scheduled
+                </span>
+            }
+            else if (Model.Status == "Completed")
+            {
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill fs-6">
+                    <i class="bi bi-check-circle-fill me-1"></i> Completed
+                </span>
+            }
+            else if (Model.Status == "Cancelled")
+            {
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 rounded-pill fs-6">
+                    <i class="bi bi-x-circle-fill me-1"></i> Cancelled
+                </span>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left Column: Details -->
+    <div class="col-lg-7">
+        <!-- Listing Card -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-building me-2 text-primary"></i>Listing Details</h5>
+                <a asp-controller="Properties" asp-action="Detail" asp-route-id="@Model.PropertyID" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                    <i class="bi bi-box-arrow-up-right me-1"></i> View Public Listing
+                </a>
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Property Title</label>
+                        <span class="fw-bold text-dark">@(Model.PropertyTitle ?? $"Property #{Model.PropertyID}")</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Location</label>
+                        <span class="fw-semibold text-dark">@(Model.PropertyLocation ?? "—")</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Listing Status</label>
+                        <span class="badge bg-light text-dark border">@(prop?.ListingStatus ?? "—")</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Nightly Rate</label>
+                        <span class="fw-bold text-success">@(prop != null ? $"₹{prop.PricePerNight:N0}/night" : "—")</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Host Card -->
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-header bg-white py-3 px-4 border-bottom">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-person-circle me-2 text-primary"></i>Host Information</h5>
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Host Name</label>
+                        <span class="fw-bold text-dark">@(Model.OwnerName ?? $"Owner #{Model.OwnerID}")</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Host Email</label>
+                        <span class="text-dark">@(Model.OwnerEmail ?? "—")</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Host Phone</label>
+                        <span class="text-dark">@(Model.OwnerPhone ?? "—")</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Owner ID</label>
+                        <span class="text-dark font-monospace">#@Model.OwnerID</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Request Details Card -->
+        <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-header bg-white py-3 px-4 border-bottom">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-camera-reels me-2 text-primary"></i>Shoot Specification</h5>
+            </div>
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Coverage Requested</label>
+                        <span class="badge bg-primary px-3 py-1.5 rounded-pill fw-bold fs-6">@Model.ShootType Shoot</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Plan Entitlement</label>
+                        <span class="text-success fw-semibold"><i class="bi bi-check-circle-fill me-1"></i> Included in Plan</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Date Requested</label>
+                        <span class="text-dark">@Model.CreatedAt.ToString("dd MMM yyyy, HH:mm") UTC</span>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="text-muted small d-block">Last Updated</label>
+                        <span class="text-dark">@(Model.UpdatedAt.HasValue ? Model.UpdatedAt.Value.ToString("dd MMM yyyy, HH:mm") + " UTC" : "—")</span>
+                    </div>
+                    <div class="col-12">
+                        <label class="text-muted small d-block">Host Notes / Access Instructions</label>
+                        <div class="p-3 bg-light rounded-3 text-dark small border">
+                            @(string.IsNullOrWhiteSpace(Model.Notes) ? "No notes provided by host." : Model.Notes)
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Staff Management Action -->
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm rounded-4 sticky-top" style="top: 20px;">
+            <div class="card-header bg-white py-3 px-4 border-bottom">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-sliders me-2 text-primary"></i>Manage &amp; Assign</h5>
+            </div>
+            <div class="card-body p-4">
+                <form asp-action="UpdatePhotoShootStatus" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@Model.RequestID" />
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-muted">Request Status</label>
+                        <select name="status" class="form-select rounded-3">
+                            <option value="Requested" selected="@(Model.Status == "Requested")">Requested (New / Pending Scheduling)</option>
+                            <option value="Scheduled" selected="@(Model.Status == "Scheduled")">Scheduled (Photographer Booked)</option>
+                            <option value="Completed" selected="@(Model.Status == "Completed")">Completed (Photos/Videos Uploaded)</option>
+                            <option value="Cancelled" selected="@(Model.Status == "Cancelled")">Cancelled</option>
+                        </select>
+                        <div class="form-text small">Changing status notifies the owner by in-app alert and email.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-muted">Assigned Staff Member</label>
+                        <div class="input-group mb-2">
+                            <select name="assignedToUserId" id="selAssignedStaff" class="form-select rounded-start-3">
+                                <option value="">-- Unassigned --</option>
+                                @foreach (var staff in staffUsers)
+                                {
+                                    <option value="@staff.UserID" selected="@(Model.AssignedToUserID == staff.UserID)">
+                                        @staff.FullName (@staff.Role)
+                                    </option>
+                                }
+                            </select>
+                            <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('selAssignedStaff').value = '@currentUserId';">
+                                Assign to Me
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold small text-muted">Staff Notes / Scheduling Details</label>
+                        <textarea name="notes" class="form-control rounded-3" rows="4" placeholder="Add appointment timing, photographer name, or shoot status updates...">@Model.Notes</textarea>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary rounded-pill py-2.5 fw-bold shadow-sm">
+                            <i class="bi bi-check-lg me-1"></i> Save Changes &amp; Notify Owner
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

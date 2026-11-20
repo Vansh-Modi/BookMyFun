@@ -17,6 +17,7 @@ namespace BookMyFun.Services.Staff
         private readonly IPartnerLeadService _partnerLeadService;
         private readonly IRefundEngineService _refundEngine;
         private readonly IDamageClaimService _damageClaimService;
+        private readonly IPhotoShootRepository? _photoShootRepo;
         private readonly ILogger<StaffQueueService>? _logger;
 
         public StaffQueueService(
@@ -27,7 +28,8 @@ namespace BookMyFun.Services.Staff
             IPartnerLeadService partnerLeadService,
             IRefundEngineService refundEngine,
             IDamageClaimService damageClaimService,
-            ILogger<StaffQueueService>? logger = null)
+            ILogger<StaffQueueService>? logger = null,
+            IPhotoShootRepository? photoShootRepo = null)
         {
             _userRepo = userRepo;
             _eventPackageRepo = eventPackageRepo;
@@ -37,6 +39,7 @@ namespace BookMyFun.Services.Staff
             _refundEngine = refundEngine;
             _damageClaimService = damageClaimService;
             _logger = logger;
+            _photoShootRepo = photoShootRepo;
         }
 
         public async Task<int> GetTotalPendingCountAsync()
@@ -202,6 +205,30 @@ namespace BookMyFun.Services.Staff
             }
             catch (Exception ex) { _logger?.LogWarning(ex, "Error querying open damage claims for staff queue."); }
 
+            // 8. Photo & Video Shoot Requests
+            try
+            {
+                if (_photoShootRepo != null)
+                {
+                    var shootRequests = await _photoShootRepo.GetPendingRequestsAsync();
+                    foreach (var sr in shootRequests)
+                    {
+                        allItems.Add(new StaffQueueItemViewModel
+                        {
+                            TaskType = "PhotoShoot",
+                            TaskTypeLabel = "Photo/Video Shoot",
+                            EntityID = sr.RequestID,
+                            Title = $"{sr.ShootType} Shoot: {sr.PropertyTitle}",
+                            Subtitle = $"Host #{sr.OwnerID} ({sr.OwnerName}) · Status: {sr.Status} · {(sr.AssignedToUserID.HasValue ? $"Assigned: {sr.AssignedToUserName}" : "Unassigned")}",
+                            SubmittedAt = sr.CreatedAt,
+                            ActionUrl = $"/Employee/PhotoShootDetail/{sr.RequestID}",
+                            BadgeClass = "bg-primary text-white"
+                        });
+                    }
+                }
+            }
+            catch (Exception ex) { _logger?.LogWarning(ex, "Error querying pending shoot requests for staff queue."); }
+
             // Compute counts by type
             var countsByType = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
             {
@@ -211,7 +238,8 @@ namespace BookMyFun.Services.Staff
                 ["ClientId"] = allItems.Count(x => x.TaskType == "ClientId"),
                 ["PartnerLead"] = allItems.Count(x => x.TaskType == "PartnerLead"),
                 ["Refund"] = allItems.Count(x => x.TaskType == "Refund"),
-                ["DamageClaim"] = allItems.Count(x => x.TaskType == "DamageClaim")
+                ["DamageClaim"] = allItems.Count(x => x.TaskType == "DamageClaim"),
+                ["PhotoShoot"] = allItems.Count(x => x.TaskType == "PhotoShoot")
             };
 
             int totalPending = allItems.Count;

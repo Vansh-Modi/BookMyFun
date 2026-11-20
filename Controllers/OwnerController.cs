@@ -29,6 +29,7 @@ namespace BookMyFun.Controllers
         private readonly BookMyFun.Services.Notifications.INotificationDispatcherService? _notificationDispatcher;
         private readonly IUserNotificationRepository? _userNotificationRepo;
         private readonly IHtmlSanitizerService? _sanitizer;
+        private readonly IPhotoShootRepository? _photoShootRepo;
 
         public OwnerController(
             IPropertyRepository propRepo,
@@ -45,7 +46,8 @@ namespace BookMyFun.Controllers
             INotificationFanoutService? notificationFanout = null,
             BookMyFun.Services.Notifications.INotificationDispatcherService? notificationDispatcher = null,
             IUserNotificationRepository? userNotificationRepo = null,
-            IHtmlSanitizerService? sanitizer = null)
+            IHtmlSanitizerService? sanitizer = null,
+            IPhotoShootRepository? photoShootRepo = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -62,6 +64,7 @@ namespace BookMyFun.Controllers
             _notificationDispatcher = notificationDispatcher;
             _userNotificationRepo = userNotificationRepo;
             _sanitizer = sanitizer;
+            _photoShootRepo = photoShootRepo;
         }
 
         private int GetCurrentUserId() => User.GetUserId();
@@ -122,6 +125,12 @@ namespace BookMyFun.Controllers
 
             var scheduledSub = await _subRepo.GetScheduledSubscriptionByOwnerIdAsync(ownerId);
             ViewBag.ScheduledSub = scheduledSub;
+
+            var shootRequests = _photoShootRepo != null
+                ? await _photoShootRepo.GetByOwnerIdAsync(ownerId)
+                : new List<PhotoShootRequest>();
+            ViewBag.ShootRequests = shootRequests;
+
             ViewBag.NotificationPreferences = new OwnerNotificationPreferencesViewModel
             {
                 EmailEnabled = owner?.NotificationEmailEnabled ?? true,
@@ -1516,5 +1525,61 @@ namespace BookMyFun.Controllers
             return RedirectToAction(nameof(NotificationSettings));
         }
 
-}
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RequestPhotoShoot(int propertyId, string shootType, string? notes)
+        {
+            var ownerId = GetCurrentUserId();
+            var prop = await _propRepo.GetByIdAsync(propertyId);
+            if (prop == null) return NotFound();
+            if (prop.OwnerID != ownerId && !User.IsInRole("Admin")) return Forbid();
+
+            var validTypes = new[] { "Photo", "Video", "Both" };
+            if (!validTypes.Contains(shootType, StringComparer.OrdinalIgnoreCase))
+            {
+                TempData["Error"] = "Please select a valid shoot type: Photo, Video, or Both.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            if (_photoShootRepo != null)
+            {
+                bool hasOpen = await _photoShootRepo.HasOpenRequestAsync(propertyId, shootType);
+                if (hasOpen)
+                {
+                    TempData["Error"] = $"An open {shootType} shoot request already exists for '{prop.Title}'. Only one open request per listing per type is allowed.";
+                    return RedirectToAction(nameof(Index));
+                }
+
+                var req = new PhotoShootRequest
+                {
+                    PropertyID = propertyId,
+                    OwnerID = ownerId,
+                    ShootType = shootType,
+                    Status = "Requested",
+                    Notes = notes?.Trim(),
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                int reqId = await _photoShootRepo.CreateRequestAsync(req);
+                if (reqId > 0)
+                {
+                    await _configRepo.LogAuditAsync(ownerId, "OwnerRequestPhotoShoot", "PhotoShootRequest", reqId,
+                        $"Host #{ownerId} submitted a {shootType} shoot request for listing #{propertyId} ('{prop.Title}').");
+
+                    if (_notificationDispatcher != null)
+                    {
+                        _ = _notificationDispatcher.DispatchPhotoShootRequestedAsync(reqId, propertyId, prop.Title, ownerId, shootType);
+                    }
+
+                    TempData["Success"] = $"Your {shootType} shoot request for '{prop.Title}' was submitted successfully! Our team will contact you shortly to schedule it.";
+                }
+                else
+                {
+                    TempData["Error"] = "Unable to process photo shoot request. Please try again.";
+                }
+            }
+
+            return RedirectToAction(nameof(Index));
+        }
+    }
 }

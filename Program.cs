@@ -116,6 +116,7 @@ builder.Services.AddScoped<IIdVerificationRepository, IdVerificationRepository>(
 builder.Services.AddScoped<IEventPackageRepository, EventPackageRepository>();
 builder.Services.AddScoped<IWebhookEventRepository, WebhookEventRepository>();
 builder.Services.AddScoped<ILegalDocumentRepository, LegalDocumentRepository>();
+builder.Services.AddScoped<IPhotoShootRepository, PhotoShootRepository>();
 
 // Core Security & Domain Services
 builder.Services.AddSingleton<IPrivateDocumentEncryptionService, PrivateDocumentEncryptionService>();

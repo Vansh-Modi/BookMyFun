@@ -72,5 +72,7 @@ namespace BookMyFun.Services.Notifications
         Task DispatchDecoratorAssignedAsync(int bookingId, int decoratorUserId);
         Task DispatchPartnerLeadSubmittedAsync(int leadId, string leadName, string serviceType);
         Task DispatchBookingCreatedStaffAlertAsync(int bookingId, int clientId, int propertyId);
+        Task DispatchPhotoShootRequestedAsync(int requestId, int propertyId, string propertyTitle, int ownerId, string shootType) => Task.CompletedTask;
+        Task DispatchPhotoShootStatusChangedAsync(int requestId, int propertyId, string propertyTitle, int ownerId, string shootType, string oldStatus, string newStatus) => Task.CompletedTask;
     }
 }

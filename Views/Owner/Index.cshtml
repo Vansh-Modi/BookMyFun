@@ -3,6 +3,7 @@
     ViewData["Title"] = "Owner Partner Dashboard";
     var scheduledSub = ViewBag.ScheduledSub as BookMyFun.Models.Entities.OwnerSubscription;
     var notifPrefs = ViewBag.NotificationPreferences as BookMyFun.Models.ViewModels.OwnerNotificationPreferencesViewModel;
+    var shootRequests = ViewBag.ShootRequests as List<BookMyFun.Models.Entities.PhotoShootRequest> ?? new List<BookMyFun.Models.Entities.PhotoShootRequest>();
 }
 
 <!-- Page Header -->
@@ -351,6 +352,30 @@
                                             </button>
                                         }
                                     </div>
+
+                                    <!-- Shoot Status Badges -->
+                                    @{
+                                        var propShoots = shootRequests.Where(s => s.PropertyID == p.PropertyID).ToList();
+                                        var openShoots = propShoots.Where(s => s.Status == "Requested" || s.Status == "Scheduled").ToList();
+                                        bool hasOpenPhoto = openShoots.Any(s => string.Equals(s.ShootType, "Photo", StringComparison.OrdinalIgnoreCase));
+                                        bool hasOpenVideo = openShoots.Any(s => string.Equals(s.ShootType, "Video", StringComparison.OrdinalIgnoreCase));
+                                        bool hasOpenBoth = openShoots.Any(s => string.Equals(s.ShootType, "Both", StringComparison.OrdinalIgnoreCase));
+                                    }
+                                    @if (propShoots.Any())
+                                    {
+                                        <div class="d-flex flex-wrap gap-1.5 align-items-center mb-2">
+                                            @foreach (var s in propShoots.Take(2))
+                                            {
+                                                var bClass = s.Status == "Completed" ? "bg-success-subtle text-success border border-success-subtle" :
+                                                             s.Status == "Scheduled" ? "bg-info-subtle text-info border border-info-subtle" :
+                                                             s.Status == "Cancelled" ? "bg-danger-subtle text-danger border border-danger-subtle" :
+                                                             "bg-warning-subtle text-warning-emphasis border border-warning-subtle";
+                                                <span class="badge @bClass py-1 px-2 rounded-pill small" title="@s.ShootType shoot: @s.Status">
+                                                    <i class="bi bi-camera-reels me-1"></i>@s.ShootType: @s.Status
+                                                </span>
+                                            }
+                                        </div>
+                                    }
                                 </div>
 
                                 <!-- Bottom Row: Price Per Night & Action Buttons -->
@@ -360,6 +385,9 @@
                                         <strong class="text-success fs-6">₹@p.PricePerNight.ToString("N0") <span class="text-muted fw-normal small">/ night</span></strong>
                                     </div>
                                     <div class="d-flex align-items-center gap-1.5">
+                                        <button type="button" class="btn btn-sm btn-outline-info rounded-pill py-1 px-2.5 fw-semibold" style="font-size: 0.75rem;" data-bs-toggle="modal" data-bs-target="#modalRequestShoot_@p.PropertyID">
+                                            <i class="bi bi-camera-reels me-1"></i>Shoot
+                                        </button>
                                         <a asp-action="EditProperty" asp-route-id="@p.PropertyID" class="btn btn-sm btn-outline-primary rounded-pill py-1 px-2.5 fw-semibold" style="font-size: 0.75rem;">
                                             <i class="bi bi-pencil me-1"></i>Edit
                                         </a>
@@ -441,6 +469,65 @@
                                             <div class="modal-footer border-top bg-light py-2.5">
                                                 <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
                                                 <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold">Submit Change Request</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Modal: Request Photo/Video Shoot -->
+                            <div class="modal fade" id="modalRequestShoot_@p.PropertyID" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content border-0 shadow-lg rounded-4 text-start">
+                                        <div class="modal-header border-bottom py-3 bg-light">
+                                            <h6 class="modal-title fw-bold text-dark mb-0">
+                                                <i class="bi bi-camera-reels text-primary me-2"></i>Request Photo / Video Shoot — @p.Title
+                                            </h6>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <form asp-action="RequestPhotoShoot" method="post">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="propertyId" value="@p.PropertyID" />
+                                            <div class="modal-body p-4">
+                                                <div class="alert alert-info border-0 rounded-3 small mb-3">
+                                                    <i class="bi bi-info-circle-fill me-1"></i> Professional photography and video coverage is <strong>included in your subscription plan</strong>. Our staff will coordinate the shoot with you directly.
+                                                </div>
+
+                                                @if (openShoots.Any())
+                                                {
+                                                    <div class="mb-3">
+                                                        <label class="form-label small fw-semibold text-dark">Active Requests for this Listing:</label>
+                                                        <ul class="list-unstyled mb-0">
+                                                            @foreach (var os in openShoots)
+                                                            {
+                                                                <li class="small text-muted mb-1">
+                                                                    <i class="bi bi-clock-history me-1 text-primary"></i> <strong>@os.ShootType Shoot:</strong> @os.Status (Submitted @os.CreatedAt.ToString("dd MMM yyyy"))
+                                                                </li>
+                                                            }
+                                                        </ul>
+                                                    </div>
+                                                }
+
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-semibold small text-dark">Shoot Coverage Type <span class="text-danger">*</span></label>
+                                                    <select name="shootType" class="form-select rounded-3" required>
+                                                        <option value="Photo" disabled="@(hasOpenPhoto ? "disabled" : null)">Photo Shoot @(hasOpenPhoto ? "(Already requested)" : "")</option>
+                                                        <option value="Video" disabled="@(hasOpenVideo ? "disabled" : null)">Video Shoot @(hasOpenVideo ? "(Already requested)" : "")</option>
+                                                        <option value="Both" disabled="@(hasOpenBoth ? "disabled" : null)">Both (Photo &amp; Video) @(hasOpenBoth ? "(Already requested)" : "")</option>
+                                                    </select>
+                                                    <div class="form-text small">One open request per listing per type.</div>
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-semibold small text-dark">Notes / Preferred Timings (Optional)</label>
+                                                    <textarea name="notes" class="form-control rounded-3 small" rows="3" placeholder="Preferred days, key highlights, or gate access notes..."></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer border-top py-2.5 bg-light">
+                                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="btn btn-sm btn-primary rounded-pill px-4 fw-bold">
+                                                    <i class="bi bi-send-fill me-1"></i> Submit Shoot Request
+                                                </button>
                                             </div>
                                         </form>
                                     </div>

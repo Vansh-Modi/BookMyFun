@@ -34,6 +34,7 @@ namespace BookMyFun.Controllers
 
         private readonly INotificationDispatcherService? _notificationDispatcher;
         private readonly ISubscriptionRepository? _subRepo;
+        private readonly IPhotoShootRepository? _photoShootRepo;
 
         public EmployeeController(
             IPropertyRepository propRepo,
@@ -53,7 +54,8 @@ namespace BookMyFun.Controllers
             ISubscriptionRepository? subRepo = null,
             IEventManagerReviewService? eventReviewService = null,
             IStaffQueueService? staffQueueService = null,
-            ISchemaVersionService? schemaVersionService = null)
+            ISchemaVersionService? schemaVersionService = null,
+            IPhotoShootRepository? photoShootRepo = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -70,8 +72,9 @@ namespace BookMyFun.Controllers
             _siteSettingsService = siteSettingsService;
             _notificationDispatcher = notificationDispatcher;
             _subRepo = subRepo;
+            _photoShootRepo = photoShootRepo;
             _eventReviewService = eventReviewService ?? new EventManagerReviewService(userRepo, eventPackageRepo, configRepo, idVerificationService, mediaStorage);
-            _staffQueueService = staffQueueService ?? new StaffQueueService(userRepo, eventPackageRepo, propRepo, idVerificationService, partnerLeadService, refundEngine, damageClaimService);
+            _staffQueueService = staffQueueService ?? new StaffQueueService(userRepo, eventPackageRepo, propRepo, idVerificationService, partnerLeadService, refundEngine, damageClaimService, null, photoShootRepo);
             _schemaVersionService = schemaVersionService;
         }
 
@@ -1122,6 +1125,65 @@ namespace BookMyFun.Controllers
         {
             var model = await _staffQueueService.GetQueueAsync(filter, page, 25);
             return View(model);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> PhotoShootDetail(int id)
+        {
+            if (_photoShootRepo == null) return NotFound();
+            var req = await _photoShootRepo.GetByIdAsync(id);
+            if (req == null) return NotFound();
+
+            var prop = await _propRepo.GetByIdAsync(req.PropertyID);
+            var staffUsers = (await _userRepo.GetUsersByRoleAsync("Employee"))
+                .Concat(await _userRepo.GetUsersByRoleAsync("Admin"))
+                .GroupBy(u => u.UserID)
+                .Select(g => g.First())
+                .ToList();
+
+            ViewBag.StaffUsers = staffUsers;
+            ViewBag.Property = prop;
+            return View(req);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdatePhotoShootStatus(int id, string status, int? assignedToUserId, string? notes)
+        {
+            if (_photoShootRepo == null) return NotFound();
+            var req = await _photoShootRepo.GetByIdAsync(id);
+            if (req == null) return NotFound();
+
+            var validStatuses = new[] { "Requested", "Scheduled", "Completed", "Cancelled" };
+            if (!validStatuses.Contains(status, StringComparer.OrdinalIgnoreCase))
+            {
+                TempData["Error"] = "Invalid photo shoot request status.";
+                return RedirectToAction(nameof(PhotoShootDetail), new { id });
+            }
+
+            var currentUserId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int parsed) ? parsed : 1;
+            string oldStatus = req.Status;
+            int? targetAssigned = assignedToUserId.HasValue ? assignedToUserId.Value : req.AssignedToUserID;
+
+            bool success = await _photoShootRepo.UpdateStatusAsync(id, status, targetAssigned, notes);
+            if (success)
+            {
+                await _configRepo.LogAuditAsync(currentUserId, "StaffUpdatePhotoShootStatus", "PhotoShootRequest", id,
+                    $"Staff #{currentUserId} updated PhotoShootRequest #{id} status from '{oldStatus}' to '{status}'. AssignedTo: #{targetAssigned}. Notes: {notes}");
+
+                if (_notificationDispatcher != null)
+                {
+                    _ = _notificationDispatcher.DispatchPhotoShootStatusChangedAsync(id, req.PropertyID, req.PropertyTitle ?? "Property", req.OwnerID, req.ShootType, oldStatus, status);
+                }
+
+                TempData["Success"] = $"Photo shoot request #{id} status updated to {status}.";
+            }
+            else
+            {
+                TempData["Error"] = "Failed to update photo shoot request.";
+            }
+
+            return RedirectToAction(nameof(PhotoShootDetail), new { id });
         }
     }
 }

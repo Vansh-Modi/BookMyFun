@@ -93,6 +93,13 @@
                 <span class="badge rounded-pill ms-1 @(Model.SelectedFilter == "DamageClaim" ? "bg-light text-dark" : "bg-secondary text-white")">@Model.CountsByType.GetValueOrDefault("DamageClaim", 0)</span>
             </a>
         </li>
+        <li class="nav-item">
+            <a class="nav-link rounded-pill px-3 py-2 fw-semibold @(Model.SelectedFilter == "PhotoShoot" ? "active bg-primary text-white" : "text-dark")"
+               asp-controller="@currentCtrl" asp-action="NeedsAttention" asp-route-filter="PhotoShoot" asp-route-page="1">
+                <i class="bi bi-camera-reels me-1"></i> Shoot Requests
+                <span class="badge rounded-pill ms-1 @(Model.SelectedFilter == "PhotoShoot" ? "bg-white text-primary" : "bg-secondary text-white")">@Model.CountsByType.GetValueOrDefault("PhotoShoot", 0)</span>
+            </a>
+        </li>
     </ul>
 </div>
 

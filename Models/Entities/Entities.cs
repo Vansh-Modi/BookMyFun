@@ -506,4 +506,25 @@ namespace BookMyFun.Models.Entities
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public string? UserName { get; set; }
     }
+
+    public class PhotoShootRequest
+    {
+        public int RequestID { get; set; }
+        public int PropertyID { get; set; }
+        public int OwnerID { get; set; }
+        public string ShootType { get; set; } = "Photo"; // 'Photo', 'Video', 'Both'
+        public string Status { get; set; } = "Requested"; // 'Requested', 'Scheduled', 'Completed', 'Cancelled'
+        public int? AssignedToUserID { get; set; }
+        public string? Notes { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime? UpdatedAt { get; set; }
+
+        // Navigation / display helpers
+        public string? PropertyTitle { get; set; }
+        public string? PropertyLocation { get; set; }
+        public string? OwnerName { get; set; }
+        public string? OwnerEmail { get; set; }
+        public string? OwnerPhone { get; set; }
+        public string? AssignedToUserName { get; set; }
+    }
 }

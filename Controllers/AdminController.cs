@@ -2923,6 +2923,12 @@ namespace BookMyFun.Controllers
             return View("~/Views/Employee/NeedsAttention.cshtml", model);
         }
 
+        [HttpGet]
+        public IActionResult PhotoShootDetail(int id)
+        {
+            return RedirectToAction("PhotoShootDetail", "Employee", new { id });
+        }
+
         // --- Phase 5: Staff Data Health Check Diagnostics ---
         [HttpGet]
         public async Task<IActionResult> DataHealthCheck()

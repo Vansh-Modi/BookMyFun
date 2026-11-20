@@ -848,5 +848,29 @@ namespace BookMyFun.Services.Notifications
                 $"Reservation #{bookingId} created by Client #{clientId} for {property?.Title ?? "Property"}.",
                 "/Admin/ManageBookings");
         }
+
+        public async Task DispatchPhotoShootRequestedAsync(int requestId, int propertyId, string propertyTitle, int ownerId, string shootType)
+        {
+            // Owner gets in-app and email on creation (Skip WhatsApp: EA)
+            await EnqueueForUserAsync("PhotoShootRequested", requestId, ownerId, "EA",
+                $"{shootType} Shoot Request Received",
+                $"Your {shootType} shoot request for '{propertyTitle}' has been received. Our team will schedule it shortly.",
+                "/Owner/Index");
+
+            // Staff (both employees and admins) get in-app and email on creation (Skip WhatsApp: EA)
+            await EnqueueStaffAsync("PhotoShootRequested", requestId, "EA", "EA",
+                $"[Action Needed] New {shootType} Shoot Request",
+                $"Host #{ownerId} requested a {shootType} shoot for listing '{propertyTitle}' (#{propertyId}).",
+                $"/Employee/PhotoShootDetail/{requestId}");
+        }
+
+        public async Task DispatchPhotoShootStatusChangedAsync(int requestId, int propertyId, string propertyTitle, int ownerId, string shootType, string oldStatus, string newStatus)
+        {
+            // Owner gets in-app and email on status change (Skip WhatsApp: EA)
+            await EnqueueForUserAsync("PhotoShootStatusChanged", requestId, ownerId, "EA",
+                $"{shootType} Shoot Status: {newStatus}",
+                $"The status of your {shootType} shoot request for '{propertyTitle}' has been updated to {newStatus}.",
+                "/Owner/Index");
+        }
     }
 }
