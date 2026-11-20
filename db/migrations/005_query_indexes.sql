@@ -100,7 +100,7 @@ BEGIN
     BEGIN
         CREATE NONCLUSTERED INDEX IX_EventManagerPortfolios_User_Approved
         ON dbo.EventManagerPortfolios (UserID, IsApproved)
-        INCLUDE (PortfolioID, Title, ImageUrl);
+        INCLUDE (PortfolioID, Title, MediaUrl);
         PRINT 'Created index IX_EventManagerPortfolios_User_Approved.';
     END
 END
@@ -111,7 +111,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_OwnerSubscriptions_Owner_Status' AND object_id = OBJECT_ID('dbo.OwnerSubscriptions'))
     BEGIN
         CREATE NONCLUSTERED INDEX IX_OwnerSubscriptions_Owner_Status
-        ON dbo.OwnerSubscriptions (OwnerID, Status, EndDate DESC);
+        ON dbo.OwnerSubscriptions (OwnerID, PaymentStatus, EndDate DESC);
         PRINT 'Created index IX_OwnerSubscriptions_Owner_Status.';
     END
 END

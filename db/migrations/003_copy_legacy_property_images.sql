@@ -57,6 +57,25 @@ BEGIN
     PRINT 'Added updated CK_PropertyMedia_MediaType check constraint.';
 END
 
+-- Ensure SourceType constraint allows 'legacy'
+DECLARE @SourceTypeConstraint NVARCHAR(200);
+SELECT @SourceTypeConstraint = name FROM sys.check_constraints
+WHERE parent_object_id = OBJECT_ID('dbo.PropertyMedia') AND definition LIKE '%SourceType%';
+
+IF @SourceTypeConstraint IS NOT NULL
+BEGIN
+    DECLARE @DropSourceTypeSql NVARCHAR(500) = N'ALTER TABLE dbo.PropertyMedia DROP CONSTRAINT ' + QUOTENAME(@SourceTypeConstraint);
+    EXEC sp_executesql @DropSourceTypeSql;
+    PRINT 'Dropped legacy check constraint on SourceType to allow ''legacy''.';
+END
+
+-- Add updated check constraint allowing 'file', 'url', 'legacy'
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id = OBJECT_ID('dbo.PropertyMedia') AND name = 'CK_PropertyMedia_SourceType')
+BEGIN
+    ALTER TABLE dbo.PropertyMedia ADD CONSTRAINT CK_PropertyMedia_SourceType CHECK (SourceType IN ('file', 'url', 'legacy'));
+    PRINT 'Added updated CK_PropertyMedia_SourceType check constraint.';
+END
+
 -- Copy legacy images where not already present in PropertyMedia
 IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'PropertyImages' AND schema_id = SCHEMA_ID('dbo'))
 BEGIN
