@@ -49,6 +49,11 @@ namespace BookMyFun.Controllers
 
         public async Task<IActionResult> Index()
         {
+            if (RoleAccessGuard.IsBookingOrPropertyViewBlocked(User))
+            {
+                return RoleAccessGuard.RedirectToRoleDashboard(this);
+            }
+
             var properties = await _propRepo.GetAllPropertiesAsync(onlyApproved: true);
             var types = await _propRepo.GetPropertyTypesAsync();
             var occasions = await _propRepo.GetOccasionsAsync();

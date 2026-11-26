@@ -51,6 +51,11 @@ namespace BookMyFun.Controllers
             int page = 1, 
             int pageSize = 12)
         {
+            if (RoleAccessGuard.IsBookingOrPropertyViewBlocked(User))
+            {
+                return RoleAccessGuard.RedirectToRoleDashboard(this, "This page is for guests. Use your dashboard.");
+            }
+
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 25);
 
@@ -120,7 +125,7 @@ namespace BookMyFun.Controllers
         {
             if (RoleAccessGuard.IsBookingOrPropertyViewBlocked(User))
             {
-                return RoleAccessGuard.RedirectToRoleDashboard(this, "Property details and booking are restricted to client accounts.");
+                return RoleAccessGuard.RedirectToRoleDashboard(this, "This page is for guests. Use your dashboard.");
             }
 
             var property = await _propRepo.GetByIdAsync(id);

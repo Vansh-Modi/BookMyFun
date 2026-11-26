@@ -17,9 +17,9 @@ namespace BookMyFun.Services.Security
             return BlockedBookingAndPropertyViewRoles.Any(role => user.IsInRole(role));
         }
 
-        public static IActionResult RedirectToRoleDashboard(Controller controller, string message)
+        public static IActionResult RedirectToRoleDashboard(Controller controller, string? message = null)
         {
-            if (controller.TempData != null)
+            if (!string.IsNullOrWhiteSpace(message) && controller.TempData != null)
             {
                 controller.TempData["Error"] = message;
             }

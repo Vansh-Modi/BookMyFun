@@ -195,7 +195,7 @@ namespace BookMyFun.Controllers
 
             if (RoleAccessGuard.IsBookingOrPropertyViewBlocked(User))
             {
-                return RoleAccessGuard.RedirectToRoleDashboard(this, "Booking is restricted to client accounts.");
+                return RoleAccessGuard.RedirectToRoleDashboard(this, "This page is for guests. Use your dashboard.");
             }
 
             if (propertyId <= 0)
@@ -720,7 +720,7 @@ namespace BookMyFun.Controllers
 
             if (RoleAccessGuard.IsBookingOrPropertyViewBlocked(User))
             {
-                return RoleAccessGuard.RedirectToRoleDashboard(this, "Booking is restricted to client accounts.");
+                return RoleAccessGuard.RedirectToRoleDashboard(this, "This page is for guests. Use your dashboard.");
             }
 
             try
@@ -1252,7 +1252,7 @@ namespace BookMyFun.Controllers
 
             if (RoleAccessGuard.IsBookingOrPropertyViewBlocked(User))
             {
-                return RoleAccessGuard.RedirectToRoleDashboard(this, "Booking payment is restricted to client accounts.");
+                return RoleAccessGuard.RedirectToRoleDashboard(this, "This page is for guests. Use your dashboard.");
             }
 
             try
