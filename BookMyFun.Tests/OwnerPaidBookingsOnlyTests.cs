@@ -101,7 +101,7 @@ namespace BookMyFun.Tests
             var path = TestPathHelper.GetPath("Controllers", "BookingController.cs");
             var code = File.ReadAllText(path);
 
-            var confirmIdx = code.IndexOf("CreateBookingAsync(booking)", StringComparison.Ordinal);
+            var confirmIdx = code.IndexOf("CreateHoldAtomicAsync(booking", StringComparison.Ordinal);
             var verifyIdx = code.IndexOf("UpdateBookingStatusAsync(booking.BookingID, \"Confirmed\")", StringComparison.Ordinal);
             var staffAlertIdx = code.IndexOf("DispatchBookingCreatedStaffAlertAsync", StringComparison.Ordinal);
 

@@ -32,6 +32,11 @@ namespace BookMyFun.Repositories
         Task<List<Booking>> GetBookingsByPropertyIdAsync(int propertyId) => Task.FromResult(new List<Booking>());
         Task<Booking?> FindActiveHoldAsync(int clientId, int propertyId, DateTime checkInDate, DateTime checkOutDate, string bookingType, string? slotType)
             => Task.FromResult<Booking?>(null);
+        Task<(bool Available, int BookingId)> CreateHoldAtomicAsync(
+            Booking booking,
+            TimeSpan? hourlyCheckInTime = null,
+            int? hourlyDuration = null)
+            => CreateBookingAsync(booking).ContinueWith(t => (t.Result > 0, t.Result));
         Task<int> ExpireStaleHoldsAsync() => Task.FromResult(0);
     }
 
@@ -337,14 +342,20 @@ namespace BookMyFun.Repositories
             var (reqStart, reqEnd) = _timingOptions.GetBookingWindow(
                 checkInDate, checkOutDate, bookingType, slotType, hourlyCheckInTime, hourlyDuration);
 
-            const string sql = @"
+            var hasColObj = await _db.ExecuteScalarAsync("SELECT COL_LENGTH('dbo.Bookings', 'HoldExpiresAt')");
+            bool hasHoldCol = hasColObj != null && hasColObj != DBNull.Value;
+            string holdClause = hasHoldCol
+                ? "(Status = 'Hold' AND HoldExpiresAt IS NOT NULL AND HoldExpiresAt > GETUTCDATE())"
+                : $"(Status = 'Hold' AND CreatedAt >= DATEADD(MINUTE, -{Math.Max(1, _bookingOptions.HoldMinutes)}, GETUTCDATE()))";
+
+            string sql = $@"
                 SELECT CheckInDate, CheckOutDate, BookingType, SlotType, SlotStartTime, SlotEndTime
                 FROM Bookings
                 WHERE PropertyID = @PropertyID
                   AND (@ExcludeBookingID IS NULL OR BookingID <> @ExcludeBookingID)
                   AND (
-                        Status = 'Confirmed'
-                        OR (Status = 'Pending' AND CreatedAt >= DATEADD(MINUTE, -15, GETDATE()))
+                        Status IN ('Confirmed', 'Paid')
+                        OR {holdClause}
                       )
                   AND CheckInDate <= @RangeEnd
                   AND CheckOutDate >= @RangeStart";
@@ -388,6 +399,158 @@ namespace BookMyFun.Repositories
             }
 
             return true;
+        }
+
+        public async Task<(bool Available, int BookingId)> CreateHoldAtomicAsync(
+            Booking booking,
+            TimeSpan? hourlyCheckInTime = null,
+            int? hourlyDuration = null)
+        {
+            if (string.Equals(booking.BookingType, "Hourly", StringComparison.OrdinalIgnoreCase))
+            {
+                var startToCheck = hourlyCheckInTime ?? _timingOptions.CheckInTimeSpan;
+                if (!_timingOptions.IsHourlyStartAllowed(startToCheck))
+                {
+                    return (false, 0);
+                }
+            }
+
+            var (reqStart, reqEnd) = _timingOptions.GetBookingWindow(
+                booking.CheckInDate, booking.CheckOutDate, booking.BookingType, booking.SlotType, hourlyCheckInTime, hourlyDuration);
+
+            var holdExpiresAt = booking.HoldExpiresAt ?? DateTime.UtcNow.AddMinutes(Math.Max(1, _bookingOptions.HoldMinutes));
+            booking.HoldExpiresAt = holdExpiresAt;
+
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+            using var tx = (SqlTransaction)await conn.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+
+            bool hasHoldCol;
+            using (var colCmd = new SqlCommand("SELECT COL_LENGTH('dbo.Bookings', 'HoldExpiresAt')", conn, tx))
+            {
+                var colObj = await colCmd.ExecuteScalarAsync();
+                hasHoldCol = colObj != null && colObj != DBNull.Value;
+            }
+
+            string holdClause = hasHoldCol
+                ? "(Status = 'Hold' AND HoldExpiresAt IS NOT NULL AND HoldExpiresAt > GETUTCDATE())"
+                : $"(Status = 'Hold' AND CreatedAt >= DATEADD(MINUTE, -{Math.Max(1, _bookingOptions.HoldMinutes)}, GETUTCDATE()))";
+
+            string checkSql = $@"
+                SELECT CheckInDate, CheckOutDate, BookingType, SlotType, SlotStartTime, SlotEndTime
+                FROM Bookings WITH (UPDLOCK, HOLDLOCK)
+                WHERE PropertyID = @PropertyID
+                  AND (Status IN ('Confirmed', 'Paid') OR {holdClause})
+                  AND CheckInDate <= @RangeEnd
+                  AND CheckOutDate >= @RangeStart";
+
+            using (var checkCmd = new SqlCommand(checkSql, conn, tx))
+            {
+                checkCmd.Parameters.AddWithValue("@PropertyID", booking.PropertyID);
+                checkCmd.Parameters.AddWithValue("@RangeStart", booking.CheckInDate.Date.AddDays(-1));
+                checkCmd.Parameters.AddWithValue("@RangeEnd", booking.CheckOutDate.Date.AddDays(1));
+
+                using var r = await checkCmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                {
+                    var exIn = r.GetDateTime(r.GetOrdinal("CheckInDate"));
+                    var exOut = r.GetDateTime(r.GetOrdinal("CheckOutDate"));
+                    var exType = r.IsDBNull(r.GetOrdinal("BookingType")) ? "FullDay" : r.GetString(r.GetOrdinal("BookingType"));
+                    var exSlot = r.IsDBNull(r.GetOrdinal("SlotType")) ? null : r.GetString(r.GetOrdinal("SlotType"));
+                    var exStartTs = r.IsDBNull(r.GetOrdinal("SlotStartTime")) ? (TimeSpan?)null : r.GetTimeSpan(r.GetOrdinal("SlotStartTime"));
+                    var exEndTs = r.IsDBNull(r.GetOrdinal("SlotEndTime")) ? (TimeSpan?)null : r.GetTimeSpan(r.GetOrdinal("SlotEndTime"));
+
+                    int? existingHours = null;
+                    if (exStartTs.HasValue && exEndTs.HasValue)
+                    {
+                        var diff = (exEndTs.Value - exStartTs.Value).TotalHours;
+                        if (diff <= 0) diff += 24;
+                        existingHours = Math.Max(1, (int)Math.Ceiling(diff));
+                    }
+
+                    var (exStart, exEnd) = _timingOptions.GetBookingWindow(exIn, exOut, exType, exSlot, exStartTs, existingHours);
+                    if (BookingTimingOptions.Overlaps(reqStart, reqEnd, exStart, exEnd))
+                    {
+                        await tx.RollbackAsync();
+                        return (false, 0);
+                    }
+                }
+            }
+
+            string insertSql = hasHoldCol
+                ? @"INSERT INTO Bookings
+                    (PropertyID, ClientID, OccasionID, CheckInDate, CheckOutDate, TotalAmount, Status, BookingType, SlotType, SlotStartTime, SlotEndTime,
+                     FreeCancellationWindowHoursSnapshot, CancellationCutoffHoursSnapshot, CancellationFeeTypeSnapshot, CancellationFeeValueSnapshot,
+                     CommissionRateSnapshot, PlatformCommissionAmount, OwnerPayoutAmount, SecurityDepositAmount, SecurityDepositStatus, IdempotencyKey,
+                     IsEventBooking, EventPackageID, CustomEventNotes, EventDate, DecoratorAssignedID, SetupStatus, SetupProofMediaUrls, EventPackagePriceSnapshot,
+                     EventCommissionRateSnapshot, EventPlatformCommissionAmount, EventManagerPayoutAmount, CreatedAt, HoldExpiresAt)
+                    OUTPUT INSERTED.BookingID
+                    VALUES
+                    (@PropertyID, @ClientID, @OccasionID, @CheckInDate, @CheckOutDate, @TotalAmount, @Status, @BookingType, @SlotType, @SlotStartTime, @SlotEndTime,
+                     @FreeCancellationWindowHoursSnapshot, @CancellationCutoffHoursSnapshot, @CancellationFeeTypeSnapshot, @CancellationFeeValueSnapshot,
+                     @CommissionRateSnapshot, @PlatformCommissionAmount, @OwnerPayoutAmount, @SecurityDepositAmount, @SecurityDepositStatus, @IdempotencyKey,
+                     @IsEventBooking, @EventPackageID, @CustomEventNotes, @EventDate, @DecoratorAssignedID, @SetupStatus, @SetupProofMediaUrls, @EventPackagePriceSnapshot,
+                     @EventCommissionRateSnapshot, @EventPlatformCommissionAmount, @EventManagerPayoutAmount, GETUTCDATE(), @HoldExpiresAt)"
+                : @"INSERT INTO Bookings
+                    (PropertyID, ClientID, OccasionID, CheckInDate, CheckOutDate, TotalAmount, Status, BookingType, SlotType, SlotStartTime, SlotEndTime,
+                     FreeCancellationWindowHoursSnapshot, CancellationCutoffHoursSnapshot, CancellationFeeTypeSnapshot, CancellationFeeValueSnapshot,
+                     CommissionRateSnapshot, PlatformCommissionAmount, OwnerPayoutAmount, SecurityDepositAmount, SecurityDepositStatus, IdempotencyKey,
+                     IsEventBooking, EventPackageID, CustomEventNotes, EventDate, DecoratorAssignedID, SetupStatus, SetupProofMediaUrls, EventPackagePriceSnapshot,
+                     EventCommissionRateSnapshot, EventPlatformCommissionAmount, EventManagerPayoutAmount, CreatedAt)
+                    OUTPUT INSERTED.BookingID
+                    VALUES
+                    (@PropertyID, @ClientID, @OccasionID, @CheckInDate, @CheckOutDate, @TotalAmount, @Status, @BookingType, @SlotType, @SlotStartTime, @SlotEndTime,
+                     @FreeCancellationWindowHoursSnapshot, @CancellationCutoffHoursSnapshot, @CancellationFeeTypeSnapshot, @CancellationFeeValueSnapshot,
+                     @CommissionRateSnapshot, @PlatformCommissionAmount, @OwnerPayoutAmount, @SecurityDepositAmount, @SecurityDepositStatus, @IdempotencyKey,
+                     @IsEventBooking, @EventPackageID, @CustomEventNotes, @EventDate, @DecoratorAssignedID, @SetupStatus, @SetupProofMediaUrls, @EventPackagePriceSnapshot,
+                     @EventCommissionRateSnapshot, @EventPlatformCommissionAmount, @EventManagerPayoutAmount, GETUTCDATE())";
+
+            int newId;
+            using (var insertCmd = new SqlCommand(insertSql, conn, tx))
+            {
+                insertCmd.Parameters.AddWithValue("@PropertyID", booking.PropertyID);
+                insertCmd.Parameters.AddWithValue("@ClientID", booking.ClientID);
+                insertCmd.Parameters.AddWithValue("@OccasionID", DBHelper.ToDbValue(booking.OccasionID));
+                insertCmd.Parameters.AddWithValue("@CheckInDate", booking.CheckInDate.Date);
+                insertCmd.Parameters.AddWithValue("@CheckOutDate", booking.CheckOutDate.Date);
+                insertCmd.Parameters.AddWithValue("@TotalAmount", booking.TotalAmount);
+                insertCmd.Parameters.AddWithValue("@Status", booking.Status);
+                insertCmd.Parameters.AddWithValue("@BookingType", booking.BookingType);
+                insertCmd.Parameters.AddWithValue("@SlotType", DBHelper.ToDbValue(booking.SlotType));
+                insertCmd.Parameters.AddWithValue("@SlotStartTime", DBHelper.ToDbValue(booking.SlotStartTime));
+                insertCmd.Parameters.AddWithValue("@SlotEndTime", DBHelper.ToDbValue(booking.SlotEndTime));
+                insertCmd.Parameters.AddWithValue("@FreeCancellationWindowHoursSnapshot", booking.FreeCancellationWindowHoursSnapshot);
+                insertCmd.Parameters.AddWithValue("@CancellationCutoffHoursSnapshot", booking.CancellationCutoffHoursSnapshot);
+                insertCmd.Parameters.AddWithValue("@CancellationFeeTypeSnapshot", booking.CancellationFeeTypeSnapshot);
+                insertCmd.Parameters.AddWithValue("@CancellationFeeValueSnapshot", booking.CancellationFeeValueSnapshot);
+                insertCmd.Parameters.AddWithValue("@CommissionRateSnapshot", booking.CommissionRateSnapshot);
+                insertCmd.Parameters.AddWithValue("@PlatformCommissionAmount", booking.PlatformCommissionAmount);
+                insertCmd.Parameters.AddWithValue("@OwnerPayoutAmount", booking.OwnerPayoutAmount);
+                insertCmd.Parameters.AddWithValue("@SecurityDepositAmount", booking.SecurityDepositAmount);
+                insertCmd.Parameters.AddWithValue("@SecurityDepositStatus", booking.SecurityDepositStatus ?? "Held");
+                insertCmd.Parameters.AddWithValue("@IdempotencyKey", DBHelper.ToDbValue(booking.IdempotencyKey));
+                insertCmd.Parameters.AddWithValue("@IsEventBooking", booking.IsEventBooking);
+                insertCmd.Parameters.AddWithValue("@EventPackageID", DBHelper.ToDbValue(booking.EventPackageID));
+                insertCmd.Parameters.AddWithValue("@CustomEventNotes", DBHelper.ToDbValue(booking.CustomEventNotes));
+                insertCmd.Parameters.AddWithValue("@EventDate", DBHelper.ToDbValue(booking.EventDate?.Date));
+                insertCmd.Parameters.AddWithValue("@DecoratorAssignedID", DBHelper.ToDbValue(booking.DecoratorAssignedID));
+                insertCmd.Parameters.AddWithValue("@SetupStatus", booking.SetupStatus ?? "Pending");
+                insertCmd.Parameters.AddWithValue("@SetupProofMediaUrls", DBHelper.ToDbValue(booking.SetupProofMediaUrls));
+                insertCmd.Parameters.AddWithValue("@EventPackagePriceSnapshot", booking.EventPackagePriceSnapshot);
+                insertCmd.Parameters.AddWithValue("@EventCommissionRateSnapshot", booking.EventCommissionRateSnapshot);
+                insertCmd.Parameters.AddWithValue("@EventPlatformCommissionAmount", booking.EventPlatformCommissionAmount);
+                insertCmd.Parameters.AddWithValue("@EventManagerPayoutAmount", booking.EventManagerPayoutAmount);
+                if (hasHoldCol)
+                {
+                    insertCmd.Parameters.AddWithValue("@HoldExpiresAt", DBHelper.ToDbValue(holdExpiresAt));
+                }
+
+                var scalar = await insertCmd.ExecuteScalarAsync();
+                newId = scalar != null ? Convert.ToInt32(scalar) : 0;
+            }
+
+            await tx.CommitAsync();
+            return (newId > 0, newId);
         }
 
         public async Task<int> RecordPaymentAsync(Payment payment)

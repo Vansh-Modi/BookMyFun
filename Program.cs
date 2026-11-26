@@ -142,6 +142,7 @@ builder.Services.AddScoped<IPartnerLeadService, PartnerLeadService>();
 builder.Services.AddScoped<IDamageClaimService, DamageClaimService>();
 builder.Services.AddScoped<IIdVerificationService, IdVerificationService>();
 builder.Services.AddScoped<ILegalDocumentService, LegalDocumentService>();
+builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 builder.Services.AddScoped<IAvailabilitySuggestionService, AvailabilitySuggestionService>();
 builder.Services.AddScoped<ICalendarRangeService, CalendarRangeService>();
 builder.Services.AddScoped<IContactPrivacyScanner, ContactPrivacyScanner>();

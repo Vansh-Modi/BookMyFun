@@ -212,8 +212,9 @@ namespace BookMyFun.Tests
                 CheckInDate = requestedIn,
                 CheckOutDate = requestedOut,
                 BookingType = "FullDay",
-                Status = "Pending",
-                CreatedAt = DateTime.UtcNow.AddMinutes(-2)
+                Status = "Hold",
+                CreatedAt = DateTime.UtcNow.AddMinutes(-2),
+                HoldExpiresAt = DateTime.UtcNow.AddMinutes(13)
             });
 
             // Confirmed booking on Nov 12 - 14

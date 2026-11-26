@@ -350,10 +350,16 @@ namespace BookMyFun.Repositories
 
             if (checkIn.HasValue && checkOut.HasValue && checkOut.Value.Date > checkIn.Value.Date)
             {
-                whereSql += @" AND NOT EXISTS (
+                var hasColObj = await _db.ExecuteScalarAsync("SELECT COL_LENGTH('dbo.Bookings', 'HoldExpiresAt')");
+                bool hasHoldCol = hasColObj != null && hasColObj != DBNull.Value;
+                string holdClause = hasHoldCol
+                    ? "(b.Status = 'Hold' AND b.HoldExpiresAt IS NOT NULL AND b.HoldExpiresAt > GETUTCDATE())"
+                    : "(b.Status = 'Hold' AND b.CreatedAt >= DATEADD(MINUTE, -15, GETUTCDATE()))";
+
+                whereSql += $@" AND NOT EXISTS (
                     SELECT 1 FROM Bookings b
                     WHERE b.PropertyID = p.PropertyID
-                      AND (b.Status = 'Confirmed' OR (b.Status = 'Pending' AND b.CreatedAt >= DATEADD(MINUTE, -15, GETDATE())))
+                      AND (b.Status IN ('Confirmed', 'Paid') OR {holdClause})
                       AND (
                           ((b.BookingType IS NULL OR b.BookingType = 'FullDay') AND b.CheckInDate < @CheckOutDate AND b.CheckOutDate > @CheckInDate)
                           OR (b.BookingType = 'HalfDay' AND b.SlotType = 'MorningSlot' AND b.CheckInDate >= @CheckInDate AND b.CheckInDate <= @CheckOutDate)

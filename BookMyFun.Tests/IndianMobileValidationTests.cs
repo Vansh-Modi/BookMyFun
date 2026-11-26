@@ -42,6 +42,7 @@ namespace BookMyFun.Tests
                 var name = targetMethod!.Name;
                 var rt = targetMethod.ReturnType;
                 if (rt == typeof(Task<Property?>)) return Task.FromResult<Property?>(TestProp);
+                if (rt == typeof(Task<Booking?>)) return Task.FromResult<Booking?>(null);
                 if (name == nameof(IPropertyRepository.IsPropertyPubliclyVisibleAsync)) return Task.FromResult(true);
                 if (rt == typeof(Task<User?>)) return Task.FromResult<User?>(TestUser);
                 if (name == nameof(IIdVerificationService.IsClientVerifiedAsync)) return Task.FromResult(true);

@@ -36,10 +36,12 @@ namespace BookMyFun.Services
     public class CalendarRangeService : ICalendarRangeService
     {
         private readonly IBookingRepository _bookingRepo;
+        private readonly IAvailabilityService _availabilityService;
 
-        public CalendarRangeService(IBookingRepository bookingRepo)
+        public CalendarRangeService(IBookingRepository bookingRepo, IAvailabilityService? availabilityService = null)
         {
             _bookingRepo = bookingRepo;
+            _availabilityService = availabilityService ?? new AvailabilityService(bookingRepo);
         }
 
         public CalendarValidationResult ValidateAndCalculate(
@@ -165,16 +167,11 @@ namespace BookMyFun.Services
             }
 
             var active = new List<Booking>();
+            var utcNow = DateTime.UtcNow;
             foreach (var b in bookings)
             {
                 if (b.PropertyID != propertyId) continue;
-                if (string.Equals(b.Status, "Cancelled", StringComparison.OrdinalIgnoreCase)) continue;
-
-                bool isConfirmed = string.Equals(b.Status, "Confirmed", StringComparison.OrdinalIgnoreCase);
-                bool isActivePending = string.Equals(b.Status, "Pending", StringComparison.OrdinalIgnoreCase) &&
-                    (b.CreatedAt == default || b.CreatedAt >= DateTime.UtcNow.AddMinutes(-15));
-
-                if (isConfirmed || isActivePending)
+                if (_availabilityService.IsBookingBlocking(b, utcNow))
                 {
                     active.Add(b);
                 }

@@ -45,11 +45,16 @@ namespace BookMyFun.Services
     {
         private readonly IBookingRepository _bookingRepo;
         private readonly BookingTimingOptions _timingOptions;
+        private readonly IAvailabilityService _availabilityService;
 
-        public AvailabilitySuggestionService(IBookingRepository bookingRepo, IOptions<BookingTimingOptions>? timingOptions = null)
+        public AvailabilitySuggestionService(
+            IBookingRepository bookingRepo,
+            IOptions<BookingTimingOptions>? timingOptions = null,
+            IAvailabilityService? availabilityService = null)
         {
             _bookingRepo = bookingRepo;
             _timingOptions = timingOptions?.Value ?? new BookingTimingOptions();
+            _availabilityService = availabilityService ?? new AvailabilityService(bookingRepo, timingOptions);
         }
 
         public async Task<AvailabilitySuggestionResult> GetNearestSuggestionsAsync(
@@ -191,43 +196,13 @@ namespace BookMyFun.Services
         {
             if (propertyBookings != null && propertyBookings.Count > 0)
             {
-                // Evaluate using the exact booking engine rules:
-                // Excludes conflicting Pending and Confirmed bookings, ignores Cancelled bookings.
+                var utcNow = DateTime.UtcNow;
                 foreach (var b in propertyBookings)
                 {
                     if (b.PropertyID != propertyId) continue;
+                    if (!_availabilityService.IsBookingBlocking(b, utcNow)) continue;
 
-                    // Ignores Cancelled bookings
-                    if (string.Equals(b.Status, "Cancelled", StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    bool isConfirmed = string.Equals(b.Status, "Confirmed", StringComparison.OrdinalIgnoreCase);
-                    bool isActivePending = string.Equals(b.Status, "Pending", StringComparison.OrdinalIgnoreCase) &&
-                        (b.CreatedAt == default || b.CreatedAt >= DateTime.UtcNow.AddMinutes(-15));
-
-                    if (!isConfirmed && !isActivePending)
-                        continue;
-
-                    var (reqStart, reqEnd) = _timingOptions.GetBookingWindow(
-                        start, end, bookingType, slotType);
-
-                    int? existingHours = null;
-                    if (b.SlotStartTime.HasValue && b.SlotEndTime.HasValue)
-                    {
-                        var diff = (b.SlotEndTime.Value - b.SlotStartTime.Value).TotalHours;
-                        if (diff <= 0) diff += 24;
-                        existingHours = Math.Max(1, (int)Math.Ceiling(diff));
-                    }
-
-                    var (exStart, exEnd) = _timingOptions.GetBookingWindow(
-                        b.CheckInDate,
-                        b.CheckOutDate,
-                        string.IsNullOrEmpty(b.BookingType) ? "FullDay" : b.BookingType,
-                        b.SlotType,
-                        b.SlotStartTime,
-                        existingHours);
-
-                    if (BookingTimingOptions.Overlaps(reqStart, reqEnd, exStart, exEnd))
+                    if (_availabilityService.DoesBookingOverlap(b, start, end, bookingType, slotType))
                     {
                         return false; // Conflicting booking found
                     }
@@ -236,8 +211,8 @@ namespace BookMyFun.Services
                 return true;
             }
 
-            // Fallback to repository method if no list of bookings was retrieved
-            return await _bookingRepo.IsSlotAvailableAsync(propertyId, start, end, bookingType, slotType);
+            // Fallback to unified availability service
+            return await _availabilityService.IsAvailableAsync(propertyId, start, end, null, bookingType, slotType);
         }
     }
 }

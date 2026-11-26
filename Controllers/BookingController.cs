@@ -79,6 +79,7 @@ namespace BookMyFun.Controllers
         private readonly IStayCelebrationEligibilityService _stayEligibilityService;
         private readonly BookingTimingOptions _timingOptions;
         private readonly BookingOptions _bookingOptions;
+        private readonly IAvailabilityService _availabilityService;
 
         public BookingController(
 
@@ -126,7 +127,9 @@ namespace BookMyFun.Controllers
 
             IOptions<BookingTimingOptions>? timingOptions = null,
 
-            IOptions<BookingOptions>? bookingOptions = null)
+            IOptions<BookingOptions>? bookingOptions = null,
+
+            IAvailabilityService? availabilityService = null)
 
         {
 
@@ -179,6 +182,7 @@ namespace BookMyFun.Controllers
                 null);
             _timingOptions = timingOptions?.Value ?? new BookingTimingOptions();
             _bookingOptions = bookingOptions?.Value ?? new BookingOptions();
+            _availabilityService = availabilityService ?? new AvailabilityService(bookingRepo, timingOptions, bookingOptions);
         }
 
         [Authorize]
@@ -262,8 +266,16 @@ namespace BookMyFun.Controllers
                 }
             }
 
+            Booking? checkoutHold = null;
+            if (int.TryParse(clientIdStr, out int parsedClientId))
+            {
+                checkoutHold = await _bookingRepo.FindActiveHoldAsync(parsedClientId, property.PropertyID, effectiveIn, effectiveOut, bookingType, slotType);
+            }
+
             TimeSpan propCheckInTime = GetPropertyCheckInTime(property);
-            bool isDateAvailable = await _bookingRepo.IsSlotAvailableAsync(property.PropertyID, effectiveIn, effectiveOut, bookingType, slotType);
+            bool isDateAvailable = await _availabilityService.IsAvailableAsync(
+                property.PropertyID, effectiveIn, effectiveOut, checkoutHold?.BookingID, bookingType, slotType)
+                && await _bookingRepo.IsSlotAvailableAsync(property.PropertyID, effectiveIn, effectiveOut, bookingType, slotType, checkoutHold?.BookingID);
 
             var eligibility = _stayEligibilityService != null
                 ? await _stayEligibilityService.CheckEligibilityAsync(property.PropertyID, effectiveIn, propCheckInTime)
@@ -998,7 +1010,16 @@ namespace BookMyFun.Controllers
 
                     {
 
-                        bool isAvailable = await _bookingRepo.IsSlotAvailableAsync(
+                        bool isAvailable = await _availabilityService.IsAvailableAsync(
+                            model.PropertyID,
+                            model.CheckInDate,
+                            model.CheckOutDate,
+                            existingHold?.BookingID,
+                            model.BookingType,
+                            model.SlotType,
+                            model.CheckInTime,
+                            model.HourlyDuration)
+                            && await _bookingRepo.IsSlotAvailableAsync(
                             model.PropertyID,
                             model.CheckInDate,
                             model.CheckOutDate,
@@ -1196,7 +1217,15 @@ namespace BookMyFun.Controllers
 
                     };
 
-                    bookingId = await _bookingRepo.CreateBookingAsync(booking);
+                    var (atomicAvailable, createdBookingId) = await _bookingRepo.CreateHoldAtomicAsync(booking, model.CheckInTime, model.HourlyDuration);
+                    if (!atomicAvailable || createdBookingId <= 0)
+                    {
+                        ModelState.AddModelError("", "These dates are already booked.");
+                        TempData["Error"] = "These dates are no longer available. Please choose different dates.";
+                        await PopulateCheckoutViewModelAsync(model, property);
+                        return View("Checkout", model);
+                    }
+                    bookingId = createdBookingId;
                 }
 
                 // Record policy consent acceptances (Item 3f)
