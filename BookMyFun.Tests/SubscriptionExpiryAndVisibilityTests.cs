@@ -138,16 +138,17 @@ namespace BookMyFun.Tests
             var guestResult = await controller.Details(unpubProp.PropertyID);
             Assert.IsType<NotFoundResult>(guestResult);
 
-            // 2c. Owner viewing their own property from dashboard -> 200 OK
+            // 2c. Owner is blocked from public Details and redirected to Owner dashboard
             controller.ControllerContext = CreateContextWithUser(ownerId, "Owner");
             var ownerResult = await controller.Details(unpubProp.PropertyID);
-            var viewResult = Assert.IsType<ViewResult>(ownerResult);
-            Assert.Equal(unpubProp, viewResult.Model);
+            var ownerRedirect = Assert.IsType<RedirectToActionResult>(ownerResult);
+            Assert.Equal("Owner", ownerRedirect.ControllerName);
 
-            // 2d. Staff (Admin / Employee) viewing property -> 200 OK
+            // 2d. Staff (Admin) is blocked from public Details and redirected to Admin dashboard
             controller.ControllerContext = CreateContextWithUser(staffId, "Admin");
             var adminResult = await controller.Details(unpubProp.PropertyID);
-            Assert.IsType<ViewResult>(adminResult);
+            var adminRedirect = Assert.IsType<RedirectToActionResult>(adminResult);
+            Assert.Equal("Admin", adminRedirect.ControllerName);
 
             // 2e. Public visibility check returns false for unpublished property
             bool isVisible = await fakePropRepo.IsPropertyPubliclyVisibleAsync(unpubProp);

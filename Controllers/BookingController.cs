@@ -193,6 +193,11 @@ namespace BookMyFun.Controllers
 
         {
 
+            if (RoleAccessGuard.IsBookingOrPropertyViewBlocked(User))
+            {
+                return RoleAccessGuard.RedirectToRoleDashboard(this, "Booking is restricted to client accounts.");
+            }
+
             if (propertyId <= 0)
 
             {
@@ -517,6 +522,10 @@ namespace BookMyFun.Controllers
             string? category = null,
             string? sort = "rating")
         {
+            if (RoleAccessGuard.IsBookingOrPropertyViewBlocked(User))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access restricted to client accounts." });
+            }
             if (propertyId <= 0)
             {
                 return Json(new
@@ -708,6 +717,11 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> ConfirmBooking(BookingCheckoutViewModel model)
 
         {
+
+            if (RoleAccessGuard.IsBookingOrPropertyViewBlocked(User))
+            {
+                return RoleAccessGuard.RedirectToRoleDashboard(this, "Booking is restricted to client accounts.");
+            }
 
             try
 
@@ -1234,6 +1248,11 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> Payment(int id)
 
         {
+
+            if (RoleAccessGuard.IsBookingOrPropertyViewBlocked(User))
+            {
+                return RoleAccessGuard.RedirectToRoleDashboard(this, "Booking payment is restricted to client accounts.");
+            }
 
             try
 

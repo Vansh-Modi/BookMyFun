@@ -5,6 +5,7 @@ using BookMyFun.Models.ViewModels;
 using BookMyFun.Repositories;
 using BookMyFun.Services;
 using BookMyFun.Services.Common;
+using BookMyFun.Services.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -117,30 +118,18 @@ namespace BookMyFun.Controllers
 
         public async Task<IActionResult> Details(int id, DateTime? checkIn = null, DateTime? checkOut = null)
         {
+            if (RoleAccessGuard.IsBookingOrPropertyViewBlocked(User))
+            {
+                return RoleAccessGuard.RedirectToRoleDashboard(this, "Property details and booking are restricted to client accounts.");
+            }
+
             var property = await _propRepo.GetByIdAsync(id);
             if (property == null) return NotFound();
 
-            // Owners and staff see their own properties in every state, including Unpublished. Staff see all properties.
-            bool isAuthorizedViewer = false;
-            if (User?.Identity?.IsAuthenticated == true)
+            bool isVisible = await _propRepo.IsPropertyPubliclyVisibleAsync(property);
+            if (!isVisible)
             {
-                if (User.IsInRole("Admin") || User.IsInRole("Employee"))
-                {
-                    isAuthorizedViewer = true;
-                }
-                else if (int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int currentUserId) && currentUserId == property.OwnerID)
-                {
-                    isAuthorizedViewer = true;
-                }
-            }
-
-            if (!isAuthorizedViewer)
-            {
-                bool isVisible = await _propRepo.IsPropertyPubliclyVisibleAsync(property);
-                if (!isVisible)
-                {
-                    return NotFound();
-                }
+                return NotFound();
             }
 
             var reviews = await _bookingRepo.GetReviewsByPropertyIdAsync(id);
@@ -165,6 +154,10 @@ namespace BookMyFun.Controllers
             [FromQuery] string bookingType = "FullDay",
             [FromQuery] string? slotType = null)
         {
+            if (RoleAccessGuard.IsBookingOrPropertyViewBlocked(User))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access restricted to client accounts." });
+            }
             // Rate-limiting check: 60 requests per minute per IP / User
             string clientKey = User?.Identity?.IsAuthenticated == true
                 ? $"user_{User.FindFirstValue(ClaimTypes.NameIdentifier)}"
@@ -218,6 +211,10 @@ namespace BookMyFun.Controllers
         [HttpGet("/api/properties/{id}/booked-dates")]
         public async Task<IActionResult> GetBookedDates(int id)
         {
+            if (RoleAccessGuard.IsBookingOrPropertyViewBlocked(User))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access restricted to client accounts." });
+            }
             if (id <= 0) return BadRequest(new { error = "Invalid property ID." });
             var blocked = await _calendarRangeService.GetBlockedDatesForPropertyAsync(id);
             return Ok(blocked);

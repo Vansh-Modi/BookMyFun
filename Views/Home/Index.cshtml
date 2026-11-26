@@ -199,10 +199,13 @@
                 <p class="mb-0">Properties are currently being loaded. Check back shortly!</p>
             </div>
         }
+        @{
+            bool hideBookingAndViewLinks = BookMyFun.Services.Security.RoleAccessGuard.IsBookingOrPropertyViewBlocked(User);
+        }
         @foreach (var p in featured)
         {
             <div class="col">
-                <div class="property-card h-100 position-relative" data-card-url="@Url.Action("Details", "Properties", new { id = p.PropertyID })">
+                <div class="property-card h-100 position-relative" @(hideBookingAndViewLinks ? "" : $"data-card-url=\"{Url.Action("Details", "Properties", new { id = p.PropertyID })}\"")>
                     <!-- Property Image with Type & Verified Badges -->
                     <div class="property-card-img-wrap">
                         <img src="@p.PrimaryImageUrl" alt="@p.Title" loading="lazy" decoding="async" onerror="this.src='/images/placeholder.jpg';" />
@@ -224,9 +227,16 @@
                             <!-- Left: Name, Location, Guests -->
                             <div class="col-7 pe-1">
                                 <h3 class="property-title text-truncate" title="@p.Title">
-                                    <a asp-controller="Properties" asp-action="Details" asp-route-id="@p.PropertyID" class="stretched-link text-decoration-none">
-                                        @p.Title
-                                    </a>
+                                    @if (hideBookingAndViewLinks)
+                                    {
+                                        <span>@p.Title</span>
+                                    }
+                                    else
+                                    {
+                                        <a asp-controller="Properties" asp-action="Details" asp-route-id="@p.PropertyID" class="stretched-link text-decoration-none">
+                                            @p.Title
+                                        </a>
+                                    }
                                 </h3>
 
                                 <div class="property-meta-row mb-2 text-truncate" title="@p.Location">
@@ -278,11 +288,14 @@
                         </div>
 
                         <!-- Card Action Buttons -->
-                        <div class="property-card-footer">
-                            <a asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@p.PropertyID" class="btn btn-warning rounded-pill w-100 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-1 position-relative" style="z-index: 2;" onclick="event.stopPropagation();">
-                                <i class="bi bi-calendar-check"></i> Book Slot
-                            </a>
-                        </div>
+                        @if (!hideBookingAndViewLinks)
+                        {
+                            <div class="property-card-footer">
+                                <a asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@p.PropertyID" class="btn btn-warning rounded-pill w-100 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-1 position-relative" style="z-index: 2;" onclick="event.stopPropagation();">
+                                    <i class="bi bi-calendar-check"></i> Book Slot
+                                </a>
+                            </div>
+                        }
                     </div>
                 </div>
             </div>

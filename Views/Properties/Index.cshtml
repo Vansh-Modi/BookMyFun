@@ -816,9 +816,10 @@
                 BookMyFun.Services.AvailabilitySuggestionResult? pAvail = null;
                 availMap?.TryGetValue(p.PropertyID, out pAvail);
                 bool isUnavailable = pAvail != null && !pAvail.IsRequestedAvailable;
+                bool hideBookingAndViewLinks = BookMyFun.Services.Security.RoleAccessGuard.IsBookingOrPropertyViewBlocked(User);
 
                 <div class="col">
-                    <div class="property-card h-100 position-relative @(isUnavailable ? "property-card-unavailable" : "")" data-card-url="@Url.Action("Details", "Properties", new { id = p.PropertyID, checkIn = selectedCheckIn, checkOut = selectedCheckOut })">
+                    <div class="property-card h-100 position-relative @(isUnavailable ? "property-card-unavailable" : "")" @(hideBookingAndViewLinks ? "" : $"data-card-url=\"{Url.Action("Details", "Properties", new { id = p.PropertyID, checkIn = selectedCheckIn, checkOut = selectedCheckOut })}\"")>
                         <!-- Property Image with Type & Verified Badges -->
                         <div class="property-card-img-wrap">
                             <img src="@p.PrimaryImageUrl" alt="@p.Title" loading="lazy" decoding="async" onerror="this.src='/images/placeholder.jpg';" />
@@ -862,9 +863,16 @@
                                 <!-- Left: Name, Location, Guests -->
                                 <div class="col-7 pe-1">
                                     <h3 class="property-title text-truncate" title="@p.Title">
-                                        <a asp-action="Details" asp-route-id="@p.PropertyID" asp-route-checkIn="@selectedCheckIn" asp-route-checkOut="@selectedCheckOut" class="stretched-link text-decoration-none">
-                                            @p.Title
-                                        </a>
+                                        @if (hideBookingAndViewLinks)
+                                        {
+                                            <span>@p.Title</span>
+                                        }
+                                        else
+                                        {
+                                            <a asp-action="Details" asp-route-id="@p.PropertyID" asp-route-checkIn="@selectedCheckIn" asp-route-checkOut="@selectedCheckOut" class="stretched-link text-decoration-none">
+                                                @p.Title
+                                            </a>
+                                        }
                                     </h3>
 
                                     <div class="property-meta-row mb-2 text-truncate" title="@p.Location">
@@ -913,11 +921,14 @@
                                 </div>
                             </div>
 
-                            <div class="property-card-footer">
-                                <a asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@p.PropertyID" class="btn btn-warning rounded-pill w-100 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-1 position-relative" style="z-index: 2;" onclick="event.stopPropagation();">
-                                    <i class="bi bi-calendar-check"></i> Book Slot
-                                </a>
-                            </div>
+                            @if (!hideBookingAndViewLinks)
+                            {
+                                <div class="property-card-footer">
+                                    <a asp-controller="Booking" asp-action="Checkout" asp-route-propertyId="@p.PropertyID" class="btn btn-warning rounded-pill w-100 fw-bold shadow-sm d-flex align-items-center justify-content-center gap-1 position-relative" style="z-index: 2;" onclick="event.stopPropagation();">
+                                        <i class="bi bi-calendar-check"></i> Book Slot
+                                    </a>
+                                </div>
+                            }
                         </div>
                     </div>
                 </div>
