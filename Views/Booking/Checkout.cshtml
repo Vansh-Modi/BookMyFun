@@ -1,6 +1,8 @@
 @model BookMyFun.Models.ViewModels.BookingCheckoutViewModel
+@inject Microsoft.Extensions.Options.IOptions<BookMyFun.Models.Configuration.BookingTimingOptions> TimingOptions
 @{
     ViewData["Title"] = "Flexible Booking & Checkout";
+    var timingCfg = TimingOptions.Value ?? new BookMyFun.Models.Configuration.BookingTimingOptions();
 }
 
 <style>
@@ -553,7 +555,7 @@
                                 <div class="row g-2 mb-3">
                                     <div class="col-6">
                                         <label class="form-label small fw-semibold text-dark" for="hourlyCheckInTime">Check-In Time <span class="text-danger">*</span></label>
-                                        <input type="time" id="hourlyCheckInTime" asp-for="CheckInTime" class="form-control form-control-sm" value="11:00" onchange="validateHourlyTimings()" />
+                                        <input type="time" id="hourlyCheckInTime" asp-for="CheckInTime" class="form-control form-control-sm" value="@timingCfg.CheckInTime" min="@timingCfg.CheckInTime" onchange="validateHourlyTimings()" />
                                     </div>
                                     <div class="col-6">
                                         <label class="form-label small fw-semibold text-dark" for="hourlyCheckOutTime">Check-Out Time <span class="text-danger">*</span></label>
@@ -1203,6 +1205,15 @@ renderCompactCalendar();
 
         const [inH, inM] = inTime.split(':').map(Number);
         const [outH, outM] = outTime.split(':').map(Number);
+
+        const minCheckIn = '@timingCfg.CheckInTime';
+        const [minH, minM] = minCheckIn.split(':').map(Number);
+        if ((inH * 60 + inM) < (minH * 60 + minM)) {
+            errorText.style.display = 'block';
+            errorText.textContent = `Hourly booking check-in time cannot be earlier than ${minCheckIn}.`;
+            if (hourlyDurationReadonly) hourlyDurationReadonly.value = 'Invalid start time';
+            return false;
+        }
 
         let diffHours = (outH + outM / 60) - (inH + inM / 60);
         let isOvernight = false;

@@ -30,6 +30,7 @@ namespace BookMyFun.Services
             IEnumerable<string>? blockedDatesIso = null);
 
         Task<List<string>> GetBlockedDatesForPropertyAsync(int propertyId);
+        Task<List<string>> GetCheckoutDatesForPropertyAsync(int propertyId) => Task.FromResult(new List<string>());
     }
 
     public class CalendarRangeService : ICalendarRangeService
@@ -92,11 +93,11 @@ namespace BookMyFun.Services
                     };
                 }
 
-                // Verify no blocked dates are included in the selected range
+                // Verify no blocked nights are included in the selected range [inDate, outDate)
                 if (blockedDatesIso != null)
                 {
                     var blockedSet = new HashSet<string>(blockedDatesIso, StringComparer.OrdinalIgnoreCase);
-                    for (var d = inDate; d <= outDate; d = d.AddDays(1))
+                    for (var d = inDate; d < outDate; d = d.AddDays(1))
                     {
                         var iso = d.ToString("yyyy-MM-dd");
                         if (blockedSet.Contains(iso))
@@ -146,7 +147,7 @@ namespace BookMyFun.Services
             };
         }
 
-        public async Task<List<string>> GetBlockedDatesForPropertyAsync(int propertyId)
+        private async Task<List<Booking>> GetActivePropertyBookingsAsync(int propertyId)
         {
             List<Booking> bookings;
             try
@@ -163,31 +164,72 @@ namespace BookMyFun.Services
                 bookings = new List<Booking>();
             }
 
-            var blockedSet = new HashSet<string>();
-
+            var active = new List<Booking>();
             foreach (var b in bookings)
             {
                 if (b.PropertyID != propertyId) continue;
-
-                // Ignore Cancelled bookings
-                if (string.Equals(b.Status, "Cancelled", StringComparison.OrdinalIgnoreCase))
-                    continue;
+                if (string.Equals(b.Status, "Cancelled", StringComparison.OrdinalIgnoreCase)) continue;
 
                 bool isConfirmed = string.Equals(b.Status, "Confirmed", StringComparison.OrdinalIgnoreCase);
                 bool isActivePending = string.Equals(b.Status, "Pending", StringComparison.OrdinalIgnoreCase) &&
                     (b.CreatedAt == default || b.CreatedAt >= DateTime.UtcNow.AddMinutes(-15));
 
-                if (!isConfirmed && !isActivePending)
-                    continue;
-
-                // Expand every date from CheckInDate to CheckOutDate (inclusive)
-                for (var d = b.CheckInDate.Date; d <= b.CheckOutDate.Date; d = d.AddDays(1))
+                if (isConfirmed || isActivePending)
                 {
-                    blockedSet.Add(d.ToString("yyyy-MM-dd"));
+                    active.Add(b);
+                }
+            }
+            return active;
+        }
+
+        public async Task<List<string>> GetBlockedDatesForPropertyAsync(int propertyId)
+        {
+            var bookings = await GetActivePropertyBookingsAsync(propertyId);
+            var blockedSet = new HashSet<string>();
+
+            foreach (var b in bookings)
+            {
+                bool isFullDay = string.IsNullOrEmpty(b.BookingType) ||
+                                 string.Equals(b.BookingType, "FullDay", StringComparison.OrdinalIgnoreCase);
+
+                if (isFullDay)
+                {
+                    // Checkout day (10:00) is available for a new 11:00 check-in; block occupied nights [CheckInDate, CheckOutDate).
+                    var lastOccupiedNight = b.CheckOutDate.Date > b.CheckInDate.Date
+                        ? b.CheckOutDate.Date.AddDays(-1)
+                        : b.CheckInDate.Date;
+
+                    for (var d = b.CheckInDate.Date; d <= lastOccupiedNight; d = d.AddDays(1))
+                    {
+                        blockedSet.Add(d.ToString("yyyy-MM-dd"));
+                    }
+                }
+                else
+                {
+                    blockedSet.Add(b.CheckInDate.Date.ToString("yyyy-MM-dd"));
                 }
             }
 
             return blockedSet.OrderBy(d => d).ToList();
+        }
+
+        public async Task<List<string>> GetCheckoutDatesForPropertyAsync(int propertyId)
+        {
+            var bookings = await GetActivePropertyBookingsAsync(propertyId);
+            var checkoutDates = new HashSet<string>();
+
+            foreach (var b in bookings)
+            {
+                bool isFullDay = string.IsNullOrEmpty(b.BookingType) ||
+                                 string.Equals(b.BookingType, "FullDay", StringComparison.OrdinalIgnoreCase);
+
+                if (isFullDay && b.CheckOutDate.Date > b.CheckInDate.Date)
+                {
+                    checkoutDates.Add(b.CheckOutDate.Date.ToString("yyyy-MM-dd"));
+                }
+            }
+
+            return checkoutDates.OrderBy(d => d).ToList();
         }
     }
 }

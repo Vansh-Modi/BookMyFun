@@ -3,8 +3,10 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using BookMyFun.Models.Configuration;
 using BookMyFun.Models.Entities;
 using BookMyFun.Repositories;
+using Microsoft.Extensions.Options;
 
 namespace BookMyFun.Services
 {
@@ -42,10 +44,12 @@ namespace BookMyFun.Services
     public class AvailabilitySuggestionService : IAvailabilitySuggestionService
     {
         private readonly IBookingRepository _bookingRepo;
+        private readonly BookingTimingOptions _timingOptions;
 
-        public AvailabilitySuggestionService(IBookingRepository bookingRepo)
+        public AvailabilitySuggestionService(IBookingRepository bookingRepo, IOptions<BookingTimingOptions>? timingOptions = null)
         {
             _bookingRepo = bookingRepo;
+            _timingOptions = timingOptions?.Value ?? new BookingTimingOptions();
         }
 
         public async Task<AvailabilitySuggestionResult> GetNearestSuggestionsAsync(
@@ -204,17 +208,26 @@ namespace BookMyFun.Services
                     if (!isConfirmed && !isActivePending)
                         continue;
 
-                    // BookingType and Slot overlap
-                    bool typeOverlap = string.Equals(bookingType, "FullDay", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(b.BookingType, "FullDay", StringComparison.OrdinalIgnoreCase)
-                        || (!string.IsNullOrEmpty(slotType) && string.Equals(b.SlotType, slotType, StringComparison.OrdinalIgnoreCase));
+                    var (reqStart, reqEnd) = _timingOptions.GetBookingWindow(
+                        start, end, bookingType, slotType);
 
-                    if (!typeOverlap)
-                        continue;
+                    int? existingHours = null;
+                    if (b.SlotStartTime.HasValue && b.SlotEndTime.HasValue)
+                    {
+                        var diff = (b.SlotEndTime.Value - b.SlotStartTime.Value).TotalHours;
+                        if (diff <= 0) diff += 24;
+                        existingHours = Math.Max(1, (int)Math.Ceiling(diff));
+                    }
 
-                    // Date overlap check: [start, end] overlaps with [b.CheckInDate, b.CheckOutDate]
-                    // (b.CheckInDate <= end && b.CheckOutDate >= start)
-                    if (b.CheckInDate.Date <= end.Date && b.CheckOutDate.Date >= start.Date)
+                    var (exStart, exEnd) = _timingOptions.GetBookingWindow(
+                        b.CheckInDate,
+                        b.CheckOutDate,
+                        string.IsNullOrEmpty(b.BookingType) ? "FullDay" : b.BookingType,
+                        b.SlotType,
+                        b.SlotStartTime,
+                        existingHours);
+
+                    if (BookingTimingOptions.Overlaps(reqStart, reqEnd, exStart, exEnd))
                     {
                         return false; // Conflicting booking found
                     }

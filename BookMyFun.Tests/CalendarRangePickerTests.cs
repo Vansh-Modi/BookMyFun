@@ -250,7 +250,7 @@ namespace BookMyFun.Tests
 
             Assert.Contains("2026-11-10", blocked);
             Assert.Contains("2026-11-11", blocked);
-            Assert.Contains("2026-11-12", blocked);
+            Assert.DoesNotContain("2026-11-12", blocked);
 
             // Cancelled booking dates must not be blocked
             Assert.DoesNotContain("2026-11-20", blocked);
@@ -285,7 +285,7 @@ namespace BookMyFun.Tests
             var ok = Assert.IsType<OkObjectResult>(resOk);
             var dates = Assert.IsAssignableFrom<List<string>>(ok.Value);
             Assert.Contains("2026-12-01", dates);
-            Assert.Contains("2026-12-02", dates);
+            Assert.DoesNotContain("2026-12-02", dates);
         }
     }
 }

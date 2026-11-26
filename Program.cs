@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.ResponseCompression;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddJsonFile("appsettings.Booking.json", optional: true, reloadOnChange: true);
 
 // Bootstrap Logger for Startup Phase Diagnostics
 using var startupLoggerFactory = LoggerFactory.Create(lb =>
@@ -35,6 +36,7 @@ builder.Services.Configure<RazorpayOptions>(builder.Configuration.GetSection(Raz
 builder.Services.Configure<GoogleAuthOptions>(builder.Configuration.GetSection(GoogleAuthOptions.SectionName));
 builder.Services.Configure<WhatsAppOptions>(builder.Configuration.GetSection(WhatsAppOptions.SectionName));
 builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection(DatabaseOptions.SectionName));
+builder.Services.Configure<BookMyFun.Models.Configuration.BookingTimingOptions>(builder.Configuration.GetSection(BookMyFun.Models.Configuration.BookingTimingOptions.SectionName));
 
 var smtpOptions = builder.Configuration.GetSection(SmtpOptions.SectionName).Get<SmtpOptions>() ?? new SmtpOptions();
 var razorpayOptions = builder.Configuration.GetSection(RazorpayOptions.SectionName).Get<RazorpayOptions>() ?? new RazorpayOptions();

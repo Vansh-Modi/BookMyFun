@@ -1,4 +1,6 @@
 using BookMyFun.Services.Checkout;
+using BookMyFun.Models.Configuration;
+using Microsoft.Extensions.Options;
 
 using BookMyFun.Services.Security;
 
@@ -75,6 +77,7 @@ namespace BookMyFun.Controllers
         private readonly INotificationDispatcherService? _notificationDispatcher;
 
         private readonly IStayCelebrationEligibilityService _stayEligibilityService;
+        private readonly BookingTimingOptions _timingOptions;
 
         public BookingController(
 
@@ -118,7 +121,9 @@ namespace BookMyFun.Controllers
 
             INotificationDispatcherService? notificationDispatcher = null,
 
-            IStayCelebrationEligibilityService? stayEligibilityService = null)
+            IStayCelebrationEligibilityService? stayEligibilityService = null,
+
+            IOptions<BookingTimingOptions>? timingOptions = null)
 
         {
 
@@ -169,7 +174,7 @@ namespace BookMyFun.Controllers
                 new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
                 new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
                 null);
-
+            _timingOptions = timingOptions?.Value ?? new BookingTimingOptions();
         }
 
         [Authorize]
@@ -885,12 +890,16 @@ namespace BookMyFun.Controllers
 
                 }
 
-                if (model.BookingType == "Hourly" && (!model.HourlyDuration.HasValue || model.HourlyDuration.Value <= 0))
-
+                if (model.BookingType == "Hourly")
                 {
-
-                    ModelState.AddModelError("HourlyDuration", "Please select a valid hourly booking duration.");
-
+                    if (!model.HourlyDuration.HasValue || model.HourlyDuration.Value <= 0)
+                    {
+                        ModelState.AddModelError("HourlyDuration", "Please select a valid hourly booking duration.");
+                    }
+                    if (!_timingOptions.IsHourlyStartAllowed(model.CheckInTime))
+                    {
+                        ModelState.AddModelError("CheckInTime", $"Hourly booking check-in time cannot be earlier than {_timingOptions.CheckInTimeSpan:hh\\:mm}.");
+                    }
                 }
 
                 EventPackage? selectedPackage = null;
@@ -1013,7 +1022,15 @@ namespace BookMyFun.Controllers
 
                     {
 
-                        bool isAvailable = await _bookingRepo.IsSlotAvailableAsync(model.PropertyID, model.CheckInDate, model.CheckOutDate, model.BookingType, model.SlotType);
+                        bool isAvailable = await _bookingRepo.IsSlotAvailableAsync(
+                            model.PropertyID,
+                            model.CheckInDate,
+                            model.CheckOutDate,
+                            model.BookingType,
+                            model.SlotType,
+                            null,
+                            model.CheckInTime,
+                            model.HourlyDuration);
 
                         if (!isAvailable)
 

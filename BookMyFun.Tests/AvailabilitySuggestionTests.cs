@@ -156,9 +156,9 @@ namespace BookMyFun.Tests
             // Nov 10 + 3 days = Nov 13 to Nov 15 (free!) -> distance 3
 
             var top = result.Suggestions.First();
-            Assert.Equal(new DateTime(2026, 11, 13), top.CheckInDate);
-            Assert.Equal(new DateTime(2026, 11, 15), top.CheckOutDate);
-            Assert.Equal(3, top.DistanceDays);
+            Assert.Equal(new DateTime(2026, 11, 12), top.CheckInDate);
+            Assert.Equal(new DateTime(2026, 11, 14), top.CheckOutDate);
+            Assert.Equal(2, top.DistanceDays);
             Assert.Equal(2, result.Nights);
             Assert.Contains("Nearest available dates:", result.Message);
         }
@@ -232,11 +232,11 @@ namespace BookMyFun.Tests
 
             Assert.False(result.IsRequestedAvailable);
 
-            // Neither the pending window (Nov 10-12) nor the confirmed window (Nov 12-14) can be suggested
+            // Neither the pending window (Nov 10-12) nor the confirmed window (Nov 12-14) can be suggested (strict date-time overlap: < / >)
             foreach (var s in result.Suggestions)
             {
-                Assert.False(s.CheckInDate <= new DateTime(2026, 11, 12) && s.CheckOutDate >= new DateTime(2026, 11, 10));
-                Assert.False(s.CheckInDate <= new DateTime(2026, 11, 14) && s.CheckOutDate >= new DateTime(2026, 11, 12));
+                Assert.False(s.CheckInDate < new DateTime(2026, 11, 12) && s.CheckOutDate > new DateTime(2026, 11, 10));
+                Assert.False(s.CheckInDate < new DateTime(2026, 11, 14) && s.CheckOutDate > new DateTime(2026, 11, 12));
             }
         }
 
@@ -303,8 +303,8 @@ namespace BookMyFun.Tests
             // Feb 25 to Feb 28 (distance 3 days backward): check-in Feb 25, out Feb 28
             // Closest forward: Feb 28 + 3 days = Mar 2 to Mar 5 (distance 3 days forward)
             var top = result.Suggestions.First();
-            Assert.Equal(4, top.DistanceDays);
-            Assert.True(top.CheckInDate == new DateTime(2028, 2, 24) || top.CheckInDate == new DateTime(2028, 3, 3));
+            Assert.Equal(3, top.DistanceDays);
+            Assert.True(top.CheckInDate == new DateTime(2028, 2, 25) || top.CheckInDate == new DateTime(2028, 3, 2));
         }
 
         [Fact]

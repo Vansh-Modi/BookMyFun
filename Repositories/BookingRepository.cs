@@ -1,6 +1,8 @@
 using BookMyFun.Data;
+using BookMyFun.Models.Configuration;
 using BookMyFun.Models.Entities;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Options;
 
 namespace BookMyFun.Repositories
 {
@@ -20,6 +22,8 @@ namespace BookMyFun.Repositories
         Task<bool> IsSlotAvailableAsync(int propertyId, DateTime checkInDate, DateTime checkOutDate, string bookingType, string? slotType);
         Task<bool> IsSlotAvailableAsync(int propertyId, DateTime checkInDate, DateTime checkOutDate, string bookingType, string? slotType, int? excludeBookingId)
             => IsSlotAvailableAsync(propertyId, checkInDate, checkOutDate, bookingType, slotType);
+        Task<bool> IsSlotAvailableAsync(int propertyId, DateTime checkInDate, DateTime checkOutDate, string bookingType, string? slotType, int? excludeBookingId, TimeSpan? hourlyCheckInTime, int? hourlyDuration)
+            => IsSlotAvailableAsync(propertyId, checkInDate, checkOutDate, bookingType, slotType, excludeBookingId);
         Task<int> RecordPaymentAsync(Payment payment);
         Task<List<Payment>> GetPaymentsByBookingIdAsync(int bookingId);
         Task<List<CustomerReview>> GetReviewsByPropertyIdAsync(int propertyId);
@@ -31,10 +35,12 @@ namespace BookMyFun.Repositories
     public class BookingRepository : IBookingRepository
     {
         private readonly DBHelper _db;
+        private readonly BookingTimingOptions _timingOptions;
 
-        public BookingRepository(DBHelper db)
+        public BookingRepository(DBHelper db, IOptions<BookingTimingOptions>? timingOptions = null)
         {
             _db = db;
+            _timingOptions = timingOptions?.Value ?? new BookingTimingOptions();
         }
 
         public async Task<Booking?> GetByIdAsync(int bookingId)
@@ -231,39 +237,84 @@ namespace BookMyFun.Repositories
         }
 
         public Task<bool> IsSlotAvailableAsync(int propertyId, DateTime checkInDate, DateTime checkOutDate, string bookingType, string? slotType)
-            => IsSlotAvailableAsync(propertyId, checkInDate, checkOutDate, bookingType, slotType, null);
+            => IsSlotAvailableAsync(propertyId, checkInDate, checkOutDate, bookingType, slotType, null, null, null);
 
-        public async Task<bool> IsSlotAvailableAsync(int propertyId, DateTime checkInDate, DateTime checkOutDate, string bookingType, string? slotType, int? excludeBookingId)
+        public Task<bool> IsSlotAvailableAsync(int propertyId, DateTime checkInDate, DateTime checkOutDate, string bookingType, string? slotType, int? excludeBookingId)
+            => IsSlotAvailableAsync(propertyId, checkInDate, checkOutDate, bookingType, slotType, excludeBookingId, null, null);
+
+        public async Task<bool> IsSlotAvailableAsync(
+            int propertyId,
+            DateTime checkInDate,
+            DateTime checkOutDate,
+            string bookingType,
+            string? slotType,
+            int? excludeBookingId,
+            TimeSpan? hourlyCheckInTime,
+            int? hourlyDuration)
         {
+            if (string.Equals(bookingType, "Hourly", StringComparison.OrdinalIgnoreCase))
+            {
+                var startToCheck = hourlyCheckInTime ?? _timingOptions.CheckInTimeSpan;
+                if (!_timingOptions.IsHourlyStartAllowed(startToCheck))
+                {
+                    return false;
+                }
+            }
+
+            var (reqStart, reqEnd) = _timingOptions.GetBookingWindow(
+                checkInDate, checkOutDate, bookingType, slotType, hourlyCheckInTime, hourlyDuration);
+
             const string sql = @"
-                SELECT COUNT(*) FROM Bookings
+                SELECT CheckInDate, CheckOutDate, BookingType, SlotType, SlotStartTime, SlotEndTime
+                FROM Bookings
                 WHERE PropertyID = @PropertyID
                   AND (@ExcludeBookingID IS NULL OR BookingID <> @ExcludeBookingID)
                   AND (
                         Status = 'Confirmed'
                         OR (Status = 'Pending' AND CreatedAt >= DATEADD(MINUTE, -15, GETDATE()))
                       )
-                  AND (
-                        (CheckInDate <= @CheckOutDate AND CheckOutDate >= @CheckInDate)
-                      )
-                  AND (
-                        -- If any is FullDay, overlap is guaranteed
-                        BookingType = 'FullDay' 
-                        OR @BookingType = 'FullDay'
-                        -- If slot matching
-                        OR (SlotType IS NOT NULL AND @SlotType IS NOT NULL AND SlotType = @SlotType)
-                      )";
+                  AND CheckInDate <= @RangeEnd
+                  AND CheckOutDate >= @RangeStart";
 
-            var result = await _db.ExecuteScalarAsync(sql,
-                new SqlParameter("@PropertyID", propertyId),
-                new SqlParameter("@CheckInDate", checkInDate.Date),
-                new SqlParameter("@CheckOutDate", checkOutDate.Date),
-                new SqlParameter("@BookingType", bookingType),
-                new SqlParameter("@SlotType", DBHelper.ToDbValue(slotType)),
-                new SqlParameter("@ExcludeBookingID", DBHelper.ToDbValue(excludeBookingId)));
+            var candidates = await _db.ExecuteReaderListAsync(sql, r => new
+            {
+                CheckInDate = r.GetDateTime(r.GetOrdinal("CheckInDate")),
+                CheckOutDate = r.GetDateTime(r.GetOrdinal("CheckOutDate")),
+                BookingType = r.IsDBNull(r.GetOrdinal("BookingType")) ? "FullDay" : r.GetString(r.GetOrdinal("BookingType")),
+                SlotType = r.IsDBNull(r.GetOrdinal("SlotType")) ? null : r.GetString(r.GetOrdinal("SlotType")),
+                SlotStartTime = r.IsDBNull(r.GetOrdinal("SlotStartTime")) ? (TimeSpan?)null : r.GetTimeSpan(r.GetOrdinal("SlotStartTime")),
+                SlotEndTime = r.IsDBNull(r.GetOrdinal("SlotEndTime")) ? (TimeSpan?)null : r.GetTimeSpan(r.GetOrdinal("SlotEndTime"))
+            },
+            new SqlParameter("@PropertyID", propertyId),
+            new SqlParameter("@RangeStart", checkInDate.Date.AddDays(-1)),
+            new SqlParameter("@RangeEnd", checkOutDate.Date.AddDays(1)),
+            new SqlParameter("@ExcludeBookingID", DBHelper.ToDbValue(excludeBookingId)));
 
-            int count = result != null ? Convert.ToInt32(result) : 0;
-            return count == 0;
+            foreach (var existing in candidates)
+            {
+                int? existingHours = null;
+                if (existing.SlotStartTime.HasValue && existing.SlotEndTime.HasValue)
+                {
+                    var diff = (existing.SlotEndTime.Value - existing.SlotStartTime.Value).TotalHours;
+                    if (diff <= 0) diff += 24;
+                    existingHours = Math.Max(1, (int)Math.Ceiling(diff));
+                }
+
+                var (exStart, exEnd) = _timingOptions.GetBookingWindow(
+                    existing.CheckInDate,
+                    existing.CheckOutDate,
+                    existing.BookingType,
+                    existing.SlotType,
+                    existing.SlotStartTime,
+                    existingHours);
+
+                if (BookingTimingOptions.Overlaps(reqStart, reqEnd, exStart, exEnd))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         public async Task<int> RecordPaymentAsync(Payment payment)
