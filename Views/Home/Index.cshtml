@@ -3,6 +3,12 @@
     var featured = ViewBag.FeaturedProperties as List<BookMyFun.Models.Entities.Property> ?? new();
     var types = ViewBag.PropertyTypes as List<BookMyFun.Models.Entities.PropertyType> ?? new();
     var occasions = ViewBag.Occasions as List<BookMyFun.Models.Entities.Occasion> ?? new();
+    TimeZoneInfo istTz;
+    try { istTz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"); }
+    catch { istTz = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time"); }
+    var todayIst = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, istTz).Date;
+    var todayIstStr = todayIst.ToString("yyyy-MM-dd");
+    var tomorrowIstStr = todayIst.AddDays(1).ToString("yyyy-MM-dd");
 }
 
 <!-- ─────────────────────────────────────────────────────────
@@ -12,7 +18,7 @@
     <div class="container py-5 text-center text-white">
         <div class="mb-3">
             <span class="hero-pill">
-                <i class="bi bi-stars"></i> Verified Luxury Farmhouses &amp; Villas in India
+                 Verified Luxury Farmhouses &amp; Villas in India
             </span>
         </div>
         <h1 class="hero-title mb-3">
@@ -24,12 +30,18 @@
 
         <!-- Floating Search Box -->
         <div class="hero-search-box mx-auto text-start">
-            <form method="get" asp-controller="Properties" asp-action="Index" class="row g-3 align-items-center">
-                <div class="col-lg-4 col-md-6">
-                    <label class="form-label small fw-bold text-muted mb-1 ps-1">
-                        <i class="bi bi-geo-alt-fill text-danger me-1"></i> Destination
+            <form method="get" asp-controller="Properties" asp-action="Index" id="homeSearchForm" class="row g-3 align-items-center">
+                <div class="col-lg-2 col-md-6">
+                    <label class="form-label small fw-bold text-muted mb-1 ps-1" for="homeCheckIn">
+                        <i class="bi bi-calendar-event text-primary me-1"></i> Check-in
                     </label>
-                    <input type="text" name="location" class="form-control" placeholder="Lonavala, Alibaug, Goa, etc.">
+                    <input type="date" id="homeCheckIn" name="checkIn" class="form-control" min="@todayIstStr" />
+                </div>
+                <div class="col-lg-2 col-md-6">
+                    <label class="form-label small fw-bold text-muted mb-1 ps-1" for="homeCheckOut">
+                        <i class="bi bi-calendar-check text-success me-1"></i> Check-out
+                    </label>
+                    <input type="date" id="homeCheckOut" name="checkOut" class="form-control" min="@tomorrowIstStr" />
                 </div>
                 <div class="col-lg-3 col-md-6">
                     <label class="form-label small fw-bold text-muted mb-1 ps-1">
@@ -351,3 +363,44 @@
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        (function () {
+            const checkInEl = document.getElementById('homeCheckIn');
+            const checkOutEl = document.getElementById('homeCheckOut');
+            const formEl = document.getElementById('homeSearchForm');
+            if (!checkInEl || !checkOutEl || !formEl) return;
+
+            function nextDayStr(dateStr) {
+                const parts = dateStr.split('-').map(Number);
+                if (parts.length !== 3) return '';
+                const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + 1));
+                return d.toISOString().slice(0, 10);
+            }
+
+            checkInEl.addEventListener('change', function () {
+                if (!this.value) return;
+                const minOut = nextDayStr(this.value);
+                checkOutEl.min = minOut;
+                if (checkOutEl.value && checkOutEl.value <= this.value) {
+                    checkOutEl.value = minOut;
+                }
+            });
+
+            formEl.addEventListener('submit', function (e) {
+                const inVal = checkInEl.value;
+                const outVal = checkOutEl.value;
+                if ((inVal && !outVal) || (!inVal && outVal)) {
+                    e.preventDefault();
+                    alert('Please select both Check-in and Check-out dates.');
+                    return;
+                }
+                if (inVal && outVal && outVal <= inVal) {
+                    e.preventDefault();
+                    alert('Check-out date must be after Check-in date.');
+                }
+            });
+        })();
+    </script>
+}

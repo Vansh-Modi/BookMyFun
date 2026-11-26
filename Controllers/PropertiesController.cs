@@ -60,8 +60,38 @@ namespace BookMyFun.Controllers
                 typeIds.Add(typeId.Value);
             }
 
+            bool hasValidDateRange = checkIn.HasValue && checkOut.HasValue && checkOut.Value.Date > checkIn.Value.Date;
+            if (checkIn.HasValue && checkOut.HasValue && checkOut.Value.Date <= checkIn.Value.Date)
+            {
+                TempData["Error"] = "Check-out date must be after check-in date.";
+            }
+
             var (properties, totalCount) = await _propRepo.SearchPropertiesPagedAsync(
-                location, typeId, occasionId, minPrice, maxPrice, guests, page, pageSize, sortBy, typeIds, amenityIds);
+                location, typeId, occasionId, minPrice, maxPrice, guests, page, pageSize, sortBy, typeIds, amenityIds,
+                hasValidDateRange ? checkIn!.Value.Date : null,
+                hasValidDateRange ? checkOut!.Value.Date : null);
+
+            if (hasValidDateRange)
+            {
+                var availabilityMap = new Dictionary<int, AvailabilitySuggestionResult>();
+                var availableProperties = new List<Property>();
+                foreach (var p in properties)
+                {
+                    var avail = await _availabilityService.GetNearestSuggestionsAsync(p.PropertyID, checkIn!.Value, checkOut!.Value);
+                    availabilityMap[p.PropertyID] = avail;
+                    if (avail.IsRequestedAvailable)
+                    {
+                        availableProperties.Add(p);
+                    }
+                }
+                if (availableProperties.Count != properties.Count)
+                {
+                    int removed = properties.Count - availableProperties.Count;
+                    totalCount = Math.Max(0, totalCount - removed);
+                    properties = availableProperties;
+                }
+                ViewBag.PropertyAvailability = availabilityMap;
+            }
 
             ViewBag.PropertyTypes = await _propRepo.GetPropertyTypesAsync();
             ViewBag.Amenities = await _propRepo.GetAllAmenitiesAsync();
@@ -81,17 +111,6 @@ namespace BookMyFun.Controllers
             ViewBag.PageSize = pageSize;
             ViewBag.TotalCount = totalCount;
             ViewBag.TotalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize));
-
-            if (checkIn.HasValue && checkOut.HasValue && checkOut.Value.Date > checkIn.Value.Date)
-            {
-                var availabilityMap = new Dictionary<int, AvailabilitySuggestionResult>();
-                foreach (var p in properties)
-                {
-                    var avail = await _availabilityService.GetNearestSuggestionsAsync(p.PropertyID, checkIn.Value, checkOut.Value);
-                    availabilityMap[p.PropertyID] = avail;
-                }
-                ViewBag.PropertyAvailability = availabilityMap;
-            }
 
             return View(properties);
         }

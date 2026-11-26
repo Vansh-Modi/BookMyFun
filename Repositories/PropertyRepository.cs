@@ -22,7 +22,9 @@ namespace BookMyFun.Repositories
             int pageSize = 12,
             string? sortBy = "popular",
             List<int>? typeIds = null,
-            List<int>? amenityIds = null)
+            List<int>? amenityIds = null,
+            DateTime? checkIn = null,
+            DateTime? checkOut = null)
         {
             var all = await SearchPropertiesAsync(location, propertyTypeId, occasionId, minPrice, maxPrice, guests);
             page = Math.Max(1, page);
@@ -273,7 +275,9 @@ namespace BookMyFun.Repositories
             int pageSize = 12,
             string? sortBy = "popular",
             List<int>? typeIds = null,
-            List<int>? amenityIds = null)
+            List<int>? amenityIds = null,
+            DateTime? checkIn = null,
+            DateTime? checkOut = null)
         {
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 100);
@@ -342,6 +346,22 @@ namespace BookMyFun.Repositories
                     parameters.Add(new SqlParameter(pName, amenityIds[i]));
                 }
                 whereSql += $" AND p.PropertyID IN (SELECT pam.PropertyID FROM PropertyAmenitiesMapping pam WHERE pam.AmenityID IN ({string.Join(", ", amParams)})) ";
+            }
+
+            if (checkIn.HasValue && checkOut.HasValue && checkOut.Value.Date > checkIn.Value.Date)
+            {
+                whereSql += @" AND NOT EXISTS (
+                    SELECT 1 FROM Bookings b
+                    WHERE b.PropertyID = p.PropertyID
+                      AND (b.Status = 'Confirmed' OR (b.Status = 'Pending' AND b.CreatedAt >= DATEADD(MINUTE, -15, GETDATE())))
+                      AND (
+                          ((b.BookingType IS NULL OR b.BookingType = 'FullDay') AND b.CheckInDate < @CheckOutDate AND b.CheckOutDate > @CheckInDate)
+                          OR (b.BookingType = 'HalfDay' AND b.SlotType = 'MorningSlot' AND b.CheckInDate >= @CheckInDate AND b.CheckInDate <= @CheckOutDate)
+                          OR (b.BookingType IN ('HalfDay', 'Hourly') AND ISNULL(b.SlotType, '') <> 'MorningSlot' AND b.CheckInDate >= @CheckInDate AND b.CheckInDate < @CheckOutDate)
+                      )
+                ) ";
+                parameters.Add(new SqlParameter("@CheckInDate", checkIn.Value.Date));
+                parameters.Add(new SqlParameter("@CheckOutDate", checkOut.Value.Date));
             }
 
             string orderBySql;
