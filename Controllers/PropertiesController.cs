@@ -20,53 +20,8 @@ namespace BookMyFun.Controllers
         private readonly ICalendarRangeService _calendarRangeService;
 
         private static readonly ConcurrentDictionary<string, (int Count, DateTime WindowStart)> _rateLimits = new();
-        private const int MaxRateLimitEntries = 50000;
-        private static readonly TimeSpan RateLimitRetention = TimeSpan.FromHours(24);
-        private static DateTime _lastPruneTime = DateTime.UtcNow;
-        private static readonly object _pruneLock = new();
 
         public static void ResetRateLimits() => _rateLimits.Clear();
-
-        private static void PruneExpiredRateLimits(DateTime now)
-        {
-            if (now - _lastPruneTime < TimeSpan.FromMinutes(10) && _rateLimits.Count < MaxRateLimitEntries)
-            {
-                return;
-            }
-
-            if (System.Threading.Monitor.TryEnter(_pruneLock))
-            {
-                try
-                {
-                    if (now - _lastPruneTime >= TimeSpan.FromMinutes(10) || _rateLimits.Count >= MaxRateLimitEntries)
-                    {
-                        var cutoff = now - RateLimitRetention;
-                        foreach (var kvp in _rateLimits)
-                        {
-                            if (kvp.Value.WindowStart < cutoff)
-                            {
-                                _rateLimits.TryRemove(kvp.Key, out _);
-                            }
-                        }
-
-                        if (_rateLimits.Count >= MaxRateLimitEntries)
-                        {
-                            var excess = _rateLimits.OrderBy(k => k.Value.WindowStart).Take(_rateLimits.Count - MaxRateLimitEntries + 5000).ToList();
-                            foreach (var old in excess)
-                            {
-                                _rateLimits.TryRemove(old.Key, out _);
-                            }
-                        }
-
-                        _lastPruneTime = now;
-                    }
-                }
-                finally
-                {
-                    System.Threading.Monitor.Exit(_pruneLock);
-                }
-            }
-        }
 
         public PropertiesController(
             IPropertyRepository propRepo, 
@@ -197,7 +152,6 @@ namespace BookMyFun.Controllers
                 : $"ip_{HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "anon"}";
 
             var now = DateTime.UtcNow;
-            PruneExpiredRateLimits(now);
             var rateEntry = _rateLimits.AddOrUpdate(
                 clientKey,
                 _ => (1, now),

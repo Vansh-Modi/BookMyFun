@@ -2,7 +2,8 @@ using BookMyFun.Services.Security;
 using BookMyFun.Models;
 using BookMyFun.Models.Entities;
 using BookMyFun.Repositories;
-using BookMyFun.Services;
+using BookMyFun.Services;
+
 using BookMyFun.Services.Notifications;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
@@ -18,9 +19,9 @@ namespace BookMyFun.Controllers
         private readonly IWhatsAppService _whatsAppService;
         private readonly IUserRepository _userRepo;
         private readonly ILegalDocumentService _legalService;
-        private readonly ICustomErrorHandlerService? _errorHandler;
+        private readonly ICustomErrorHandlerService? _errorHandler;
+
         private readonly INotificationDispatcherService? _notificationDispatcher;
-        private readonly IHtmlSanitizerService? _sanitizer;
 
         public HomeController(
             IPropertyRepository propRepo,
@@ -30,9 +31,9 @@ namespace BookMyFun.Controllers
             IWhatsAppService whatsAppService,
             IUserRepository userRepo,
             ILegalDocumentService legalService,
-            ICustomErrorHandlerService? errorHandler = null,
-            INotificationDispatcherService? notificationDispatcher = null,
-            IHtmlSanitizerService? sanitizer = null)
+            ICustomErrorHandlerService? errorHandler = null,
+
+            INotificationDispatcherService? notificationDispatcher = null)
         {
             _propRepo = propRepo;
             _contactRepo = contactRepo;
@@ -41,9 +42,9 @@ namespace BookMyFun.Controllers
             _whatsAppService = whatsAppService;
             _userRepo = userRepo;
             _legalService = legalService;
-            _errorHandler = errorHandler;
+            _errorHandler = errorHandler;
+
             _notificationDispatcher = notificationDispatcher;
-            _sanitizer = sanitizer;
         }
 
         public async Task<IActionResult> Index()
@@ -84,7 +85,8 @@ namespace BookMyFun.Controllers
                 return View(model);
             }
 
-            int leadId = await _partnerLeadService.CreateLeadAsync(model);
+            int leadId = await _partnerLeadService.CreateLeadAsync(model);
+
             _ = _notificationDispatcher?.DispatchPartnerLeadSubmittedAsync(leadId, model.FullName, model.PartnerType ?? "Partner");
 
             // Record policy consent acceptance
@@ -168,16 +170,6 @@ namespace BookMyFun.Controllers
             {
                 ModelState.AddModelError("", ex.Message);
                 return View(model);
-            }
-
-            if (_sanitizer != null)
-            {
-                model.Name = _sanitizer.Sanitize(model.Name);
-                if (!string.IsNullOrWhiteSpace(model.Subject))
-                {
-                    model.Subject = _sanitizer.Sanitize(model.Subject);
-                }
-                model.Message = _sanitizer.Sanitize(model.Message);
             }
 
             int contactId = await _contactRepo.CreateContactAsync(model);

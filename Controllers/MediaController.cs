@@ -18,34 +18,19 @@ namespace BookMyFun.Controllers
         private readonly IIdVerificationService _idVerificationService;
         private readonly ILogger<MediaController> _logger;
         private readonly ILegalDocumentService? _legalService;
-        private readonly BookMyFun.Services.Security.IPrivateDocumentEncryptionService? _encryptionService;
-
-        private static readonly HashSet<string> AllowedDocumentTypes = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "Aadhaar (masked copy)",
-            "Driving Licence",
-            "Voter ID",
-            "PAN",
-            "Passport",
-            "Aadhaar",
-            "DrivingLicense",
-            "VoterID"
-        };
 
         public MediaController(
             IMediaStorageService mediaStorage,
             IPropertyRepository propertyRepo,
             IIdVerificationService idVerificationService,
             ILogger<MediaController> logger,
-            ILegalDocumentService? legalService = null,
-            BookMyFun.Services.Security.IPrivateDocumentEncryptionService? encryptionService = null)
+            ILegalDocumentService? legalService = null)
         {
             _mediaStorage = mediaStorage;
             _propertyRepo = propertyRepo;
             _idVerificationService = idVerificationService;
             _logger = logger;
             _legalService = legalService;
-            _encryptionService = encryptionService;
         }
 
         [HttpPost("upload-file")]
@@ -203,11 +188,6 @@ namespace BookMyFun.Controllers
             if (file == null || file.Length == 0)
                 throw new ValidationException("file", "No identification file provided.");
 
-            if (string.IsNullOrWhiteSpace(documentType) || !AllowedDocumentTypes.Contains(documentType.Trim()))
-            {
-                throw new ValidationException("documentType", "Document type must be one of: Aadhaar (masked copy), Driving Licence, Voter ID, PAN, Passport.");
-            }
-
             // Mandatory policy consent check (Item 3e)
             if (Request.HasFormContentType)
             {
@@ -221,7 +201,7 @@ namespace BookMyFun.Controllers
 
             int verificationId = await _idVerificationService.SubmitVerificationAsync(
                 currentUserId,
-                documentType.Trim(),
+                documentType ?? "Aadhaar",
                 safeKey,
                 maskedIdentifier);
 
@@ -251,7 +231,7 @@ namespace BookMyFun.Controllers
 
         [HttpGet("view-id-document")]
         [Authorize(Roles = "Client,Admin,Employee")]
-        public async Task<IActionResult> ViewPrivateDocument([FromQuery] string key, [FromQuery] string token)
+        public IActionResult ViewPrivateDocument([FromQuery] string key, [FromQuery] string token)
         {
             if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(token))
                 throw new ValidationException("Invalid request parameters.");
@@ -280,24 +260,6 @@ namespace BookMyFun.Controllers
                 throw new ForbiddenException("Expired or invalid document access token. Please request a fresh signed link.");
             }
 
-            // B11f: Log every view of an ID file by staff (Admin or Employee): staff user ID, verification ID, and UTC time
-            if (string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase) || string.Equals(userRole, "Employee", StringComparison.OrdinalIgnoreCase))
-            {
-                int verificationId = 0;
-                try
-                {
-                    var verification = await _idVerificationService.GetVerificationByStorageKeyAsync(key);
-                    if (verification != null) verificationId = verification.VerificationID;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to query verification ID for key {Key} during access logging", key);
-                }
-
-                _logger.LogInformation("Private ID document accessed by staff: StaffUserID={StaffUserId}, VerificationID={VerificationId}, UtcTime={UtcTime}",
-                    currentUserId, verificationId, DateTime.UtcNow);
-            }
-
             if (key.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || key.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
                 return Redirect(key);
@@ -321,18 +283,10 @@ namespace BookMyFun.Controllers
                 return File(friendlySvg, "image/svg+xml");
             }
 
-            byte[] fileBytes = await System.IO.File.ReadAllBytesAsync(physicalPath);
-
-            // B11c: Decrypt document with AES-256-GCM if file is encrypted
-            if (_encryptionService != null && _encryptionService.IsEncrypted(fileBytes))
-            {
-                fileBytes = _encryptionService.DecryptDocument(fileBytes);
-            }
-
             string contentType = key.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? "application/pdf" :
                                  key.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "image/png" : "image/jpeg";
 
-            return File(fileBytes, contentType);
+            return PhysicalFile(physicalPath, contentType, enableRangeProcessing: true);
         }
     }
 

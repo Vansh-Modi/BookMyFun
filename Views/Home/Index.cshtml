@@ -75,7 +75,7 @@
                 <div class="trust-item">
                     <span class="trust-icon icon-emerald"><i class="bi bi-shield-check"></i></span>
                     <div>
-                        <strong class="d-block text-heading" style="font-size: .88rem;">Verified Stays</strong>
+                        <strong class="d-block text-heading" style="font-size: .88rem;">100% Verified</strong>
                         <small class="text-muted" style="font-size: .76rem;">Personally checked stays</small>
                     </div>
                 </div>
@@ -193,16 +193,16 @@
                 <div class="property-card h-100 position-relative" data-card-url="@Url.Action("Details", "Properties", new { id = p.PropertyID })">
                     <!-- Property Image with Type & Verified Badges -->
                     <div class="property-card-img-wrap">
-                        <img src="@(string.IsNullOrEmpty(p.PrimaryImageUrl) ? "/images/placeholder.jpg" : p.PrimaryImageUrl)" alt="@p.Title" loading="lazy" decoding="async" onerror="this.src='/images/placeholder.jpg';" />
+                        <img src="@p.PrimaryImageUrl" alt="@p.Title" loading="lazy" decoding="async" onerror="this.src='/images/placeholder.jpg';" />
                         
                         <!-- Cottage / Type Badge (top-left) -->
                         <span class="property-badge-type">
                             @(string.IsNullOrWhiteSpace(p.PropertyTypeName) ? "Cottage" : p.PropertyTypeName)
                         </span>
 
-                        <!-- Verified Badge (top-right) -->
+                        <!-- 100% Verified Badge (top-right) -->
                         <span class="property-badge-verified">
-                            <i class="bi bi-patch-check-fill text-success"></i> Verified
+                            <i class="bi bi-patch-check-fill text-success"></i> 100% Verified
                         </span>
                     </div>
 

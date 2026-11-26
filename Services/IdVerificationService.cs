@@ -9,7 +9,6 @@ namespace BookMyFun.Services
     {
         Task<int> SubmitVerificationAsync(int clientId, string documentType, string storageKey, string? maskedIdentifier);
         Task<ClientIdVerification?> GetClientVerificationAsync(int clientId, int requestingUserId, string userRole);
-        Task<ClientIdVerification?> GetVerificationByStorageKeyAsync(string storageKey) => Task.FromResult<ClientIdVerification?>(null);
         Task<List<ClientIdVerification>> GetAllVerificationsAsync(string? status = null);
         Task<bool> ReviewVerificationAsync(int verificationId, string action, int staffUserId, string? rejectionReason = null);
         Task<bool> IsClientVerifiedAsync(int clientId);
@@ -77,11 +76,6 @@ namespace BookMyFun.Services
             }
 
             return await _idRepo.GetVerificationByClientIdAsync(clientId);
-        }
-
-        public async Task<ClientIdVerification?> GetVerificationByStorageKeyAsync(string storageKey)
-        {
-            return await _idRepo.GetVerificationByStorageKeyAsync(storageKey);
         }
 
         public async Task<List<ClientIdVerification>> GetAllVerificationsAsync(string? status = null)

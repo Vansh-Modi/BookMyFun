@@ -47,7 +47,7 @@
             <span class="dash-stat-icon icon-blue"><i class="bi bi-calendar-event-fill"></i></span>
         </div>
         <div class="dash-stat-val">@ViewBag.TotalAssigned</div>
-        <div class="dash-stat-sub"><i class="bi bi-check2-circle text-primary me-1"></i>Farm bookings with décor</div>
+        <div class="dash-stat-sub"><i class="bi bi-check2-circle text-primary me-1"></i>Farm reservations with décor</div>
     </div>
 
     <div class="dash-stat-card">
@@ -181,7 +181,7 @@
                         <div class="card h-100 offering-focal-card shadow-sm bg-card">
                             <!-- Image Wrapper with Badges -->
                             <div class="offering-img-wrapper">
-                                <img src="@(string.IsNullOrEmpty(pkg.MediaUrl) ? "/images/placeholder.jpg" : pkg.MediaUrl)" alt="@pkg.Name" onerror="this.src='/images/placeholder.jpg';" />
+                                <img src="@(string.IsNullOrEmpty(pkg.MediaUrl) ? "https://images.unsplash.com/photo-1519741497674-611481863552" : pkg.MediaUrl)" alt="@pkg.Name" onerror="this.src='https://images.unsplash.com/photo-1519741497674-611481863552';" />
                                 <div class="position-absolute top-0 start-0 m-2">
                                     <span class="badge bg-dark bg-opacity-75 text-white shadow-sm" style="font-size: 0.72rem;">@pkg.Category</span>
                                 </div>
@@ -262,7 +262,7 @@
     <div class="card-header bg-transparent border-0 d-flex flex-wrap justify-content-between align-items-center pt-3 px-4 gap-2">
         <div>
             <h5 class="fw-bold mb-0 text-heading"><i class="bi bi-calendar-event text-primary me-2"></i>Event Décor Orders &amp; Setups</h5>
-            <span class="text-muted small">Guest bookings with requested custom themes and stage décor</span>
+            <span class="text-muted small">Guest reservations with requested custom themes and stage decoration</span>
         </div>
         <!-- Order Filter Tabs -->
         <ul class="nav nav-pills small" id="eventOrderTabs" role="tablist">

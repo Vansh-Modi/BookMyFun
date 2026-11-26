@@ -32,7 +32,6 @@ namespace BookMyFun.Tests
         {
             public readonly Dictionary<int, Booking> Bookings = new();
             public readonly List<CustomerReview> Reviews = new();
-            public int AddReviewCallCount { get; private set; } = 0;
 
             public Task<Booking?> GetByIdAsync(int bookingId)
             {
@@ -58,10 +57,8 @@ namespace BookMyFun.Tests
             public Task<List<Payment>> GetPaymentsByBookingIdAsync(int bookingId) => Task.FromResult(new List<Payment>());
             public Task<bool> UpdateSecurityDepositStatusAsync(int bookingId, string status) => Task.FromResult(true);
             public Task<List<CustomerReview>> GetReviewsByPropertyIdAsync(int propertyId) => Task.FromResult(Reviews.Where(r => r.PropertyID == propertyId).ToList());
-            public Task<bool> HasReviewForBookingAsync(int bookingId) => Task.FromResult(Reviews.Any(r => r.BookingID == bookingId));
             public Task<int> AddReviewAsync(CustomerReview review)
             {
-                AddReviewCallCount++;
                 Reviews.Add(review);
                 return Task.FromResult(Reviews.Count);
             }
@@ -185,40 +182,6 @@ namespace BookMyFun.Tests
                 Path.Combine(Path.GetTempPath(), documentKey);
         }
 
-        private class MockConfigRepo : IConfigRepository
-        {
-            public Task<ApiConfiguration?> GetActiveConfigByProviderAsync(string provider) => Task.FromResult<ApiConfiguration?>(null);
-            public Task<List<ApiConfiguration>> GetAllConfigsAsync() => Task.FromResult(new List<ApiConfiguration>());
-            public Task<bool> SaveOrUpdateConfigAsync(ApiConfiguration config) => Task.FromResult(true);
-            public Task<string?> GetSettingValueAsync(string key) => Task.FromResult<string?>(null);
-            public Task<bool> SetSettingValueAsync(string key, string value, bool isEncrypted = false) => Task.FromResult(true);
-            public Task<List<SiteSetting>> GetAllSettingsAsync() => Task.FromResult(new List<SiteSetting>());
-            public Task LogAuditAsync(int performedByUserId, string action, string entityType, int? entityId, string? details) => Task.CompletedTask;
-        }
-
-        private class MockEventPackageRepo : IEventPackageRepository
-        {
-            public readonly Dictionary<int, EventPackage> Packages = new();
-
-            public Task<List<EventPackage>> GetAllPackagesAsync() => Task.FromResult(Packages.Values.ToList());
-            public Task<List<EventPackage>> GetActivePackagesAsync() => Task.FromResult(Packages.Values.Where(p => p.IsActive).ToList());
-            public Task<List<EventPackage>> GetPackagesByUserIdAsync(int userId) => Task.FromResult(Packages.Values.Where(p => p.CreatedByUserID == userId).ToList());
-            public Task<EventPackage?> GetPackageByIdAsync(int packageId) => Task.FromResult(Packages.TryGetValue(packageId, out var p) ? p : null);
-            public Task<int> CreatePackageAsync(EventPackage package) => Task.FromResult(1);
-            public Task<bool> UpdatePackageAsync(EventPackage package) => Task.FromResult(true);
-            public Task<bool> UpdatePackageCommissionRateAsync(int packageId, decimal? commissionRate) => Task.FromResult(true);
-            public Task<bool> DeletePackageAsync(int packageId) => Task.FromResult(true);
-            public Task<List<Booking>> GetAssignedEventBookingsAsync(int decoratorUserId) => Task.FromResult(new List<Booking>());
-            public Task<List<Booking>> GetAllEventBookingsAsync() => Task.FromResult(new List<Booking>());
-            public Task<bool> UpdateSetupStatusAsync(int bookingId, string setupStatus, string? setupProofMediaUrls, int? decoratorId) => Task.FromResult(true);
-            public Task<bool> AssignDecoratorAsync(int bookingId, int decoratorUserId) => Task.FromResult(true);
-            public Task<bool> CancelOrRemoveEventFromBookingAsync(int bookingId) => Task.FromResult(true);
-            public Task<List<string>> GetAllDistinctPropertyLocationsAsync() => Task.FromResult(new List<string>());
-            public Task<string?> GetEventManagerServiceAreasAsync(int eventManagerUserId) => Task.FromResult<string?>(null);
-            public Task<bool> UpdateEventManagerServiceAreasAsync(int eventManagerUserId, string serviceAreas) => Task.FromResult(true);
-            public Task<bool> IsAreaServicedByAnyEventManagerAsync(string? propertyLocation) => Task.FromResult(true);
-        }
-
         private static ControllerContext CreateContext(int userId, string role)
         {
             var claims = new List<Claim>
@@ -271,8 +234,7 @@ namespace BookMyFun.Tests
                 BookingID = 102,
                 ClientID = 42, // Matches logged in client
                 PropertyID = 7,
-                TotalAmount = 5000m,
-                Status = "Completed"
+                TotalAmount = 5000m
             };
 
             var controller = new ClientController(userRepo, bookingRepo, idService)
@@ -288,108 +250,6 @@ namespace BookMyFun.Tests
             Assert.Single(bookingRepo.Reviews);
             Assert.Equal(42, bookingRepo.Reviews[0].ClientID);
             Assert.Equal(102, bookingRepo.Reviews[0].BookingID);
-        }
-
-        [Fact]
-        public async Task ClientController_AddReview_RejectsWhenBookingNotCompleted_AndDoesNotSaveReview()
-        {
-            var bookingRepo = new MockBookingRepo();
-            var userRepo = new MockUserRepo();
-            var idService = new MockIdVerificationService();
-
-            bookingRepo.Bookings[102] = new Booking
-            {
-                BookingID = 102,
-                ClientID = 42,
-                PropertyID = 7,
-                TotalAmount = 5000m,
-                Status = "Confirmed" // Not Completed
-            };
-
-            var controller = new ClientController(userRepo, bookingRepo, idService)
-            {
-                ControllerContext = CreateContext(userId: 42, role: "Client"),
-                TempData = new TempDataDictionary(new DefaultHttpContext(), new SimpleTempDataProvider())
-            };
-
-            var result = await controller.AddReview(bookingId: 102, propertyId: 7, rating: 5, comment: "Premature review");
-
-            var redirect = Assert.IsType<RedirectToActionResult>(result);
-            Assert.Equal("Index", redirect.ActionName);
-            Assert.Equal("Reviews can only be submitted for completed stays.", controller.TempData["Error"]);
-            Assert.Equal(0, bookingRepo.AddReviewCallCount);
-            Assert.Empty(bookingRepo.Reviews);
-        }
-
-        [Fact]
-        public async Task ClientController_AddReview_RejectsSecondReviewForSameBooking_AndDoesNotSaveReview()
-        {
-            var bookingRepo = new MockBookingRepo();
-            var userRepo = new MockUserRepo();
-            var idService = new MockIdVerificationService();
-
-            bookingRepo.Bookings[102] = new Booking
-            {
-                BookingID = 102,
-                ClientID = 42,
-                PropertyID = 7,
-                TotalAmount = 5000m,
-                Status = "Completed"
-            };
-
-            // Seed initial review
-            bookingRepo.Reviews.Add(new CustomerReview
-            {
-                ReviewID = 1,
-                BookingID = 102,
-                ClientID = 42,
-                PropertyID = 7,
-                Rating = 5,
-                Comment = "First review"
-            });
-
-            var controller = new ClientController(userRepo, bookingRepo, idService)
-            {
-                ControllerContext = CreateContext(userId: 42, role: "Client"),
-                TempData = new TempDataDictionary(new DefaultHttpContext(), new SimpleTempDataProvider())
-            };
-
-            var result = await controller.AddReview(bookingId: 102, propertyId: 7, rating: 4, comment: "Duplicate review attempt");
-
-            var redirect = Assert.IsType<RedirectToActionResult>(result);
-            Assert.Equal("Index", redirect.ActionName);
-            Assert.Equal("You have already submitted a review for this booking. Only one review per booking is permitted.", controller.TempData["Error"]);
-            Assert.Equal(0, bookingRepo.AddReviewCallCount);
-            Assert.Single(bookingRepo.Reviews); // No second review saved
-        }
-
-        [Fact]
-        public async Task ClientController_AddReview_RejectsWhenUserDoesNotOwnBooking_AndDoesNotSaveReview()
-        {
-            var bookingRepo = new MockBookingRepo();
-            var userRepo = new MockUserRepo();
-            var idService = new MockIdVerificationService();
-
-            bookingRepo.Bookings[101] = new Booking
-            {
-                BookingID = 101,
-                ClientID = 999, // Owned by another user
-                PropertyID = 5,
-                TotalAmount = 5000m,
-                Status = "Completed"
-            };
-
-            var controller = new ClientController(userRepo, bookingRepo, idService)
-            {
-                ControllerContext = CreateContext(userId: 42, role: "Client"),
-                TempData = new TempDataDictionary(new DefaultHttpContext(), new SimpleTempDataProvider())
-            };
-
-            var result = await controller.AddReview(bookingId: 101, propertyId: 5, rating: 5, comment: "Unauthorized IDOR review");
-
-            Assert.IsType<ForbidResult>(result);
-            Assert.Equal(0, bookingRepo.AddReviewCallCount);
-            Assert.Empty(bookingRepo.Reviews);
         }
 
         [Fact]
@@ -417,7 +277,7 @@ namespace BookMyFun.Tests
         }
 
         [Fact]
-        public async Task MediaController_ViewPrivateDocument_RejectsClientAccessToAnotherClientsDocument()
+        public void MediaController_ViewPrivateDocument_RejectsClientAccessToAnotherClientsDocument()
         {
             var propRepo = new MockPropertyRepo();
             var mediaStorage = new MockMediaStorageService();
@@ -430,14 +290,14 @@ namespace BookMyFun.Tests
             };
 
             // Trying to view doc belonging to client 99
-            await Assert.ThrowsAsync<ForbiddenException>(async () =>
+            Assert.Throws<ForbiddenException>(() =>
             {
-                await controller.ViewPrivateDocument("doc_client_99_secret.pdf", "valid_dummy_token");
+                controller.ViewPrivateDocument("doc_client_99_secret.pdf", "valid_dummy_token");
             });
         }
 
         [Fact]
-        public async Task MediaController_ViewPrivateDocument_StrictlyForbidsHostFromViewingIdDocuments()
+        public void MediaController_ViewPrivateDocument_StrictlyForbidsHostFromViewingIdDocuments()
         {
             var propRepo = new MockPropertyRepo();
             var mediaStorage = new MockMediaStorageService();
@@ -449,44 +309,10 @@ namespace BookMyFun.Tests
                 ControllerContext = CreateContext(userId: 5, role: "Owner")
             };
 
-            await Assert.ThrowsAsync<ForbiddenException>(async () =>
+            Assert.Throws<ForbiddenException>(() =>
             {
-                await controller.ViewPrivateDocument("doc_client_10_secret.pdf", "valid_dummy_token");
+                controller.ViewPrivateDocument("doc_client_10_secret.pdf", "valid_dummy_token");
             });
-        }
-
-        [Fact]
-        public async Task EventManagerController_EditPackage_ForbidsWhenCreatedByUserIdIsNull()
-        {
-            var eventRepo = new MockEventPackageRepo();
-            eventRepo.Packages[99] = new EventPackage
-            {
-                PackageID = 99,
-                Name = "Unowned Legacy Package",
-                CreatedByUserID = null,
-                IsActive = true
-            };
-            var mediaStorage = new MockMediaStorageService();
-            var configRepo = new MockConfigRepo();
-            var logger = new MockLogger<EventManagerController>();
-
-            var controller = new EventManagerController(eventRepo, mediaStorage, configRepo, logger)
-            {
-                ControllerContext = CreateContext(userId: 10, role: "EventManager")
-            };
-
-            var getResult = await controller.EditPackage(99);
-            Assert.IsType<ForbidResult>(getResult);
-
-            var postResult = await controller.EditPackage(new EventPackageEditViewModel
-            {
-                PackageID = 99,
-                Name = "Hacked Package"
-            });
-            Assert.IsType<ForbidResult>(postResult);
-
-            var toggleResult = await controller.TogglePackageStatus(99);
-            Assert.IsType<ForbidResult>(toggleResult);
         }
     }
 }

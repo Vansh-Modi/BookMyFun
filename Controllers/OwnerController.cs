@@ -5,7 +5,6 @@ using BookMyFun.Repositories;
 using BookMyFun.Services;
 using BookMyFun.Services.Common;
 using BookMyFun.Services.Exceptions;
-using BookMyFun.Services.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -28,8 +27,6 @@ namespace BookMyFun.Controllers
         private readonly INotificationFanoutService? _notificationFanout;
         private readonly BookMyFun.Services.Notifications.INotificationDispatcherService? _notificationDispatcher;
         private readonly IUserNotificationRepository? _userNotificationRepo;
-        private readonly IHtmlSanitizerService? _sanitizer;
-        private readonly IPhotoShootRepository? _photoShootRepo;
 
         public OwnerController(
             IPropertyRepository propRepo,
@@ -45,9 +42,7 @@ namespace BookMyFun.Controllers
             ILegalDocumentService? legalService = null,
             INotificationFanoutService? notificationFanout = null,
             BookMyFun.Services.Notifications.INotificationDispatcherService? notificationDispatcher = null,
-            IUserNotificationRepository? userNotificationRepo = null,
-            IHtmlSanitizerService? sanitizer = null,
-            IPhotoShootRepository? photoShootRepo = null)
+            IUserNotificationRepository? userNotificationRepo = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -63,8 +58,6 @@ namespace BookMyFun.Controllers
             _notificationFanout = notificationFanout;
             _notificationDispatcher = notificationDispatcher;
             _userNotificationRepo = userNotificationRepo;
-            _sanitizer = sanitizer;
-            _photoShootRepo = photoShootRepo;
         }
 
         private int GetCurrentUserId() => User.GetUserId();
@@ -125,12 +118,6 @@ namespace BookMyFun.Controllers
 
             var scheduledSub = await _subRepo.GetScheduledSubscriptionByOwnerIdAsync(ownerId);
             ViewBag.ScheduledSub = scheduledSub;
-
-            var shootRequests = _photoShootRepo != null
-                ? await _photoShootRepo.GetByOwnerIdAsync(ownerId)
-                : new List<PhotoShootRequest>();
-            ViewBag.ShootRequests = shootRequests;
-
             ViewBag.NotificationPreferences = new OwnerNotificationPreferencesViewModel
             {
                 EmailEnabled = owner?.NotificationEmailEnabled ?? true,
@@ -183,13 +170,6 @@ namespace BookMyFun.Controllers
                 if (consent != "true")
                 {
                     ModelState.AddModelError("", "You must agree to the Terms of Service, Privacy Policy, and Refund Policy to list a property.");
-                }
-
-                // Mandatory photo ownership declaration (B10c)
-                string? photoDecl = Request.Form["PhotoOwnershipDeclaration"];
-                if (photoDecl != "true" && !vm.PhotoOwnershipDeclaration)
-                {
-                    ModelState.AddModelError("PhotoOwnershipDeclaration", "I confirm I own these photos or have written permission to use them, and that they show the property accurately.");
                 }
             }
 
@@ -316,8 +296,8 @@ namespace BookMyFun.Controllers
             {
                 OwnerID = ownerId,
                 PropertyTypeID = vm.PropertyTypeID,
-                Title = _sanitizer != null ? _sanitizer.Sanitize(vm.Title) : vm.Title,
-                Description = _sanitizer != null ? _sanitizer.Sanitize(vm.Description) : vm.Description,
+                Title = vm.Title,
+                Description = vm.Description,
                 Location = string.IsNullOrWhiteSpace(vm.City) ? (vm.Location ?? "") : $"{vm.City}, {vm.State}".Trim(',', ' '),
                 FormattedAddress = vm.FormattedAddress ?? $"{vm.NearbyAreaOrRoad}, {vm.City}, {vm.State} - {vm.Pincode}".Trim(' ', '-', ','),
                 Latitude = null,
@@ -415,7 +395,7 @@ namespace BookMyFun.Controllers
             var prop = await _propRepo.GetByIdAsync(id);
             if (prop == null) return NotFound();
 
-            if ((prop.OwnerID <= 0 || prop.OwnerID != ownerId) && !User.IsInRole("Admin") && !User.IsInRole("Employee"))
+            if (prop.OwnerID != ownerId && !User.IsInRole("Admin"))
             {
                 return Forbid();
             }
@@ -473,19 +453,9 @@ namespace BookMyFun.Controllers
             var prop = await _propRepo.GetByIdAsync(vm.PropertyID);
             if (prop == null) return NotFound();
 
-            if ((prop.OwnerID <= 0 || prop.OwnerID != ownerId) && !User.IsInRole("Admin") && !User.IsInRole("Employee"))
+            if (prop.OwnerID != ownerId && !User.IsInRole("Admin"))
             {
                 return Forbid();
-            }
-
-            // Mandatory photo ownership declaration (B10c)
-            if (Request.HasFormContentType)
-            {
-                string? photoDecl = Request.Form["PhotoOwnershipDeclaration"];
-                if (photoDecl != "true" && !vm.PhotoOwnershipDeclaration)
-                {
-                    ModelState.AddModelError("PhotoOwnershipDeclaration", "I confirm I own these photos or have written permission to use them, and that they show the property accurately.");
-                }
             }
 
             // Process Custom Category
@@ -607,8 +577,8 @@ namespace BookMyFun.Controllers
             }
 
             prop.PropertyTypeID = vm.PropertyTypeID;
-            prop.Title = _sanitizer != null ? _sanitizer.Sanitize(vm.Title) : vm.Title;
-            prop.Description = _sanitizer != null ? _sanitizer.Sanitize(vm.Description) : vm.Description;
+            prop.Title = vm.Title;
+            prop.Description = vm.Description;
             prop.Location = string.IsNullOrWhiteSpace(vm.City) ? (vm.Location ?? "") : $"{vm.City}, {vm.State}".Trim(',', ' ');
             prop.FormattedAddress = vm.FormattedAddress ?? $"{vm.NearbyAreaOrRoad}, {vm.City}, {vm.State} - {vm.Pincode}".Trim(' ', '-', ',');
             prop.Latitude = null;
@@ -748,10 +718,17 @@ namespace BookMyFun.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
+            // If brand new owner without any subscription history, auto-create Free Trial row
+            bool hasHistory = await _subRepo.HasAnySubscriptionHistoryAsync(prop.OwnerID);
+            if (!hasHistory)
+            {
+                await _subRepo.CreateTrialSubscriptionAsync(prop.OwnerID);
+            }
+
             var activeSub = await _subRepo.GetActiveSubscriptionByOwnerIdAsync(prop.OwnerID);
             if (activeSub == null)
             {
-                TempData["Error"] = "Publishing requires an active subscription or free trial. Please choose an active plan to publish your listing.";
+                TempData["Error"] = "Your subscription has ended. Choose a plan to publish listings.";
                 return RedirectToAction(nameof(Subscriptions));
             }
 
@@ -974,145 +951,77 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> Subscriptions()
         {
             var ownerId = GetCurrentUserId();
-            var user = await _userRepo.GetByIdAsync(ownerId);
-            bool trialUsed = user?.TrialUsedAt.HasValue == true || await _subRepo.HasAnyTrialHistoryAsync(ownerId);
-
-            var allPlans = await _subRepo.GetAllPlansAsync();
-            // Shows only active plans. Hides the trial card once it has been used or the plan is deactivated.
-            var plans = allPlans
-                .Where(p => p.IsActive && !string.Equals(p.PlanType, "AdminGranted", StringComparison.OrdinalIgnoreCase))
-                .Where(p =>
-                {
-                    bool isTrial = string.Equals(p.PlanType, "Trial", StringComparison.OrdinalIgnoreCase) || p.PlanName.Equals("Free Trial", StringComparison.OrdinalIgnoreCase);
-                    if (isTrial && trialUsed) return false;
-                    return true;
-                })
-                .ToList();
-
+            var plans = await _subRepo.GetAllPlansAsync();
             var activeSub = await _subRepo.GetActiveSubscriptionByOwnerIdAsync(ownerId);
-            var scheduledSub = await _subRepo.GetScheduledSubscriptionByOwnerIdAsync(ownerId);
             var history = await _subRepo.GetSubscriptionHistoryByOwnerIdAsync(ownerId);
 
             ViewBag.ActiveSub = activeSub;
-            ViewBag.ScheduledSub = scheduledSub;
             ViewBag.History = history;
-            ViewBag.TrialUsed = trialUsed;
             return View(plans);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Subscribe(int planId)
-        {
-            var plan = await _subRepo.GetPlanByIdAsync(planId);
-            if (plan == null || !plan.IsActive)
-            {
-                TempData["Error"] = "Selected subscription plan is not available.";
-                return RedirectToAction(nameof(Subscriptions));
-            }
-
-            if (string.Equals(plan.PlanType, "Trial", StringComparison.OrdinalIgnoreCase))
-            {
-                return await StartFreeTrial();
-            }
-
-            return RedirectToAction(nameof(SubscriptionPayment), new { planId = plan.PlanID });
-        }
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> StartFreeTrial()
+        public async Task<IActionResult> Subscribe(int planId, bool acknowledgeActive = false, bool acknowledgeStart = false)
         {
             var ownerId = GetCurrentUserId();
-            var user = await _userRepo.GetByIdAsync(ownerId);
+            var plan = await _subRepo.GetPlanByIdAsync(planId);
+            if (plan == null) return NotFound();
 
-            if (user == null || user.TrialUsedAt.HasValue || await _subRepo.HasAnyTrialHistoryAsync(ownerId))
-            {
-                TempData["Error"] = "Free trial has already been used on this account.";
-                return RedirectToAction(nameof(Subscriptions));
-            }
-
-            var trialPlan = await _subRepo.GetActiveTrialPlanAsync();
-            if (trialPlan == null || !trialPlan.IsActive)
-            {
-                TempData["Error"] = "Free trial plan is currently deactivated or unavailable.";
-                return RedirectToAction(nameof(Subscriptions));
-            }
-
+            var activeSub = await _subRepo.GetActiveSubscriptionByOwnerIdAsync(ownerId);
             DateTime startDate = DateTime.UtcNow;
-            DateTime endDate = startDate.AddDays(trialPlan.DurationInDays);
+            if (activeSub != null)
+            {
+                if (!acknowledgeActive || !acknowledgeStart)
+                {
+                    TempData["Error"] = $"You hold an active plan ({activeSub.PlanName}) until {activeSub.EndDate:dd MMM yyyy}. Please acknowledge the scheduled renewal warnings to proceed.";
+                    return RedirectToAction(nameof(Subscriptions));
+                }
+                startDate = activeSub.EndDate;
+            }
 
-            var trialSub = new OwnerSubscription
+            decimal effectivePrice = await _subRepo.GetEffectivePlanPriceAsync(planId, DateTime.UtcNow);
+
+            var sub = new OwnerSubscription
             {
                 OwnerID = ownerId,
-                PlanID = trialPlan.PlanID,
+                PlanID = planId,
                 StartDate = startDate,
-                EndDate = endDate,
-                PaymentStatus = "Trial",
-                GatewayTransactionID = null,
-                PricePaid = 0m,
-                PlanNameSnapshot = trialPlan.PlanName,
-                MaxListingsSnapshot = 1,
-                DurationDaysSnapshot = trialPlan.DurationInDays
+                EndDate = startDate.AddDays(plan.DurationInDays),
+                PaymentStatus = "Pending",
+                PricePaid = effectivePrice,
+                GatewayTransactionID = null
             };
 
-            int subId = await _subRepo.SubscribeOwnerAsync(trialSub);
-            if (subId > 0)
-            {
-                await _userRepo.SetTrialUsedAsync(ownerId, startDate);
-                await _configRepo.LogAuditAsync(ownerId, "StartFreeTrial", "OwnerSubscription", subId,
-                    $"Owner #{ownerId} activated free trial ({trialPlan.DurationInDays} days, 1 property). Valid until {endDate:dd MMM yyyy}.");
-
-                if (_notificationDispatcher != null)
-                {
-                    _ = _notificationDispatcher.DispatchSubscriptionActivatedAsync(ownerId, trialPlan.PlanName, endDate);
-                }
-
-                TempData["Success"] = $"Your free trial of {trialPlan.PlanName} ({trialPlan.DurationInDays} days, 1 property) is now active! You can now publish your listing.";
-            }
-            else
-            {
-                TempData["Error"] = "Failed to activate free trial.";
-            }
-
-            return RedirectToAction(nameof(Subscriptions));
+            var subscriptionId = await _subRepo.SubscribeOwnerAsync(sub);
+            return RedirectToAction(nameof(SubscriptionPayment), new { id = subscriptionId });
         }
 
         [HttpGet]
-        public async Task<IActionResult> SubscriptionPayment(int? id, int? planId)
+        public async Task<IActionResult> SubscriptionPayment(int id)
         {
             var ownerId = GetCurrentUserId();
-            SubscriptionPlan? plan = null;
-
-            if (planId.HasValue && planId.Value > 0)
+            var sub = await _subRepo.GetSubscriptionByIdAsync(id);
+            if (sub == null || sub.OwnerID != ownerId)
             {
-                plan = await _subRepo.GetPlanByIdAsync(planId.Value);
-            }
-            else if (id.HasValue && id.Value > 0)
-            {
-                var sub = await _subRepo.GetSubscriptionByIdAsync(id.Value);
-                if (sub != null && sub.OwnerID == ownerId)
-                {
-                    plan = await _subRepo.GetPlanByIdAsync(sub.PlanID);
-                }
-                else
-                {
-                    plan = await _subRepo.GetPlanByIdAsync(id.Value);
-                }
+                return NotFound();
             }
 
-            if (plan == null || !plan.IsActive)
+            if (sub.PaymentStatus == "Paid")
             {
-                TempData["Error"] = "Selected subscription plan is not available.";
+                TempData["Info"] = "This subscription has already been activated.";
                 return RedirectToAction(nameof(Subscriptions));
             }
 
+            var plan = await _subRepo.GetPlanByIdAsync(sub.PlanID);
+            if (plan == null) return NotFound();
+
             var owner = await _userRepo.GetByIdAsync(ownerId);
-            var order = await _paymentService.CreateOrderAsync(plan.Price, $"sub_{ownerId}_{plan.PlanID}_{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}");
+            var order = await _paymentService.CreateOrderAsync(plan.Price, $"sub_{ownerId}_{plan.PlanID}_{sub.SubscriptionID}");
 
             var vm = new SubscriptionPaymentViewModel
             {
-                SubscriptionID = 0,
+                SubscriptionID = sub.SubscriptionID,
                 PlanID = plan.PlanID,
                 PlanName = plan.PlanName,
                 DurationInDays = plan.DurationInDays,
@@ -1132,98 +1041,60 @@ namespace BookMyFun.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> VerifySubscriptionPayment(int? subscriptionId, int? planId, string razorpay_order_id, string razorpay_payment_id, string razorpay_signature)
+        public async Task<IActionResult> VerifySubscriptionPayment(int subscriptionId, string razorpay_order_id, string razorpay_payment_id, string razorpay_signature)
         {
             var ownerId = GetCurrentUserId();
-
-            // Resolve target plan
-            SubscriptionPlan? plan = null;
-            if (planId.HasValue && planId.Value > 0)
+            var sub = await _subRepo.GetSubscriptionByIdAsync(subscriptionId);
+            if (sub == null || sub.OwnerID != ownerId)
             {
-                plan = await _subRepo.GetPlanByIdAsync(planId.Value);
-            }
-            else if (subscriptionId.HasValue && subscriptionId.Value > 0)
-            {
-                var sub = await _subRepo.GetSubscriptionByIdAsync(subscriptionId.Value);
-                if (sub != null && sub.OwnerID == ownerId)
-                {
-                    plan = await _subRepo.GetPlanByIdAsync(sub.PlanID);
-                }
-            }
-
-            if (plan == null || !plan.IsActive)
-            {
-                TempData["Error"] = "Subscription plan is not available.";
-                return RedirectToAction(nameof(Subscriptions));
+                return NotFound();
             }
 
             bool isValid = await _paymentService.VerifyPaymentSignatureAsync(razorpay_order_id, razorpay_payment_id, razorpay_signature);
             if (!isValid)
             {
                 TempData["Error"] = "Payment signature verification failed. Please try again or reach our 24/7 helpdesk.";
-                return RedirectToAction(nameof(SubscriptionPayment), new { planId = plan.PlanID });
+                return RedirectToAction(nameof(SubscriptionPayment), new { id = subscriptionId });
             }
 
-            // Check if owner holds active subscription; if so, schedule renewal
-            var activeSub = await _subRepo.GetActiveSubscriptionByOwnerIdAsync(ownerId);
-            DateTime startDate = activeSub != null ? activeSub.EndDate : DateTime.UtcNow;
-            DateTime endDate = startDate.AddDays(plan.DurationInDays);
-
-            var newSub = new OwnerSubscription
-            {
-                OwnerID = ownerId,
-                PlanID = plan.PlanID,
-                StartDate = startDate,
-                EndDate = endDate,
-                PaymentStatus = "Paid",
-                GatewayTransactionID = $"RAZORPAY_{razorpay_payment_id}",
-                PricePaid = plan.Price,
-                PlanNameSnapshot = plan.PlanName,
-                MaxListingsSnapshot = plan.MaxListings,
-                DurationDaysSnapshot = plan.DurationInDays
-            };
-
-            int newSubId = await _subRepo.SubscribeOwnerAsync(newSub);
-
-            // Log audit
-            await _configRepo.LogAuditAsync(ownerId, "PurchaseSubscriptionPlan", "OwnerSubscription", newSubId,
-                $"Owner #{ownerId} purchased {plan.PlanName} for ₹{plan.Price:N0}. Start: {startDate:dd MMM yyyy}, End: {endDate:dd MMM yyyy}, Gateway: RAZORPAY_{razorpay_payment_id}.");
-
+            await _subRepo.UpdateSubscriptionPaymentStatusAsync(subscriptionId, "Paid", $"RAZORPAY_{razorpay_payment_id}");
+            
             // Check if active immediately or scheduled for future
-            if (startDate <= DateTime.UtcNow)
+            if (sub.StartDate <= DateTime.UtcNow)
             {
+                // When a paid plan becomes active, unpublished properties are NOT republished automatically.
+                // The owner chooses which to publish, up to the plan's MaxListings.
                 var unpubProps = (await _propRepo.GetPropertiesByOwnerIdAsync(ownerId))
                     .Where(p => p.ListingStatus == "Unpublished" || p.ListingStatus == "Deactivated")
                     .Select(p => p.Title)
                     .ToList();
 
-                int limit = plan.MaxListings > 0 ? plan.MaxListings : 1;
+                int limit = sub.MaxListings > 0 ? sub.MaxListings : 1;
                 if (_notificationDispatcher != null)
                 {
                     _ = _notificationDispatcher.DispatchPostPaymentPublishPromptAsync(
                         ownerId,
-                        newSubId,
-                        plan.PlanName,
+                        sub.SubscriptionID,
+                        sub.PlanName ?? "Subscription",
                         unpubProps,
                         limit);
                     _ = _notificationDispatcher.DispatchPlanPurchaseConfirmedAsync(
                         ownerId,
-                        plan.PlanName,
-                        plan.Price,
+                        sub.PlanName ?? "Subscription",
+                        (sub.PricePaid ?? 0m),
                         false,
-                        startDate);
+                        sub.StartDate);
                 }
-                TempData["Success"] = $"Razorpay payment verified successfully! Your subscription to {plan.PlanName} is now active. Please choose which properties to publish from your dashboard.";
+                TempData["Success"] = $"Razorpay payment verified successfully! Your subscription to {sub.PlanName} is now active. Please choose which properties to publish from your dashboard.";
             }
             else
             {
                 if (_notificationDispatcher != null)
                 {
-                    _ = _notificationDispatcher.DispatchPlanPurchaseConfirmedAsync(ownerId, plan.PlanName, plan.Price, true, startDate);
+                    _ = _notificationDispatcher.DispatchPlanPurchaseConfirmedAsync(ownerId, sub.PlanName ?? "Subscription", (sub.PricePaid ?? 0m), true, sub.StartDate);
                 }
-                TempData["Success"] = $"Razorpay payment verified successfully! Your subscription to {plan.PlanName} is scheduled to start on {startDate:dd MMM yyyy}.";
+                TempData["Success"] = $"Razorpay payment verified successfully! Your subscription to {sub.PlanName} is scheduled to start on {sub.StartDate:dd MMM yyyy}.";
             }
-
             return RedirectToAction(nameof(Subscriptions));
         }
 
@@ -1525,61 +1396,5 @@ namespace BookMyFun.Controllers
             return RedirectToAction(nameof(NotificationSettings));
         }
 
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> RequestPhotoShoot(int propertyId, string shootType, string? notes)
-        {
-            var ownerId = GetCurrentUserId();
-            var prop = await _propRepo.GetByIdAsync(propertyId);
-            if (prop == null) return NotFound();
-            if (prop.OwnerID != ownerId && !User.IsInRole("Admin")) return Forbid();
-
-            var validTypes = new[] { "Photo", "Video", "Both" };
-            if (!validTypes.Contains(shootType, StringComparer.OrdinalIgnoreCase))
-            {
-                TempData["Error"] = "Please select a valid shoot type: Photo, Video, or Both.";
-                return RedirectToAction(nameof(Index));
-            }
-
-            if (_photoShootRepo != null)
-            {
-                bool hasOpen = await _photoShootRepo.HasOpenRequestAsync(propertyId, shootType);
-                if (hasOpen)
-                {
-                    TempData["Error"] = $"An open {shootType} shoot request already exists for '{prop.Title}'. Only one open request per listing per type is allowed.";
-                    return RedirectToAction(nameof(Index));
-                }
-
-                var req = new PhotoShootRequest
-                {
-                    PropertyID = propertyId,
-                    OwnerID = ownerId,
-                    ShootType = shootType,
-                    Status = "Requested",
-                    Notes = notes?.Trim(),
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                int reqId = await _photoShootRepo.CreateRequestAsync(req);
-                if (reqId > 0)
-                {
-                    await _configRepo.LogAuditAsync(ownerId, "OwnerRequestPhotoShoot", "PhotoShootRequest", reqId,
-                        $"Host #{ownerId} submitted a {shootType} shoot request for listing #{propertyId} ('{prop.Title}').");
-
-                    if (_notificationDispatcher != null)
-                    {
-                        _ = _notificationDispatcher.DispatchPhotoShootRequestedAsync(reqId, propertyId, prop.Title, ownerId, shootType);
-                    }
-
-                    TempData["Success"] = $"Your {shootType} shoot request for '{prop.Title}' was submitted successfully! Our team will contact you shortly to schedule it.";
-                }
-                else
-                {
-                    TempData["Error"] = "Unable to process photo shoot request. Please try again.";
-                }
-            }
-
-            return RedirectToAction(nameof(Index));
-        }
-    }
+}
 }

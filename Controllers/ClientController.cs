@@ -3,7 +3,6 @@ using BookMyFun.Models.Entities;
 using BookMyFun.Models.ViewModels;
 using BookMyFun.Repositories;
 using BookMyFun.Services;
-using BookMyFun.Services.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,20 +15,17 @@ namespace BookMyFun.Controllers
         private readonly IBookingRepository _bookingRepo;
         private readonly IIdVerificationService _idVerificationService;
         private readonly IRefundRepository? _refundRepo;
-        private readonly IHtmlSanitizerService? _sanitizer;
 
         public ClientController(
             IUserRepository userRepo,
             IBookingRepository bookingRepo,
             IIdVerificationService idVerificationService,
-            IRefundRepository? refundRepo = null,
-            IHtmlSanitizerService? sanitizer = null)
+            IRefundRepository? refundRepo = null)
         {
             _userRepo = userRepo;
             _bookingRepo = bookingRepo;
             _idVerificationService = idVerificationService;
             _refundRepo = refundRepo;
-            _sanitizer = sanitizer;
         }
 
         public async Task<IActionResult> Index()
@@ -78,35 +74,15 @@ namespace BookMyFun.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Policy = "RequireClient")]
         public async Task<IActionResult> AddReview(int bookingId, int propertyId, int rating, string? comment)
         {
-            var clientIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(clientIdClaim) || !int.TryParse(clientIdClaim, out int clientId))
-            {
-                return Challenge();
-            }
+            var clientId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
             var booking = await _bookingRepo.GetByIdAsync(bookingId);
             if (booking == null || booking.ClientID != clientId || booking.PropertyID != propertyId)
             {
-                TempData["Error"] = "Booking not found or you are not authorized to review this stay.";
                 return Forbid();
             }
-
-            if (!string.Equals(booking.Status, "Completed", StringComparison.OrdinalIgnoreCase))
-            {
-                TempData["Error"] = "Reviews can only be submitted for completed stays.";
-                return RedirectToAction(nameof(Index));
-            }
-
-            if (await _bookingRepo.HasReviewForBookingAsync(bookingId))
-            {
-                TempData["Error"] = "You have already submitted a review for this booking. Only one review per booking is permitted.";
-                return RedirectToAction(nameof(Index));
-            }
-
-            string? cleanComment = _sanitizer != null ? _sanitizer.Sanitize(comment) : comment;
 
             var review = new CustomerReview
             {
@@ -114,7 +90,7 @@ namespace BookMyFun.Controllers
                 PropertyID = propertyId,
                 ClientID = clientId,
                 Rating = Math.Clamp(rating, 1, 5),
-                Comment = cleanComment
+                Comment = comment
             };
 
             await _bookingRepo.AddReviewAsync(review);
