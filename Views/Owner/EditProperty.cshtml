@@ -109,8 +109,8 @@
                                 </div>
                             </div>
                             <div class="col-12">
-                                <label class="form-label fw-semibold">About the Property <span class="text-danger">*</span></label>
-                                <textarea asp-for="Description" class="form-control rounded-3" rows="4" required></textarea>
+                                <label class="form-label fw-semibold">About the Property</label>
+                                <textarea asp-for="Description" class="form-control rounded-3" rows="4"></textarea>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label fw-semibold">Max Guest Capacity <span class="text-danger">*</span></label>
@@ -172,17 +172,22 @@
                     </div>
                     <div class="card-body p-4">
                         <div class="row g-3">
-                            <div class="col-md-6">
-                                <label class="form-label fw-semibold">Nearby Area or Road <span class="text-danger">*</span></label>
-                                <input asp-for="NearbyAreaOrRoad" id="nearbyAreaInput" class="form-control rounded-3" placeholder="e.g. Near Kadav Waterfall, Old Mumbai-Pune Highway" required />
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Display Location</label>
+                                <input asp-for="Location" id="locationInput" class="form-control rounded-3" placeholder="e.g. Karjat, Maharashtra" />
+                                <span asp-validation-for="Location" class="text-danger small"></span>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold">City / District <span class="text-danger">*</span></label>
-                                <input asp-for="City" id="cityInput" class="form-control rounded-3" placeholder="e.g. Karjat" required />
+                                <label class="form-label fw-semibold">Nearby Area or Road</label>
+                                <input asp-for="NearbyAreaOrRoad" id="nearbyAreaInput" class="form-control rounded-3" placeholder="e.g. Near Kadav Waterfall, Old Mumbai-Pune Highway" />
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold">State / Union Territory <span class="text-danger">*</span></label>
-                                <select asp-for="State" id="stateSelect" class="form-select rounded-3" required>
+                                <label class="form-label fw-semibold">City / District</label>
+                                <input asp-for="City" id="cityInput" class="form-control rounded-3" placeholder="e.g. Karjat" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">State / Union Territory</label>
+                                <select asp-for="State" id="stateSelect" class="form-select rounded-3">
                                     <option value="">-- Select State / Union Territory --</option>
                                     <option value="Andhra Pradesh">Andhra Pradesh</option>
                                     <option value="Arunachal Pradesh">Arunachal Pradesh</option>
@@ -221,8 +226,8 @@
                                 <span asp-validation-for="State" class="text-danger small d-block"></span>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-semibold">Pincode (6 Digits) <span class="text-danger">*</span></label>
-                                <input asp-for="Pincode" id="pincodeInput" class="form-control rounded-3" placeholder="e.g. 410201" maxlength="6" pattern="^[1-9][0-9]{5}$" required />
+                                <label class="form-label fw-semibold">Pincode (6 Digits)</label>
+                                <input asp-for="Pincode" id="pincodeInput" class="form-control rounded-3" placeholder="e.g. 410201" maxlength="6" pattern="^[1-9][0-9]{5}$" />
                                 <span asp-validation-for="Pincode" class="text-danger small d-block"></span>
                                 <small class="form-text text-muted">Standard 6-digit Indian postal index number.</small>
                             </div>

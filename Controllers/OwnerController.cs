@@ -409,7 +409,7 @@ namespace BookMyFun.Controllers
                 PropertyID = prop.PropertyID,
                 OwnerID = prop.OwnerID,
                 PropertyTypeID = prop.PropertyTypeID,
-                Title = prop.Title,
+                Title = prop.Title ?? string.Empty,
                 Description = prop.Description,
                 Location = prop.Location,
                 FormattedAddress = prop.FormattedAddress,
@@ -421,12 +421,12 @@ namespace BookMyFun.Controllers
                 CommissionRate = prop.CommissionRate,
                 FreeCancellationWindowHours = prop.FreeCancellationWindowHours,
                 CancellationCutoffHours = prop.CancellationCutoffHours,
-                CancellationFeeType = prop.CancellationFeeType,
+                CancellationFeeType = string.IsNullOrWhiteSpace(prop.CancellationFeeType) ? "percentage" : prop.CancellationFeeType,
                 CancellationFeeValue = prop.CancellationFeeValue,
                 MaxGuests = prop.MaxGuests,
                 MinStayNights = prop.MinStayNights > 0 ? prop.MinStayNights : 1,
                 MaxStayNights = prop.MaxStayNights > 0 ? prop.MaxStayNights : 30,
-                ListingStatus = prop.ListingStatus,
+                ListingStatus = prop.ListingStatus ?? "Draft",
                 IsApproved = prop.IsApproved,
                 IsFeatured = prop.IsFeatured,
                 CaretakerName = prop.CaretakerName,
@@ -438,9 +438,10 @@ namespace BookMyFun.Controllers
                 State = prop.State,
                 MapUrlLocked = prop.MapUrlLocked,
                 EventCommissionRate = prop.EventCommissionRate,
-                SelectedOccasionIDs = prop.OccasionIDs,
-                SelectedAmenityIDs = prop.AmenityIDs,
-                ExistingMedia = prop.MediaList,
+                ImageUrlInput = prop.PrimaryImageUrl,
+                SelectedOccasionIDs = prop.OccasionIDs ?? new List<int>(),
+                SelectedAmenityIDs = prop.AmenityIDs ?? new List<int>(),
+                ExistingMedia = prop.MediaList ?? new List<PropertyMedia>(),
                 AvailableTypes = await _propRepo.GetPropertyTypesAsync(),
                 AvailableOccasions = await _propRepo.GetOccasionsAsync(),
                 AvailableAmenities = await _propRepo.GetAllAmenitiesAsync()
@@ -523,49 +524,45 @@ namespace BookMyFun.Controllers
                 vm.MapUrl = prop.MapUrl;
                 ModelState.Remove("MapUrl");
             }
-            else
+            else if (!string.IsNullOrWhiteSpace(vm.MapUrl))
             {
-                if (string.IsNullOrWhiteSpace(vm.MapUrl))
+                if (!Uri.TryCreate(vm.MapUrl.Trim(), UriKind.Absolute, out var uriResult) ||
+                    (uriResult.Scheme != Uri.UriSchemeHttp && uriResult.Scheme != Uri.UriSchemeHttps))
                 {
-                    ModelState.AddModelError("MapUrl", "Google Maps location URL is required.");
-                }
-                else if (!Uri.TryCreate(vm.MapUrl.Trim(), UriKind.Absolute, out var uriResult) ||
-                         (uriResult.Scheme != Uri.UriSchemeHttp && uriResult.Scheme != Uri.UriSchemeHttps))
-                {
-                    ModelState.AddModelError("MapUrl", "Please enter a valid Google Maps URL starting with http:// or https://.");
+                    ModelState.AddModelError("MapUrl", "Map Link: Please enter a valid Google Maps URL starting with http:// or https://.");
                 }
             }
 
-            // Validate Indian Pincode format (6 digits)
-            if (string.IsNullOrWhiteSpace(vm.Pincode) || !System.Text.RegularExpressions.Regex.IsMatch(vm.Pincode.Trim(), @"^[1-9][0-9]{5}$"))
+            // Validate Indian Pincode format (6 digits) only when provided
+            if (!string.IsNullOrWhiteSpace(vm.Pincode) && !System.Text.RegularExpressions.Regex.IsMatch(vm.Pincode.Trim(), @"^[1-9][0-9]{5}$"))
             {
-                ModelState.AddModelError("Pincode", "PIN Code must be a valid 6-digit Indian postal code.");
+                ModelState.AddModelError("Pincode", "PIN Code: Must be a valid 6-digit Indian postal code.");
             }
 
-            // Validate State
-            if (string.IsNullOrWhiteSpace(vm.State) || !ValidIndianStates.Contains(vm.State.Trim()))
+            // Validate State only when provided
+            if (!string.IsNullOrWhiteSpace(vm.State) && !ValidIndianStates.Contains(vm.State.Trim()))
             {
-                ModelState.AddModelError("State", "Please select a valid Indian State or Union Territory.");
+                ModelState.AddModelError("State", "State: Please select a valid Indian State or Union Territory.");
             }
 
             // Validate MinStayNights <= MaxStayNights
             if (vm.MinStayNights < 1)
             {
-                ModelState.AddModelError("MinStayNights", "Minimum stay must be at least 1 night.");
+                ModelState.AddModelError("MinStayNights", "Minimum Stay: Must be at least 1 night.");
             }
             if (vm.MaxStayNights < 1)
             {
-                ModelState.AddModelError("MaxStayNights", "Maximum stay must be at least 1 night.");
+                ModelState.AddModelError("MaxStayNights", "Maximum Stay: Must be at least 1 night.");
             }
             if (vm.MinStayNights > vm.MaxStayNights)
             {
-                ModelState.AddModelError("MinStayNights", "Minimum stay nights cannot exceed maximum stay nights.");
+                ModelState.AddModelError("MinStayNights", "Minimum Stay: Minimum stay nights cannot exceed maximum stay nights.");
             }
 
-            // Validate CaretakerPhone when OwnerIsCaretaker is false
-            if (!vm.OwnerIsCaretaker && string.IsNullOrWhiteSpace(vm.CaretakerPhone))
+            // Validate CaretakerPhone only if previously set and cleared while OwnerIsCaretaker is false
+            if (!vm.OwnerIsCaretaker && !string.IsNullOrWhiteSpace(prop.CaretakerPhone) && string.IsNullOrWhiteSpace(vm.CaretakerPhone))
             {
-                ModelState.AddModelError("CaretakerPhone", "Caretaker contact phone is required when you are not the on-site caretaker.");
+                ModelState.AddModelError("CaretakerPhone", "Caretaker Phone: Caretaker contact phone is required when you are not the on-site caretaker.");
             }
 
             // Security deposit removed per Section 4d
