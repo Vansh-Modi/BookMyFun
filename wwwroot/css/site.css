@@ -4092,3 +4092,113 @@ body {
         flex-shrink: 0 !important;
     }
 }
+
+/* Shared Compact Calendar (Checkout & Property Details) */
+.compact-cal-card {
+    border: 1px solid var(--border-subtle, #e2e8f0);
+    border-radius: 16px;
+    background: var(--bg-card, #ffffff);
+    padding: 1rem;
+    max-width: 320px;
+    margin: 0 auto;
+    user-select: none;
+}
+
+.compact-cal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.compact-cal-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    margin-bottom: 0.35rem;
+}
+
+.compact-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+}
+
+.compact-cal-cell {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    color: var(--text-main, #1e293b);
+    border: 1px solid transparent;
+    margin: 0 auto;
+}
+
+.compact-cal-cell:hover:not(.cal-disabled):not(.cal-start):not(.cal-end) {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.compact-cal-cell.cal-disabled {
+    opacity: 0.28;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.compact-cal-cell.cal-start {
+    background: #0B4F6C !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.compact-cal-cell.cal-end {
+    background: #0B4F6C !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+.compact-cal-cell.cal-single {
+    background: #0B4F6C !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    border-radius: 8px !important;
+}
+
+.compact-cal-cell.cal-mid {
+    background: #e0f2fe !important;
+    color: #0369a1 !important;
+    border-radius: 0 !important;
+}
+
+[data-theme="dark"] .compact-cal-card {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+[data-theme="dark"] #cCalMonthTitle,
+[data-theme="dark"] #detailsCalMonthTitle {
+    color: #f8fafc !important;
+}
+
+[data-theme="dark"] .compact-cal-cell {
+    color: #f8fafc;
+}
+
+[data-theme="dark"] .compact-cal-cell:hover:not(.cal-disabled):not(.cal-start):not(.cal-end) {
+    background: #334155;
+    color: #38bdf8;
+}
