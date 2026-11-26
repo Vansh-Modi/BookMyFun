@@ -244,11 +244,9 @@ namespace BookMyFun.Models.ViewModels
 
         public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
         {
-            bool docSubmitted = !string.IsNullOrWhiteSpace(IdDocumentNumber) || !string.IsNullOrWhiteSpace(DocumentType);
+            bool docSubmitted = !string.IsNullOrWhiteSpace(DocumentType);
             bool hasExistingDoc = !string.IsNullOrWhiteSpace(ExistingDocumentKey) || IsClientAlreadyVerified;
-            bool docNumberChanged = !string.IsNullOrWhiteSpace(ExistingDocumentNumber) &&
-                !RequiredDocumentFileAttribute.IsSameDocumentNumber(IdDocumentNumber, ExistingDocumentNumber);
-            bool fileRequired = docSubmitted && (!hasExistingDoc || docNumberChanged);
+            bool fileRequired = docSubmitted && !hasExistingDoc;
 
             if (fileRequired && (IdDocumentFile == null || IdDocumentFile.Length == 0))
             {

@@ -13,6 +13,7 @@ namespace BookMyFun.Services
         string GenerateExpiringDocumentToken(string documentKey, int requestingUserId, string userRole, int expirationMinutes = 15);
         bool ValidateExpiringDocumentToken(string documentKey, string token, int requestingUserId, string userRole);
         string GetPrivateDocumentPhysicalPath(string documentKey);
+        Task<byte[]> ReadPrivateDocumentAsync(string documentKey) => File.ReadAllBytesAsync(GetPrivateDocumentPhysicalPath(documentKey));
     }
 
     public class MediaStorageService : IMediaStorageService
@@ -177,6 +178,19 @@ namespace BookMyFun.Services
             // Path traversal defense
             string safeKey = Path.GetFileName(documentKey);
             return Path.Combine(_env.ContentRootPath, "App_Data", "PrivateDocuments", safeKey);
+        }
+
+        public async Task<byte[]> ReadPrivateDocumentAsync(string documentKey)
+        {
+            string physicalPath = GetPrivateDocumentPhysicalPath(documentKey);
+            byte[] fileBytes = await File.ReadAllBytesAsync(physicalPath);
+
+            if (_encryptionService != null && _encryptionService.IsEncrypted(fileBytes))
+            {
+                return _encryptionService.DecryptDocument(fileBytes);
+            }
+
+            return fileBytes;
         }
 
         public string GenerateExpiringDocumentToken(string documentKey, int requestingUserId, string userRole, int expirationMinutes = 15)

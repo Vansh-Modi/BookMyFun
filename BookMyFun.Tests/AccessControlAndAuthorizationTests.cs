@@ -277,7 +277,7 @@ namespace BookMyFun.Tests
         }
 
         [Fact]
-        public void MediaController_ViewPrivateDocument_RejectsClientAccessToAnotherClientsDocument()
+        public async Task MediaController_ViewPrivateDocument_RejectsClientAccessToAnotherClientsDocument()
         {
             var propRepo = new MockPropertyRepo();
             var mediaStorage = new MockMediaStorageService();
@@ -290,14 +290,14 @@ namespace BookMyFun.Tests
             };
 
             // Trying to view doc belonging to client 99
-            Assert.Throws<ForbiddenException>(() =>
+            await Assert.ThrowsAsync<ForbiddenException>(async () =>
             {
-                controller.ViewPrivateDocument("doc_client_99_secret.pdf", "valid_dummy_token");
+                await controller.ViewPrivateDocument("doc_client_99_secret.pdf", "valid_dummy_token");
             });
         }
 
         [Fact]
-        public void MediaController_ViewPrivateDocument_StrictlyForbidsHostFromViewingIdDocuments()
+        public async Task MediaController_ViewPrivateDocument_StrictlyForbidsHostFromViewingIdDocuments()
         {
             var propRepo = new MockPropertyRepo();
             var mediaStorage = new MockMediaStorageService();
@@ -309,9 +309,9 @@ namespace BookMyFun.Tests
                 ControllerContext = CreateContext(userId: 5, role: "Owner")
             };
 
-            Assert.Throws<ForbiddenException>(() =>
+            await Assert.ThrowsAsync<ForbiddenException>(async () =>
             {
-                controller.ViewPrivateDocument("doc_client_10_secret.pdf", "valid_dummy_token");
+                await controller.ViewPrivateDocument("doc_client_10_secret.pdf", "valid_dummy_token");
             });
         }
     }

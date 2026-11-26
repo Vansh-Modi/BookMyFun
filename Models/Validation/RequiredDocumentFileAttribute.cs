@@ -33,22 +33,13 @@ namespace BookMyFun.Models.Validation
 
             // Check if document submission is being made
             bool isDocumentSubmitted = model != null &&
-                (!string.IsNullOrWhiteSpace(model.IdDocumentNumber) ||
-                 !string.IsNullOrWhiteSpace(model.DocumentType));
+                !string.IsNullOrWhiteSpace(model.DocumentType);
 
-            // If the model is BookingCheckoutViewModel, check if existing document is on file and unchanged
-            bool hasExistingDoc = false;
-            bool docNumberChanged = false;
-            if (model != null)
-            {
-                hasExistingDoc = !string.IsNullOrWhiteSpace(model.ExistingDocumentKey) || model.IsClientAlreadyVerified;
-                docNumberChanged = !string.IsNullOrWhiteSpace(model.ExistingDocumentNumber) &&
-                    !IsSameDocumentNumber(model.IdDocumentNumber, model.ExistingDocumentNumber);
-            }
+            // If the model is BookingCheckoutViewModel, check if existing document is on file or user is already verified
+            bool hasExistingDoc = model != null &&
+                (!string.IsNullOrWhiteSpace(model.ExistingDocumentKey) || model.IsClientAlreadyVerified);
 
-            bool fileRequired = model != null
-                ? (isDocumentSubmitted && (!hasExistingDoc || docNumberChanged))
-                : false;
+            bool fileRequired = model != null && isDocumentSubmitted && !hasExistingDoc;
 
             if (fileRequired && (file == null || file.Length == 0))
             {

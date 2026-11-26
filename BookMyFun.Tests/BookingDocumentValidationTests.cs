@@ -381,16 +381,13 @@ namespace BookMyFun.Tests
         }
 
         [Fact]
-        public void ModelValidation_WhenExistingDocument_DocumentNumberChanged_FailsWithoutNewFile()
+        public void ModelValidation_WhenAlreadyVerified_DoesNotRequireNewFile()
         {
             var model = new BookingCheckoutViewModel
             {
                 GuestFullName = "Vansh Sharma",
                 GuestPhone = "9876543210",
                 DocumentType = "Aadhaar",
-                IdDocumentNumber = "999988887777", // Changed number
-                ExistingDocumentKey = "vault/doc_10.pdf",
-                ExistingDocumentNumber = "123456789012",
                 IsClientAlreadyVerified = true,
                 IdDocumentFile = null
             };
@@ -399,8 +396,7 @@ namespace BookMyFun.Tests
             var results = new List<ValidationResult>();
             bool isValid = Validator.TryValidateObject(model, context, results, validateAllProperties: true);
 
-            Assert.False(isValid);
-            Assert.Contains(results, r => r.MemberNames.Contains("IdDocumentFile") && r.ErrorMessage!.Contains("Please upload a copy of your document"));
+            Assert.True(isValid);
         }
 
         // =========================================================================
@@ -613,10 +609,18 @@ namespace BookMyFun.Tests
             var mediaStorage = new MockMediaStorageService();
 
             propRepo.Properties[1] = new Property { PropertyID = 1, Title = "Hillside Villa", Location = "Lonavala", PricePerNight = 8000 };
-            userRepo.Users[10] = new User { UserID = 10, FullName = "Vansh Sharma", Role = "Client" };
+            userRepo.Users[10] = new User { UserID = 10, FullName = "Vansh Sharma", Phone = "9876543210", Role = "Client" };
 
             var controller = CreateController(propRepo, bookingRepo, userRepo, mediaStorage);
 
+            // 1. Checkout GET prefills GuestFullName and GuestPhone from logged-in user's profile
+            var getRes = await controller.Checkout(propertyId: 1);
+            var getView = Assert.IsType<ViewResult>(getRes);
+            var getVm = Assert.IsType<BookingCheckoutViewModel>(getView.Model);
+            Assert.Equal("Vansh Sharma", getVm.GuestFullName);
+            Assert.Equal("9876543210", getVm.GuestPhone);
+
+            // 2. ConfirmBooking when already verified succeeds without requiring a new file upload
             var model = new BookingCheckoutViewModel
             {
                 PropertyID = 1,
@@ -626,23 +630,30 @@ namespace BookMyFun.Tests
                 GuestFullName = "Vansh Sharma",
                 GuestPhone = "9876543210",
                 DocumentType = "Aadhaar",
-                IdDocumentNumber = "999988887777", // Changed document number
-                ExistingDocumentKey = "vault/doc_10.pdf",
-                ExistingDocumentNumber = "123456789012",
                 IsClientAlreadyVerified = true,
                 IdDocumentFile = null
             };
 
             var result = await controller.ConfirmBooking(model);
 
-            Assert.False(controller.ModelState.IsValid);
-            Assert.True(controller.ModelState.ContainsKey("IdDocumentFile"));
-            Assert.Contains("Please upload a copy of your document", controller.ModelState["IdDocumentFile"]!.Errors[0].ErrorMessage);
-
-            var viewResult = Assert.IsType<ViewResult>(result);
-            Assert.Equal("Checkout", viewResult.ViewName);
-            Assert.Empty(bookingRepo.Bookings);
+            Assert.True(controller.ModelState.IsValid);
+            Assert.IsType<RedirectToActionResult>(result);
+            Assert.Single(bookingRepo.Bookings);
             Assert.Empty(mediaStorage.SavedDocuments);
+        }
+
+        [Fact]
+        public void CheckoutView_RemovesDocumentNumberField_AndIncludesMaskingGuidance()
+        {
+            var path = TestPathHelper.GetPath("Views", "Booking", "Checkout.cshtml");
+            var html = System.IO.File.ReadAllText(path);
+
+            Assert.DoesNotContain("IdDocumentNumber", html);
+            Assert.Contains("Upload a copy with the first 8 digits masked. Only the last 4 digits should be visible.", html);
+            Assert.Contains("Driving Licence", html);
+            Assert.Contains("Voter ID", html);
+            Assert.Contains("PAN", html);
+            Assert.Contains("Passport", html);
         }
     }
 }

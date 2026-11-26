@@ -233,8 +233,10 @@ namespace BookMyFun.Controllers
             bool isVerified = false;
             string? existingDocKey = null;
             string? existingDocNumber = null;
+            User? currentUser = null;
             if (int.TryParse(clientIdStr, out int clientId))
             {
+                currentUser = await _userRepo.GetByIdAsync(clientId);
                 isVerified = await _idVerificationService.IsClientVerifiedAsync(clientId);
                 try
                 {
@@ -316,6 +318,8 @@ namespace BookMyFun.Controllers
 
                 IsEventServiceAvailable = isStayAndCelebrateAvailable,
                 IsClientAlreadyVerified = isVerified,
+                GuestFullName = currentUser?.FullName ?? User.Identity?.Name ?? "",
+                GuestPhone = currentUser?.Phone ?? "",
                 DocumentType = "Aadhaar",
                 ExistingDocumentKey = existingDocKey,
                 ExistingDocumentNumber = existingDocNumber,
@@ -748,8 +752,7 @@ namespace BookMyFun.Controllers
                 }
 
                 // Guest identity & contact validation
-                bool isDocumentSubmitted = !string.IsNullOrWhiteSpace(model.IdDocumentNumber) ||
-                                           !string.IsNullOrWhiteSpace(model.DocumentType) ||
+                bool isDocumentSubmitted = !string.IsNullOrWhiteSpace(model.DocumentType) ||
                                            (model.IdDocumentFile != null && model.IdDocumentFile.Length > 0);
 
                 if (Request.HasFormContentType || isDocumentSubmitted || !string.IsNullOrWhiteSpace(model.GuestFullName) || !string.IsNullOrWhiteSpace(model.GuestPhone))
@@ -765,80 +768,31 @@ namespace BookMyFun.Controllers
                         ModelState.AddModelError("GuestPhone", "Please enter a valid 10-digit mobile number.");
                     }
 
-                    // ID Number validation (B11a & B11b)
-                    var docType = (model.DocumentType ?? "Aadhaar (masked copy)").Trim();
-                    bool isAadhaar = docType.Equals("Aadhaar", StringComparison.OrdinalIgnoreCase) || docType.Equals("Aadhaar (masked copy)", StringComparison.OrdinalIgnoreCase);
-                    bool isPAN = docType.Equals("PAN", StringComparison.OrdinalIgnoreCase);
-                    bool isPassport = docType.Equals("Passport", StringComparison.OrdinalIgnoreCase);
-                    bool isDL = docType.Equals("Driving Licence", StringComparison.OrdinalIgnoreCase) || docType.Equals("DrivingLicense", StringComparison.OrdinalIgnoreCase);
-                    bool isVoter = docType.Equals("Voter ID", StringComparison.OrdinalIgnoreCase) || docType.Equals("VoterID", StringComparison.OrdinalIgnoreCase);
+                    bool fileRequired = false;
+                    if (!model.IsClientAlreadyVerified)
+                    {
+                        // ID Type validation (B11): Aadhaar, Driving Licence, Voter ID, PAN, Passport
+                        var docType = (model.DocumentType ?? "Aadhaar").Trim();
+                        bool isAadhaar = docType.Equals("Aadhaar", StringComparison.OrdinalIgnoreCase) || docType.Equals("Aadhaar (masked copy)", StringComparison.OrdinalIgnoreCase);
+                        bool isPAN = docType.Equals("PAN", StringComparison.OrdinalIgnoreCase);
+                        bool isPassport = docType.Equals("Passport", StringComparison.OrdinalIgnoreCase);
+                        bool isDL = docType.Equals("Driving Licence", StringComparison.OrdinalIgnoreCase) || docType.Equals("DrivingLicense", StringComparison.OrdinalIgnoreCase);
+                        bool isVoter = docType.Equals("Voter ID", StringComparison.OrdinalIgnoreCase) || docType.Equals("VoterID", StringComparison.OrdinalIgnoreCase);
 
-                    if (!isAadhaar && !isPAN && !isPassport && !isDL && !isVoter)
-                    {
-                        ModelState.AddModelError("DocumentType", "Document type must be one of: Aadhaar (masked copy), Driving Licence, Voter ID, PAN, Passport.");
-                    }
+                        if (!isAadhaar && !isPAN && !isPassport && !isDL && !isVoter)
+                        {
+                            ModelState.AddModelError("DocumentType", "Document type must be one of: Aadhaar, Driving Licence, Voter ID, PAN, Passport.");
+                        }
 
-                    var rawId = (model.IdDocumentNumber ?? "").Trim();
-                    if (string.IsNullOrWhiteSpace(rawId))
-                    {
-                        ModelState.AddModelError("IdDocumentNumber", $"Please provide your {docType} number.");
-                    }
-                    else if (isAadhaar)
-                    {
-                        var rawDigits = rawId.Replace(" ", "");
-                        model.IdDocumentNumber = rawDigits; // store raw 12 digits
-                        if (!System.Text.RegularExpressions.Regex.IsMatch(rawDigits, @"^\d{12}$"))
-                        {
-                            ModelState.AddModelError("IdDocumentNumber", $"Aadhaar must be 12 digits. You have entered {rawDigits.Length}.");
-                        }
-                    }
-                    else if (isPAN)
-                    {
-                        var panUpper = rawId.ToUpperInvariant();
-                        model.IdDocumentNumber = panUpper;
-                        if (!System.Text.RegularExpressions.Regex.IsMatch(panUpper, @"^[A-Z]{5}[0-9]{4}[A-Z]{1}$"))
-                        {
-                            ModelState.AddModelError("IdDocumentNumber", "PAN must be 10 characters in AAAAA9999A format.");
-                        }
-                    }
-                    else if (isPassport)
-                    {
-                        var passUpper = rawId.ToUpperInvariant();
-                        model.IdDocumentNumber = passUpper;
-                        if (!System.Text.RegularExpressions.Regex.IsMatch(passUpper, @"^[A-Z]{1}[0-9]{7}$"))
-                        {
-                            ModelState.AddModelError("IdDocumentNumber", "Passport must be 1 letter followed by 7 digits (e.g. A1234567).");
-                        }
-                    }
-                    else if (isDL)
-                    {
-                        var dlClean = rawId.ToUpperInvariant().Replace(" ", "").Replace("-", "");
-                        model.IdDocumentNumber = dlClean;
-                        if (!System.Text.RegularExpressions.Regex.IsMatch(dlClean, @"^[A-Z]{2}[0-9A-Z]{13,15}$"))
-                        {
-                            ModelState.AddModelError("IdDocumentNumber", "Driving License must start with a 2-letter state code followed by 13 to 15 alphanumeric characters.");
-                        }
-                    }
-                    else if (isVoter)
-                    {
-                        var voterUpper = rawId.ToUpperInvariant();
-                        model.IdDocumentNumber = voterUpper;
-                        if (!System.Text.RegularExpressions.Regex.IsMatch(voterUpper, @"^[A-Z]{3}[0-9]{7}$"))
-                        {
-                            ModelState.AddModelError("IdDocumentNumber", "Voter ID must be 3 letters followed by 7 digits (e.g. ABC1234567).");
-                        }
-                    }
+                        // Document File validation
+                        bool hasFile = model.IdDocumentFile != null && model.IdDocumentFile.Length > 0;
+                        bool hasExistingDoc = !string.IsNullOrWhiteSpace(model.ExistingDocumentKey);
+                        fileRequired = !hasExistingDoc;
 
-                    // Document File validation
-                    bool hasFile = model.IdDocumentFile != null && model.IdDocumentFile.Length > 0;
-                    bool hasExistingDoc = !string.IsNullOrWhiteSpace(model.ExistingDocumentKey) || model.IsClientAlreadyVerified;
-                    bool docNumberChanged = !string.IsNullOrWhiteSpace(model.ExistingDocumentNumber) &&
-                        !BookMyFun.Models.Validation.RequiredDocumentFileAttribute.IsSameDocumentNumber(model.IdDocumentNumber, model.ExistingDocumentNumber);
-                    bool fileRequired = isDocumentSubmitted && (!hasExistingDoc || docNumberChanged);
-
-                    if (fileRequired && !hasFile)
-                    {
-                        ModelState.AddModelError("IdDocumentFile", "Please upload a copy of your document.");
+                        if (fileRequired && !hasFile)
+                        {
+                            ModelState.AddModelError("IdDocumentFile", "Please upload a copy of your document.");
+                        }
                     }
 
                     if (model.IdDocumentFile != null)

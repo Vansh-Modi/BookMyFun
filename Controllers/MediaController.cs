@@ -231,7 +231,7 @@ namespace BookMyFun.Controllers
 
         [HttpGet("view-id-document")]
         [Authorize(Roles = "Client,Admin,Employee")]
-        public IActionResult ViewPrivateDocument([FromQuery] string key, [FromQuery] string token)
+        public async Task<IActionResult> ViewPrivateDocument([FromQuery] string key, [FromQuery] string token, [FromQuery] int? verificationId = null)
         {
             if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(token))
                 throw new ValidationException("Invalid request parameters.");
@@ -286,7 +286,29 @@ namespace BookMyFun.Controllers
             string contentType = key.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? "application/pdf" :
                                  key.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "image/png" : "image/jpeg";
 
-            return PhysicalFile(physicalPath, contentType, enableRangeProcessing: true);
+            byte[] decryptedBytes = await _mediaStorage.ReadPrivateDocumentAsync(key);
+
+            DateTime viewedAtIst;
+            try
+            {
+                var tz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+                viewedAtIst = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+            }
+            catch
+            {
+                var tz = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
+                viewedAtIst = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+            }
+
+            _logger.LogInformation(
+                "Private ID document viewed. StaffUserId={UserId}, Role={Role}, VerificationId={VerificationId}, Key={Key}, ViewedAtIST={ViewedAtIST}",
+                currentUserId,
+                userRole,
+                verificationId?.ToString() ?? "N/A",
+                Path.GetFileName(key),
+                viewedAtIst.ToString("O"));
+
+            return File(decryptedBytes, contentType, enableRangeProcessing: true);
         }
     }
 
