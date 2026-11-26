@@ -102,7 +102,7 @@ namespace BookMyFun.Tests
             var code = File.ReadAllText(path);
 
             var confirmIdx = code.IndexOf("CreateHoldAtomicAsync(booking", StringComparison.Ordinal);
-            var verifyIdx = code.IndexOf("UpdateBookingStatusAsync(booking.BookingID, \"Confirmed\")", StringComparison.Ordinal);
+            var verifyIdx = code.IndexOf("ConfirmBookingPaymentAsync(booking.BookingID", StringComparison.Ordinal);
             var staffAlertIdx = code.IndexOf("DispatchBookingCreatedStaffAlertAsync", StringComparison.Ordinal);
 
             Assert.True(confirmIdx > 0);

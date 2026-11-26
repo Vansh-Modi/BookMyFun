@@ -262,15 +262,13 @@ namespace BookMyFun.Controllers
             // Update booking status exclusively from verified event
             if (booking.Status != "Confirmed")
             {
-                await _bookingRepo.RecordPaymentAsync(new Payment
+                await _bookingRepo.ConfirmBookingPaymentAsync(booking.BookingID, new Payment
                 {
                     BookingID = booking.BookingID,
                     GatewayTransactionID = $"RAZORPAY_{paymentId}",
                     Amount = booking.TotalAmount,
                     PaymentStatus = "Success"
                 });
-
-                await _bookingRepo.UpdateBookingStatusAsync(booking.BookingID, "Confirmed");
 
                 // Invalidate popular stays 15-minute cache immediately upon confirmed booking (Item 9b)
                 SiteSettingsService.InvalidatePopularStaysCacheStatic();

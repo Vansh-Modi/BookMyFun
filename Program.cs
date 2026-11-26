@@ -154,6 +154,7 @@ builder.Services.AddScoped<BookMyFun.Services.Notifications.INotificationDispatc
 builder.Services.AddHostedService<BookMyFun.Services.Notifications.NotificationOutboxBackgroundService>();
 builder.Services.AddHostedService<BookMyFun.Services.Notifications.CheckInReminderBackgroundService>();
 builder.Services.AddHostedService<BookMyFun.Services.Notifications.SubscriptionLifecycleBackgroundService>();
+builder.Services.AddHostedService<BookMyFun.Services.Notifications.BookingHoldExpiryBackgroundService>();
 builder.Services.Configure<HostOptions>(options =>
 {
     options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;

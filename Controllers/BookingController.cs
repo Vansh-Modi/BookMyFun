@@ -1627,21 +1627,13 @@ namespace BookMyFun.Controllers
 
                 {
 
-                    await _bookingRepo.RecordPaymentAsync(new Payment
-
+                    await _bookingRepo.ConfirmBookingPaymentAsync(booking.BookingID, new Payment
                     {
-
                         BookingID = booking.BookingID,
-
                         GatewayTransactionID = $"RAZORPAY_{razorpay_payment_id}",
-
                         Amount = booking.TotalAmount,
-
                         PaymentStatus = "Success"
-
                     });
-
-                    await _bookingRepo.UpdateBookingStatusAsync(booking.BookingID, "Confirmed");
 
                     booking.Status = "Confirmed";
 

@@ -38,6 +38,11 @@ namespace BookMyFun.Repositories
             int? hourlyDuration = null)
             => CreateBookingAsync(booking).ContinueWith(t => (t.Result > 0, t.Result));
         Task<int> ExpireStaleHoldsAsync() => Task.FromResult(0);
+        async Task<bool> ConfirmBookingPaymentAsync(int bookingId, Payment payment)
+        {
+            await RecordPaymentAsync(payment);
+            return await UpdateBookingStatusAsync(bookingId, "Confirmed");
+        }
     }
 
     public class BookingRepository : IBookingRepository
@@ -551,6 +556,92 @@ namespace BookMyFun.Repositories
 
             await tx.CommitAsync();
             return (newId > 0, newId);
+        }
+
+        public async Task<bool> ConfirmBookingPaymentAsync(int bookingId, Payment payment)
+        {
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+            using var tx = (SqlTransaction)await conn.BeginTransactionAsync();
+
+            const string insertPaySql = @"
+                INSERT INTO Payments (BookingID, GatewayTransactionID, Amount, PaymentStatus, PaymentDate)
+                VALUES (@BookingID, @GatewayTransactionID, @Amount, @PaymentStatus, GETUTCDATE())";
+            using (var payCmd = new SqlCommand(insertPaySql, conn, tx))
+            {
+                payCmd.Parameters.AddWithValue("@BookingID", bookingId);
+                payCmd.Parameters.AddWithValue("@GatewayTransactionID", DBHelper.ToDbValue(payment.GatewayTransactionID));
+                payCmd.Parameters.AddWithValue("@Amount", payment.Amount);
+                payCmd.Parameters.AddWithValue("@PaymentStatus", payment.PaymentStatus);
+                await payCmd.ExecuteNonQueryAsync();
+            }
+
+            const string updateBookingSql = @"
+                UPDATE Bookings
+                SET Status = 'Confirmed'
+                WHERE BookingID = @BookingID
+                  AND Status IN ('Hold', 'Pending', 'Confirmed')";
+            int rows;
+            using (var updCmd = new SqlCommand(updateBookingSql, conn, tx))
+            {
+                updCmd.Parameters.AddWithValue("@BookingID", bookingId);
+                rows = await updCmd.ExecuteNonQueryAsync();
+            }
+
+            await tx.CommitAsync();
+            return rows > 0;
+        }
+
+        public async Task<int> ExpireStaleHoldsAsync()
+        {
+            using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+            using var tx = (SqlTransaction)await conn.BeginTransactionAsync();
+
+            bool hasHoldCol;
+            using (var colCmd = new SqlCommand("SELECT COL_LENGTH('dbo.Bookings', 'HoldExpiresAt')", conn, tx))
+            {
+                var colObj = await colCmd.ExecuteScalarAsync();
+                hasHoldCol = colObj != null && colObj != DBNull.Value;
+            }
+
+            string whereExpiry = hasHoldCol
+                ? "HoldExpiresAt IS NOT NULL AND HoldExpiresAt <= GETUTCDATE()"
+                : $"CreatedAt <= DATEADD(MINUTE, -{Math.Max(1, _bookingOptions.HoldMinutes)}, GETUTCDATE())";
+
+            string expireSql = $@"
+                UPDATE Bookings
+                SET Status = 'Expired'
+                OUTPUT INSERTED.BookingID
+                WHERE Status = 'Hold'
+                  AND {whereExpiry}";
+
+            var expiredIds = new List<int>();
+            using (var cmd = new SqlCommand(expireSql, conn, tx))
+            {
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                {
+                    expiredIds.Add(r.GetInt32(0));
+                }
+            }
+
+            if (expiredIds.Count > 0)
+            {
+                const string auditSql = @"
+                    INSERT INTO AuditLogs (PerformedByUserID, Action, EntityType, EntityID, Details, Timestamp)
+                    VALUES (NULL, 'BookingHoldExpired', 'Booking', @BookingID, 'Booking hold expired after hold window.', GETUTCDATE())";
+
+                foreach (var id in expiredIds)
+                {
+                    using var auditCmd = new SqlCommand(auditSql, conn, tx);
+                    auditCmd.Parameters.AddWithValue("@BookingID", id);
+                    await auditCmd.ExecuteNonQueryAsync();
+                }
+            }
+
+            await tx.CommitAsync();
+            return expiredIds.Count;
         }
 
         public async Task<int> RecordPaymentAsync(Payment payment)
