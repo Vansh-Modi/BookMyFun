@@ -43,7 +43,11 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">Mobile / WhatsApp Number</label>
-                        <input asp-for="Phone" class="form-control" placeholder="+91 9876543210" />
+                        <div class="input-group">
+                            <span class="input-group-text bg-light fw-semibold">+91</span>
+                            <input asp-for="Phone" type="tel" class="form-control" placeholder="9876543210" maxlength="10" pattern="[6-9][0-9]{9}" />
+                        </div>
+                        <span asp-validation-for="Phone" class="text-danger small"></span>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-semibold">Occasion / Subject</label>

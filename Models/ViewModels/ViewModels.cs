@@ -46,7 +46,7 @@ namespace BookMyFun.Models.ViewModels
         [Required, DataType(DataType.Password), MinLength(6)]
         public string Password { get; set; } = string.Empty;
 
-        [Phone]
+        [IndianMobile]
         public string? Phone { get; set; }
 
         [Required]
@@ -111,6 +111,7 @@ namespace BookMyFun.Models.ViewModels
         public string? CaretakerName { get; set; }
 
         [MaxLength(20)]
+        [IndianMobile]
         [Display(Name = "Caretaker Contact Phone")]
         public string? CaretakerPhone { get; set; }
 
@@ -236,6 +237,7 @@ namespace BookMyFun.Models.ViewModels
         public string? ExistingDocumentKey { get; set; }
         public string? ExistingDocumentNumber { get; set; }
         public string? GuestFullName { get; set; }
+        [IndianMobile]
         public string? GuestPhone { get; set; }
         public string? DocumentType { get; set; } // 'Aadhaar', 'Passport', 'DrivingLicense', 'VoterID'
         public string? IdDocumentNumber { get; set; }
@@ -442,7 +444,7 @@ namespace BookMyFun.Models.ViewModels
         [Required(ErrorMessage = "Full Name is required"), MaxLength(100)]
         public string FullName { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Phone number is required"), MinLength(8, ErrorMessage = "Please enter a valid phone number")]
+        [Required(ErrorMessage = "Phone number is required"), IndianMobile]
         public string Phone { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Email address is required"), EmailAddress(ErrorMessage = "Please enter a valid email address")]
@@ -687,7 +689,7 @@ namespace BookMyFun.Models.ViewModels
         [Required, EmailAddress]
         public string Email { get; set; } = string.Empty;
 
-        [Phone]
+        [IndianMobile]
         public string? Phone { get; set; }
 
         public string Role { get; set; } = "Client";
@@ -784,7 +786,7 @@ namespace BookMyFun.Models.ViewModels
         [Display(Name = "Email Address")]
         public string Email { get; set; } = string.Empty;
 
-        [Phone(ErrorMessage = "Invalid phone number format.")]
+        [IndianMobile]
         [StringLength(20, ErrorMessage = "Phone number cannot exceed 20 characters.")]
         [Display(Name = "Phone Number")]
         public string? Phone { get; set; }
@@ -812,7 +814,7 @@ namespace BookMyFun.Models.ViewModels
         [Display(Name = "Email Address")]
         public string Email { get; set; } = string.Empty;
 
-        [Phone(ErrorMessage = "Invalid phone number format.")]
+        [IndianMobile]
         [StringLength(20, ErrorMessage = "Phone number cannot exceed 20 characters.")]
         [Display(Name = "Phone Number")]
         public string? Phone { get; set; }

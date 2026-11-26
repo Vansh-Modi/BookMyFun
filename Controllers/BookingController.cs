@@ -324,7 +324,7 @@ namespace BookMyFun.Controllers
                 IsEventServiceAvailable = isStayAndCelebrateAvailable,
                 IsClientAlreadyVerified = isVerified,
                 GuestFullName = currentUser?.FullName ?? User.Identity?.Name ?? "",
-                GuestPhone = currentUser?.Phone ?? "",
+                GuestPhone = BookMyFun.Models.Validation.IndianMobileHelper.NormalizeTo10Digits(currentUser?.Phone),
                 DocumentType = "Aadhaar",
                 ExistingDocumentKey = existingDocKey,
                 ExistingDocumentNumber = existingDocNumber,
@@ -776,10 +776,11 @@ namespace BookMyFun.Controllers
                         ModelState.AddModelError("GuestFullName", "Please enter guest full name (at least 3 characters).");
                     }
 
-                    var cleanPhone = model.GuestPhone != null ? System.Text.RegularExpressions.Regex.Replace(model.GuestPhone, @"\D", "") : "";
-                    if (string.IsNullOrWhiteSpace(model.GuestPhone) || cleanPhone.Length != 10)
+                    model.GuestPhone = BookMyFun.Models.Validation.IndianMobileHelper.NormalizeTo10Digits(model.GuestPhone);
+                    if (!BookMyFun.Models.Validation.IndianMobileHelper.IsValidIndianMobile(model.GuestPhone, out _))
                     {
-                        ModelState.AddModelError("GuestPhone", "Please enter a valid 10-digit mobile number.");
+                        ModelState.Remove("GuestPhone");
+                        ModelState.AddModelError("GuestPhone", BookMyFun.Models.Validation.IndianMobileAttribute.DefaultErrorMessage);
                     }
 
                     bool fileRequired = false;

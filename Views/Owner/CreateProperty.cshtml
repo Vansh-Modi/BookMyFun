@@ -102,7 +102,10 @@
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label fw-semibold small">Caretaker Contact Phone Number</label>
-                                        <input asp-for="CaretakerPhone" id="caretakerPhoneInput" type="tel" class="form-control" placeholder="10-digit mobile number" maxlength="10" />
+                                        <div class="input-group">
+                                            <span class="input-group-text bg-light fw-semibold">+91</span>
+                                            <input asp-for="CaretakerPhone" id="caretakerPhoneInput" type="tel" class="form-control" placeholder="9876543210" maxlength="10" pattern="[6-9][0-9]{9}" />
+                                        </div>
                                         <span asp-validation-for="CaretakerPhone" class="text-danger small d-block"></span>
                                         <span class="form-text text-muted small"><i class="bi bi-shield-lock me-1"></i>Protected. Never published on public listings.</span>
                                     </div>

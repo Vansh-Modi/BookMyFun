@@ -574,8 +574,11 @@
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label small fw-semibold" for="guestPhone">Contact Mobile Number <span class="text-danger">*</span></label>
-                                    <input type="tel" id="guestPhone" asp-for="GuestPhone" class="form-control form-control-sm" placeholder="10-digit mobile number" maxlength="10" />
-                                    <div class="inline-error-text" id="guestPhoneError">Please enter a valid 10-digit mobile number.</div>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text bg-light fw-semibold">+91</span>
+                                        <input type="tel" id="guestPhone" asp-for="GuestPhone" class="form-control form-control-sm" placeholder="9876543210" maxlength="10" pattern="[6-9][0-9]{9}" />
+                                    </div>
+                                    <div class="inline-error-text" id="guestPhoneError">Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.</div>
                                 </div>
 
                                 @if (Model.IsClientAlreadyVerified)
@@ -2088,10 +2091,14 @@ renderCompactCalendar();
             if (nameInput) nameInput.classList.add('field-error-highlight');
         }
 
-        // 3. Contact Mobile Number
-        const phoneVal = phoneInput ? phoneInput.value.replace(/\D/g, '') : '';
-        if (!phoneVal || phoneVal.length !== 10) {
-            errors.push({ id: 'guestPhone', label: 'Contact Mobile Number', msg: 'Please enter a valid 10-digit mobile number.' });
+        // 3. Contact Mobile Number (10-digit Indian mobile starting with 6-9)
+        let rawPhoneVal = phoneInput ? phoneInput.value.trim().replace(/[\s\-\(\)]/g, '') : '';
+        if (rawPhoneVal.startsWith('+91')) rawPhoneVal = rawPhoneVal.slice(3);
+        else if (rawPhoneVal.startsWith('91') && rawPhoneVal.length === 12) rawPhoneVal = rawPhoneVal.slice(2);
+        if (phoneInput && rawPhoneVal !== phoneInput.value) phoneInput.value = rawPhoneVal;
+
+        if (!/^[6-9]\d{9}$/.test(rawPhoneVal)) {
+            errors.push({ id: 'guestPhone', label: 'Contact Mobile Number', msg: 'Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.' });
             if (!firstInvalid) firstInvalid = phoneInput;
             const errEl = document.getElementById('guestPhoneError');
             if (errEl) errEl.style.display = 'block';

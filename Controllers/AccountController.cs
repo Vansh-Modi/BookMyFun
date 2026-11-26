@@ -632,7 +632,7 @@ namespace BookMyFun.Controllers
             {
                 FullName = model.FullName.Trim(),
                 Email = cleanEmail,
-                Phone = model.Phone?.Trim(),
+                Phone = string.IsNullOrWhiteSpace(model.Phone) ? null : BookMyFun.Models.Validation.IndianMobileHelper.NormalizeTo10Digits(model.Phone),
                 PasswordHash = HashPassword(model.Password),
                 Role = "Client",
                 IsActive = true
@@ -745,7 +745,7 @@ namespace BookMyFun.Controllers
                 UserID = user.UserID,
                 FullName = user.FullName,
                 Email = user.Email,
-                Phone = user.Phone,
+                Phone = BookMyFun.Models.Validation.IndianMobileHelper.NormalizeTo10Digits(user.Phone),
                 Role = user.Role,
                 SubscriptionTier = user.SubscriptionTier,
                 CustomCommissionRate = user.CustomCommissionRate,
@@ -794,7 +794,7 @@ namespace BookMyFun.Controllers
             }
 
             user.FullName = model.FullName.Trim();
-            user.Phone = model.Phone?.Trim();
+            user.Phone = string.IsNullOrWhiteSpace(model.Phone) ? null : BookMyFun.Models.Validation.IndianMobileHelper.NormalizeTo10Digits(model.Phone);
 
             await _userRepo.UpdateUserAsync(user);
             TempData["Success"] = "Your profile information has been successfully updated!";
