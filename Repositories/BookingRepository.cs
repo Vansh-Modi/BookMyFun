@@ -30,17 +30,25 @@ namespace BookMyFun.Repositories
         Task<int> AddReviewAsync(CustomerReview review);
         Task<bool> UpdateBookingEventCommissionAsync(int bookingId, decimal newEventCommissionRate);
         Task<List<Booking>> GetBookingsByPropertyIdAsync(int propertyId) => Task.FromResult(new List<Booking>());
+        Task<Booking?> FindActiveHoldAsync(int clientId, int propertyId, DateTime checkInDate, DateTime checkOutDate, string bookingType, string? slotType)
+            => Task.FromResult<Booking?>(null);
+        Task<int> ExpireStaleHoldsAsync() => Task.FromResult(0);
     }
 
     public class BookingRepository : IBookingRepository
     {
         private readonly DBHelper _db;
         private readonly BookingTimingOptions _timingOptions;
+        private readonly BookingOptions _bookingOptions;
 
-        public BookingRepository(DBHelper db, IOptions<BookingTimingOptions>? timingOptions = null)
+        public BookingRepository(
+            DBHelper db,
+            IOptions<BookingTimingOptions>? timingOptions = null,
+            IOptions<BookingOptions>? bookingOptions = null)
         {
             _db = db;
             _timingOptions = timingOptions?.Value ?? new BookingTimingOptions();
+            _bookingOptions = bookingOptions?.Value ?? new BookingOptions();
         }
 
         public async Task<Booking?> GetByIdAsync(int bookingId)
@@ -153,7 +161,22 @@ namespace BookMyFun.Repositories
 
         public async Task<int> CreateBookingAsync(Booking booking)
         {
-            const string sql = @"
+            const string sqlWithHoldCol = @"
+                INSERT INTO Bookings 
+                (PropertyID, ClientID, OccasionID, CheckInDate, CheckOutDate, TotalAmount, Status, BookingType, SlotType, SlotStartTime, SlotEndTime,
+                 FreeCancellationWindowHoursSnapshot, CancellationCutoffHoursSnapshot, CancellationFeeTypeSnapshot, CancellationFeeValueSnapshot,
+                 CommissionRateSnapshot, PlatformCommissionAmount, OwnerPayoutAmount, SecurityDepositAmount, SecurityDepositStatus, IdempotencyKey,
+                 IsEventBooking, EventPackageID, CustomEventNotes, EventDate, DecoratorAssignedID, SetupStatus, SetupProofMediaUrls, EventPackagePriceSnapshot,
+                 EventCommissionRateSnapshot, EventPlatformCommissionAmount, EventManagerPayoutAmount, CreatedAt, HoldExpiresAt)
+                OUTPUT INSERTED.BookingID
+                VALUES 
+                (@PropertyID, @ClientID, @OccasionID, @CheckInDate, @CheckOutDate, @TotalAmount, @Status, @BookingType, @SlotType, @SlotStartTime, @SlotEndTime,
+                 @FreeCancellationWindowHoursSnapshot, @CancellationCutoffHoursSnapshot, @CancellationFeeTypeSnapshot, @CancellationFeeValueSnapshot,
+                 @CommissionRateSnapshot, @PlatformCommissionAmount, @OwnerPayoutAmount, @SecurityDepositAmount, @SecurityDepositStatus, @IdempotencyKey,
+                 @IsEventBooking, @EventPackageID, @CustomEventNotes, @EventDate, @DecoratorAssignedID, @SetupStatus, @SetupProofMediaUrls, @EventPackagePriceSnapshot,
+                 @EventCommissionRateSnapshot, @EventPlatformCommissionAmount, @EventManagerPayoutAmount, GETUTCDATE(), @HoldExpiresAt)";
+
+            const string sqlLegacy = @"
                 INSERT INTO Bookings 
                 (PropertyID, ClientID, OccasionID, CheckInDate, CheckOutDate, TotalAmount, Status, BookingType, SlotType, SlotStartTime, SlotEndTime,
                  FreeCancellationWindowHoursSnapshot, CancellationCutoffHoursSnapshot, CancellationFeeTypeSnapshot, CancellationFeeValueSnapshot,
@@ -166,7 +189,17 @@ namespace BookMyFun.Repositories
                  @FreeCancellationWindowHoursSnapshot, @CancellationCutoffHoursSnapshot, @CancellationFeeTypeSnapshot, @CancellationFeeValueSnapshot,
                  @CommissionRateSnapshot, @PlatformCommissionAmount, @OwnerPayoutAmount, @SecurityDepositAmount, @SecurityDepositStatus, @IdempotencyKey,
                  @IsEventBooking, @EventPackageID, @CustomEventNotes, @EventDate, @DecoratorAssignedID, @SetupStatus, @SetupProofMediaUrls, @EventPackagePriceSnapshot,
-                 @EventCommissionRateSnapshot, @EventPlatformCommissionAmount, @EventManagerPayoutAmount, GETDATE())";
+                 @EventCommissionRateSnapshot, @EventPlatformCommissionAmount, @EventManagerPayoutAmount, GETUTCDATE())";
+
+            var hasColObj = await _db.ExecuteScalarAsync("SELECT COL_LENGTH('dbo.Bookings', 'HoldExpiresAt')");
+            bool hasHoldCol = hasColObj != null && hasColObj != DBNull.Value;
+            string sql = hasHoldCol ? sqlWithHoldCol : sqlLegacy;
+
+            var holdExpiresAt = booking.HoldExpiresAt;
+            if (!holdExpiresAt.HasValue && string.Equals(booking.Status, "Hold", StringComparison.OrdinalIgnoreCase))
+            {
+                holdExpiresAt = DateTime.UtcNow.AddMinutes(Math.Max(1, _bookingOptions.HoldMinutes));
+            }
 
             var result = await _db.ExecuteScalarAsync(sql,
                 new SqlParameter("@PropertyID", booking.PropertyID),
@@ -200,9 +233,46 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@EventPackagePriceSnapshot", booking.EventPackagePriceSnapshot),
                 new SqlParameter("@EventCommissionRateSnapshot", booking.EventCommissionRateSnapshot),
                 new SqlParameter("@EventPlatformCommissionAmount", booking.EventPlatformCommissionAmount),
-                new SqlParameter("@EventManagerPayoutAmount", booking.EventManagerPayoutAmount));
+                new SqlParameter("@EventManagerPayoutAmount", booking.EventManagerPayoutAmount),
+                new SqlParameter("@HoldExpiresAt", DBHelper.ToDbValue(holdExpiresAt)));
 
             return result != null ? Convert.ToInt32(result) : 0;
+        }
+
+        public async Task<Booking?> FindActiveHoldAsync(int clientId, int propertyId, DateTime checkInDate, DateTime checkOutDate, string bookingType, string? slotType)
+        {
+            var hasColObj = await _db.ExecuteScalarAsync("SELECT COL_LENGTH('dbo.Bookings', 'HoldExpiresAt')");
+            bool hasHoldCol = hasColObj != null && hasColObj != DBNull.Value;
+            string expiryClause = hasHoldCol
+                ? "(b.HoldExpiresAt IS NOT NULL AND b.HoldExpiresAt > GETUTCDATE())"
+                : $"b.CreatedAt >= DATEADD(MINUTE, -{Math.Max(1, _bookingOptions.HoldMinutes)}, GETUTCDATE())";
+
+            string sql = $@"
+                SELECT TOP 1 b.*, p.Title AS PropertyTitle, u.FullName AS ClientName, u.Email AS ClientEmail, u.Phone AS ClientPhone, o.OccasionName,
+                       ep.Name AS EventPackageName, dec.FullName AS DecoratorName
+                FROM Bookings b
+                JOIN Properties p ON b.PropertyID = p.PropertyID
+                JOIN Users u ON b.ClientID = u.UserID
+                LEFT JOIN Occasions o ON b.OccasionID = o.OccasionID
+                LEFT JOIN EventPackages ep ON b.EventPackageID = ep.PackageID
+                LEFT JOIN Users dec ON b.DecoratorAssignedID = dec.UserID
+                WHERE b.ClientID = @ClientID
+                  AND b.PropertyID = @PropertyID
+                  AND b.CheckInDate = @CheckInDate
+                  AND b.CheckOutDate = @CheckOutDate
+                  AND ISNULL(b.BookingType, 'FullDay') = @BookingType
+                  AND (b.SlotType = @SlotType OR (b.SlotType IS NULL AND @SlotType IS NULL))
+                  AND b.Status = 'Hold'
+                  AND {expiryClause}
+                ORDER BY b.CreatedAt DESC";
+
+            return await _db.ExecuteReaderSingleAsync(sql, MapBooking,
+                new SqlParameter("@ClientID", clientId),
+                new SqlParameter("@PropertyID", propertyId),
+                new SqlParameter("@CheckInDate", checkInDate.Date),
+                new SqlParameter("@CheckOutDate", checkOutDate.Date),
+                new SqlParameter("@BookingType", string.IsNullOrWhiteSpace(bookingType) ? "FullDay" : bookingType),
+                new SqlParameter("@SlotType", DBHelper.ToDbValue(slotType)));
         }
 
         public async Task<bool> UpdateBookingStatusAsync(int bookingId, string status)
@@ -431,6 +501,13 @@ namespace BookMyFun.Repositories
                 Status = r.GetString(r.GetOrdinal("Status")),
                 CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt"))
             };
+
+            try
+            {
+                var holdOrd = r.GetOrdinal("HoldExpiresAt");
+                b.HoldExpiresAt = r.IsDBNull(holdOrd) ? null : r.GetDateTime(holdOrd);
+            }
+            catch { }
 
             try
             {

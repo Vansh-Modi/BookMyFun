@@ -37,6 +37,7 @@ builder.Services.Configure<GoogleAuthOptions>(builder.Configuration.GetSection(G
 builder.Services.Configure<WhatsAppOptions>(builder.Configuration.GetSection(WhatsAppOptions.SectionName));
 builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection(DatabaseOptions.SectionName));
 builder.Services.Configure<BookMyFun.Models.Configuration.BookingTimingOptions>(builder.Configuration.GetSection(BookMyFun.Models.Configuration.BookingTimingOptions.SectionName));
+builder.Services.Configure<BookMyFun.Models.Configuration.BookingOptions>(builder.Configuration.GetSection(BookMyFun.Models.Configuration.BookingOptions.SectionName));
 
 var smtpOptions = builder.Configuration.GetSection(SmtpOptions.SectionName).Get<SmtpOptions>() ?? new SmtpOptions();
 var razorpayOptions = builder.Configuration.GetSection(RazorpayOptions.SectionName).Get<RazorpayOptions>() ?? new RazorpayOptions();

@@ -202,9 +202,10 @@ namespace BookMyFun.Models.Entities
         public int CancellationCutoffHoursSnapshot { get; set; } = 24;
         public string CancellationFeeTypeSnapshot { get; set; } = "percentage";
         public decimal CancellationFeeValueSnapshot { get; set; } = 10.00m;
-        public string Status { get; set; } = "Pending"; // 'Pending', 'Confirmed', 'Cancelled', 'Completed'
+        public string Status { get; set; } = "Hold"; // 'Hold', 'Pending', 'Confirmed', 'Paid', 'Cancelled', 'Expired', 'Failed'
         public string? IdempotencyKey { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime? HoldExpiresAt { get; set; }
 
         // Flexible booking addition
         public string BookingType { get; set; } = "FullDay"; // 'FullDay', 'HalfDay', 'Hourly'

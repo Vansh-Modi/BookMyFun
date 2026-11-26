@@ -78,6 +78,7 @@ namespace BookMyFun.Controllers
 
         private readonly IStayCelebrationEligibilityService _stayEligibilityService;
         private readonly BookingTimingOptions _timingOptions;
+        private readonly BookingOptions _bookingOptions;
 
         public BookingController(
 
@@ -123,7 +124,9 @@ namespace BookMyFun.Controllers
 
             IStayCelebrationEligibilityService? stayEligibilityService = null,
 
-            IOptions<BookingTimingOptions>? timingOptions = null)
+            IOptions<BookingTimingOptions>? timingOptions = null,
+
+            IOptions<BookingOptions>? bookingOptions = null)
 
         {
 
@@ -175,6 +178,7 @@ namespace BookMyFun.Controllers
                 new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
                 null);
             _timingOptions = timingOptions?.Value ?? new BookingTimingOptions();
+            _bookingOptions = bookingOptions?.Value ?? new BookingOptions();
         }
 
         [Authorize]
@@ -942,6 +946,9 @@ namespace BookMyFun.Controllers
                     eventPackagePrice = 0m;
                 }
 
+                Booking? existingHold = await _bookingRepo.FindActiveHoldAsync(
+                    clientId, model.PropertyID, model.CheckInDate, model.CheckOutDate, model.BookingType, model.SlotType);
+
                 // Server-side availability and stay limits check before proceeding (Item 8)
 
                 if (ModelState.IsValid)
@@ -970,7 +977,7 @@ namespace BookMyFun.Controllers
 
                         0,
 
-                        blocked);
+                        existingHold != null ? null : blocked);
 
                     if (!rangeVal.IsValid && !string.IsNullOrEmpty(rangeVal.ErrorMessage))
 
@@ -997,7 +1004,7 @@ namespace BookMyFun.Controllers
                             model.CheckOutDate,
                             model.BookingType,
                             model.SlotType,
-                            null,
+                            existingHold?.BookingID,
                             model.CheckInTime,
                             model.HourlyDuration);
 
@@ -1112,75 +1119,85 @@ namespace BookMyFun.Controllers
 
                 }
 
-                var booking = new Booking
-
+                int bookingId;
+                if (existingHold != null)
                 {
+                    bookingId = existingHold.BookingID;
+                }
+                else
+                {
+                    var booking = new Booking
 
-                    PropertyID = model.PropertyID,
+                    {
 
-                    ClientID = clientId,
+                        PropertyID = model.PropertyID,
 
-                    OccasionID = model.OccasionID.HasValue && model.OccasionID.Value > 0 ? model.OccasionID.Value : null,
+                        ClientID = clientId,
 
-                    CheckInDate = model.CheckInDate,
+                        OccasionID = model.OccasionID.HasValue && model.OccasionID.Value > 0 ? model.OccasionID.Value : null,
 
-                    CheckOutDate = model.CheckOutDate,
+                        CheckInDate = model.CheckInDate,
 
-                    TotalAmount = totalAmount,
+                        CheckOutDate = model.CheckOutDate,
 
-                    Status = "Pending", // Pending payment
+                        TotalAmount = totalAmount,
 
-                    BookingType = model.BookingType,
+                        Status = "Hold",
 
-                    SlotType = model.SlotType,
+                        HoldExpiresAt = DateTime.UtcNow.AddMinutes(Math.Max(1, _bookingOptions.HoldMinutes)),
 
-                    SlotStartTime = model.CheckInTime,
+                        BookingType = model.BookingType,
 
-                    SlotEndTime = model.CheckOutTime,
+                        SlotType = model.SlotType,
 
-                    FreeCancellationWindowHoursSnapshot = property.FreeCancellationWindowHours,
+                        SlotStartTime = model.CheckInTime,
 
-                    CancellationCutoffHoursSnapshot = property.CancellationCutoffHours,
+                        SlotEndTime = model.CheckOutTime,
 
-                    CancellationFeeTypeSnapshot = property.CancellationFeeType,
+                        FreeCancellationWindowHoursSnapshot = property.FreeCancellationWindowHours,
 
-                    CancellationFeeValueSnapshot = property.CancellationFeeValue,
+                        CancellationCutoffHoursSnapshot = property.CancellationCutoffHours,
 
-                    CommissionRateSnapshot = rateSnapshot,
+                        CancellationFeeTypeSnapshot = property.CancellationFeeType,
 
-                    PlatformCommissionAmount = platformCommission,
+                        CancellationFeeValueSnapshot = property.CancellationFeeValue,
 
-                    OwnerPayoutAmount = ownerPayout,
+                        CommissionRateSnapshot = rateSnapshot,
 
-                    SecurityDepositAmount = property.SecurityDepositAmount,
+                        PlatformCommissionAmount = platformCommission,
 
-                    SecurityDepositStatus = property.SecurityDepositAmount > 0 ? "Held" : "Released",
+                        OwnerPayoutAmount = ownerPayout,
 
-                    IsEventBooking = selectedPackage != null,
+                        SecurityDepositAmount = property.SecurityDepositAmount,
 
-                    EventPackageID = selectedPackage?.PackageID,
+                        SecurityDepositStatus = property.SecurityDepositAmount > 0 ? "Held" : "Released",
 
-                    DecoratorAssignedID = selectedPackage?.CreatedByUserID,
+                        IsEventBooking = selectedPackage != null,
 
-                    EventPackagePriceSnapshot = eventPackagePrice,
+                        EventPackageID = selectedPackage?.PackageID,
 
-                    EventCommissionRateSnapshot = eventRateSnapshot,
+                        DecoratorAssignedID = selectedPackage?.CreatedByUserID,
 
-                    EventPlatformCommissionAmount = eventPlatformCommission,
+                        EventPackagePriceSnapshot = eventPackagePrice,
 
-                    EventManagerPayoutAmount = eventManagerPayout,
+                        EventCommissionRateSnapshot = eventRateSnapshot,
 
-                    CustomEventNotes = selectedPackage != null ? model.CustomEventNotes : null,
+                        EventPlatformCommissionAmount = eventPlatformCommission,
 
-                    EventDate = selectedPackage != null ? model.CheckInDate : null,
+                        EventManagerPayoutAmount = eventManagerPayout,
 
-                    SetupStatus = selectedPackage != null ? "Pending" : null,
+                        CustomEventNotes = selectedPackage != null ? model.CustomEventNotes : null,
 
-                    IdempotencyKey = Guid.NewGuid().ToString("N")
+                        EventDate = selectedPackage != null ? model.CheckInDate : null,
 
-                };
+                        SetupStatus = selectedPackage != null ? "Pending" : null,
 
-                int bookingId = await _bookingRepo.CreateBookingAsync(booking);
+                        IdempotencyKey = Guid.NewGuid().ToString("N")
+
+                    };
+
+                    bookingId = await _bookingRepo.CreateBookingAsync(booking);
+                }
 
                 // Record policy consent acceptances (Item 3f)
 
@@ -1303,7 +1320,28 @@ namespace BookMyFun.Controllers
 
                 }
 
-                if (booking.Status == "Confirmed")
+                bool isHoldExpired = string.Equals(booking.Status, "Expired", StringComparison.OrdinalIgnoreCase) ||
+                    (string.Equals(booking.Status, "Hold", StringComparison.OrdinalIgnoreCase) &&
+                     booking.HoldExpiresAt.HasValue && booking.HoldExpiresAt.Value <= DateTime.UtcNow);
+
+                if (isHoldExpired)
+                {
+                    if (string.Equals(booking.Status, "Hold", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await _bookingRepo.UpdateBookingStatusAsync(booking.BookingID, "Expired");
+                    }
+                    TempData["Error"] = "Your hold on these dates has expired. Please select your dates again.";
+                    return RedirectToAction("Checkout", new
+                    {
+                        propertyId = booking.PropertyID,
+                        bookingType = booking.BookingType,
+                        slotType = booking.SlotType,
+                        checkIn = booking.CheckInDate.ToString("yyyy-MM-dd"),
+                        checkOut = booking.CheckOutDate.ToString("yyyy-MM-dd")
+                    });
+                }
+
+                if (booking.Status == "Confirmed" || booking.Status == "Paid")
 
                 {
 
@@ -1491,7 +1529,28 @@ namespace BookMyFun.Controllers
 
                 }
 
-                if (booking.Status == "Confirmed")
+                bool isHoldExpired = string.Equals(booking.Status, "Expired", StringComparison.OrdinalIgnoreCase) ||
+                    (string.Equals(booking.Status, "Hold", StringComparison.OrdinalIgnoreCase) &&
+                     booking.HoldExpiresAt.HasValue && booking.HoldExpiresAt.Value <= DateTime.UtcNow);
+
+                if (isHoldExpired)
+                {
+                    if (string.Equals(booking.Status, "Hold", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await _bookingRepo.UpdateBookingStatusAsync(booking.BookingID, "Expired");
+                    }
+                    TempData["Error"] = "Your hold on these dates has expired. Please select your dates again.";
+                    return RedirectToAction("Checkout", new
+                    {
+                        propertyId = booking.PropertyID,
+                        bookingType = booking.BookingType,
+                        slotType = booking.SlotType,
+                        checkIn = booking.CheckInDate.ToString("yyyy-MM-dd"),
+                        checkOut = booking.CheckOutDate.ToString("yyyy-MM-dd")
+                    });
+                }
+
+                if (booking.Status == "Confirmed" || booking.Status == "Paid")
 
                 {
 

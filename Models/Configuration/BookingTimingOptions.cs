@@ -2,6 +2,12 @@ using System.Globalization;
 
 namespace BookMyFun.Models.Configuration
 {
+    public class BookingOptions
+    {
+        public const string SectionName = "Booking";
+        public int HoldMinutes { get; set; } = 15;
+    }
+
     public class BookingTimingOptions
     {
         public const string SectionName = "BookingTiming";
