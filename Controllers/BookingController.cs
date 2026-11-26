@@ -1213,8 +1213,6 @@ namespace BookMyFun.Controllers
 
                 int bookingId = await _bookingRepo.CreateBookingAsync(booking);
 
-                _ = _notificationDispatcher?.DispatchBookingCreatedStaffAlertAsync(bookingId, clientId, model.PropertyID);
-
                 // Record policy consent acceptances (Item 3f)
 
                 if (_legalService != null)
@@ -1586,6 +1584,7 @@ namespace BookMyFun.Controllers
                     booking.Status = "Confirmed";
 
                     _ = _notificationDispatcher?.DispatchBookingConfirmedAsync(booking.BookingID);
+                    _ = _notificationDispatcher?.DispatchBookingCreatedStaffAlertAsync(booking.BookingID, booking.ClientID, booking.PropertyID);
 
                     // Invalidate popular stays 15-minute cache immediately upon confirmed booking (Item 9b)
 

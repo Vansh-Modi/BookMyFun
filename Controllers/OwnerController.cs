@@ -81,7 +81,11 @@ namespace BookMyFun.Controllers
             var ownerId = GetCurrentUserId();
             var owner = await _userRepo.GetByIdAsync(ownerId);
             var properties = await _propRepo.GetPropertiesByOwnerIdAsync(ownerId);
-            var bookings = await _bookingRepo.GetByOwnerIdAsync(ownerId);
+            var allOwnerBookings = await _bookingRepo.GetByOwnerIdAsync(ownerId);
+            var bookings = allOwnerBookings
+                .Where(b => !string.Equals(b.Status, "Pending", StringComparison.OrdinalIgnoreCase) &&
+                            !string.Equals(b.Status, "PaymentFailed", StringComparison.OrdinalIgnoreCase))
+                .ToList();
             var sub = await _subRepo.GetActiveSubscriptionByOwnerIdAsync(ownerId);
             var plans = await _subRepo.GetAllPlansAsync();
 
@@ -895,7 +899,11 @@ namespace BookMyFun.Controllers
         {
             var ownerId = GetCurrentUserId();
             var claims = await _damageClaimService.GetClaimsByOwnerAsync(ownerId);
-            var bookings = await _bookingRepo.GetByOwnerIdAsync(ownerId);
+            var allOwnerBookings = await _bookingRepo.GetByOwnerIdAsync(ownerId);
+            var bookings = allOwnerBookings
+                .Where(b => !string.Equals(b.Status, "Pending", StringComparison.OrdinalIgnoreCase) &&
+                            !string.Equals(b.Status, "PaymentFailed", StringComparison.OrdinalIgnoreCase))
+                .ToList();
             ViewBag.EligibleBookings = bookings;
             return View(claims);
         }

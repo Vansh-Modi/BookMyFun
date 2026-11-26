@@ -92,6 +92,7 @@ namespace BookMyFun.Repositories
                 LEFT JOIN EventPackages ep ON b.EventPackageID = ep.PackageID
                 LEFT JOIN Users dec ON b.DecoratorAssignedID = dec.UserID
                 WHERE b.ClientID = @ClientID
+                  AND (b.Status IN ('Confirmed', 'Completed') OR EXISTS (SELECT 1 FROM Payments pay WHERE pay.BookingID = b.BookingID AND pay.PaymentStatus IN ('Success', 'Completed')))
                 ORDER BY b.CreatedAt DESC";
 
             return await _db.ExecuteReaderListAsync(sql, MapBooking, new SqlParameter("@ClientID", clientId));
@@ -110,6 +111,7 @@ namespace BookMyFun.Repositories
                 LEFT JOIN EventPackages ep ON b.EventPackageID = ep.PackageID
                 LEFT JOIN Users dec ON b.DecoratorAssignedID = dec.UserID
                 WHERE p.OwnerID = @OwnerID
+                  AND (b.Status IN ('Confirmed', 'Completed') OR EXISTS (SELECT 1 FROM Payments pay WHERE pay.BookingID = b.BookingID AND pay.PaymentStatus IN ('Success', 'Completed')))
                 ORDER BY b.CreatedAt DESC";
 
             return await _db.ExecuteReaderListAsync(sql, MapBooking, new SqlParameter("@OwnerID", ownerId));
@@ -126,6 +128,7 @@ namespace BookMyFun.Repositories
                 LEFT JOIN Occasions o ON b.OccasionID = o.OccasionID
                 LEFT JOIN EventPackages ep ON b.EventPackageID = ep.PackageID
                 LEFT JOIN Users dec ON b.DecoratorAssignedID = dec.UserID
+                WHERE (b.Status IN ('Confirmed', 'Completed') OR EXISTS (SELECT 1 FROM Payments pay WHERE pay.BookingID = b.BookingID AND pay.PaymentStatus IN ('Success', 'Completed')))
                 ORDER BY b.CreatedAt DESC";
 
             return await _db.ExecuteReaderListAsync(sql, MapBooking);
