@@ -922,9 +922,12 @@ namespace BookMyFun.Controllers
             }
             else
             {
+                bool isRevoke = string.Equals(status, "Draft", StringComparison.OrdinalIgnoreCase);
                 if (string.IsNullOrWhiteSpace(reason))
                 {
-                    TempData["Error"] = "A rejection reason is required when rejecting a property listing.";
+                    TempData["Error"] = isRevoke
+                        ? "A reason is required when revoking property approval."
+                        : "A rejection reason is required when rejecting a property listing.";
                     if (!string.IsNullOrWhiteSpace(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
                     {
                         return Redirect(returnUrl);
@@ -932,18 +935,28 @@ namespace BookMyFun.Controllers
                     return RedirectToAction(nameof(ManageProperties));
                 }
 
-                var targetStatus = "Rejected";
-                var success = await _propRepo.ApprovePropertyAsync(id, false, targetStatus, currentUserId, reason.Trim());
+                var cleanReason = reason.Trim();
+                var targetStatus = isRevoke ? "Draft" : "Rejected";
+                var success = await _propRepo.ApprovePropertyAsync(id, false, targetStatus, currentUserId, cleanReason);
                 if (success)
                 {
-                    await _configRepo.LogAuditAsync(currentUserId, "AdminRejectProperty", "Property", id,
-                        $"Admin rejected property #{id} ('{prop.Title}'). Reason: {reason}");
-                    TempData["Success"] = $"Property #{id} ({prop.Title}) has been rejected.";
-                    _ = _notificationDispatcher?.DispatchPropertyRejectedAsync(id, prop.Title, prop.OwnerID, reason.Trim());
+                    string auditAction = isRevoke ? "AdminRevokeProperty" : "AdminRejectProperty";
+                    string verb = isRevoke ? "revoked approval for" : "rejected";
+                    await _configRepo.LogAuditAsync(currentUserId, auditAction, "Property", id,
+                        $"Admin #{currentUserId} {verb} property #{id} ('{prop.Title}') at {DateTime.UtcNow:O}. Status -> '{targetStatus}'. Reason: {cleanReason}");
+                    TempData["Success"] = isRevoke
+                        ? $"Approval revoked for property #{id} ({prop.Title}). Status moved to Draft and hidden from public listing."
+                        : $"Property #{id} ({prop.Title}) has been rejected.";
+                    if (!isRevoke)
+                    {
+                        _ = _notificationDispatcher?.DispatchPropertyRejectedAsync(id, prop.Title, prop.OwnerID, cleanReason);
+                    }
                 }
                 else
                 {
-                    TempData["Error"] = $"Unable to reject property #{id}.";
+                    TempData["Error"] = isRevoke
+                        ? $"Unable to revoke approval for property #{id}."
+                        : $"Unable to reject property #{id}.";
                 }
             }
 

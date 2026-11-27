@@ -1,0 +1,53 @@
+@{
+    var controllerName = ViewContext.RouteData.Values["controller"]?.ToString() ?? "Admin";
+    var returnUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
+}
+
+<div class="modal fade" id="revokePropertyModal" tabindex="-1" aria-labelledby="revokePropertyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <form asp-controller="@controllerName" asp-action="ApproveProperty" method="post" id="revokePropertyForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" id="revokePropertyId" value="" />
+                <input type="hidden" name="approve" value="false" />
+                <input type="hidden" name="status" value="Draft" />
+                <input type="hidden" name="returnUrl" value="@returnUrl" />
+
+                <div class="modal-header border-bottom-0 pb-0">
+                    <h5 class="modal-title fw-bold text-dark" id="revokePropertyModalLabel">
+                        <i class="bi bi-arrow-counterclockwise text-warning me-2"></i>Revoke Property Approval
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">
+                        Revoking approval for <strong id="revokePropertyTitle">this property</strong> will move it back to <strong>Draft</strong> and immediately hide it from public listings.
+                    </p>
+                    <div class="mb-2">
+                        <label for="revokeReasonInput" class="form-label fw-semibold">Reason for Revocation <span class="text-danger">*</span></label>
+                        <textarea name="reason" id="revokeReasonInput" class="form-control" rows="3" required placeholder="Explain why approval is being revoked..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 pt-0">
+                    <button type="button" class="btn btn-light rounded-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning fw-semibold rounded-3">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Confirm Revoke
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openRevokePropertyModal(propertyId, propertyTitle) {
+        document.getElementById('revokePropertyId').value = propertyId;
+        document.getElementById('revokePropertyTitle').textContent = '#' + propertyId + (propertyTitle ? ' (' + propertyTitle + ')' : '');
+        const reasonInput = document.getElementById('revokeReasonInput');
+        reasonInput.value = '';
+        const modalEl = document.getElementById('revokePropertyModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+        setTimeout(() => reasonInput.focus(), 250);
+    }
+</script>

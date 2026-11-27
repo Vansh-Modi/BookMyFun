@@ -216,12 +216,10 @@
                                 }
                                 else
                                 {
-                                    <form asp-action="ApproveProperty" asp-route-id="@p.PropertyID" asp-route-approve="false" asp-route-status="Draft" asp-route-returnUrl="@Context.Request.Path@Context.Request.QueryString" method="post" class="d-inline me-1" onsubmit="return confirm('Revoke approval for property #@p.PropertyID? This will move it back to draft.');">
-                                        @Html.AntiForgeryToken()
-                                        <button type="submit" class="btn btn-sm btn-outline-warning" style="border-radius: 8px; padding: .25rem .55rem; font-size: .78rem;" title="Revoke Approval">
-                                            <i class="bi bi-arrow-counterclockwise me-1"></i>Revoke
-                                        </button>
-                                    </form>
+                                    <button type="button" class="btn btn-sm btn-outline-warning me-1" style="border-radius: 8px; padding: .25rem .55rem; font-size: .78rem;" title="Revoke Approval"
+                                            onclick="openRevokePropertyModal(@p.PropertyID, '@System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(p.Title)')">
+                                        <i class="bi bi-arrow-counterclockwise me-1"></i>Revoke
+                                    </button>
                                 }
 
                                 @if (p.ListingStatus == "Deactivated")
@@ -273,4 +271,6 @@
         });
     }
 </script>
+
+<partial name="_RevokePropertyModal" />
 
