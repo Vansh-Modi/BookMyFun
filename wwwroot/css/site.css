@@ -3965,8 +3965,47 @@ body {
 }
 
 .header-compact-signin {
+    height: 36px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
     border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    white-space: nowrap;
     transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.header-secondary-btn {
+    height: 36px;
+    padding: 0 0.9rem;
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    background: transparent;
+    white-space: nowrap;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.header-secondary-btn:hover,
+.header-secondary-btn:focus {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.75);
+    color: #ffffff;
+}
+
+.header-primary-btn {
+    height: 36px;
+    padding: 0 1rem;
+    background-color: var(--brand-gold);
+    border-color: var(--brand-gold);
+    color: #0f172a;
+    white-space: nowrap;
+    transition: filter 0.2s ease, transform 0.15s ease;
+}
+
+.header-primary-btn:hover,
+.header-primary-btn:focus {
+    background-color: var(--brand-gold);
+    border-color: var(--brand-gold);
+    color: #0f172a;
+    filter: brightness(0.95);
 }
 
 .header-compact-signin:hover,

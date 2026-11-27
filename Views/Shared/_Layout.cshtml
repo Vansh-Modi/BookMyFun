@@ -243,10 +243,18 @@
                     }
                     else
                     {
-                        <a asp-controller="Account" asp-action="Login" class="btn btn-sm btn-outline-light border-0 d-inline-flex align-items-center justify-content-center fw-semibold rounded-pill header-compact-signin" style="height: 36px; background: rgba(255,255,255,0.12); color: #ffffff;" title="Sign In" aria-label="Sign In">
-                            <i class="bi bi-box-arrow-in-right me-1 text-warning"></i>
-                            <span>Sign In</span>
-                        </a>
+                        <div class="d-none d-lg-inline-flex align-items-center gap-2 header-auth-desktop">
+                            <a asp-controller="Account" asp-action="Login" class="btn btn-sm btn-outline-light border-0 d-inline-flex align-items-center justify-content-center fw-semibold rounded-pill header-compact-signin" title="Sign in" aria-label="Sign in">
+                                <i class="bi bi-box-arrow-in-right me-1 text-warning"></i>
+                                <span>Sign in</span>
+                            </a>
+                            <a asp-controller="Account" asp-action="Register" class="btn btn-sm btn-outline-light d-inline-flex align-items-center justify-content-center fw-semibold rounded-pill header-secondary-btn" title="Register" aria-label="Register">
+                                <span>Register</span>
+                            </a>
+                            <a asp-controller="Account" asp-action="PartnerRegister" class="btn btn-sm btn-warning d-inline-flex align-items-center justify-content-center fw-bold rounded-pill header-primary-btn" title="Join as partner" aria-label="Join as partner">
+                                <span>Join as partner</span>
+                            </a>
+                        </div>
                     }
 
                     <!-- Dark / Light Mode Toggle Button -->
