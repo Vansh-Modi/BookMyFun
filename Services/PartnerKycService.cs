@@ -119,72 +119,34 @@ namespace BookMyFun.Services
                 });
             }
 
-            // Validate and store Aadhaar (masked copy)
-            if (model.AadhaarFile != null && model.AadhaarFile.Length > 0)
+            var savedFromDb = existing;
+            var pendingRecord = new PartnerKycBankDetails
             {
-                try
-                {
-                    existing.AadhaarDocumentKey = await _mediaStorage.SavePrivateDocumentAsync(model.AadhaarFile, userId);
-                }
-                catch (ValidationException ex)
-                {
-                    errors[nameof(model.AadhaarFile)] = ExtractValidationMessage(ex);
-                }
-                catch (Exception ex)
-                {
-                    string corrId = NewCorrelationId();
-                    _logger.LogError(ex, "Aadhaar upload failed for UserId={UserId}, CorrelationId={CorrelationId}", userId, corrId);
-                    errors[nameof(model.AadhaarFile)] = $"Could not upload Aadhaar file right now. Reference ID: {corrId}.";
-                }
-            }
-            else if (string.IsNullOrWhiteSpace(existing.AadhaarDocumentKey))
+                KycId = savedFromDb.KycId,
+                UserId = userId,
+                AadhaarDocumentKey = savedFromDb.AadhaarDocumentKey,
+                PanDocumentKey = savedFromDb.PanDocumentKey,
+                BankProofDocumentKey = savedFromDb.BankProofDocumentKey,
+                AccountHolderName = savedFromDb.AccountHolderName,
+                BankAccountNumberEncrypted = savedFromDb.BankAccountNumberEncrypted,
+                BankAccountLast4 = savedFromDb.BankAccountLast4,
+                IfscCode = savedFromDb.IfscCode,
+                KycStatus = savedFromDb.KycStatus,
+                FirstPopupShownAt = savedFromDb.FirstPopupShownAt,
+                SubmittedAt = savedFromDb.SubmittedAt
+            };
+
+            // 1. Validate required file presence & non-file fields before writing any files or DB rows
+            if ((model.AadhaarFile == null || model.AadhaarFile.Length == 0) && string.IsNullOrWhiteSpace(pendingRecord.AadhaarDocumentKey))
             {
                 errors[nameof(model.AadhaarFile)] = "Please upload a masked copy of your Aadhaar card (JPG, PNG, WEBP, or PDF, max 5 MB).";
             }
 
-            // Validate and store PAN
-            if (model.PanFile != null && model.PanFile.Length > 0)
-            {
-                try
-                {
-                    existing.PanDocumentKey = await _mediaStorage.SavePrivateDocumentAsync(model.PanFile, userId);
-                }
-                catch (ValidationException ex)
-                {
-                    errors[nameof(model.PanFile)] = ExtractValidationMessage(ex);
-                }
-                catch (Exception ex)
-                {
-                    string corrId = NewCorrelationId();
-                    _logger.LogError(ex, "PAN upload failed for UserId={UserId}, CorrelationId={CorrelationId}", userId, corrId);
-                    errors[nameof(model.PanFile)] = $"Could not upload PAN file right now. Reference ID: {corrId}.";
-                }
-            }
-            else if (string.IsNullOrWhiteSpace(existing.PanDocumentKey))
+            if ((model.PanFile == null || model.PanFile.Length == 0) && string.IsNullOrWhiteSpace(pendingRecord.PanDocumentKey))
             {
                 errors[nameof(model.PanFile)] = "Please upload your PAN card (JPG, PNG, WEBP, or PDF, max 5 MB).";
             }
 
-            // Optional bank proof upload (cancelled cheque / passbook)
-            if (model.BankProofFile != null && model.BankProofFile.Length > 0)
-            {
-                try
-                {
-                    existing.BankProofDocumentKey = await _mediaStorage.SavePrivateDocumentAsync(model.BankProofFile, userId);
-                }
-                catch (ValidationException ex)
-                {
-                    errors[nameof(model.BankProofFile)] = ExtractValidationMessage(ex);
-                }
-                catch (Exception ex)
-                {
-                    string corrId = NewCorrelationId();
-                    _logger.LogError(ex, "Bank proof upload failed for UserId={UserId}, CorrelationId={CorrelationId}", userId, corrId);
-                    errors[nameof(model.BankProofFile)] = $"Could not upload bank proof file right now. Reference ID: {corrId}.";
-                }
-            }
-
-            // Account Holder Name
             string holderName = (model.AccountHolderName ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(holderName))
             {
@@ -192,10 +154,9 @@ namespace BookMyFun.Services
             }
             else
             {
-                existing.AccountHolderName = holderName;
+                pendingRecord.AccountHolderName = holderName;
             }
 
-            // Bank Account Number (encrypt with AES-256-GCM; store only last 4 digits in plaintext; never log)
             string rawAcc = (model.BankAccountNumber ?? string.Empty).Replace(" ", "").Trim();
             if (!string.IsNullOrEmpty(rawAcc))
             {
@@ -211,16 +172,15 @@ namespace BookMyFun.Services
                 else
                 {
                     byte[] encrypted = _encryptionService.EncryptDocument(Encoding.UTF8.GetBytes(rawAcc));
-                    existing.BankAccountNumberEncrypted = Convert.ToBase64String(encrypted);
-                    existing.BankAccountLast4 = rawAcc[^4..];
+                    pendingRecord.BankAccountNumberEncrypted = Convert.ToBase64String(encrypted);
+                    pendingRecord.BankAccountLast4 = rawAcc[^4..];
                 }
             }
-            else if (string.IsNullOrWhiteSpace(existing.BankAccountNumberEncrypted))
+            else if (string.IsNullOrWhiteSpace(pendingRecord.BankAccountNumberEncrypted))
             {
                 errors[nameof(model.BankAccountNumber)] = "Bank account number is required.";
             }
 
-            // IFSC Code
             string ifsc = (model.IfscCode ?? string.Empty).Trim().ToUpperInvariant();
             if (!IfscRegex.IsMatch(ifsc))
             {
@@ -228,41 +188,121 @@ namespace BookMyFun.Services
             }
             else
             {
-                existing.IfscCode = ifsc;
+                pendingRecord.IfscCode = ifsc;
+            }
+
+            // 2. Validate & encrypt uploaded files (file type -> size 5 MB -> encryption availability), tracking new keys for rollback
+            var newlySavedKeys = new List<string>();
+            if (model.AadhaarFile != null && model.AadhaarFile.Length > 0)
+            {
+                try
+                {
+                    string key = await _mediaStorage.SavePrivateDocumentAsync(model.AadhaarFile, userId);
+                    newlySavedKeys.Add(key);
+                    pendingRecord.AadhaarDocumentKey = key;
+                }
+                catch (ValidationException ex)
+                {
+                    errors[nameof(model.AadhaarFile)] = ExtractValidationMessage(ex);
+                }
+                catch (Exception ex)
+                {
+                    string corrId = NewCorrelationId();
+                    _logger.LogError(ex, "Aadhaar upload failed for UserId={UserId}, CorrelationId={CorrelationId}", userId, corrId);
+                    errors[nameof(model.AadhaarFile)] = $"Could not upload Aadhaar file right now. Reference ID: {corrId}.";
+                }
+            }
+
+            if (model.PanFile != null && model.PanFile.Length > 0)
+            {
+                try
+                {
+                    string key = await _mediaStorage.SavePrivateDocumentAsync(model.PanFile, userId);
+                    newlySavedKeys.Add(key);
+                    pendingRecord.PanDocumentKey = key;
+                }
+                catch (ValidationException ex)
+                {
+                    errors[nameof(model.PanFile)] = ExtractValidationMessage(ex);
+                }
+                catch (Exception ex)
+                {
+                    string corrId = NewCorrelationId();
+                    _logger.LogError(ex, "PAN upload failed for UserId={UserId}, CorrelationId={CorrelationId}", userId, corrId);
+                    errors[nameof(model.PanFile)] = $"Could not upload PAN file right now. Reference ID: {corrId}.";
+                }
+            }
+
+            if (model.BankProofFile != null && model.BankProofFile.Length > 0)
+            {
+                try
+                {
+                    string key = await _mediaStorage.SavePrivateDocumentAsync(model.BankProofFile, userId);
+                    newlySavedKeys.Add(key);
+                    pendingRecord.BankProofDocumentKey = key;
+                }
+                catch (ValidationException ex)
+                {
+                    errors[nameof(model.BankProofFile)] = ExtractValidationMessage(ex);
+                }
+                catch (Exception ex)
+                {
+                    string corrId = NewCorrelationId();
+                    _logger.LogError(ex, "Bank proof upload failed for UserId={UserId}, CorrelationId={CorrelationId}", userId, corrId);
+                    errors[nameof(model.BankProofFile)] = $"Could not upload bank proof file right now. Reference ID: {corrId}.";
+                }
             }
 
             if (errors.Count > 0)
             {
+                CleanupSavedFiles(newlySavedKeys);
                 string corrId = NewCorrelationId();
                 _logger.LogWarning("Partner KYC submit rejected by validation for UserId={UserId}, CorrelationId={CorrelationId}, FailedFields={FailedFields}",
                     userId, corrId, string.Join(",", errors.Keys.Select(k => string.IsNullOrEmpty(k) ? "Form" : k)));
-                var statusDto = BuildStatusDto(existing);
+                // Return unmodified savedFromDb status so failed submit never pretends to have saved partial state
+                var statusDto = BuildStatusDto(savedFromDb);
                 statusDto.CorrelationId = corrId;
                 return (false, errors, statusDto);
             }
 
-            var statusAfter = BuildStatusDto(existing);
-            existing.KycStatus = statusAfter.IsComplete ? "Submitted" : "Incomplete";
-            if (statusAfter.IsComplete && !existing.SubmittedAt.HasValue)
-            {
-                existing.SubmittedAt = DateTime.UtcNow;
-            }
+            pendingRecord.KycStatus = "Submitted";
+            pendingRecord.SubmittedAt = DateTime.UtcNow;
 
             try
             {
-                await _kycRepo.UpsertAsync(existing);
+                await _kycRepo.UpsertAsync(pendingRecord);
                 _requestStatusCache.Remove(userId);
-                _logger.LogInformation("Partner KYC & bank details updated for UserId={UserId}. Status={Status}", userId, existing.KycStatus);
+                _logger.LogInformation("Partner KYC & bank details saved for UserId={UserId}. Status={Status}", userId, pendingRecord.KycStatus);
             }
             catch (Exception ex)
             {
+                CleanupSavedFiles(newlySavedKeys);
                 string corrId = NewCorrelationId();
                 _logger.LogError(ex, "Failed to save Partner KYC & bank details for UserId={UserId}, CorrelationId={CorrelationId}", userId, corrId);
                 errors[string.Empty] = $"We could not save your KYC & bank details right now. Please try again later. Reference ID: {corrId}.";
-                return (false, errors, BuildStatusDto(existing));
+                return (false, errors, BuildStatusDto(savedFromDb));
             }
 
-            return (true, errors, BuildStatusDto(existing));
+            return (true, errors, BuildStatusDto(pendingRecord));
+        }
+
+        private void CleanupSavedFiles(IEnumerable<string> keys)
+        {
+            foreach (var key in keys)
+            {
+                try
+                {
+                    string physicalPath = _mediaStorage.GetPrivateDocumentPhysicalPath(key);
+                    if (!string.IsNullOrWhiteSpace(physicalPath) && File.Exists(physicalPath))
+                    {
+                        File.Delete(physicalPath);
+                    }
+                }
+                catch
+                {
+                    // Best-effort cleanup of newly created temp encrypted file on failed submit
+                }
+            }
         }
 
         private static string ExtractValidationMessage(ValidationException ex)

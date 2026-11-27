@@ -36,7 +36,7 @@ namespace BookMyFun.Repositories
         public async Task<bool> UpsertAsync(PartnerKycBankDetails record)
         {
             const string sql = @"
-                IF EXISTS (SELECT 1 FROM PartnerKycBankDetails WHERE UserId = @UserId)
+                IF EXISTS (SELECT 1 FROM PartnerKycBankDetails WITH (UPDLOCK, HOLDLOCK) WHERE UserId = @UserId)
                 BEGIN
                     UPDATE PartnerKycBankDetails
                     SET AadhaarDocumentKey         = @AadhaarDocumentKey,
@@ -63,20 +63,36 @@ namespace BookMyFun.Repositories
                          @KycStatus, @FirstPopupShownAt, @SubmittedAt, GETUTCDATE());
                 END";
 
-            int rows = await _db.ExecuteNonQueryAsync(sql,
-                new SqlParameter("@UserId", record.UserId),
-                new SqlParameter("@AadhaarDocumentKey", DBHelper.ToDbValue(record.AadhaarDocumentKey)),
-                new SqlParameter("@PanDocumentKey", DBHelper.ToDbValue(record.PanDocumentKey)),
-                new SqlParameter("@BankProofDocumentKey", DBHelper.ToDbValue(record.BankProofDocumentKey)),
-                new SqlParameter("@AccountHolderName", DBHelper.ToDbValue(record.AccountHolderName)),
-                new SqlParameter("@BankAccountNumberEncrypted", DBHelper.ToDbValue(record.BankAccountNumberEncrypted)),
-                new SqlParameter("@BankAccountLast4", DBHelper.ToDbValue(record.BankAccountLast4)),
-                new SqlParameter("@IfscCode", DBHelper.ToDbValue(record.IfscCode)),
-                new SqlParameter("@KycStatus", record.KycStatus),
-                new SqlParameter("@FirstPopupShownAt", DBHelper.ToDbValue(record.FirstPopupShownAt)),
-                new SqlParameter("@SubmittedAt", DBHelper.ToDbValue(record.SubmittedAt)));
+            await using var conn = _db.CreateConnection();
+            await conn.OpenAsync();
+            await using var tx = (SqlTransaction)await conn.BeginTransactionAsync();
+            try
+            {
+                await using var cmd = new SqlCommand(sql, conn, tx);
+                cmd.Parameters.AddRange(new[]
+                {
+                    new SqlParameter("@UserId", record.UserId),
+                    new SqlParameter("@AadhaarDocumentKey", DBHelper.ToDbValue(record.AadhaarDocumentKey)),
+                    new SqlParameter("@PanDocumentKey", DBHelper.ToDbValue(record.PanDocumentKey)),
+                    new SqlParameter("@BankProofDocumentKey", DBHelper.ToDbValue(record.BankProofDocumentKey)),
+                    new SqlParameter("@AccountHolderName", DBHelper.ToDbValue(record.AccountHolderName)),
+                    new SqlParameter("@BankAccountNumberEncrypted", DBHelper.ToDbValue(record.BankAccountNumberEncrypted)),
+                    new SqlParameter("@BankAccountLast4", DBHelper.ToDbValue(record.BankAccountLast4)),
+                    new SqlParameter("@IfscCode", DBHelper.ToDbValue(record.IfscCode)),
+                    new SqlParameter("@KycStatus", record.KycStatus),
+                    new SqlParameter("@FirstPopupShownAt", DBHelper.ToDbValue(record.FirstPopupShownAt)),
+                    new SqlParameter("@SubmittedAt", DBHelper.ToDbValue(record.SubmittedAt))
+                });
 
-            return rows > 0;
+                int rows = await cmd.ExecuteNonQueryAsync();
+                await tx.CommitAsync();
+                return rows > 0;
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
         }
 
         public async Task<bool> MarkFirstPopupShownAsync(int userId)
