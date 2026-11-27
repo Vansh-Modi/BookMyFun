@@ -27,8 +27,14 @@
 }
 
 <div class="dashboard-root">
-    <!-- Desktop & Tablet Sidebar (Rail on tablet, Full on desktop) -->
-    <aside class="dashboard-sidebar-container d-none d-md-flex" id="desktopDashboardSidebar">
+    <!-- Dashboard Sidebar (Fixed/Sticky on >= 992px; Overlay Drawer on < 992px) -->
+    <aside class="dashboard-sidebar-container" id="desktopDashboardSidebar" aria-label="Dashboard navigation">
+        <div class="d-flex d-lg-none align-items-center justify-content-between px-3 py-2 border-bottom border-subtle">
+            <span class="fw-bold small text-uppercase text-muted">Navigation</span>
+            <button type="button" class="btn btn-outline-secondary border-0 dashboard-sidebar-close-btn" id="dashboardSidebarCloseBtn" aria-label="Close menu">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
         <div class="dashboard-sidebar-content">
             <partial name="_DashboardSidebarNav" />
         </div>

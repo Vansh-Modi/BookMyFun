@@ -74,7 +74,7 @@
                 <div class="d-flex align-items-center site-header-brand-wrap">
                     @if (ViewData["IsDashboard"] as bool? == true && User.Identity?.IsAuthenticated == true && (User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value != "Client"))
                     {
-                        <button class="btn btn-outline-light border-0 me-2" type="button" id="dashboardSidebarToggle" aria-expanded="false" aria-controls="desktopDashboardSidebar" aria-label="Toggle navigation menu" style="width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.12); border-radius: 8px;">
+                        <button class="btn btn-outline-light border-0 me-2 d-lg-none dashboard-mobile-menu-btn" type="button" id="dashboardSidebarToggle" aria-expanded="false" aria-controls="desktopDashboardSidebar" aria-label="Open menu">
                             <i class="bi bi-list fs-4 text-warning"></i>
                         </button>
                     }
@@ -631,81 +631,94 @@
     <!-- Dashboard Sidebar Drawer & Universal Notification Scripts -->
     <script>
         (function() {
-            // Sidebar Toggle
+            // Sidebar Toggle (< 992px mobile overlay; >= 992px always visible)
             const toggleBtn = document.getElementById('dashboardSidebarToggle');
+            const closeBtn = document.getElementById('dashboardSidebarCloseBtn');
             const sidebar = document.getElementById('desktopDashboardSidebar');
             const dashboardRoot = document.querySelector('.dashboard-root');
+
+            function closeMobileBackdrop() {
+                const backdrop = document.getElementById('sidebarDrawerBackdrop');
+                if (backdrop) {
+                    backdrop.classList.remove('show');
+                    setTimeout(() => backdrop.remove(), 250);
+                }
+            }
 
             function applySidebarState(open) {
                 if (!sidebar) return;
                 if (window.innerWidth >= 992) {
-                    if (open) {
-                        sidebar.classList.remove('sidebar-collapsed');
-                        dashboardRoot?.classList.remove('sidebar-collapsed-layout');
-                        toggleBtn?.setAttribute('aria-expanded', 'true');
-                        try { localStorage.setItem('bmf-dashboard-sidebar-state', 'expanded'); } catch(e){}
+                    sidebar.classList.remove('sidebar-collapsed', 'sidebar-mobile-drawer-open');
+                    dashboardRoot?.classList.remove('sidebar-collapsed-layout');
+                    toggleBtn?.setAttribute('aria-expanded', 'false');
+                    closeMobileBackdrop();
+                    return;
+                }
+
+                if (open) {
+                    sidebar.classList.add('sidebar-mobile-drawer-open');
+                    toggleBtn?.setAttribute('aria-expanded', 'true');
+                    let backdrop = document.getElementById('sidebarDrawerBackdrop');
+                    if (!backdrop) {
+                        backdrop = document.createElement('div');
+                        backdrop.id = 'sidebarDrawerBackdrop';
+                        backdrop.className = 'sidebar-drawer-backdrop show';
+                        backdrop.addEventListener('click', () => applySidebarState(false));
+                        document.body.appendChild(backdrop);
                     } else {
-                        sidebar.classList.add('sidebar-collapsed');
-                        dashboardRoot?.classList.add('sidebar-collapsed-layout');
-                        toggleBtn?.setAttribute('aria-expanded', 'false');
-                        try { localStorage.setItem('bmf-dashboard-sidebar-state', 'collapsed'); } catch(e){}
+                        backdrop.classList.add('show');
                     }
                 } else {
-                    if (open) {
-                        sidebar.classList.add('sidebar-mobile-drawer-open');
-                        toggleBtn?.setAttribute('aria-expanded', 'true');
-                        let backdrop = document.getElementById('sidebarDrawerBackdrop');
-                        if (!backdrop) {
-                            backdrop = document.createElement('div');
-                            backdrop.id = 'sidebarDrawerBackdrop';
-                            backdrop.className = 'sidebar-drawer-backdrop show';
-                            backdrop.addEventListener('click', () => applySidebarState(false));
-                            document.body.appendChild(backdrop);
-                        } else {
-                            backdrop.classList.add('show');
-                        }
-                    } else {
-                        sidebar.classList.remove('sidebar-mobile-drawer-open');
-                        toggleBtn?.setAttribute('aria-expanded', 'false');
-                        const backdrop = document.getElementById('sidebarDrawerBackdrop');
-                        if (backdrop) {
-                            backdrop.classList.remove('show');
-                            setTimeout(() => backdrop.remove(), 250);
-                        }
-                    }
+                    sidebar.classList.remove('sidebar-mobile-drawer-open');
+                    toggleBtn?.setAttribute('aria-expanded', 'false');
+                    closeMobileBackdrop();
                 }
             }
 
-            if (toggleBtn && sidebar) {
-                try {
-                    const saved = localStorage.getItem('bmf-dashboard-sidebar-state');
-                    if (window.innerWidth >= 992 && saved === 'collapsed') {
-                        applySidebarState(false);
-                    } else if (window.innerWidth >= 992) {
-                        applySidebarState(true);
-                    }
-                } catch(e) {}
+            if (sidebar) {
+                applySidebarState(false);
 
-                toggleBtn.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    if (window.innerWidth >= 992) {
-                        applySidebarState(sidebar.classList.contains('sidebar-collapsed'));
-                    } else {
+                if (toggleBtn) {
+                    toggleBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
                         applySidebarState(!sidebar.classList.contains('sidebar-mobile-drawer-open'));
-                    }
+                    });
+                }
+
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        applySidebarState(false);
+                        toggleBtn?.focus();
+                    });
+                }
+
+                sidebar.querySelectorAll('a').forEach(function(link) {
+                    link.addEventListener('click', function() {
+                        if (window.innerWidth < 992) {
+                            applySidebarState(false);
+                        }
+                    });
                 });
 
                 document.addEventListener('keydown', function(e) {
                     if (e.key === 'Escape' && sidebar.classList.contains('sidebar-mobile-drawer-open')) {
                         applySidebarState(false);
+                        toggleBtn?.focus();
                     }
                 });
 
                 document.addEventListener('click', function(e) {
                     if (window.innerWidth < 992 && sidebar.classList.contains('sidebar-mobile-drawer-open')) {
-                        if (!sidebar.contains(e.target) && e.target !== toggleBtn && !toggleBtn.contains(e.target)) {
+                        if (!sidebar.contains(e.target) && (!toggleBtn || (e.target !== toggleBtn && !toggleBtn.contains(e.target)))) {
                             applySidebarState(false);
                         }
+                    }
+                });
+
+                window.addEventListener('resize', function() {
+                    if (window.innerWidth >= 992) {
+                        applySidebarState(false);
                     }
                 });
             }

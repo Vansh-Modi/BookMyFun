@@ -3569,37 +3569,19 @@ body:has(.mobile-booking-bottom-bar) .mobile-bottom-bar {
     padding: 1.5rem;
 }
 
-/* Tablet (768px - 991.98px): Icon rail collapse */
-@media (min-width: 768px) and (max-width: 991.98px) {
-    .dashboard-sidebar-container {
-        width: 72px;
-    }
-    .dashboard-sidebar-header .sidebar-brand-text,
-    .dashboard-nav-heading,
-    .dashboard-nav-link .nav-text,
-    .dashboard-nav-link .badge {
-        display: none !important;
-    }
-    .dashboard-nav-link {
-        justify-content: center;
-        padding: 0.75rem 0;
-    }
-    .dashboard-nav-link i {
-        font-size: 1.35rem;
-    }
+/* Mobile & Tablet (< 992px): Shared dashboard toggle & close button sizing (>= 44px) */
+.dashboard-mobile-menu-btn,
+.dashboard-sidebar-close-btn {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
 }
 
-/* Mobile (< 768px): Slide-in offcanvas drawer */
-@media (max-width: 767.98px) {
-    .dashboard-sidebar-container:not(.offcanvas) {
-        display: none !important;
-    }
-    .dashboard-body {
-        padding: 1rem 0.75rem;
-    }
-    .dashboard-topbar {
-        padding: 0.6rem 1rem;
-    }
+.dashboard-mobile-menu-btn {
+    background: rgba(255, 255, 255, 0.12);
 }
 
 
@@ -3672,15 +3654,24 @@ body {
         bottom: 0 !important;
         height: 100vh !important;
         width: 280px !important;
+        max-width: 85vw !important;
         z-index: 1060 !important;
         transform: translateX(-100%);
+        visibility: hidden;
         box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.35);
-        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.25s ease;
         background-color: var(--bg-card);
         display: flex !important;
     }
     .dashboard-sidebar-container.sidebar-mobile-drawer-open {
         transform: translateX(0) !important;
+        visibility: visible;
+    }
+    .dashboard-body {
+        padding: 1rem 0.75rem;
+    }
+    .dashboard-topbar {
+        padding: 0.6rem 1rem;
     }
 }
 
