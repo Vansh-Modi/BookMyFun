@@ -1,0 +1,182 @@
+@model BookMyFun.Models.ViewModels.AdminPartnerKycDetailViewModel
+@{
+    Layout = "_DashboardLayout";
+    ViewData["Title"] = $"Review Partner KYC — {Model.FullName}";
+    string badgeClass = Model.KycStatus switch
+    {
+        "Verified" => "bg-success",
+        "Submitted" => "bg-warning text-dark",
+        "Rejected" => "bg-danger",
+        _ => "bg-secondary"
+    };
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+        <a href="/Admin/PartnerKyc" class="text-decoration-none small text-muted d-inline-block mb-1">
+            <i class="bi bi-arrow-left me-1"></i>Back to Partner KYC list
+        </a>
+        <h2 class="fw-bold mb-0">@Model.FullName</h2>
+        <div class="text-muted small">User #@Model.UserId · @Model.Role</div>
+    </div>
+    <div>
+        <span class="badge @badgeClass rounded-pill px-3 py-2 fs-6">@Model.KycStatus</span>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(Model.RejectionReason))
+{
+    <div class="alert alert-danger rounded-3 mb-4">
+        <div class="fw-bold mb-1">Current Rejection Reason</div>
+        <div>@Model.RejectionReason</div>
+    </div>
+}
+
+<div class="row g-4 mb-4">
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
+            <h5 class="fw-bold mb-3"><i class="bi bi-person-badge me-2 text-primary"></i>Partner Details</h5>
+            <dl class="row mb-0 small">
+                <dt class="col-4 text-muted">Name</dt>
+                <dd class="col-8 fw-semibold">@Model.FullName</dd>
+
+                <dt class="col-4 text-muted">Email</dt>
+                <dd class="col-8">@Model.Email</dd>
+
+                <dt class="col-4 text-muted">Mobile</dt>
+                <dd class="col-8">@(string.IsNullOrWhiteSpace(Model.Phone) ? "—" : Model.Phone)</dd>
+
+                <dt class="col-4 text-muted">Role</dt>
+                <dd class="col-8">@Model.Role</dd>
+
+                <dt class="col-4 text-muted">Submitted</dt>
+                <dd class="col-8">@(Model.SubmittedAt.HasValue ? Model.SubmittedAt.Value.ToString("dd MMM yyyy, HH:mm") + " UTC" : "Not submitted")</dd>
+
+                @if (Model.ReviewedAt.HasValue)
+                {
+                    <dt class="col-4 text-muted">Last Reviewed</dt>
+                    <dd class="col-8">@Model.ReviewedAt.Value.ToString("dd MMM yyyy, HH:mm") UTC (@(Model.ReviewedByName ?? "Admin"))</dd>
+                }
+            </dl>
+        </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm rounded-4 p-4 h-100">
+            <h5 class="fw-bold mb-3"><i class="bi bi-bank me-2 text-primary"></i>Bank Payout Details</h5>
+            <dl class="row mb-0 small">
+                <dt class="col-5 text-muted">Account Holder</dt>
+                <dd class="col-7 fw-semibold">@(Model.AccountHolderName ?? "—")</dd>
+
+                <dt class="col-5 text-muted">Account Number</dt>
+                <dd class="col-7"><code>@(Model.MaskedBankAccount ?? "—")</code></dd>
+
+                <dt class="col-5 text-muted">IFSC Code</dt>
+                <dd class="col-7"><code>@(Model.IfscCode ?? "—")</code></dd>
+            </dl>
+        </div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm rounded-4 p-4 mb-4">
+    <h5 class="fw-bold mb-3"><i class="bi bi-file-earmark-lock me-2 text-primary"></i>Uploaded Documents (Audited Inline View)</h5>
+    <p class="small text-muted mb-3">Documents are decrypted on demand, served inline with <code>Cache-Control: no-store</code>, and every view is logged to the audit trail.</p>
+    <div class="d-flex flex-wrap gap-2">
+        @if (Model.HasAadhaar)
+        {
+            <a href="/Admin/PartnerKyc/@Model.UserId/Document?type=Aadhaar" target="_blank" rel="noopener" class="btn btn-outline-primary rounded-pill px-3">
+                <i class="bi bi-eye me-1"></i>View Masked Aadhaar
+            </a>
+        }
+        else
+        {
+            <span class="badge bg-secondary py-2 px-3">Aadhaar not uploaded</span>
+        }
+
+        @if (Model.HasPan)
+        {
+            <a href="/Admin/PartnerKyc/@Model.UserId/Document?type=Pan" target="_blank" rel="noopener" class="btn btn-outline-primary rounded-pill px-3">
+                <i class="bi bi-eye me-1"></i>View PAN Card
+            </a>
+        }
+        else
+        {
+            <span class="badge bg-secondary py-2 px-3">PAN not uploaded</span>
+        }
+
+        @if (Model.HasBankProof)
+        {
+            <a href="/Admin/PartnerKyc/@Model.UserId/Document?type=BankProof" target="_blank" rel="noopener" class="btn btn-outline-primary rounded-pill px-3">
+                <i class="bi bi-eye me-1"></i>View Bank Proof
+            </a>
+        }
+        else
+        {
+            <span class="badge bg-light text-muted border py-2 px-3">Bank proof not provided (optional)</span>
+        }
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm rounded-4 p-4 mb-4">
+    <h5 class="fw-bold mb-3">Verification Decision</h5>
+    <div class="row g-3">
+        <div class="col-12 col-md-4 d-flex align-items-end">
+            <form action="/Admin/PartnerKyc/@Model.UserId/Approve" method="post" class="w-100">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-success w-100 py-2 fw-semibold rounded-3">
+                    <i class="bi bi-check-circle me-1"></i>Approve (Set Verified)
+                </button>
+            </form>
+        </div>
+        <div class="col-12 col-md-8">
+            <form action="/Admin/PartnerKyc/@Model.UserId/Reject" method="post">
+                @Html.AntiForgeryToken()
+                <label for="rejectReasonTextarea" class="form-label fw-semibold">Rejection Reason <span class="text-danger">*</span></label>
+                <div class="d-flex flex-column flex-sm-row gap-2">
+                    <textarea id="rejectReasonTextarea" name="reason" rows="2" class="form-control" required placeholder="Explain what is unclear or invalid so the partner can re-upload..."></textarea>
+                    <button type="submit" class="btn btn-danger fw-semibold rounded-3 px-4">
+                        <i class="bi bi-x-circle me-1"></i>Reject
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm rounded-4 p-4">
+    <h5 class="fw-bold mb-3"><i class="bi bi-journal-text me-2 text-secondary"></i>KYC Audit Trail</h5>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Time (UTC)</th>
+                    <th>Admin</th>
+                    <th>Action</th>
+                    <th>Document</th>
+                    <th>Reason</th>
+                    <th>IP</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.AuditLogs.Any())
+                {
+                    <tr><td colspan="6" class="text-center text-muted py-3">No audit events recorded yet.</td></tr>
+                }
+                else
+                {
+                    @foreach (var log in Model.AuditLogs)
+                    {
+                        <tr>
+                            <td class="small text-muted">@log.CreatedAt.ToString("dd MMM yyyy HH:mm:ss")</td>
+                            <td class="small">@(log.AdminName ?? $"Admin #{log.AdminUserId}")</td>
+                            <td><span class="badge bg-light text-dark border">@log.Action</span></td>
+                            <td class="small">@(log.DocumentType ?? "—")</td>
+                            <td class="small">@(log.Reason ?? "—")</td>
+                            <td class="small text-muted"><code>@(log.ClientIp ?? "—")</code></td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

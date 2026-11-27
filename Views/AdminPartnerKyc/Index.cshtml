@@ -1,0 +1,83 @@
+@model BookMyFun.Models.ViewModels.AdminPartnerKycListViewModel
+@{
+    Layout = "_DashboardLayout";
+    ViewData["Title"] = "Partner KYC Review";
+    string selected = Model.SelectedStatus ?? "All";
+}
+
+<div class="dash-page-header mb-4">
+    <div>
+        <p class="dash-eyebrow">Admin · Verification</p>
+        <h1 class="dash-title">Partner KYC &amp; Bank Review</h1>
+        <p class="dash-subtitle">Review Owner and Event Manager identity documents and bank payout details.</p>
+    </div>
+</div>
+
+<div class="d-flex flex-wrap gap-2 mb-4">
+    <a href="/Admin/PartnerKyc?status=Submitted" class="btn rounded-pill px-3 @(selected.Equals("Submitted", StringComparison.OrdinalIgnoreCase) ? "btn-warning text-dark fw-bold" : "btn-light border")">
+        Submitted (@Model.SubmittedCount)
+    </a>
+    <a href="/Admin/PartnerKyc?status=Verified" class="btn rounded-pill px-3 @(selected.Equals("Verified", StringComparison.OrdinalIgnoreCase) ? "btn-success text-white fw-bold" : "btn-light border")">
+        Verified (@Model.VerifiedCount)
+    </a>
+    <a href="/Admin/PartnerKyc?status=Rejected" class="btn rounded-pill px-3 @(selected.Equals("Rejected", StringComparison.OrdinalIgnoreCase) ? "btn-danger text-white fw-bold" : "btn-light border")">
+        Rejected (@Model.RejectedCount)
+    </a>
+    <a href="/Admin/PartnerKyc?status=All" class="btn rounded-pill px-3 @(selected.Equals("All", StringComparison.OrdinalIgnoreCase) ? "btn-primary text-white fw-bold" : "btn-light border")">
+        All (@Model.TotalCount)
+    </a>
+</div>
+
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Partner</th>
+                    <th>Role</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Submitted</th>
+                    <th class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Items.Any())
+                {
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-5">
+                            No partner KYC records found for status <strong>@selected</strong>.
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var item in Model.Items)
+                    {
+                        string badgeClass = item.KycStatus switch
+                        {
+                            "Verified" => "bg-success",
+                            "Submitted" => "bg-warning text-dark",
+                            "Rejected" => "bg-danger",
+                            _ => "bg-secondary"
+                        };
+                        <tr>
+                            <td class="fw-semibold">@item.FullName</td>
+                            <td><span class="badge bg-light text-dark border">@item.Role</span></td>
+                            <td>@item.Email</td>
+                            <td><span class="badge @badgeClass rounded-pill">@item.KycStatus</span></td>
+                            <td class="small text-muted">
+                                @(item.SubmittedAt.HasValue ? item.SubmittedAt.Value.ToString("dd MMM yyyy, HH:mm") + " UTC" : "Not submitted")
+                            </td>
+                            <td class="text-end">
+                                <a href="/Admin/PartnerKyc/@item.UserId" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                    Review
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
