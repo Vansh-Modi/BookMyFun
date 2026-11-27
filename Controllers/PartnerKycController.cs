@@ -64,29 +64,48 @@ namespace BookMyFun.Controllers
             ViewData["IsDashboard"] = true;
             int userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-            var (success, fieldErrors, status) = await _kycService.SubmitAsync(userId, model);
-            foreach (var kv in fieldErrors)
+            try
             {
-                ModelState.AddModelError(kv.Key, kv.Value);
-            }
+                var (success, fieldErrors, status) = await _kycService.SubmitAsync(userId, model);
+                foreach (var kv in fieldErrors)
+                {
+                    ModelState.AddModelError(kv.Key, kv.Value);
+                }
 
-            if (!success || !ModelState.IsValid)
+                if (!success || !ModelState.IsValid)
+                {
+                    if (fieldErrors.Count == 0 && !ModelState.IsValid)
+                    {
+                        string corrId = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+                        var invalidKeys = ModelState.Where(m => m.Value?.Errors.Count > 0).Select(m => m.Key).ToArray();
+                        _logger.LogWarning("Partner KYC submit failed model validation for UserId={UserId}, CorrelationId={CorrelationId}, Fields={Fields}",
+                            userId, corrId, string.Join(",", invalidKeys));
+                    }
+
+                    model.HasAadhaar = status.HasAadhaar;
+                    model.HasPan = status.HasPan;
+                    model.HasBankProof = status.HasBankProof;
+                    model.MaskedBankAccount = status.MaskedBankAccount;
+                    model.KycStatus = status.KycStatus;
+                    model.CheckFailed = status.CheckFailed;
+                    model.CorrelationId = status.CorrelationId;
+                    model.MissingItems = status.MissingItems;
+                    model.SubmittedAt = status.SubmittedAt;
+                    model.BankAccountNumber = null; // Never echo back raw account number
+                    return View(model);
+                }
+
+                TempData["Success"] = "Details submitted. Our team will verify them shortly.";
+                return RedirectToAction(nameof(Index));
+            }
+            catch (Exception ex)
             {
-                model.HasAadhaar = status.HasAadhaar;
-                model.HasPan = status.HasPan;
-                model.HasBankProof = status.HasBankProof;
-                model.MaskedBankAccount = status.MaskedBankAccount;
-                model.KycStatus = status.KycStatus;
-                model.CheckFailed = status.CheckFailed;
-                model.CorrelationId = status.CorrelationId;
-                model.MissingItems = status.MissingItems;
-                model.SubmittedAt = status.SubmittedAt;
-                model.BankAccountNumber = null; // Never echo back raw account number
+                string corrId = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+                _logger.LogError(ex, "Unhandled exception during Partner KYC submit for UserId={UserId}, CorrelationId={CorrelationId}", userId, corrId);
+                ModelState.AddModelError(string.Empty, $"We could not save your KYC and bank details right now. Please try again later. Reference ID: {corrId}.");
+                model.BankAccountNumber = null;
                 return View(model);
             }
-
-            TempData["Success"] = "Your KYC documents and bank details have been submitted securely. You can now publish listings and packages.";
-            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost("DismissPopup")]

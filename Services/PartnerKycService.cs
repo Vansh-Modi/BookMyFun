@@ -233,7 +233,12 @@ namespace BookMyFun.Services
 
             if (errors.Count > 0)
             {
-                return (false, errors, BuildStatusDto(existing));
+                string corrId = NewCorrelationId();
+                _logger.LogWarning("Partner KYC submit rejected by validation for UserId={UserId}, CorrelationId={CorrelationId}, FailedFields={FailedFields}",
+                    userId, corrId, string.Join(",", errors.Keys.Select(k => string.IsNullOrEmpty(k) ? "Form" : k)));
+                var statusDto = BuildStatusDto(existing);
+                statusDto.CorrelationId = corrId;
+                return (false, errors, statusDto);
             }
 
             var statusAfter = BuildStatusDto(existing);
