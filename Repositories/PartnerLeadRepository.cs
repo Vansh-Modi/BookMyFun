@@ -9,6 +9,7 @@ namespace BookMyFun.Repositories
         Task<int> InsertLeadAsync(PartnerLead lead);
         Task<PartnerLead?> GetLeadByIdAsync(int leadId);
         Task<PartnerLead?> GetLeadByTokenAsync(string token);
+        Task<PartnerLead?> GetApprovedLeadByEmailAsync(string email) => Task.FromResult<PartnerLead?>(null);
         Task<List<PartnerLead>> GetAllLeadsAsync(string? status = null);
         Task<bool> UpdateLeadStatusAsync(int leadId, string status, int? reviewedByUserId, string? activationToken = null, DateTime? tokenExpiresAt = null);
         Task<bool> MarkTokenUsedAsync(int leadId);
@@ -66,6 +67,18 @@ namespace BookMyFun.Repositories
                 WHERE pl.ActivationToken = @ActivationToken";
 
             return await _db.ExecuteReaderSingleAsync(sql, MapLead, new SqlParameter("@ActivationToken", token));
+        }
+
+        public async Task<PartnerLead?> GetApprovedLeadByEmailAsync(string email)
+        {
+            const string sql = @"
+                SELECT TOP 1 pl.*, u.FullName AS ReviewedByUserName
+                FROM PartnerLeads pl
+                LEFT JOIN Users u ON pl.ReviewedByUserID = u.UserID
+                WHERE LOWER(pl.Email) = LOWER(@Email) AND pl.Status = 'Approved'
+                ORDER BY pl.LeadID DESC";
+
+            return await _db.ExecuteReaderSingleAsync(sql, MapLead, new SqlParameter("@Email", email));
         }
 
         public async Task<List<PartnerLead>> GetAllLeadsAsync(string? status = null)

@@ -219,6 +219,8 @@ namespace BookMyFun.Tests
             Assert.NotNull(approvedLead);
             Assert.Equal("Approved", approvedLead.Status);
             Assert.NotNull(approvedLead.ActivationToken);
+            Assert.NotEqual(result.activationToken, approvedLead.ActivationToken);
+            Assert.Equal(PartnerLeadService.HashToken(result.activationToken), approvedLead.ActivationToken);
             Assert.NotNull(approvedLead.TokenExpiresAt);
             Assert.True(approvedLead.TokenExpiresAt > DateTime.UtcNow.AddHours(47));
             Assert.True(approvedLead.TokenExpiresAt <= DateTime.UtcNow.AddHours(49));
@@ -228,7 +230,8 @@ namespace BookMyFun.Tests
             var email = emailService.SentEmails[0];
             Assert.Equal("ramesh@example.com", email.To);
             Assert.Contains("Set Your Password &amp; Activate Account", email.Body);
-            Assert.Contains(approvedLead.ActivationToken, email.Body);
+            Assert.Contains(result.activationToken, email.Body);
+            Assert.Contains("/account/set-password?token=", email.Body);
             Assert.Contains("48 hours", email.Body);
 
             // Verify WhatsApp notification sent
@@ -236,7 +239,7 @@ namespace BookMyFun.Tests
             var wa = whatsAppService.SentMessages[0];
             Assert.Equal("9876543210", wa.Phone);
             Assert.Contains("valid for 48 hours", wa.Message);
-            Assert.Contains(approvedLead.ActivationToken, wa.Message);
+            Assert.Contains(result.activationToken, wa.Message);
             Assert.DoesNotContain("Password: Host@", wa.Message);
         }
 
@@ -320,7 +323,7 @@ namespace BookMyFun.Tests
                 PropertyName = "Delayed Villa",
                 PartnerType = "Owner",
                 Status = "Approved",
-                ActivationToken = expiredToken,
+                ActivationToken = PartnerLeadService.HashToken(expiredToken),
                 TokenExpiresAt = DateTime.UtcNow.AddHours(-1) // Expired 1 hour ago
             });
 

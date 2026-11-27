@@ -664,20 +664,87 @@ namespace BookMyFun.Controllers
             return RedirectToAction("Login");
         }
 
-        [HttpGet]
-        public IActionResult ActivateHost(string token, string email)
+        [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+        [HttpGet("account/set-password")]
+        public async Task<IActionResult> SetPassword(string? token)
         {
-            if (string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(email))
+            var (valid, email, errorMessage) = await _partnerLeadService.ValidatePasswordSetupTokenAsync(token ?? string.Empty);
+            if (!valid)
             {
-                TempData["ErrorMessage"] = "Invalid or missing activation link.";
-                return RedirectToAction("Login");
+                ViewBag.TokenError = errorMessage ?? "This password setup link is invalid, expired, or has already been used.";
+                ViewBag.PrefillEmail = email;
+                return View("SetPassword", new ActivateOwnerViewModel
+                {
+                    Token = token ?? string.Empty,
+                    Email = email ?? string.Empty
+                });
             }
 
-            return View(new ActivateOwnerViewModel
+            return View("SetPassword", new ActivateOwnerViewModel
             {
-                Token = token,
-                Email = email
+                Token = token!,
+                Email = email!
             });
+        }
+
+        [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+        [HttpPost("account/set-password")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SetPassword(ActivateOwnerViewModel model)
+        {
+            // Always bind email from the validated token record so tampering is ignored
+            var (valid, tokenEmail, errorMessage) = await _partnerLeadService.ValidatePasswordSetupTokenAsync(model.Token ?? string.Empty);
+            if (!valid)
+            {
+                ViewBag.TokenError = errorMessage ?? "This password setup link is invalid, expired, or has already been used.";
+                ViewBag.PrefillEmail = tokenEmail;
+                return View("SetPassword", model);
+            }
+
+            model.Email = tokenEmail!;
+            ModelState.Remove(nameof(model.Email));
+
+            if (!ModelState.IsValid)
+            {
+                return View("SetPassword", model);
+            }
+
+            try
+            {
+                await _partnerLeadService.ActivateOwnerAccountAsync(model);
+                TempData["Success"] = "Your password has been set and your partner account is now active. Please log in.";
+                return RedirectToAction("Login");
+            }
+            catch (Exception ex)
+            {
+                ModelState.AddModelError("", ex.Message);
+                return View("SetPassword", model);
+            }
+        }
+
+        [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+        [HttpPost("account/request-set-password-link")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RequestSetPasswordLink(string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                ViewBag.TokenError = "Please enter your registered email address to request a new setup link.";
+                return View("SetPassword", new ActivateOwnerViewModel());
+            }
+
+            string fallbackBaseUrl = $"{Request.Scheme}://{Request.Host}";
+            await _partnerLeadService.ResendPasswordSetupLinkAsync(email, fallbackBaseUrl);
+
+            ViewBag.ResendSuccess = "If an approved partner account exists for that email address, a new password setup link has been sent (valid for 48 hours).";
+            return View("SetPassword", new ActivateOwnerViewModel { Email = email.Trim() });
+        }
+
+        [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+        [HttpGet]
+        public async Task<IActionResult> ActivateHost(string token, string? email = null)
+        {
+            return await SetPassword(token);
         }
 
         [HttpPost]

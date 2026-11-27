@@ -17,6 +17,10 @@ namespace BookMyFun.Services
         Task<(bool success, int userId, string generatedPassword, string email, string? phone, string fullName)> ApproveOwnerRequestAsync(int requestId, int staffUserId, string? notes);
         Task<bool> RejectLeadAsync(int leadId, int staffUserId);
         Task<bool> ActivateOwnerAccountAsync(ActivateOwnerViewModel model);
+        Task<(bool Valid, string? Email, string? ErrorMessage)> ValidatePasswordSetupTokenAsync(string token)
+            => Task.FromResult<(bool Valid, string? Email, string? ErrorMessage)>((false, null, "Invalid activation link."));
+        Task<bool> ResendPasswordSetupLinkAsync(string email, string? fallbackBaseUrl = null)
+            => Task.FromResult(false);
     }
 
     public class PartnerLeadService : IPartnerLeadService
@@ -99,8 +103,9 @@ namespace BookMyFun.Services
             string role = isEventManager ? "EventManager" : "Owner";
             string roleDisplayName = isEventManager ? "Event Manager & Décor Studio" : "Farmhouse & Villa Host";
 
-            // Generate cryptographically random single-use token valid for 48 hours
+            // Generate cryptographically random single-use token valid for 48 hours; store only SHA-256 hash in DB
             string token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+            string tokenHash = HashToken(token);
             var expiresAt = DateTime.UtcNow.AddHours(48); // 48-hour expiration
             string internalSecret = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
             string passwordHash = _passwordHasher.HashPassword(internalSecret);
@@ -136,49 +141,14 @@ namespace BookMyFun.Services
                 accountId = existingUser.UserID;
             }
 
-            bool updated = await _leadRepo.UpdateLeadStatusAsync(leadId, "Approved", staffUserId, token, expiresAt);
+            bool updated = await _leadRepo.UpdateLeadStatusAsync(leadId, "Approved", staffUserId, tokenHash, expiresAt);
             if (!updated) return (false, string.Empty, string.Empty, 0, roleDisplayName, lead.Email, lead.Phone);
 
-            string baseUrl = (_configuration?["AppUrl"] ?? "https://bookmyfun.in").TrimEnd('/');
-            string setupUrl = $"{baseUrl}/Account/ActivateHost?token={token}&email={Uri.EscapeDataString(lead.Email)}";
+            string baseUrl = GetPublicBaseUrl();
+            string setupUrl = $"{baseUrl}/account/set-password?token={token}";
 
             // Send activation and login details notification via Email (with 48-hour single-use password setup link)
-            try
-            {
-                string headerColor = isEventManager ? "#d97706" : "#059669";
-                string emailBody = $@"
-                    <div style='font-family: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;'>
-                        <div style='border-bottom: 2px solid {headerColor}; padding-bottom: 16px; margin-bottom: 20px;'>
-                            <h2 style='color: {headerColor}; margin: 0 0 6px 0; font-size: 22px;'>Welcome to BookMyFun! Your {roleDisplayName} Account is Approved</h2>
-                            <p style='margin: 0; color: #64748b; font-size: 14px;'>Partner Onboarding &amp; Verification</p>
-                        </div>
-                        <p style='font-size: 15px;'>Dear <strong>{lead.FullName}</strong>,</p>
-                        <p style='font-size: 14px; color: #334155;'>Congratulations! Your partner application for <strong>'{lead.PropertyName}'</strong> has been reviewed and officially approved by our operations team.</p>
-                        <div style='background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 20px; border-radius: 8px; margin: 20px 0;'>
-                            <h3 style='margin-top: 0; color: #0f172a; font-size: 16px;'>Your Partner Login Details</h3>
-                            <p style='margin-bottom: 8px;'><strong>Account ID:</strong> <code>#{accountId}</code></p>
-                            <p style='margin-bottom: 8px;'><strong>Registered Login ID / Email:</strong> <code>{lead.Email}</code></p>
-                            <p style='margin-bottom: 16px;'><strong>Password Setup:</strong> For your security, no permanent or plaintext password is transmitted via email or message. Please choose your password using the secure one-time link below.</p>
-                            <div style='text-align: center; margin: 24px 0;'>
-                                <a href='{setupUrl}' style='display: inline-block; background-color: {headerColor}; color: #ffffff; text-decoration: none; padding: 12px 28px; font-weight: bold; border-radius: 6px; font-size: 15px;'>Set Your Password &amp; Activate Account</a>
-                            </div>
-                            <p style='font-size: 12px; color: #64748b; margin-bottom: 0;'>🔒 <strong>Security Notice:</strong> This single-use setup link is valid for <strong>48 hours</strong>. It will expire once used.</p>
-                        </div>
-                        <p style='font-size: 13px; color: #64748b;'>If the button above does not work, copy and paste this link in your browser:<br/><span style='word-break: break-all; color: #0284c7;'>{setupUrl}</span></p>
-                        <hr style='border: none; border-top: 1px solid #e2e8f0; margin: 25px 0;' />
-                        <p style='color: #64748b; font-size: 0.85em;'>The BookMyFun Operations &amp; Support Team</p>
-                    </div>";
-
-                await _emailService.EnqueueEmailAsync(
-                    lead.Email,
-                    $"Partner Application Approved - Your BookMyFun {roleDisplayName} Login Details",
-                    emailBody,
-                    "PartnerApprovalCredentials");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to send partner credential email to {Email}", lead.Email);
-            }
+            await SendSetupEmailAsync(lead, accountId, roleDisplayName, isEventManager, setupUrl);
 
             // Send login details via WhatsApp with single-use setup link
             try
@@ -296,9 +266,57 @@ namespace BookMyFun.Services
             return await _leadRepo.UpdateLeadStatusAsync(leadId, "Rejected", staffUserId);
         }
 
+        public async Task<(bool Valid, string? Email, string? ErrorMessage)> ValidatePasswordSetupTokenAsync(string token)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+                return (false, null, "This password setup link is invalid or incomplete. Please request a new link below.");
+
+            var lead = await _leadRepo.GetLeadByTokenAsync(HashToken(token.Trim()));
+            if (lead == null)
+                return (false, null, "This password setup link is invalid or has already been used. Please request a new link below.");
+
+            if (lead.TokenExpiresAt.HasValue && DateTime.UtcNow > lead.TokenExpiresAt.Value)
+                return (false, lead.Email, "This password setup link has expired (valid for 48 hours). Please request a new link below.");
+
+            return (true, lead.Email, null);
+        }
+
+        public async Task<bool> ResendPasswordSetupLinkAsync(string email, string? fallbackBaseUrl = null)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                return false;
+
+            string cleanEmail = email.Trim().ToLowerInvariant();
+            var lead = await _leadRepo.GetApprovedLeadByEmailAsync(cleanEmail);
+            if (lead == null)
+                return false;
+
+            bool isEventManager = string.Equals(lead.PartnerType, "EventManager", StringComparison.OrdinalIgnoreCase);
+            string roleDisplayName = isEventManager ? "Event Manager & Décor Studio" : "Farmhouse & Villa Host";
+            var user = await _userRepo.GetByEmailAsync(cleanEmail);
+            int accountId = user?.UserID ?? 0;
+
+            string token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+            string tokenHash = HashToken(token);
+            var expiresAt = DateTime.UtcNow.AddHours(48);
+
+            bool updated = await _leadRepo.UpdateLeadStatusAsync(lead.LeadID, "Approved", lead.ReviewedByUserID, tokenHash, expiresAt);
+            if (!updated)
+                return false;
+
+            string baseUrl = GetPublicBaseUrl(fallbackBaseUrl);
+            string setupUrl = $"{baseUrl}/account/set-password?token={token}";
+
+            await SendSetupEmailAsync(lead, accountId, roleDisplayName, isEventManager, setupUrl);
+            return true;
+        }
+
         public async Task<bool> ActivateOwnerAccountAsync(ActivateOwnerViewModel model)
         {
-            var lead = await _leadRepo.GetLeadByTokenAsync(model.Token);
+            if (string.IsNullOrWhiteSpace(model.Token))
+                throw new ValidationException("Token", "Invalid activation token or link has already been used.");
+
+            var lead = await _leadRepo.GetLeadByTokenAsync(HashToken(model.Token.Trim()));
             if (lead == null)
                 throw new ValidationException("Token", "Invalid activation token or link has already been used.");
 
@@ -306,7 +324,7 @@ namespace BookMyFun.Services
                 throw new ValidationException("Email", "The email address does not match this activation token.");
 
             if (lead.TokenExpiresAt.HasValue && DateTime.UtcNow > lead.TokenExpiresAt.Value)
-                throw new ValidationException("Token", "Activation link has expired (valid for 48 hours). Please contact support for a new activation link.");
+                throw new ValidationException("Token", "Activation link has expired (valid for 48 hours). Please request a new link.");
 
             string role = string.Equals(lead.PartnerType, "EventManager", StringComparison.OrdinalIgnoreCase) ? "EventManager" : "Owner";
 
@@ -340,6 +358,69 @@ namespace BookMyFun.Services
             await _leadRepo.MarkTokenUsedAsync(lead.LeadID);
             _logger.LogInformation("Partner account {Email} ({Role}) password set and activated successfully via single-use token.", model.Email, role);
             return true;
+        }
+
+        public static string HashToken(string token)
+        {
+            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+            return Convert.ToHexString(bytes).ToLowerInvariant();
+        }
+
+        private string GetPublicBaseUrl(string? fallbackBaseUrl = null)
+        {
+            string? configured = _configuration?["PublicBaseUrl"];
+            if (string.IsNullOrWhiteSpace(configured))
+                configured = _configuration?["AppUrl"];
+            if (string.IsNullOrWhiteSpace(configured))
+                configured = fallbackBaseUrl;
+            if (string.IsNullOrWhiteSpace(configured))
+                configured = "https://bookmyfun.in";
+
+            return configured.Trim().TrimEnd('/');
+        }
+
+        private async Task SendSetupEmailAsync(PartnerLead lead, int accountId, string roleDisplayName, bool isEventManager, string setupUrl)
+        {
+            try
+            {
+                string headerColor = isEventManager ? "#d97706" : "#059669";
+                string accountLine = accountId > 0
+                    ? $"<p style='margin-bottom: 8px;'><strong>Account ID:</strong> <code>#{accountId}</code></p>"
+                    : string.Empty;
+
+                string emailBody = $@"
+                    <div style='font-family: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;'>
+                        <div style='border-bottom: 2px solid {headerColor}; padding-bottom: 16px; margin-bottom: 20px;'>
+                            <h2 style='color: {headerColor}; margin: 0 0 6px 0; font-size: 22px;'>Welcome to Nayesta! Your {roleDisplayName} Account is Approved</h2>
+                            <p style='margin: 0; color: #64748b; font-size: 14px;'>Partner Onboarding &amp; Verification</p>
+                        </div>
+                        <p style='font-size: 15px;'>Dear <strong>{lead.FullName}</strong>,</p>
+                        <p style='font-size: 14px; color: #334155;'>Congratulations! Your partner application for <strong>'{lead.PropertyName}'</strong> has been reviewed and officially approved by our operations team.</p>
+                        <div style='background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 20px; border-radius: 8px; margin: 20px 0;'>
+                            <h3 style='margin-top: 0; color: #0f172a; font-size: 16px;'>Your Partner Login Details</h3>
+                            {accountLine}
+                            <p style='margin-bottom: 8px;'><strong>Registered Login ID / Email:</strong> <code>{lead.Email}</code></p>
+                            <p style='margin-bottom: 16px;'><strong>Password Setup:</strong> For your security, no permanent or plaintext password is transmitted via email or message. Please choose your password using the secure one-time link below.</p>
+                            <div style='text-align: center; margin: 24px 0;'>
+                                <a href='{setupUrl}' style='display: inline-block; background-color: {headerColor}; color: #ffffff; text-decoration: none; padding: 12px 28px; font-weight: bold; border-radius: 6px; font-size: 15px;'>Set Your Password &amp; Activate Account</a>
+                            </div>
+                            <p style='font-size: 12px; color: #64748b; margin-bottom: 0;'>🔒 <strong>Security Notice:</strong> This single-use setup link is valid for <strong>48 hours</strong>. It will expire once used.</p>
+                        </div>
+                        <p style='font-size: 13px; color: #64748b;'>If the button above does not work, copy and paste this link in your browser:<br/><span style='word-break: break-all; color: #0284c7;'>{setupUrl}</span></p>
+                        <hr style='border: none; border-top: 1px solid #e2e8f0; margin: 25px 0;' />
+                        <p style='color: #64748b; font-size: 0.85em;'>The Nayesta Operations &amp; Support Team</p>
+                    </div>";
+
+                await _emailService.EnqueueEmailAsync(
+                    lead.Email,
+                    $"Partner Application Approved - Your Nayesta {roleDisplayName} Login Details",
+                    emailBody,
+                    "PartnerApprovalCredentials");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send partner credential email to {Email}", lead.Email);
+            }
         }
 
         private static string HashPassword(string password)
