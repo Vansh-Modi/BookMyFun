@@ -324,6 +324,20 @@
                     }
                 }
             </ul>
+            @if (!(User.Identity?.IsAuthenticated == true))
+            {
+                <div class="d-grid gap-2 mt-3 pt-3 border-top border-subtle mobile-drawer-auth-actions">
+                    <a asp-controller="Account" asp-action="Login" class="btn btn-outline-secondary w-100 d-inline-flex align-items-center justify-content-center fw-semibold rounded-pill mobile-auth-btn">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>Sign in
+                    </a>
+                    <a asp-controller="Account" asp-action="Register" class="btn btn-outline-secondary w-100 d-inline-flex align-items-center justify-content-center fw-semibold rounded-pill mobile-auth-btn">
+                        Register
+                    </a>
+                    <a asp-controller="Account" asp-action="PartnerRegister" class="btn btn-warning w-100 d-inline-flex align-items-center justify-content-center fw-bold rounded-pill mobile-auth-btn header-primary-btn">
+                        Join as partner
+                    </a>
+                </div>
+            }
         </div>
         <div class="main-nav-drawer-footer border-top p-3 d-flex align-items-center justify-content-between">
             <span class="small text-muted"><i class="bi bi-palette me-1"></i>Theme</span>

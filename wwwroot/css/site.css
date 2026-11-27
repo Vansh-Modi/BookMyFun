@@ -4008,6 +4008,11 @@ body {
     filter: brightness(0.95);
 }
 
+.mobile-auth-btn {
+    min-height: 44px;
+    padding: 0.625rem 1rem;
+}
+
 .header-compact-signin:hover,
 .header-compact-signin:focus {
     background: rgba(255, 255, 255, 0.22) !important;
