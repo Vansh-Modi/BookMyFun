@@ -13,9 +13,13 @@
     }
 }
 
-@if (kycStatus != null && !kycStatus.IsComplete)
+@if (kycStatus != null && !kycStatus.CanPublish)
 {
-    <div class="alert alert-warning border-0 border-start border-4 border-warning rounded-3 shadow-sm mb-3 mx-3 mt-3 d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
+    bool isRejected = string.Equals(kycStatus.KycStatus, "Rejected", StringComparison.OrdinalIgnoreCase);
+    bool isSubmitted = string.Equals(kycStatus.KycStatus, "Submitted", StringComparison.OrdinalIgnoreCase);
+    string alertTone = isRejected ? "alert-danger border-danger" : (isSubmitted ? "alert-info border-info" : "alert-warning border-warning");
+
+    <div class="alert @alertTone border-0 border-start border-4 rounded-3 shadow-sm mb-3 mx-3 mt-3 d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
         <div>
             @if (kycStatus.CheckFailed)
             {
@@ -30,6 +34,24 @@
                     }
                 </div>
             }
+            else if (isRejected)
+            {
+                <div class="fw-bold text-danger">
+                    <i class="bi bi-x-octagon-fill me-2"></i>Your KYC &amp; Bank verification was rejected
+                </div>
+                <div class="small text-dark">
+                    @(!string.IsNullOrWhiteSpace(kycStatus.RejectionReason) ? $"Reason: {kycStatus.RejectionReason} — " : "")Please re-upload your documents to enable publishing.
+                </div>
+            }
+            else if (isSubmitted)
+            {
+                <div class="fw-bold text-dark">
+                    <i class="bi bi-hourglass-split text-info me-2"></i>KYC &amp; Bank details submitted (under review)
+                </div>
+                <div class="small text-muted">
+                    You can create and edit drafts now. Publishing will unlock once an admin verifies your KYC.
+                </div>
+            }
             else
             {
                 <div class="fw-bold text-dark">
@@ -41,8 +63,8 @@
                 </div>
             }
         </div>
-        <a href="/Partner/Kyc" class="btn btn-warning btn-sm fw-semibold rounded-pill px-3">
-            <i class="bi bi-upload me-1"></i>Complete KYC &amp; Bank Details
+        <a href="/Partner/Kyc" class="btn @(isRejected ? "btn-danger" : (isSubmitted ? "btn-outline-info" : "btn-warning")) btn-sm fw-semibold rounded-pill px-3">
+            <i class="bi bi-upload me-1"></i>@(isRejected ? "Re-upload KYC & Bank Details" : (isSubmitted ? "View KYC Status" : "Complete KYC & Bank Details"))
         </a>
     </div>
 

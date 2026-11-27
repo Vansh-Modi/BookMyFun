@@ -116,6 +116,20 @@ namespace BookMyFun.Tests
             Assert.NotNull(saved);
             Assert.Equal("9012", saved!.BankAccountLast4);
             Assert.NotEqual("123456789012", saved.BankAccountNumberEncrypted);
+            Assert.False(status.IsVerified);
+            Assert.False(status.CanPublish);
+
+            saved.KycStatus = "Verified";
+            var verifiedStatus = await svc.GetStatusAsync(77);
+            Assert.True(verifiedStatus.IsVerified);
+            Assert.True(verifiedStatus.CanPublish);
+
+            saved.KycStatus = "Rejected";
+            saved.RejectionReason = "PAN image blurry";
+            var rejectedStatus = await svc.GetStatusAsync(77);
+            Assert.False(rejectedStatus.IsVerified);
+            Assert.False(rejectedStatus.CanPublish);
+            Assert.Equal("PAN image blurry", rejectedStatus.RejectionReason);
         }
 
         private class ThrowingPartnerKycRepo : IPartnerKycRepository

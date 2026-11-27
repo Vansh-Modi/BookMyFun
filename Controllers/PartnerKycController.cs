@@ -37,6 +37,8 @@ namespace BookMyFun.Controllers
                     HasBankProof = status.HasBankProof,
                     MaskedBankAccount = status.MaskedBankAccount,
                     KycStatus = status.KycStatus,
+                    RejectionReason = status.RejectionReason,
+                    ReviewedAt = status.ReviewedAt,
                     CheckFailed = status.CheckFailed,
                     CorrelationId = status.CorrelationId,
                     MissingItems = status.MissingItems,
@@ -87,6 +89,8 @@ namespace BookMyFun.Controllers
                     model.HasBankProof = status.HasBankProof;
                     model.MaskedBankAccount = status.MaskedBankAccount;
                     model.KycStatus = status.KycStatus;
+                    model.RejectionReason = status.RejectionReason;
+                    model.ReviewedAt = status.ReviewedAt;
                     model.CheckFailed = status.CheckFailed;
                     model.CorrelationId = status.CorrelationId;
                     model.MissingItems = status.MissingItems;

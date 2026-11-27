@@ -6,9 +6,13 @@ namespace BookMyFun.Models.ViewModels
     public class PartnerKycStatusDto
     {
         public bool IsComplete { get; set; }
+        public bool IsVerified { get; set; }
+        public bool CanPublish => !CheckFailed && IsVerified;
         public bool CheckFailed { get; set; }
         public string? CorrelationId { get; set; }
         public string KycStatus { get; set; } = "Incomplete";
+        public string? RejectionReason { get; set; }
+        public DateTime? ReviewedAt { get; set; }
         public bool ShouldShowFirstLoginPopup { get; set; }
         public List<string> MissingItems { get; set; } = new();
         public string? MaskedBankAccount { get; set; }
@@ -43,6 +47,8 @@ namespace BookMyFun.Models.ViewModels
         public bool HasBankProof { get; set; }
         public string? MaskedBankAccount { get; set; }
         public string KycStatus { get; set; } = "Incomplete";
+        public string? RejectionReason { get; set; }
+        public DateTime? ReviewedAt { get; set; }
         public bool CheckFailed { get; set; }
         public string? CorrelationId { get; set; }
         public List<string> MissingItems { get; set; } = new();

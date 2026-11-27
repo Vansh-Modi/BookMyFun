@@ -337,6 +337,28 @@ namespace BookMyFun.Services
                 missing.Add("IFSC Code");
 
             bool isComplete = missing.Count == 0;
+            string effectiveStatus;
+            if (!isComplete)
+            {
+                effectiveStatus = string.Equals(record?.KycStatus, "Rejected", StringComparison.OrdinalIgnoreCase)
+                    ? "Rejected"
+                    : "Incomplete";
+            }
+            else if (string.Equals(record?.KycStatus, "Verified", StringComparison.OrdinalIgnoreCase))
+            {
+                effectiveStatus = "Verified";
+            }
+            else if (string.Equals(record?.KycStatus, "Rejected", StringComparison.OrdinalIgnoreCase))
+            {
+                effectiveStatus = "Rejected";
+            }
+            else
+            {
+                effectiveStatus = "Submitted";
+            }
+
+            bool isVerified = string.Equals(effectiveStatus, "Verified", StringComparison.OrdinalIgnoreCase);
+
             string? maskedAcc = !string.IsNullOrWhiteSpace(record?.BankAccountLast4)
                 ? $"••••••••{record.BankAccountLast4}"
                 : null;
@@ -344,8 +366,11 @@ namespace BookMyFun.Services
             return new PartnerKycStatusDto
             {
                 IsComplete = isComplete,
-                KycStatus = isComplete ? (string.IsNullOrWhiteSpace(record?.KycStatus) ? "Submitted" : record.KycStatus) : "Incomplete",
-                ShouldShowFirstLoginPopup = !isComplete && record?.FirstPopupShownAt == null,
+                IsVerified = isVerified,
+                KycStatus = effectiveStatus,
+                RejectionReason = record?.RejectionReason,
+                ReviewedAt = record?.ReviewedAt,
+                ShouldShowFirstLoginPopup = !isComplete && !string.Equals(effectiveStatus, "Rejected", StringComparison.OrdinalIgnoreCase) && record?.FirstPopupShownAt == null,
                 MissingItems = missing,
                 MaskedBankAccount = maskedAcc,
                 HasAadhaar = !string.IsNullOrWhiteSpace(record?.AadhaarDocumentKey),

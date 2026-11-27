@@ -727,7 +727,7 @@ namespace BookMyFun.Controllers
                     return RedirectToAction(nameof(Index));
                 }
 
-                // Gate publishing on Partner KYC & Bank details completion
+                // Gate publishing on Partner KYC & Bank verification (must be Verified)
                 if (_partnerKycService != null)
                 {
                     var kycStatus = await _partnerKycService.GetStatusAsync(prop.OwnerID);
@@ -736,9 +736,20 @@ namespace BookMyFun.Controllers
                         TempData["Error"] = "We could not verify your payment details right now. Please try again later.";
                         return RedirectToAction(nameof(Index));
                     }
-                    if (!kycStatus.IsComplete)
+                    if (!kycStatus.IsVerified)
                     {
-                        TempData["Error"] = $"Complete your KYC & Bank details before publishing '{prop.Title}'. Missing: {string.Join(", ", kycStatus.MissingItems)}.";
+                        if (string.Equals(kycStatus.KycStatus, "Rejected", StringComparison.OrdinalIgnoreCase))
+                        {
+                            TempData["Error"] = $"Your KYC was rejected ({kycStatus.RejectionReason ?? "see details"}). Please re-upload your documents before publishing '{prop.Title}'.";
+                        }
+                        else if (string.Equals(kycStatus.KycStatus, "Submitted", StringComparison.OrdinalIgnoreCase))
+                        {
+                            TempData["Error"] = $"Your KYC is currently under review. You can publish '{prop.Title}' once an admin verifies your details.";
+                        }
+                        else
+                        {
+                            TempData["Error"] = $"Complete your KYC & Bank details before publishing '{prop.Title}'. Missing: {string.Join(", ", kycStatus.MissingItems)}.";
+                        }
                         return RedirectToAction(nameof(Index));
                     }
                 }

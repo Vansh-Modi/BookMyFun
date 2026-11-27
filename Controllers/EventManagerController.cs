@@ -338,9 +338,20 @@ namespace BookMyFun.Controllers
                         return Redirect(returnUrl);
                     return RedirectToAction(nameof(Packages));
                 }
-                if (!kycStatus.IsComplete)
+                if (!kycStatus.IsVerified)
                 {
-                    TempData["Error"] = $"Complete your KYC & Bank details before publishing '{pkg.Name}'. Missing: {string.Join(", ", kycStatus.MissingItems)}.";
+                    if (string.Equals(kycStatus.KycStatus, "Rejected", StringComparison.OrdinalIgnoreCase))
+                    {
+                        TempData["Error"] = $"Your KYC was rejected ({kycStatus.RejectionReason ?? "see details"}). Please re-upload your documents before publishing '{pkg.Name}'.";
+                    }
+                    else if (string.Equals(kycStatus.KycStatus, "Submitted", StringComparison.OrdinalIgnoreCase))
+                    {
+                        TempData["Error"] = $"Your KYC is currently under review. You can publish '{pkg.Name}' once an admin verifies your details.";
+                    }
+                    else
+                    {
+                        TempData["Error"] = $"Complete your KYC & Bank details before publishing '{pkg.Name}'. Missing: {string.Join(", ", kycStatus.MissingItems)}.";
+                    }
                     if (!string.IsNullOrEmpty(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
                         return Redirect(returnUrl);
                     return RedirectToAction(nameof(Packages));

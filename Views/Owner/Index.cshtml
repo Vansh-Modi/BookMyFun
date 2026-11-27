@@ -9,7 +9,7 @@
     {
         ownerKyc = await PartnerKycService.GetStatusAsync(ownerUid);
     }
-    bool kycIncomplete = ownerKyc != null && !ownerKyc.IsComplete;
+    bool kycBlocked = ownerKyc != null && !ownerKyc.CanPublish;
     var scheduledSub = ViewBag.ScheduledSub as BookMyFun.Models.Entities.OwnerSubscription;
     var notifPrefs = ViewBag.NotificationPreferences as BookMyFun.Models.ViewModels.OwnerNotificationPreferencesViewModel;
     var shootRequests = ViewBag.ShootRequests as List<BookMyFun.Models.Entities.PhotoShootRequest> ?? new List<BookMyFun.Models.Entities.PhotoShootRequest>();
@@ -412,13 +412,26 @@
                                         else if ((p.IsApproved && p.ListingStatus == "Draft") || p.ListingStatus == "Deactivated" || p.ListingStatus == "Unpublished")
                                         {
                                             var hasActivePlan = Model.ActiveSubscription != null;
-                                            var canPublish = !kycIncomplete && hasActivePlan && (Model.LiveListingsCount < Model.MaxListingsAllowed);
+                                            var canPublish = !kycBlocked && hasActivePlan && (Model.LiveListingsCount < Model.MaxListingsAllowed);
                                             string? pubBlockReason = null;
-                                            if (kycIncomplete && ownerKyc != null)
+                                            if (kycBlocked && ownerKyc != null)
                                             {
-                                                pubBlockReason = ownerKyc.CheckFailed
-                                                    ? "We could not verify your payment details right now. Please try again later."
-                                                    : $"Complete KYC & Bank details to publish. Missing: {string.Join(", ", ownerKyc.MissingItems)}.";
+                                                if (ownerKyc.CheckFailed)
+                                                {
+                                                    pubBlockReason = "We could not verify your payment details right now. Please try again later.";
+                                                }
+                                                else if (string.Equals(ownerKyc.KycStatus, "Rejected", StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    pubBlockReason = $"KYC Rejected: {ownerKyc.RejectionReason ?? "Please re-upload your documents."}";
+                                                }
+                                                else if (string.Equals(ownerKyc.KycStatus, "Submitted", StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    pubBlockReason = "Your KYC is under review. Publishing unlocks once verified by an admin.";
+                                                }
+                                                else
+                                                {
+                                                    pubBlockReason = $"Complete KYC & Bank details to publish. Missing: {string.Join(", ", ownerKyc.MissingItems)}.";
+                                                }
                                             }
                                             else if (!hasActivePlan)
                                             {
@@ -438,10 +451,10 @@
                                                     </button>
                                                 </form>
                                             }
-                                            else if (kycIncomplete)
+                                            else if (kycBlocked)
                                             {
                                                 <a href="/Partner/Kyc" class="btn btn-sm btn-outline-warning rounded-pill py-1 px-2.5 fw-semibold" style="font-size: 0.75rem;" data-bs-toggle="tooltip" title="@pubBlockReason">
-                                                    <i class="bi bi-lock-fill me-1"></i>Complete KYC to Publish
+                                                    <i class="bi bi-lock-fill me-1"></i>@(string.Equals(ownerKyc?.KycStatus, "Submitted", StringComparison.OrdinalIgnoreCase) ? "KYC Under Review" : "Verify KYC to Publish")
                                                 </a>
                                             }
                                             else
