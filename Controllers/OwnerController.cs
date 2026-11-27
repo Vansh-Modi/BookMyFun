@@ -712,52 +712,62 @@ namespace BookMyFun.Controllers
         public async Task<IActionResult> PublishProperty(int id)
         {
             var ownerId = GetCurrentUserId();
-            var prop = await _propRepo.GetByIdAsync(id);
-            if (prop == null) return NotFound();
-            if (prop.OwnerID != ownerId && !User.IsInRole("Admin")) return Forbid();
-
-            if (!prop.IsApproved || (prop.ListingStatus != "Draft" && prop.ListingStatus != "Deactivated" && prop.ListingStatus != "Unpublished"))
+            try
             {
-                TempData["Error"] = "Property must be approved before publishing.";
-                return RedirectToAction(nameof(Index));
-            }
+                var prop = await _propRepo.GetByIdAsync(id);
+                if (prop == null) return NotFound();
+                if (prop.OwnerID != ownerId && !User.IsInRole("Admin")) return Forbid();
 
-            // If brand new owner without any subscription history, auto-create Free Trial row
-            bool hasHistory = await _subRepo.HasAnySubscriptionHistoryAsync(prop.OwnerID);
-            if (!hasHistory)
-            {
-                await _subRepo.CreateTrialSubscriptionAsync(prop.OwnerID);
-            }
-
-            var activeSub = await _subRepo.GetActiveSubscriptionByOwnerIdAsync(prop.OwnerID);
-            if (activeSub == null)
-            {
-                TempData["Error"] = "Your subscription has ended. Choose a plan to publish listings.";
-                return RedirectToAction(nameof(Subscriptions));
-            }
-
-            var ownerProps = await _propRepo.GetPropertiesByOwnerIdAsync(prop.OwnerID);
-            int liveCount = ownerProps.Count(p => p.IsApproved && (p.ListingStatus == "Live" || p.ListingStatus == "Active"));
-            if (liveCount >= activeSub.MaxListings)
-            {
-                TempData["Error"] = $"Cannot publish property. Your current plan allowance of {activeSub.MaxListings} live listing(s) has been reached. Please unpublish another listing or upgrade your subscription.";
-                return RedirectToAction(nameof(Index));
-            }
-
-            var (success, msg) = await _propRepo.PublishPropertyAsync(id, prop.OwnerID, activeSub.MaxListings);
-            if (success)
-            {
-                await _configRepo.LogAuditAsync(ownerId, "OwnerPublishProperty", "Property", id,
-                    $"Host #{ownerId} published listing #{id} ('{prop.Title}').");
-                if (_notificationDispatcher != null)
+                if (!prop.IsApproved || (prop.ListingStatus != "Draft" && prop.ListingStatus != "Deactivated" && prop.ListingStatus != "Unpublished"))
                 {
-                    _ = _notificationDispatcher.DispatchPropertyPublishedAsync(id, prop.Title, prop.OwnerID);
+                    TempData["Error"] = "Property must be approved before publishing.";
+                    return RedirectToAction(nameof(Index));
                 }
-                TempData["Success"] = $"Property '{prop.Title}' is now live on BookMyFun!";
+
+                // If brand new owner without any subscription history, auto-create Free Trial row
+                bool hasHistory = await _subRepo.HasAnySubscriptionHistoryAsync(prop.OwnerID);
+                if (!hasHistory)
+                {
+                    await _subRepo.CreateTrialSubscriptionAsync(prop.OwnerID);
+                }
+
+                var activeSub = await _subRepo.GetActiveSubscriptionByOwnerIdAsync(prop.OwnerID);
+                if (activeSub == null)
+                {
+                    TempData["Error"] = "Your subscription has ended. Choose a plan to publish listings.";
+                    return RedirectToAction(nameof(Subscriptions));
+                }
+
+                var ownerProps = await _propRepo.GetPropertiesByOwnerIdAsync(prop.OwnerID);
+                int liveCount = ownerProps.Count(p => p.IsApproved && (p.ListingStatus == "Live" || p.ListingStatus == "Active"));
+                if (liveCount >= activeSub.MaxListings)
+                {
+                    TempData["Error"] = $"Cannot publish property. Your current plan allowance of {activeSub.MaxListings} live listing(s) has been reached. Please unpublish another listing or upgrade your subscription.";
+                    return RedirectToAction(nameof(Index));
+                }
+
+                var (success, msg) = await _propRepo.PublishPropertyAsync(id, prop.OwnerID, activeSub.MaxListings);
+                if (success)
+                {
+                    await _configRepo.LogAuditAsync(ownerId, "OwnerPublishProperty", "Property", id,
+                        $"Host #{ownerId} published listing #{id} ('{prop.Title}').");
+                    if (_notificationDispatcher != null)
+                    {
+                        _ = _notificationDispatcher.DispatchPropertyPublishedAsync(id, prop.Title, prop.OwnerID);
+                    }
+                    TempData["Success"] = $"Property '{prop.Title}' is now live on Nayesta!";
+                }
+                else
+                {
+                    TempData["Error"] = msg;
+                }
             }
-            else
+            catch (Exception ex)
             {
-                TempData["Error"] = msg;
+                string correlationId = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+                _logger.LogError(ex, "PublishProperty failed for PropertyId={PropertyId}, OwnerId={OwnerId}, CorrelationId={CorrelationId}",
+                    id, ownerId, correlationId);
+                TempData["Error"] = $"We couldn't publish your property right now. Please try again or contact support with reference ID: {correlationId}.";
             }
             return RedirectToAction(nameof(Index));
         }

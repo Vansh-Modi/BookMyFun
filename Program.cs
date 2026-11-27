@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.ResponseCompression;
 
@@ -301,6 +302,15 @@ app.MapGet("/health", () => Results.Text("OK", "text/plain"));
 // Security & Rate Limiting Middlewares
 app.UseMiddleware<BookMyFun.Services.Security.SecurityHeadersMiddleware>();
 app.UseMiddleware<BookMyFun.Services.Security.RateLimitingMiddleware>();
+
+// Honor reverse-proxy headers (MonsterASP / IIS / load balancer) for HTTPS scheme and client IP
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+};
+forwardedHeadersOptions.KnownIPNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
 
 // Response Compression Middleware
 app.UseResponseCompression();
