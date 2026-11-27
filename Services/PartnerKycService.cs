@@ -62,12 +62,18 @@ namespace BookMyFun.Services
                 }
                 catch (ValidationException ex)
                 {
-                    errors[nameof(model.AadhaarFile)] = ex.Message;
+                    errors[nameof(model.AadhaarFile)] = ExtractValidationMessage(ex);
+                }
+                catch (Exception ex)
+                {
+                    string corrId = NewCorrelationId();
+                    _logger.LogError(ex, "Aadhaar upload failed for UserId={UserId}, CorrelationId={CorrelationId}", userId, corrId);
+                    errors[nameof(model.AadhaarFile)] = $"Could not upload Aadhaar file right now. Reference ID: {corrId}.";
                 }
             }
             else if (string.IsNullOrWhiteSpace(existing.AadhaarDocumentKey))
             {
-                errors[nameof(model.AadhaarFile)] = "Please upload a masked copy of your Aadhaar card (JPG, PNG, WEBP, or PDF, max 5MB).";
+                errors[nameof(model.AadhaarFile)] = "Please upload a masked copy of your Aadhaar card (JPG, PNG, WEBP, or PDF, max 5 MB).";
             }
 
             // Validate and store PAN
@@ -79,12 +85,18 @@ namespace BookMyFun.Services
                 }
                 catch (ValidationException ex)
                 {
-                    errors[nameof(model.PanFile)] = ex.Message;
+                    errors[nameof(model.PanFile)] = ExtractValidationMessage(ex);
+                }
+                catch (Exception ex)
+                {
+                    string corrId = NewCorrelationId();
+                    _logger.LogError(ex, "PAN upload failed for UserId={UserId}, CorrelationId={CorrelationId}", userId, corrId);
+                    errors[nameof(model.PanFile)] = $"Could not upload PAN file right now. Reference ID: {corrId}.";
                 }
             }
             else if (string.IsNullOrWhiteSpace(existing.PanDocumentKey))
             {
-                errors[nameof(model.PanFile)] = "Please upload your PAN card (JPG, PNG, WEBP, or PDF, max 5MB).";
+                errors[nameof(model.PanFile)] = "Please upload your PAN card (JPG, PNG, WEBP, or PDF, max 5 MB).";
             }
 
             // Optional bank proof upload (cancelled cheque / passbook)
@@ -96,7 +108,13 @@ namespace BookMyFun.Services
                 }
                 catch (ValidationException ex)
                 {
-                    errors[nameof(model.BankProofFile)] = ex.Message;
+                    errors[nameof(model.BankProofFile)] = ExtractValidationMessage(ex);
+                }
+                catch (Exception ex)
+                {
+                    string corrId = NewCorrelationId();
+                    _logger.LogError(ex, "Bank proof upload failed for UserId={UserId}, CorrelationId={CorrelationId}", userId, corrId);
+                    errors[nameof(model.BankProofFile)] = $"Could not upload bank proof file right now. Reference ID: {corrId}.";
                 }
             }
 
@@ -122,7 +140,7 @@ namespace BookMyFun.Services
                 else if (!_encryptionService.IsEncryptionConfigured())
                 {
                     _logger.LogError("Partner bank account encryption refused for UserId={UserId}: ID_ENCRYPTION_KEY is missing or invalid.", userId);
-                    errors[nameof(model.BankAccountNumber)] = "Bank account encryption is currently unavailable on this server.";
+                    errors[nameof(model.BankAccountNumber)] = "Encryption key is not configured on this server. Contact the administrator.";
                 }
                 else
                 {
@@ -159,11 +177,38 @@ namespace BookMyFun.Services
                 existing.SubmittedAt = DateTime.UtcNow;
             }
 
-            await _kycRepo.UpsertAsync(existing);
-            _logger.LogInformation("Partner KYC & bank details updated for UserId={UserId}. Status={Status}", userId, existing.KycStatus);
+            try
+            {
+                await _kycRepo.UpsertAsync(existing);
+                _logger.LogInformation("Partner KYC & bank details updated for UserId={UserId}. Status={Status}", userId, existing.KycStatus);
+            }
+            catch (Exception ex)
+            {
+                string corrId = NewCorrelationId();
+                _logger.LogError(ex, "Failed to save Partner KYC & bank details for UserId={UserId}, CorrelationId={CorrelationId}", userId, corrId);
+                errors[string.Empty] = $"We could not save your KYC & bank details right now. Please try again later. Reference ID: {corrId}.";
+                return (false, errors, BuildStatusDto(existing));
+            }
 
             return (true, errors, BuildStatusDto(existing));
         }
+
+        private static string ExtractValidationMessage(ValidationException ex)
+        {
+            if (ex.ValidationErrors != null)
+            {
+                foreach (var arr in ex.ValidationErrors.Values)
+                {
+                    if (arr != null && arr.Length > 0 && !string.IsNullOrWhiteSpace(arr[0]))
+                    {
+                        return arr[0];
+                    }
+                }
+            }
+            return ex.Message;
+        }
+
+        private static string NewCorrelationId() => Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
 
         public static PartnerKycStatusDto BuildStatusDto(PartnerKycBankDetails? record)
         {

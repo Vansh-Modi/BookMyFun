@@ -124,16 +124,19 @@ namespace BookMyFun.Services
             if (file == null || file.Length == 0)
                 throw new ValidationException("file", "Document file is empty.");
 
-            if (file.Length > 5 * 1024 * 1024)
-                throw new ValidationException("file", "Document exceeds maximum permitted size of 5MB.");
+            // 1. Validate file type (magic bytes)
+            string safeExtension = await ValidateDocumentMagicBytesAsync(file);
 
+            // 2. Validate file size (5 MB)
+            if (file.Length > 5 * 1024 * 1024)
+                throw new ValidationException("file", "File is larger than 5 MB.");
+
+            // 3. Validate encryption availability
             if (_encryptionService == null || !_encryptionService.IsEncryptionConfigured())
             {
-                _logger.LogError("Private document upload refused: ID_ENCRYPTION_KEY environment variable is missing or invalid.");
-                throw new ValidationException("file", "ID document upload is currently unavailable due to server encryption configuration.");
+                _logger.LogError("Private document upload refused: ID_ENCRYPTION_KEY is missing or invalid.");
+                throw new ValidationException("file", "Encryption key is not configured on this server. Contact the administrator.");
             }
-
-            string safeExtension = await ValidateDocumentMagicBytesAsync(file);
 
             string documentId = Guid.NewGuid().ToString("N");
             string safeFileName = $"doc_client_{clientId}_{documentId}{safeExtension}";
@@ -421,7 +424,7 @@ namespace BookMyFun.Services
                 ((header[8] == 0x61 && header[9] == 0x76 && header[10] == 0x69 && header[11] == 0x66) ||
                  (header[8] == 0x61 && header[9] == 0x76 && header[10] == 0x69 && header[11] == 0x73))) return ".avif";
 
-            throw new ValidationException("file", "Invalid identity document format. Allowed formats: PDF, JPG, PNG, WEBP, AVIF with verified binary headers.");
+            throw new ValidationException("file", "Unsupported file type. Allowed formats: PDF, JPG, PNG, WEBP, or AVIF.");
         }
     }
 }

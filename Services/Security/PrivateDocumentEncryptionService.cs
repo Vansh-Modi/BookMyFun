@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace BookMyFun.Services.Security
@@ -20,15 +21,21 @@ namespace BookMyFun.Services.Security
         private const int NonceSize = 12; // 96-bit nonce for AES-GCM
         private const int TagSize = 16;   // 128-bit authentication tag
         private readonly ILogger<PrivateDocumentEncryptionService> _logger;
+        private readonly IConfiguration? _configuration;
 
-        public PrivateDocumentEncryptionService(ILogger<PrivateDocumentEncryptionService> logger)
+        public PrivateDocumentEncryptionService(
+            ILogger<PrivateDocumentEncryptionService> logger,
+            IConfiguration? configuration = null)
         {
             _logger = logger;
+            _configuration = configuration;
         }
 
         private byte[]? GetKey()
         {
             var raw = Environment.GetEnvironmentVariable("ID_ENCRYPTION_KEY");
+            if (string.IsNullOrWhiteSpace(raw))
+                raw = _configuration?["ID_ENCRYPTION_KEY"];
             if (string.IsNullOrWhiteSpace(raw)) return null;
             try
             {
