@@ -7,7 +7,7 @@
     var ownerClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
     if (int.TryParse(ownerClaim, out int ownerUid))
     {
-        try { ownerKyc = await PartnerKycService.GetStatusAsync(ownerUid); } catch { }
+        ownerKyc = await PartnerKycService.GetStatusAsync(ownerUid);
     }
     bool kycIncomplete = ownerKyc != null && !ownerKyc.IsComplete;
     var scheduledSub = ViewBag.ScheduledSub as BookMyFun.Models.Entities.OwnerSubscription;
@@ -416,7 +416,9 @@
                                             string? pubBlockReason = null;
                                             if (kycIncomplete && ownerKyc != null)
                                             {
-                                                pubBlockReason = $"Complete KYC & Bank details to publish. Missing: {string.Join(", ", ownerKyc.MissingItems)}.";
+                                                pubBlockReason = ownerKyc.CheckFailed
+                                                    ? "We could not verify your payment details right now. Please try again later."
+                                                    : $"Complete KYC & Bank details to publish. Missing: {string.Join(", ", ownerKyc.MissingItems)}.";
                                             }
                                             else if (!hasActivePlan)
                                             {

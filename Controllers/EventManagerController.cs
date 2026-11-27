@@ -331,6 +331,13 @@ namespace BookMyFun.Controllers
             if (!pkg.IsActive && !isStaffOrAdmin && _partnerKycService != null)
             {
                 var kycStatus = await _partnerKycService.GetStatusAsync(userId);
+                if (kycStatus.CheckFailed)
+                {
+                    TempData["Error"] = "We could not verify your payment details right now. Please try again later.";
+                    if (!string.IsNullOrEmpty(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
+                        return Redirect(returnUrl);
+                    return RedirectToAction(nameof(Packages));
+                }
                 if (!kycStatus.IsComplete)
                 {
                     TempData["Error"] = $"Complete your KYC & Bank details before publishing '{pkg.Name}'. Missing: {string.Join(", ", kycStatus.MissingItems)}.";

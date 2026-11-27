@@ -731,6 +731,11 @@ namespace BookMyFun.Controllers
                 if (_partnerKycService != null)
                 {
                     var kycStatus = await _partnerKycService.GetStatusAsync(prop.OwnerID);
+                    if (kycStatus.CheckFailed)
+                    {
+                        TempData["Error"] = "We could not verify your payment details right now. Please try again later.";
+                        return RedirectToAction(nameof(Index));
+                    }
                     if (!kycStatus.IsComplete)
                     {
                         TempData["Error"] = $"Complete your KYC & Bank details before publishing '{prop.Title}'. Missing: {string.Join(", ", kycStatus.MissingItems)}.";

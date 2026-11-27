@@ -8,15 +8,7 @@
         var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (int.TryParse(idClaim, out int partnerUserId))
         {
-            try
-            {
-                kycStatus = await PartnerKycService.GetStatusAsync(partnerUserId);
-            }
-            catch
-            {
-                // Fail safely if migration 011 has not yet been applied
-                kycStatus = null;
-            }
+            kycStatus = await PartnerKycService.GetStatusAsync(partnerUserId);
         }
     }
 }
@@ -25,20 +17,36 @@
 {
     <div class="alert alert-warning border-0 border-start border-4 border-warning rounded-3 shadow-sm mb-3 mx-3 mt-3 d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
         <div>
-            <div class="fw-bold text-dark">
-                <i class="bi bi-shield-exclamation text-warning me-2"></i>Complete your KYC &amp; Bank details to publish
-            </div>
-            <div class="small text-muted">
-                You can create and edit drafts, but publishing is locked until you submit:
-                <strong>@string.Join(", ", kycStatus.MissingItems)</strong>.
-            </div>
+            @if (kycStatus.CheckFailed)
+            {
+                <div class="fw-bold text-dark">
+                    <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>We could not verify your payment details right now. Please try again later.
+                </div>
+                <div class="small text-muted">
+                    You can continue browsing and editing drafts, but publishing is temporarily unavailable.
+                    @if (!string.IsNullOrWhiteSpace(kycStatus.CorrelationId))
+                    {
+                        <span>Reference ID: <code>@kycStatus.CorrelationId</code></span>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="fw-bold text-dark">
+                    <i class="bi bi-shield-exclamation text-warning me-2"></i>Complete your KYC &amp; Bank details to publish
+                </div>
+                <div class="small text-muted">
+                    You can create and edit drafts, but publishing is locked until you submit:
+                    <strong>@string.Join(", ", kycStatus.MissingItems)</strong>.
+                </div>
+            }
         </div>
         <a href="/Partner/Kyc" class="btn btn-warning btn-sm fw-semibold rounded-pill px-3">
             <i class="bi bi-upload me-1"></i>Complete KYC &amp; Bank Details
         </a>
     </div>
 
-    @if (kycStatus.ShouldShowFirstLoginPopup)
+    @if (!kycStatus.CheckFailed && kycStatus.ShouldShowFirstLoginPopup)
     {
         <div class="modal fade" id="partnerFirstLoginKycModal" tabindex="-1" aria-labelledby="partnerKycModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">

@@ -118,6 +118,36 @@ namespace BookMyFun.Tests
             Assert.NotEqual("123456789012", saved.BankAccountNumberEncrypted);
         }
 
+        private class ThrowingPartnerKycRepo : IPartnerKycRepository
+        {
+            public int CallCount { get; private set; }
+            public Task<PartnerKycBankDetails?> GetByUserIdAsync(int userId)
+            {
+                CallCount++;
+                throw new InvalidOperationException("Invalid object name 'PartnerKycBankDetails'.");
+            }
+            public Task<bool> UpsertAsync(PartnerKycBankDetails record) => throw new InvalidOperationException("Invalid object name 'PartnerKycBankDetails'.");
+            public Task<bool> MarkFirstPopupShownAsync(int userId) => throw new InvalidOperationException("Invalid object name 'PartnerKycBankDetails'.");
+        }
+
+        [Fact]
+        public async Task GetStatusAsync_WhenTableMissing_DegradesSafelyAndLogsOncePerRequest()
+        {
+            var repo = new ThrowingPartnerKycRepo();
+            var svc = new PartnerKycService(repo, new MockMediaStorageService(), new MockEncryptionService(), NullLogger<PartnerKycService>.Instance);
+
+            var first = await svc.GetStatusAsync(99);
+            var second = await svc.GetStatusAsync(99);
+
+            Assert.False(first.IsComplete);
+            Assert.True(first.CheckFailed);
+            Assert.False(first.ShouldShowFirstLoginPopup);
+            Assert.Equal("Incomplete", first.KycStatus);
+            Assert.False(string.IsNullOrWhiteSpace(first.CorrelationId));
+            Assert.Equal(first.CorrelationId, second.CorrelationId);
+            Assert.Equal(1, repo.CallCount);
+        }
+
         [Fact]
         public async Task SubmitInvalidIfscAndAccountNumber_ReturnsFieldErrors()
         {
@@ -138,6 +168,37 @@ namespace BookMyFun.Tests
             Assert.False(success);
             Assert.True(errors.ContainsKey(nameof(model.BankAccountNumber)));
             Assert.True(errors.ContainsKey(nameof(model.IfscCode)));
+        }
+        private class SpecificErrorMediaStorageService : IMediaStorageService
+        {
+            public Task<(string publicUrl, string publicId)> SaveMediaFileAsync(IFormFile file, string mediaType) => Task.FromResult(("", ""));
+            public Task<string> SavePrivateDocumentAsync(IFormFile file, int clientId)
+                => throw new ValidationException("file", "File is larger than 5 MB.");
+            public Task<bool> ValidateExternalUrlAsync(string url) => Task.FromResult(true);
+            public string GenerateExpiringDocumentToken(string documentKey, int requestingUserId, string userRole, int expirationMinutes = 15) => "tok";
+            public bool ValidateExpiringDocumentToken(string documentKey, string token, int requestingUserId, string userRole) => true;
+            public string GetPrivateDocumentPhysicalPath(string documentKey) => documentKey;
+        }
+
+        [Fact]
+        public async Task SubmitOversizedFile_ShowsSpecificReasonInsteadOfGenericValidationFailed()
+        {
+            var repo = new MockPartnerKycRepo();
+            var svc = new PartnerKycService(repo, new SpecificErrorMediaStorageService(), new MockEncryptionService(), NullLogger<PartnerKycService>.Instance);
+
+            var model = new PartnerKycSubmitViewModel
+            {
+                AadhaarFile = CreateFakeFormFile("AadhaarFile", "big.jpg", new byte[] { 1, 2, 3 }),
+                PanFile = CreateFakeFormFile("PanFile", "pan.png", new byte[] { 4, 5, 6 }),
+                AccountHolderName = "Ramesh",
+                BankAccountNumber = "1234567890",
+                IfscCode = "SBIN0001234"
+            };
+
+            var (success, errors, _) = await svc.SubmitAsync(101, model);
+
+            Assert.False(success);
+            Assert.Equal("File is larger than 5 MB.", errors[nameof(model.AadhaarFile)]);
         }
     }
 }

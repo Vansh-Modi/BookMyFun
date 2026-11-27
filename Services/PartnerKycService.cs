@@ -24,6 +24,8 @@ namespace BookMyFun.Services
         private readonly IMediaStorageService _mediaStorage;
         private readonly IPrivateDocumentEncryptionService _encryptionService;
         private readonly ILogger<PartnerKycService> _logger;
+        // Scoped per HTTP request: caches KYC status so multiple UI checks (banner, popup, publish gate) query & log once per request.
+        private readonly Dictionary<int, PartnerKycStatusDto> _requestStatusCache = new();
 
         public PartnerKycService(
             IPartnerKycRepository kycRepo,
@@ -39,19 +41,83 @@ namespace BookMyFun.Services
 
         public async Task<PartnerKycStatusDto> GetStatusAsync(int userId)
         {
-            var record = await _kycRepo.GetByUserIdAsync(userId);
-            return BuildStatusDto(record);
+            if (_requestStatusCache.TryGetValue(userId, out var cached))
+            {
+                return cached;
+            }
+
+            try
+            {
+                var record = await _kycRepo.GetByUserIdAsync(userId);
+                var dto = BuildStatusDto(record);
+                _requestStatusCache[userId] = dto;
+                return dto;
+            }
+            catch (Exception ex)
+            {
+                string correlationId = NewCorrelationId();
+                _logger.LogError(ex, "Partner KYC status check failed for UserId={UserId}, CorrelationId={CorrelationId}: {Message}",
+                    userId, correlationId, ex.Message);
+
+                var failedDto = new PartnerKycStatusDto
+                {
+                    IsComplete = false,
+                    CheckFailed = true,
+                    CorrelationId = correlationId,
+                    KycStatus = "Incomplete",
+                    ShouldShowFirstLoginPopup = false,
+                    MissingItems = new List<string>
+                    {
+                        "Aadhaar (masked copy)",
+                        "PAN Card",
+                        "Bank Account Holder Name",
+                        "Bank Account Number",
+                        "IFSC Code"
+                    }
+                };
+                _requestStatusCache[userId] = failedDto;
+                return failedDto;
+            }
         }
 
         public async Task MarkFirstPopupShownAsync(int userId)
         {
-            await _kycRepo.MarkFirstPopupShownAsync(userId);
+            try
+            {
+                await _kycRepo.MarkFirstPopupShownAsync(userId);
+                _requestStatusCache.Remove(userId);
+            }
+            catch (Exception ex)
+            {
+                string correlationId = NewCorrelationId();
+                _logger.LogError(ex, "Failed to record KYC popup dismissal for UserId={UserId}, CorrelationId={CorrelationId}: {Message}",
+                    userId, correlationId, ex.Message);
+            }
         }
 
         public async Task<(bool Success, Dictionary<string, string> FieldErrors, PartnerKycStatusDto Status)> SubmitAsync(int userId, PartnerKycSubmitViewModel model)
         {
             var errors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var existing = await _kycRepo.GetByUserIdAsync(userId) ?? new PartnerKycBankDetails { UserId = userId };
+            PartnerKycBankDetails existing;
+            try
+            {
+                existing = await _kycRepo.GetByUserIdAsync(userId) ?? new PartnerKycBankDetails { UserId = userId };
+            }
+            catch (Exception ex)
+            {
+                string corrId = NewCorrelationId();
+                _logger.LogError(ex, "Failed to load Partner KYC record during submit for UserId={UserId}, CorrelationId={CorrelationId}: {Message}",
+                    userId, corrId, ex.Message);
+                errors[string.Empty] = $"We could not verify your payment details right now. Please try again later. Reference ID: {corrId}.";
+                return (false, errors, new PartnerKycStatusDto
+                {
+                    IsComplete = false,
+                    CheckFailed = true,
+                    CorrelationId = corrId,
+                    KycStatus = "Incomplete",
+                    ShouldShowFirstLoginPopup = false
+                });
+            }
 
             // Validate and store Aadhaar (masked copy)
             if (model.AadhaarFile != null && model.AadhaarFile.Length > 0)
@@ -180,6 +246,7 @@ namespace BookMyFun.Services
             try
             {
                 await _kycRepo.UpsertAsync(existing);
+                _requestStatusCache.Remove(userId);
                 _logger.LogInformation("Partner KYC & bank details updated for UserId={UserId}. Status={Status}", userId, existing.KycStatus);
             }
             catch (Exception ex)
