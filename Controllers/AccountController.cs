@@ -665,6 +665,99 @@ namespace BookMyFun.Controllers
         }
 
         [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+        [HttpGet]
+        public IActionResult PartnerRegister()
+        {
+            return View(new PartnerRegisterViewModel());
+        }
+
+        [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> PartnerRegister(PartnerRegisterViewModel model)
+        {
+            string? normalizedRole = string.Equals(model.Role?.Trim(), "Owner", StringComparison.OrdinalIgnoreCase)
+                ? "Owner"
+                : (string.Equals(model.Role?.Trim(), "EventManager", StringComparison.OrdinalIgnoreCase) ? "EventManager" : null);
+
+            if (normalizedRole == null)
+            {
+                ModelState.AddModelError(nameof(model.Role), "Select either Owner or Event Manager.");
+            }
+
+            string normalizedPhone = BookMyFun.Models.Validation.IndianMobileHelper.NormalizeTo10Digits(model.Phone);
+            if (!string.IsNullOrWhiteSpace(model.Phone) && !BookMyFun.Models.Validation.IndianMobileHelper.IsValidIndianMobile(normalizedPhone, out _))
+            {
+                ModelState.AddModelError(nameof(model.Phone), "Enter a valid 10-digit Indian mobile number.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }
+
+            string cleanEmail = model.Email.Trim().ToLowerInvariant();
+            try
+            {
+                var existing = await _userRepo.GetByEmailAsync(cleanEmail);
+                if (existing != null)
+                {
+                    ModelState.AddModelError(nameof(model.Email), "An account with this email already exists.");
+                    return View(model);
+                }
+
+                var user = new User
+                {
+                    FullName = model.FullName.Trim(),
+                    Email = cleanEmail,
+                    Phone = normalizedPhone,
+                    PasswordHash = HashPassword(model.Password),
+                    Role = normalizedRole!,
+                    SubscriptionTier = "Free",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                int userId = await _userRepo.CreateUserAsync(user);
+                if (userId <= 0)
+                {
+                    ModelState.AddModelError("", "Could not create your partner account right now. Please try again.");
+                    return View(model);
+                }
+
+                var claims = new List<Claim>
+                {
+                    new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                    new Claim(ClaimTypes.Name, user.FullName),
+                    new Claim(ClaimTypes.Email, user.Email),
+                    new Claim(ClaimTypes.Role, user.Role)
+                };
+                var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+                if (HttpContext?.RequestServices != null)
+                {
+                    await HttpContext.SignInAsync(
+                        CookieAuthenticationDefaults.AuthenticationScheme,
+                        new ClaimsPrincipal(identity),
+                        new AuthenticationProperties { IsPersistent = false });
+                }
+
+                _logger.LogInformation("Partner account #{UserId} ({Role}) created via self-service sign-up.", userId, user.Role);
+                if (TempData != null)
+                {
+                    TempData["Success"] = "Partner account created. Complete your KYC and bank details to publish.";
+                }
+                return RedirectToAction("Index", user.Role == "EventManager" ? "EventManager" : "Owner");
+            }
+            catch (Exception ex)
+            {
+                string corrId = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+                _logger.LogError(ex, "PartnerRegister failed for CorrelationId={CorrelationId}", corrId);
+                ModelState.AddModelError("", $"We could not complete your sign-up right now. Please try again later. Reference ID: {corrId}.");
+                return View(model);
+            }
+        }
+
+        [Microsoft.AspNetCore.Authorization.AllowAnonymous]
         [HttpGet("account/set-password")]
         public async Task<IActionResult> SetPassword(string? token)
         {

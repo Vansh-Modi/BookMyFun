@@ -1,0 +1,108 @@
+@model BookMyFun.Models.ViewModels.PartnerRegisterViewModel
+@inject BookMyFun.Services.ISiteSettingsService SettingsService
+@{
+    ViewData["Title"] = "Join as partner";
+    var site = await SettingsService.GetSettingsAsync();
+    var brandName = string.IsNullOrWhiteSpace(site?.SiteName) ? "Nayesta" : site.SiteName;
+    var logoUrl = site?.LogoUrl ?? "";
+    var iconClass = string.IsNullOrWhiteSpace(site?.SiteIcon) ? "bi-house-heart-fill" : site.SiteIcon;
+}
+
+<div class="row justify-content-center my-4">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="card shadow-lg border-0 rounded-4 p-4 p-md-5">
+            <div class="text-center mb-4">
+                <a asp-controller="Home" asp-action="Index" class="d-inline-flex flex-column align-items-center text-decoration-none mb-2">
+                    @if (!string.IsNullOrEmpty(logoUrl))
+                    {
+                        <img src="@Url.Content(logoUrl)" alt="@brandName" style="height: 48px; max-width: 180px; object-fit: contain;" class="mb-2" />
+                    }
+                    else
+                    {
+                        <div class="dash-stat-icon icon-blue mx-auto mb-2" style="width: 52px; height: 52px; font-size: 1.5rem;">
+                            <i class="bi @iconClass"></i>
+                        </div>
+                    }
+                    <h3 class="fw-bold mb-0 text-heading">@brandName</h3>
+                </a>
+                <h4 class="fw-bold mb-1 fs-5">Join as partner</h4>
+                <p class="text-muted small mb-0">Create your Owner or Event Manager account to start setting up drafts</p>
+            </div>
+
+            <form asp-controller="Account" asp-action="PartnerRegister" method="post" novalidate>
+                @Html.AntiForgeryToken()
+
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger rounded-3" role="alert"></div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold d-block">Partner role <span class="text-danger">*</span></label>
+                    <div class="row g-2">
+                        <div class="col-12 col-sm-6">
+                            <div class="form-check border rounded-3 p-3 h-100">
+                                <input class="form-check-input ms-0 me-2" type="radio" asp-for="Role" id="roleOwner" value="Owner" />
+                                <label class="form-check-label fw-semibold" for="roleOwner">
+                                    Owner
+                                    <span class="d-block small fw-normal text-muted">List villas or farmhouses</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <div class="form-check border rounded-3 p-3 h-100">
+                                <input class="form-check-input ms-0 me-2" type="radio" asp-for="Role" id="roleEventManager" value="EventManager" />
+                                <label class="form-check-label fw-semibold" for="roleEventManager">
+                                    Event Manager
+                                    <span class="d-block small fw-normal text-muted">Offer Stay and Celebrate packages</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <span asp-validation-for="Role" class="text-danger small d-block mt-1"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="FullName" class="form-label fw-semibold">Full name <span class="text-danger">*</span></label>
+                    <input asp-for="FullName" class="form-control" placeholder="Enter your full name" autocomplete="name" required />
+                    <span asp-validation-for="FullName" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Email" class="form-label fw-semibold">Email address <span class="text-danger">*</span></label>
+                    <input asp-for="Email" type="email" class="form-control" placeholder="partner@example.com" autocomplete="email" required />
+                    <span asp-validation-for="Email" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Phone" class="form-label fw-semibold">Mobile number <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <span class="input-group-text fw-semibold">+91</span>
+                        <input asp-for="Phone" type="tel" class="form-control" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" autocomplete="tel-national" required />
+                    </div>
+                    <div class="form-text">Enter your 10-digit Indian mobile number.</div>
+                    <span asp-validation-for="Phone" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Password" class="form-label fw-semibold">Password <span class="text-danger">*</span></label>
+                    <input asp-for="Password" type="password" class="form-control" placeholder="Minimum 6 characters" minlength="6" autocomplete="new-password" required />
+                    <span asp-validation-for="Password" class="text-danger small"></span>
+                </div>
+
+                <div class="mb-4">
+                    <label asp-for="ConfirmPassword" class="form-label fw-semibold">Confirm password <span class="text-danger">*</span></label>
+                    <input asp-for="ConfirmPassword" type="password" class="form-control" placeholder="Re-enter password" minlength="6" autocomplete="new-password" required />
+                    <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
+                </div>
+
+                <div class="d-grid mb-3">
+                    <button type="submit" class="btn btn-warning btn-lg fw-bold rounded-pill header-primary-btn" style="min-height: 44px;">
+                        Create partner account
+                    </button>
+                </div>
+
+                <div class="text-center small text-muted">
+                    Already have an account? <a asp-controller="Account" asp-action="Login" class="fw-semibold text-decoration-none">Sign in</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
