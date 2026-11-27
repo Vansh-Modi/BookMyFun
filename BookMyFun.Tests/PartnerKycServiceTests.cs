@@ -120,13 +120,15 @@ namespace BookMyFun.Tests
             Assert.False(status.CanPublish);
 
             saved.KycStatus = "Verified";
-            var verifiedStatus = await svc.GetStatusAsync(77);
+            var verifiedSvc = new PartnerKycService(repo, new MockMediaStorageService(), new MockEncryptionService(), NullLogger<PartnerKycService>.Instance);
+            var verifiedStatus = await verifiedSvc.GetStatusAsync(77);
             Assert.True(verifiedStatus.IsVerified);
             Assert.True(verifiedStatus.CanPublish);
 
             saved.KycStatus = "Rejected";
             saved.RejectionReason = "PAN image blurry";
-            var rejectedStatus = await svc.GetStatusAsync(77);
+            var rejectedSvc = new PartnerKycService(repo, new MockMediaStorageService(), new MockEncryptionService(), NullLogger<PartnerKycService>.Instance);
+            var rejectedStatus = await rejectedSvc.GetStatusAsync(77);
             Assert.False(rejectedStatus.IsVerified);
             Assert.False(rejectedStatus.CanPublish);
             Assert.Equal("PAN image blurry", rejectedStatus.RejectionReason);
