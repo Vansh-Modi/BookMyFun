@@ -1,6 +1,15 @@
 @model BookMyFun.Models.ViewModels.OwnerDashboardViewModel
+@using System.Security.Claims
+@inject BookMyFun.Services.IPartnerKycService PartnerKycService
 @{
     ViewData["Title"] = "Owner Partner Dashboard";
+    BookMyFun.Models.ViewModels.PartnerKycStatusDto? ownerKyc = null;
+    var ownerClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (int.TryParse(ownerClaim, out int ownerUid))
+    {
+        try { ownerKyc = await PartnerKycService.GetStatusAsync(ownerUid); } catch { }
+    }
+    bool kycIncomplete = ownerKyc != null && !ownerKyc.IsComplete;
     var scheduledSub = ViewBag.ScheduledSub as BookMyFun.Models.Entities.OwnerSubscription;
     var notifPrefs = ViewBag.NotificationPreferences as BookMyFun.Models.ViewModels.OwnerNotificationPreferencesViewModel;
     var shootRequests = ViewBag.ShootRequests as List<BookMyFun.Models.Entities.PhotoShootRequest> ?? new List<BookMyFun.Models.Entities.PhotoShootRequest>();
@@ -403,9 +412,13 @@
                                         else if ((p.IsApproved && p.ListingStatus == "Draft") || p.ListingStatus == "Deactivated" || p.ListingStatus == "Unpublished")
                                         {
                                             var hasActivePlan = Model.ActiveSubscription != null;
-                                            var canPublish = hasActivePlan && (Model.LiveListingsCount < Model.MaxListingsAllowed);
+                                            var canPublish = !kycIncomplete && hasActivePlan && (Model.LiveListingsCount < Model.MaxListingsAllowed);
                                             string? pubBlockReason = null;
-                                            if (!hasActivePlan)
+                                            if (kycIncomplete && ownerKyc != null)
+                                            {
+                                                pubBlockReason = $"Complete KYC & Bank details to publish. Missing: {string.Join(", ", ownerKyc.MissingItems)}.";
+                                            }
+                                            else if (!hasActivePlan)
                                             {
                                                 pubBlockReason = "Your subscription has ended. Choose a plan to publish listings.";
                                             }
@@ -422,6 +435,12 @@
                                                         <i class="bi bi-play-circle me-1"></i>Publish
                                                     </button>
                                                 </form>
+                                            }
+                                            else if (kycIncomplete)
+                                            {
+                                                <a href="/Partner/Kyc" class="btn btn-sm btn-outline-warning rounded-pill py-1 px-2.5 fw-semibold" style="font-size: 0.75rem;" data-bs-toggle="tooltip" title="@pubBlockReason">
+                                                    <i class="bi bi-lock-fill me-1"></i>Complete KYC to Publish
+                                                </a>
                                             }
                                             else
                                             {

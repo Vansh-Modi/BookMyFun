@@ -115,6 +115,7 @@ builder.Services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
 builder.Services.AddScoped<IConfigRepository, ConfigRepository>();
 builder.Services.AddScoped<IRefundRepository, RefundRepository>();
 builder.Services.AddScoped<IPartnerLeadRepository, PartnerLeadRepository>();
+builder.Services.AddScoped<IPartnerKycRepository, PartnerKycRepository>();
 builder.Services.AddScoped<IDamageClaimRepository, DamageClaimRepository>();
 builder.Services.AddScoped<IIdVerificationRepository, IdVerificationRepository>();
 builder.Services.AddScoped<IEventPackageRepository, EventPackageRepository>();
@@ -140,6 +141,7 @@ builder.Services.AddScoped<IImageOptimizationService, ImageOptimizationService>(
 builder.Services.AddScoped<IMediaStorageService, MediaStorageService>();
 builder.Services.AddScoped<IRefundEngineService, RefundEngineService>();
 builder.Services.AddScoped<IPartnerLeadService, PartnerLeadService>();
+builder.Services.AddScoped<IPartnerKycService, PartnerKycService>();
 builder.Services.AddScoped<IDamageClaimService, DamageClaimService>();
 builder.Services.AddScoped<IIdVerificationService, IdVerificationService>();
 builder.Services.AddScoped<ILegalDocumentService, LegalDocumentService>();

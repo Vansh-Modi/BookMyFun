@@ -27,6 +27,7 @@ namespace BookMyFun.Controllers
         private readonly INotificationFanoutService? _notificationFanout;
         private readonly BookMyFun.Services.Notifications.INotificationDispatcherService? _notificationDispatcher;
         private readonly IUserNotificationRepository? _userNotificationRepo;
+        private readonly IPartnerKycService? _partnerKycService;
 
         public OwnerController(
             IPropertyRepository propRepo,
@@ -42,7 +43,8 @@ namespace BookMyFun.Controllers
             ILegalDocumentService? legalService = null,
             INotificationFanoutService? notificationFanout = null,
             BookMyFun.Services.Notifications.INotificationDispatcherService? notificationDispatcher = null,
-            IUserNotificationRepository? userNotificationRepo = null)
+            IUserNotificationRepository? userNotificationRepo = null,
+            IPartnerKycService? partnerKycService = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -58,6 +60,7 @@ namespace BookMyFun.Controllers
             _notificationFanout = notificationFanout;
             _notificationDispatcher = notificationDispatcher;
             _userNotificationRepo = userNotificationRepo;
+            _partnerKycService = partnerKycService;
         }
 
         private int GetCurrentUserId() => User.GetUserId();
@@ -722,6 +725,17 @@ namespace BookMyFun.Controllers
                 {
                     TempData["Error"] = "Property must be approved before publishing.";
                     return RedirectToAction(nameof(Index));
+                }
+
+                // Gate publishing on Partner KYC & Bank details completion
+                if (_partnerKycService != null)
+                {
+                    var kycStatus = await _partnerKycService.GetStatusAsync(prop.OwnerID);
+                    if (!kycStatus.IsComplete)
+                    {
+                        TempData["Error"] = $"Complete your KYC & Bank details before publishing '{prop.Title}'. Missing: {string.Join(", ", kycStatus.MissingItems)}.";
+                        return RedirectToAction(nameof(Index));
+                    }
                 }
 
                 // If brand new owner without any subscription history, auto-create Free Trial row

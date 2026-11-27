@@ -26,6 +26,7 @@ namespace BookMyFun.Controllers
         private readonly IPropertyRepository? _propRepo;
         private readonly IHtmlSanitizerService? _sanitizer;
         private readonly ICheckoutEventManagerService? _checkoutEventMgrService;
+        private readonly IPartnerKycService? _partnerKycService;
 
         public EventManagerController(
             IEventPackageRepository eventRepo,
@@ -38,7 +39,8 @@ namespace BookMyFun.Controllers
             ILegalDocumentService? legalService = null,
             IPropertyRepository? propRepo = null,
             IHtmlSanitizerService? sanitizer = null,
-            ICheckoutEventManagerService? checkoutEventMgrService = null)
+            ICheckoutEventManagerService? checkoutEventMgrService = null,
+            IPartnerKycService? partnerKycService = null)
         {
             _eventRepo = eventRepo;
             _mediaStorage = mediaStorage;
@@ -51,6 +53,7 @@ namespace BookMyFun.Controllers
             _propRepo = propRepo;
             _sanitizer = sanitizer;
             _checkoutEventMgrService = checkoutEventMgrService;
+            _partnerKycService = partnerKycService;
         }
 
 
@@ -323,6 +326,18 @@ namespace BookMyFun.Controllers
             if (!isStaffOrAdmin && pkg.CreatedByUserID != null && pkg.CreatedByUserID != userId)
             {
                 return Forbid();
+            }
+
+            if (!pkg.IsActive && !isStaffOrAdmin && _partnerKycService != null)
+            {
+                var kycStatus = await _partnerKycService.GetStatusAsync(userId);
+                if (!kycStatus.IsComplete)
+                {
+                    TempData["Error"] = $"Complete your KYC & Bank details before publishing '{pkg.Name}'. Missing: {string.Join(", ", kycStatus.MissingItems)}.";
+                    if (!string.IsNullOrEmpty(returnUrl) && (Url == null || Url.IsLocalUrl(returnUrl)))
+                        return Redirect(returnUrl);
+                    return RedirectToAction(nameof(Packages));
+                }
             }
 
             pkg.IsActive = !pkg.IsActive;

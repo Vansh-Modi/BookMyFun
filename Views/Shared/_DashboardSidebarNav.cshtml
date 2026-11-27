@@ -300,6 +300,12 @@ else if (role == "Owner")
             <span class="nav-text">Notification Channels</span>
         </a>
     </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "PartnerKyc" ? "active" : "")" href="/Partner/Kyc">
+            <i class="bi bi-person-vcard-fill text-success"></i>
+            <span class="nav-text">KYC &amp; Bank Details</span>
+        </a>
+    </li>
 }
 else if (role == "EventManager")
 {
@@ -338,6 +344,12 @@ else if (role == "EventManager")
         <a class="dashboard-nav-link @(currentCtrl == "EventManager" && currentAct == "Profile" ? "active" : "")" asp-controller="EventManager" asp-action="Profile">
             <i class="bi bi-person-badge-fill text-secondary"></i>
             <span class="nav-text">Partner Profile</span>
+        </a>
+    </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "PartnerKyc" ? "active" : "")" href="/Partner/Kyc">
+            <i class="bi bi-person-vcard-fill text-success"></i>
+            <span class="nav-text">KYC &amp; Bank Details</span>
         </a>
     </li>
     <li class="dashboard-nav-item">

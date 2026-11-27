@@ -1,0 +1,139 @@
+@model BookMyFun.Models.ViewModels.PartnerKycSubmitViewModel
+@{
+    ViewData["Title"] = "Partner KYC & Bank Details";
+    bool isSubmitted = string.Equals(Model.KycStatus, "Submitted", StringComparison.OrdinalIgnoreCase);
+}
+
+<div class="dashboard-shell">
+    <partial name="_DashboardSidebarNav" />
+    <main class="dashboard-main p-4 p-lg-5">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+            <div>
+                <h2 class="fw-bold mb-1">Partner KYC &amp; Bank Details</h2>
+                <p class="text-muted mb-0">Required for Owners and Event Managers before publishing listings or packages.</p>
+            </div>
+            <div>
+                @if (isSubmitted)
+                {
+                    <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill fs-6">
+                        <i class="bi bi-patch-check-fill me-1"></i>Status: Submitted
+                    </span>
+                }
+                else
+                {
+                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-3 py-2 rounded-pill fs-6">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>Status: Incomplete
+                    </span>
+                }
+            </div>
+        </div>
+
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success alert-dismissible fade show rounded-3 mb-4" role="alert">
+                <i class="bi bi-check-circle-fill me-2"></i>@TempData["Success"]
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        }
+
+        @if (Model.MissingItems.Any())
+        {
+            <div class="alert alert-warning rounded-3 mb-4" role="alert">
+                <div class="fw-semibold mb-1"><i class="bi bi-info-circle-fill me-2"></i>Missing Required Items:</div>
+                <ul class="mb-0 small">
+                    @foreach (var item in Model.MissingItems)
+                    {
+                        <li>@item</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <div class="card border-0 shadow-sm rounded-4 p-4">
+            <form action="/Partner/Kyc" method="post" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
+
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger rounded-3 mb-3"></div>
+
+                <h5 class="fw-bold mb-3"><i class="bi bi-person-vcard me-2 text-primary"></i>Identity Documents (Encrypted Storage)</h5>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label asp-for="AadhaarFile" class="form-label fw-semibold">
+                            Aadhaar Card (Masked Copy) <span class="text-danger">*</span>
+                            @if (Model.HasAadhaar)
+                            {
+                                <span class="badge bg-success ms-1">Uploaded</span>
+                            }
+                        </label>
+                        <input asp-for="AadhaarFile" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control" />
+                        <div class="form-text">Mask the first 8 digits so only the last 4 digits are visible. JPG, PNG, WEBP, or PDF (max 5 MB).</div>
+                        <span asp-validation-for="AadhaarFile" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="PanFile" class="form-label fw-semibold">
+                            PAN Card <span class="text-danger">*</span>
+                            @if (Model.HasPan)
+                            {
+                                <span class="badge bg-success ms-1">Uploaded</span>
+                            }
+                        </label>
+                        <input asp-for="PanFile" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control" />
+                        <div class="form-text">Clear copy of your PAN card. JPG, PNG, WEBP, or PDF (max 5 MB).</div>
+                        <span asp-validation-for="PanFile" class="text-danger small"></span>
+                    </div>
+                </div>
+
+                <hr class="my-4" />
+
+                <h5 class="fw-bold mb-3"><i class="bi bi-bank me-2 text-primary"></i>Bank Account Details</h5>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label asp-for="AccountHolderName" class="form-label fw-semibold">Account Holder Name <span class="text-danger">*</span></label>
+                        <input asp-for="AccountHolderName" class="form-control" placeholder="Name as per bank records" required />
+                        <span asp-validation-for="AccountHolderName" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="BankAccountNumber" class="form-label fw-semibold">
+                            Bank Account Number <span class="text-danger">*</span>
+                            @if (!string.IsNullOrWhiteSpace(Model.MaskedBankAccount))
+                            {
+                                <span class="badge bg-secondary ms-1">On file: @Model.MaskedBankAccount</span>
+                            }
+                        </label>
+                        <input asp-for="BankAccountNumber" type="password" autocomplete="off" class="form-control"
+                               placeholder="@(string.IsNullOrWhiteSpace(Model.MaskedBankAccount) ? "Enter 9-18 digit account number" : $"Leave blank to keep {Model.MaskedBankAccount}")" />
+                        <div class="form-text">Stored encrypted with AES-256-GCM. Only the last 4 digits are shown after saving.</div>
+                        <span asp-validation-for="BankAccountNumber" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="IfscCode" class="form-label fw-semibold">IFSC Code <span class="text-danger">*</span></label>
+                        <input asp-for="IfscCode" class="form-control text-uppercase" placeholder="e.g., SBIN0001234" maxlength="11" required />
+                        <span asp-validation-for="IfscCode" class="text-danger small"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label asp-for="BankProofFile" class="form-label fw-semibold">
+                            Bank Proof (Cancelled Cheque / Passbook)
+                            @if (Model.HasBankProof)
+                            {
+                                <span class="badge bg-success ms-1">Uploaded</span>
+                            }
+                        </label>
+                        <input asp-for="BankProofFile" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control" />
+                        <div class="form-text">Optional supporting proof. JPG, PNG, WEBP, or PDF (max 5 MB).</div>
+                        <span asp-validation-for="BankProofFile" class="text-danger small"></span>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="submit" class="btn btn-success btn-lg px-4 rounded-3 fw-semibold">
+                        <i class="bi bi-shield-check me-2"></i>Save KYC &amp; Bank Details
+                    </button>
+                </div>
+            </form>
+        </div>
+    </main>
+</div>

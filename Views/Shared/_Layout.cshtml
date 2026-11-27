@@ -331,6 +331,7 @@
     @if (ViewData["IsDashboard"] as bool? == true)
     {
         <div class="dashboard-wrapper w-100 flex-grow-1 d-flex flex-column">
+            <partial name="_PartnerKycNotice" />
             @RenderBody()
         </div>
     }

@@ -1,0 +1,98 @@
+@using System.Security.Claims
+@inject BookMyFun.Services.IPartnerKycService PartnerKycService
+@{
+    bool isPartner = User.Identity?.IsAuthenticated == true && (User.IsInRole("Owner") || User.IsInRole("EventManager"));
+    BookMyFun.Models.ViewModels.PartnerKycStatusDto? kycStatus = null;
+    if (isPartner)
+    {
+        var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (int.TryParse(idClaim, out int partnerUserId))
+        {
+            try
+            {
+                kycStatus = await PartnerKycService.GetStatusAsync(partnerUserId);
+            }
+            catch
+            {
+                // Fail safely if migration 011 has not yet been applied
+                kycStatus = null;
+            }
+        }
+    }
+}
+
+@if (kycStatus != null && !kycStatus.IsComplete)
+{
+    <div class="alert alert-warning border-0 border-start border-4 border-warning rounded-3 shadow-sm mb-3 mx-3 mt-3 d-flex flex-wrap justify-content-between align-items-center gap-2" role="alert">
+        <div>
+            <div class="fw-bold text-dark">
+                <i class="bi bi-shield-exclamation text-warning me-2"></i>Complete your KYC &amp; Bank details to publish
+            </div>
+            <div class="small text-muted">
+                You can create and edit drafts, but publishing is locked until you submit:
+                <strong>@string.Join(", ", kycStatus.MissingItems)</strong>.
+            </div>
+        </div>
+        <a href="/Partner/Kyc" class="btn btn-warning btn-sm fw-semibold rounded-pill px-3">
+            <i class="bi bi-upload me-1"></i>Complete KYC &amp; Bank Details
+        </a>
+    </div>
+
+    @if (kycStatus.ShouldShowFirstLoginPopup)
+    {
+        <div class="modal fade" id="partnerFirstLoginKycModal" tabindex="-1" aria-labelledby="partnerKycModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg rounded-4">
+                    <div class="modal-header border-bottom-0 pb-0">
+                        <h5 class="modal-title fw-bold" id="partnerKycModalLabel">
+                            <i class="bi bi-person-vcard-fill text-success me-2"></i>Welcome to Nayesta! Complete Partner KYC
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="dismissPartnerKycPopup()"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted small mb-2">
+                            Before you can publish listings or event packages live on Nayesta, please submit your verification and payout details:
+                        </p>
+                        <ul class="small mb-3">
+                            @foreach (var item in kycStatus.MissingItems)
+                            {
+                                <li><strong>@item</strong></li>
+                            }
+                        </ul>
+                        <p class="small text-muted mb-0">
+                            All ID documents and bank account numbers are encrypted with AES-256-GCM. You can still create and edit drafts right away.
+                        </p>
+                    </div>
+                    <div class="modal-footer border-top-0 pt-0">
+                        <button type="button" class="btn btn-light rounded-3" data-bs-dismiss="modal" onclick="dismissPartnerKycPopup()">Remind Me Later</button>
+                        <a href="/Partner/Kyc" class="btn btn-success fw-semibold rounded-3" onclick="dismissPartnerKycPopup()">
+                            <i class="bi bi-arrow-right-circle me-1"></i>Upload KYC &amp; Bank Details
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <form id="dismissKycPopupForm" action="/Partner/Kyc/DismissPopup" method="post" class="d-none">
+            @Html.AntiForgeryToken()
+        </form>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const el = document.getElementById('partnerFirstLoginKycModal');
+                if (el && typeof bootstrap !== 'undefined') {
+                    bootstrap.Modal.getOrCreateInstance(el).show();
+                }
+            });
+            function dismissPartnerKycPopup() {
+                const form = document.getElementById('dismissKycPopupForm');
+                if (!form) return;
+                const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+                fetch('/Partner/Kyc/DismissPopup', {
+                    method: 'POST',
+                    headers: { 'RequestVerificationToken': token }
+                }).catch(() => {});
+            }
+        </script>
+    }
+}
