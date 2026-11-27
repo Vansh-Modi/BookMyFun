@@ -35,3 +35,33 @@ BEGIN
     );
 END
 GO
+
+IF COL_LENGTH('dbo.PartnerKycAuditLogs', 'DocumentType') IS NULL
+BEGIN
+    ALTER TABLE dbo.PartnerKycAuditLogs ADD DocumentType NVARCHAR(50) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.PartnerKycAuditLogs', 'Reason') IS NULL
+BEGIN
+    ALTER TABLE dbo.PartnerKycAuditLogs ADD Reason NVARCHAR(500) NULL;
+END
+GO
+
+IF COL_LENGTH('dbo.PartnerKycAuditLogs', 'ClientIp') IS NULL
+BEGIN
+    ALTER TABLE dbo.PartnerKycAuditLogs ADD ClientIp NVARCHAR(45) NULL;
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = 'IX_PartnerKycAuditLogs_PartnerUserId_CreatedAt'
+      AND object_id = OBJECT_ID('dbo.PartnerKycAuditLogs')
+)
+BEGIN
+    CREATE NONCLUSTERED INDEX IX_PartnerKycAuditLogs_PartnerUserId_CreatedAt
+        ON dbo.PartnerKycAuditLogs (PartnerUserId ASC, CreatedAt DESC);
+END
+GO
