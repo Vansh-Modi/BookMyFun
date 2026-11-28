@@ -38,6 +38,7 @@ namespace BookMyFun.Repositories
             int? hourlyDuration = null)
             => CreateBookingAsync(booking).ContinueWith(t => (t.Result > 0, t.Result));
         Task<int> ExpireStaleHoldsAsync() => Task.FromResult(0);
+        Task<List<int>> ExpireStaleHoldsWithIdsAsync() => Task.FromResult(new List<int>());
         async Task<bool> ConfirmBookingPaymentAsync(int bookingId, Payment payment)
         {
             await RecordPaymentAsync(payment);
@@ -594,6 +595,12 @@ namespace BookMyFun.Repositories
 
         public async Task<int> ExpireStaleHoldsAsync()
         {
+            var expiredIds = await ExpireStaleHoldsWithIdsAsync();
+            return expiredIds.Count;
+        }
+
+        public async Task<List<int>> ExpireStaleHoldsWithIdsAsync()
+        {
             using var conn = _db.CreateConnection();
             await conn.OpenAsync();
             using var tx = (SqlTransaction)await conn.BeginTransactionAsync();
@@ -641,7 +648,7 @@ namespace BookMyFun.Repositories
             }
 
             await tx.CommitAsync();
-            return expiredIds.Count;
+            return expiredIds;
         }
 
         public async Task<int> RecordPaymentAsync(Payment payment)

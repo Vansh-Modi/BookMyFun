@@ -1226,6 +1226,51 @@ namespace BookMyFun.Controllers
                         return View("Checkout", model);
                     }
                     bookingId = createdBookingId;
+
+                    try
+                    {
+                        var client = await _userRepo.GetByIdAsync(clientId);
+                        if (client != null && !string.IsNullOrWhiteSpace(client.Email) && _emailService != null)
+                        {
+                            string baseUrl = Request != null && Request.Host.HasValue
+                                ? $"{Request.Scheme}://{Request.Host}"
+                                : "https://bookmyfun.in";
+                            string paymentUrl = $"{baseUrl}/Booking/Payment/{bookingId}";
+                            string safeTitle = System.Net.WebUtility.HtmlEncode(property.Title);
+                            string safeName = System.Net.WebUtility.HtmlEncode(client.FullName);
+                            string checkInStr = $"{model.CheckInDate:dd MMM yyyy} at 11:00";
+                            string checkOutStr = $"{model.CheckOutDate:dd MMM yyyy} at 10:00";
+
+                            string bodyContent = $@"
+                                <p>Hello {safeName},</p>
+                                <p>Your booking hold has been created. Payment is pending and the hold expires in <strong>15 minutes</strong>.</p>
+                                <table style='width:100%; border-collapse:collapse; margin:16px 0; background:#F8FAFC; border:1px solid #E2E8F0;'>
+                                    <tr><td style='padding:8px 12px; color:#64748B;'>Property</td><td style='padding:8px 12px; font-weight:600;'>{safeTitle}</td></tr>
+                                    <tr><td style='padding:8px 12px; color:#64748B;'>Check-in</td><td style='padding:8px 12px;'>{checkInStr}</td></tr>
+                                    <tr><td style='padding:8px 12px; color:#64748B;'>Check-out</td><td style='padding:8px 12px;'>{checkOutStr}</td></tr>
+                                    <tr><td style='padding:8px 12px; color:#64748B;'>Amount</td><td style='padding:8px 12px; font-weight:700;'>₹{totalAmount:N0}</td></tr>
+                                </table>";
+
+                            string plainText = $"Hello {client.FullName}, your booking hold #{bookingId} for {property.Title} is created (Check-in: {checkInStr}, Check-out: {checkOutStr}, Amount: INR {totalAmount:N0}). Payment is pending and the hold expires in 15 minutes. Complete payment at {paymentUrl}";
+
+                            await _emailService.SendTemplatedEmailAsync(
+                                clientId,
+                                bookingId,
+                                client.Email,
+                                "BookingCreated",
+                                $"booking-created-{bookingId}",
+                                $"Booking hold created for {property.Title}",
+                                "Booking hold created",
+                                bodyContent,
+                                "Complete payment",
+                                paymentUrl,
+                                plainText);
+                        }
+                    }
+                    catch (Exception emailEx)
+                    {
+                        _logger?.LogWarning(emailEx, "Failed to send BookingCreated email for Booking #{BookingId}", bookingId);
+                    }
                 }
 
                 // Record policy consent acceptances (Item 3f)
@@ -1238,9 +1283,9 @@ namespace BookMyFun.Controllers
 
                     {
 
-                        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+                        var ip = HttpContext?.Connection?.RemoteIpAddress?.ToString();
 
-                        var pageUrl = Request.Path.Value;
+                        var pageUrl = Request?.Path.Value;
 
                         await _legalService.RecordAllStandardConsentsAsync(clientId, null, ip, pageUrl);
 
