@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Mail;
 using System.Text.Json;
@@ -81,106 +82,58 @@ namespace BookMyFun.Services
 
             try
             {
-                string host = "smtp.gmail.com";
-                int port = 587;
-                string? apiKey = null;
-                string? apiSecret = null;
-                string? fromEmail = null;
-                bool enableSsl = true;
+                var smtpSection = _configuration.GetSection("Smtp");
+                string host = (smtpSection["Host"] ?? string.Empty).Trim();
+                int port = int.TryParse(smtpSection["Port"], out int parsedPort) ? parsedPort : 587;
+                bool enableSsl = !bool.TryParse(smtpSection["EnableSsl"], out bool parsedSsl) || parsedSsl;
+                string username = (smtpSection["Username"] ?? string.Empty).Trim();
+                string password = smtpSection["Password"] ?? string.Empty;
+                string fromAddress = username;
+                bool isPasswordSet = !string.IsNullOrEmpty(password);
 
-                // 1. Check database ApiConfigurations
-                try
-                {
-                    var smtpConfig = await _configRepo.GetActiveConfigByProviderAsync("SMTP");
-                    if (smtpConfig != null && !string.IsNullOrEmpty(smtpConfig.ApiKey))
-                    {
-                        apiKey = smtpConfig.ApiKey;
-                        apiSecret = smtpConfig.ApiSecret;
-                        fromEmail = smtpConfig.ApiKey;
-
-                        if (!string.IsNullOrEmpty(smtpConfig.ExtraParams))
-                        {
-                            try
-                            {
-                                var doc = JsonDocument.Parse(smtpConfig.ExtraParams);
-                                if (doc.RootElement.TryGetProperty("Host", out var h) && !string.IsNullOrWhiteSpace(h.GetString())) host = h.GetString()!;
-                                if (doc.RootElement.TryGetProperty("Port", out var p)) port = p.GetInt32();
-                                if (doc.RootElement.TryGetProperty("From", out var f) && !string.IsNullOrWhiteSpace(f.GetString())) fromEmail = f.GetString()!;
-                                if (doc.RootElement.TryGetProperty("EnableSsl", out var ssl)) enableSsl = ssl.GetBoolean();
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogWarning(ex, "Failed to parse SMTP ExtraParams JSON from database.");
-                            }
-                        }
-                    }
-                }
-                catch (Exception dbEx)
-                {
-                    _logger.LogWarning(dbEx, "Database ApiConfigurations lookup failed for SMTP provider. Falling back to configuration.");
-                }
-
-                // 2. Fallback to appsettings.json
-                if (string.IsNullOrEmpty(apiKey))
-                {
-                    var smtpSection = _configuration.GetSection("Smtp");
-                    if (smtpSection.Exists())
-                    {
-                        apiKey = smtpSection["Username"];
-                        apiSecret = smtpSection["Password"];
-                        fromEmail = smtpSection["From"];
-                        if (!string.IsNullOrWhiteSpace(smtpSection["Host"])) host = smtpSection["Host"]!;
-                        if (int.TryParse(smtpSection["Port"], out int p)) port = p;
-                        if (bool.TryParse(smtpSection["EnableSsl"], out bool ssl)) enableSsl = ssl;
-                    }
-                }
-
-                // 3. Fallback to Environment Variables
-                if (string.IsNullOrEmpty(apiKey))
-                {
-                    apiKey = Environment.GetEnvironmentVariable("SMTP_USERNAME");
-                    apiSecret = Environment.GetEnvironmentVariable("SMTP_PASSWORD");
-                    fromEmail = Environment.GetEnvironmentVariable("SMTP_FROM") ?? fromEmail;
-                    string? envHost = Environment.GetEnvironmentVariable("SMTP_HOST");
-                    if (!string.IsNullOrWhiteSpace(envHost)) host = envHost;
-                    string? envPort = Environment.GetEnvironmentVariable("SMTP_PORT");
-                    if (int.TryParse(envPort, out int ep)) port = ep;
-                }
+                string smtpDiag = $"[SMTP Config] Host={host}, Port={port}, EnableSsl={enableSsl}, Username={username}, From={fromAddress}, PasswordSet={isPasswordSet}";
+                _logger.LogInformation(
+                    "[SMTP Config] Host={Host}, Port={Port}, EnableSsl={EnableSsl}, Username={Username}, From={From}, PasswordSet={PasswordSet}",
+                    host,
+                    port,
+                    enableSsl,
+                    username,
+                    fromAddress,
+                    isPasswordSet);
+                Console.WriteLine(smtpDiag);
+                Debug.WriteLine(smtpDiag);
 
                 // If no credentials found, simulate delivery safely in development/test
-                if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(apiSecret))
+                if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
                 {
                     _logger.LogWarning("[Simulated Email - No SMTP Credentials] To: {ToEmail} | Subject: {Subject}", cleanToEmail, subject);
                     return true;
                 }
 
-                // Sanitize credentials: strip internal whitespace from passwords (handles Google App Passwords like 'xxxx xxxx xxxx xxxx')
-                string cleanUser = apiKey.Trim();
-                string cleanPass = apiSecret.Trim().Replace(" ", "");
-
-                // Sanitize sender address: ensure strictly valid email address syntax
-                string senderAddress = "no-reply@bookmyfun.in";
-                if (!string.IsNullOrWhiteSpace(fromEmail) && MailAddress.TryCreate(fromEmail.Trim(), out var parsedFrom))
+                if (string.IsNullOrWhiteSpace(host))
                 {
-                    senderAddress = parsedFrom.Address;
+                    _logger.LogError("SMTP dispatch aborted: 'Smtp:Host' is not configured.");
+                    return false;
                 }
-                else if (MailAddress.TryCreate(cleanUser, out var parsedUserAsEmail))
+
+                if (!MailAddress.TryCreate(fromAddress, out var parsedFrom))
                 {
-                    senderAddress = parsedUserAsEmail.Address;
+                    _logger.LogError("SMTP dispatch aborted: 'Smtp:Username' ('{Username}') is not a valid email address for From.", username);
+                    return false;
                 }
 
                 using var client = new SmtpClient(host, port)
                 {
-                    Credentials = new NetworkCredential(cleanUser, cleanPass),
                     EnableSsl = enableSsl,
                     DeliveryMethod = SmtpDeliveryMethod.Network,
                     UseDefaultCredentials = false,
-                    Timeout = 10000 // 10 seconds timeout to prevent thread-blocking hangs
+                    Credentials = new NetworkCredential(username, password),
+                    Timeout = 30000
                 };
 
-                var mail = new MailMessage
+                using var mail = new MailMessage
                 {
-                    From = new MailAddress(senderAddress, "Nayesta"),
+                    From = new MailAddress(parsedFrom.Address, "Nayesta"),
                     Subject = subject,
                     Body = bodyHtml,
                     IsBodyHtml = true
@@ -205,9 +158,24 @@ namespace BookMyFun.Services
                 _logger.LogInformation("Real email successfully delivered to {ToEmail} via {Host}:{Port}", cleanToEmail, host, port);
                 return true;
             }
+            catch (SmtpException smtpEx)
+            {
+                string details = smtpEx.InnerException != null
+                    ? $"{smtpEx}{Environment.NewLine}InnerException: {smtpEx.InnerException}"
+                    : smtpEx.ToString();
+                _logger.LogError(smtpEx, "SMTP error sending email to {ToEmail} (StatusCode: {StatusCode}). {ExceptionDetails}", cleanToEmail, smtpEx.StatusCode, details);
+                Console.Error.WriteLine($"[SMTP ERROR] {details}");
+                Debug.WriteLine($"[SMTP ERROR] {details}");
+                return false;
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send email to {ToEmail}", cleanToEmail);
+                string details = ex.InnerException != null
+                    ? $"{ex}{Environment.NewLine}InnerException: {ex.InnerException}"
+                    : ex.ToString();
+                _logger.LogError(ex, "Failed to send email to {ToEmail}. {ExceptionDetails}", cleanToEmail, details);
+                Console.Error.WriteLine($"[EMAIL ERROR] {details}");
+                Debug.WriteLine($"[EMAIL ERROR] {details}");
                 return false;
             }
         }

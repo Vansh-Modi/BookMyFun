@@ -6,6 +6,7 @@ using BookMyFun.Repositories;
 using BookMyFun.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace BookMyFun.Tests
@@ -344,6 +345,66 @@ namespace BookMyFun.Tests
 
             Assert.Equal(false, successProp);
             Assert.Contains("No account registered", messageProp ?? "");
+        }
+
+        private sealed class RecordingLogger<T> : ILogger<T>
+        {
+            public List<(LogLevel Level, string Message, Exception? Exception)> Entries { get; } = new();
+
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter)
+            {
+                Entries.Add((logLevel, formatter(state, exception), exception));
+            }
+        }
+
+        [Fact]
+        public async Task SendOtpEmailAsync_LogsDiagnosticAndFullExceptionWithoutExposingPassword()
+        {
+            const string dummyTestPassword = "DummyUnitTestValue_999";
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Smtp:Host"] = "nonexistent.smtp.invalid",
+                    ["Smtp:Port"] = "587",
+                    ["Smtp:EnableSsl"] = "true",
+                    ["Smtp:Username"] = "sender@example.com",
+                    ["Smtp:From"] = "other@example.com",
+                    ["Smtp:Password"] = dummyTestPassword
+                })
+                .Build();
+
+            var logger = new RecordingLogger<CommunicationService>();
+            var queue = new EmailQueueService(NullLogger<EmailQueueService>.Instance);
+            var comms = new CommunicationService(new StubConfigRepo(), config, queue, logger);
+
+            bool sent = await comms.SendOtpEmailAsync("recipient@example.com", "123456", "Registration");
+
+            Assert.False(sent);
+            Assert.Contains(logger.Entries, e =>
+                e.Level == LogLevel.Information &&
+                e.Message.Contains("[SMTP Config]") &&
+                e.Message.Contains("Host=nonexistent.smtp.invalid") &&
+                e.Message.Contains("Port=587") &&
+                e.Message.Contains("EnableSsl=True") &&
+                e.Message.Contains("Username=sender@example.com") &&
+                e.Message.Contains("From=sender@example.com") &&
+                e.Message.Contains("PasswordSet=True"));
+
+            Assert.Contains(logger.Entries, e =>
+                e.Level == LogLevel.Error &&
+                e.Message.Contains("System.Net.Mail.SmtpException"));
+
+            Assert.DoesNotContain(logger.Entries, e =>
+                e.Message.Contains(dummyTestPassword, StringComparison.Ordinal) ||
+                (e.Exception?.ToString().Contains(dummyTestPassword, StringComparison.Ordinal) ?? false));
         }
     }
 }

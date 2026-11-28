@@ -175,7 +175,12 @@ namespace BookMyFun.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unexpected error in SendOtp for contact {Contact}", request?.Contact);
+                string details = ex.InnerException != null
+                    ? $"{ex}{Environment.NewLine}InnerException: {ex.InnerException}"
+                    : ex.ToString();
+                _logger.LogError(ex, "Unexpected error in SendOtp for contact {Contact}: {ExceptionDetails}", request?.Contact, details);
+                Console.Error.WriteLine($"[SENDOTP ERROR] {details}");
+                System.Diagnostics.Debug.WriteLine($"[SENDOTP ERROR] {details}");
                 return Json(new { success = false, message = "An error occurred while generating verification code. Please try again." });
             }
         }
