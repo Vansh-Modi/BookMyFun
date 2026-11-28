@@ -19,6 +19,10 @@ namespace BookMyFun.Repositories
         Task<bool> UpdateUserCommissionRateAsync(int userId, decimal? customCommissionRate);
         Task<bool> LinkAuthProviderAsync(int userId, string provider, string providerKey, string? profilePic = null);
         Task<bool> SetTrialUsedAsync(int userId, DateTime? usedAt = null) => Task.FromResult(true);
+        Task<int> CreatePasswordResetTokenAsync(int userId, string tokenHash, DateTime expiresAt) => Task.FromResult(0);
+        Task<(bool Valid, int TokenId, int UserId, string? Email, string? ErrorMessage)> ValidatePasswordResetTokenAsync(string tokenHash)
+            => Task.FromResult<(bool Valid, int TokenId, int UserId, string? Email, string? ErrorMessage)>((false, 0, 0, null, "Invalid or expired password reset link."));
+        Task<bool> MarkPasswordResetTokenUsedAsync(int tokenId) => Task.FromResult(false);
     }
 
     public class UserRepository : IUserRepository
@@ -211,6 +215,60 @@ namespace BookMyFun.Repositories
                 new SqlParameter("@ProfilePic", DBHelper.ToDbValue(profilePic)),
                 new SqlParameter("@UserID", userId));
 
+            return rows > 0;
+        }
+
+        public async Task<int> CreatePasswordResetTokenAsync(int userId, string tokenHash, DateTime expiresAt)
+        {
+            const string sql = @"
+                INSERT INTO dbo.PasswordResetTokens (UserId, TokenHash, ExpiresAt, CreatedAt)
+                OUTPUT INSERTED.TokenId
+                VALUES (@UserId, @TokenHash, @ExpiresAt, GETUTCDATE());";
+
+            var result = await _db.ExecuteScalarAsync(sql,
+                new SqlParameter("@UserId", userId),
+                new SqlParameter("@TokenHash", tokenHash),
+                new SqlParameter("@ExpiresAt", expiresAt));
+
+            return result != null && result != DBNull.Value ? Convert.ToInt32(result) : 0;
+        }
+
+        public async Task<(bool Valid, int TokenId, int UserId, string? Email, string? ErrorMessage)> ValidatePasswordResetTokenAsync(string tokenHash)
+        {
+            if (string.IsNullOrWhiteSpace(tokenHash))
+                return (false, 0, 0, null, "This password reset link is invalid or incomplete.");
+
+            const string sql = @"
+                SELECT TOP 1 t.TokenId, t.UserId, t.ExpiresAt, t.UsedAt, u.Email
+                FROM dbo.PasswordResetTokens t
+                INNER JOIN dbo.Users u ON t.UserId = u.UserID
+                WHERE t.TokenHash = @TokenHash;";
+
+            var record = await _db.ExecuteReaderSingleAsync(sql, r => new
+            {
+                TokenId = r.GetInt32(r.GetOrdinal("TokenId")),
+                UserId = r.GetInt32(r.GetOrdinal("UserId")),
+                ExpiresAt = r.GetDateTime(r.GetOrdinal("ExpiresAt")),
+                UsedAt = r.IsDBNull(r.GetOrdinal("UsedAt")) ? (DateTime?)null : r.GetDateTime(r.GetOrdinal("UsedAt")),
+                Email = r.GetString(r.GetOrdinal("Email"))
+            }, new SqlParameter("@TokenHash", tokenHash));
+
+            if (record == null)
+                return (false, 0, 0, null, "This password reset link is invalid or has expired.");
+
+            if (record.UsedAt.HasValue)
+                return (false, record.TokenId, record.UserId, record.Email, "This password reset link has already been used.");
+
+            if (DateTime.UtcNow > record.ExpiresAt)
+                return (false, record.TokenId, record.UserId, record.Email, "This password reset link has expired (valid for 48 hours).");
+
+            return (true, record.TokenId, record.UserId, record.Email, null);
+        }
+
+        public async Task<bool> MarkPasswordResetTokenUsedAsync(int tokenId)
+        {
+            const string sql = "UPDATE dbo.PasswordResetTokens SET UsedAt = GETUTCDATE() WHERE TokenId = @TokenId AND UsedAt IS NULL;";
+            int rows = await _db.ExecuteNonQueryAsync(sql, new SqlParameter("@TokenId", tokenId));
             return rows > 0;
         }
 

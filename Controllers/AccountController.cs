@@ -666,6 +666,30 @@ namespace BookMyFun.Controllers
             }
 
             TempData["Success"] = "Registration successful! Please login with your credentials.";
+
+            try
+            {
+                string baseUrl = GetPublicBaseUrl();
+                string loginUrl = $"{baseUrl}/Account/Login";
+                string safeName = System.Net.WebUtility.HtmlEncode(user.FullName);
+                await _emailService.SendTemplatedEmailAsync(
+                    userId,
+                    userId,
+                    cleanEmail,
+                    "GuestWelcome",
+                    $"guest-welcome-{userId}",
+                    "Welcome to Nayesta",
+                    "Welcome to Nayesta",
+                    $"<p>Hello {safeName},</p><p>Your Nayesta guest account has been created. You can now sign in to explore curated farmhouses and resorts.</p>",
+                    "Sign in to Nayesta",
+                    loginUrl,
+                    $"Hello {user.FullName}, your Nayesta guest account has been created. Sign in at {loginUrl}.");
+            }
+            catch (Exception emailEx)
+            {
+                _logger.LogWarning(emailEx, "Failed to queue GuestWelcome email for UserId={UserId}", userId);
+            }
+
             return RedirectToAction("Login");
         }
 
@@ -747,6 +771,30 @@ namespace BookMyFun.Controllers
                 }
 
                 _logger.LogInformation("Partner account #{UserId} ({Role}) created via self-service sign-up.", userId, user.Role);
+
+                try
+                {
+                    string baseUrl = GetPublicBaseUrl();
+                    string kycUrl = $"{baseUrl}/Partner/Kyc";
+                    string safeName = System.Net.WebUtility.HtmlEncode(user.FullName);
+                    await _emailService.SendTemplatedEmailAsync(
+                        userId,
+                        userId,
+                        cleanEmail,
+                        "PartnerWelcome",
+                        $"partner-welcome-{userId}",
+                        "Welcome to Nayesta partner portal",
+                        "Welcome to Nayesta partner portal",
+                        $"<p>Hello {safeName},</p><p>Your partner account is ready. Property publishing stays locked until your KYC and bank details are verified by our team.</p>",
+                        "Complete KYC verification",
+                        kycUrl,
+                        $"Hello {user.FullName}, your partner account is ready. Publishing stays locked until your KYC is verified. Complete KYC at {kycUrl}.");
+                }
+                catch (Exception emailEx)
+                {
+                    _logger.LogWarning(emailEx, "Failed to queue PartnerWelcome email for UserId={UserId}", userId);
+                }
+
                 if (TempData != null)
                 {
                     TempData["Success"] = "Partner account created. Complete your KYC and bank details to publish.";
@@ -836,6 +884,123 @@ namespace BookMyFun.Controllers
 
             ViewBag.ResendSuccess = "If an approved partner account exists for that email address, a new password setup link has been sent (valid for 48 hours).";
             return View("SetPassword", new ActivateOwnerViewModel { Email = email.Trim() });
+        }
+
+        [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+        [HttpPost("account/request-password-reset")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RequestPasswordResetLink(string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                TempData["Error"] = "Please enter your registered email address.";
+                return RedirectToAction(nameof(ForgotPassword));
+            }
+
+            string cleanEmail = email.Trim().ToLowerInvariant();
+            var user = await _userRepo.GetByEmailAsync(cleanEmail);
+            if (user != null && user.IsActive)
+            {
+                string rawToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+                string tokenHash = PartnerLeadService.HashToken(rawToken);
+                DateTime expiresAt = DateTime.UtcNow.AddHours(48);
+                int tokenId = await _userRepo.CreatePasswordResetTokenAsync(user.UserID, tokenHash, expiresAt);
+
+                if (tokenId > 0)
+                {
+                    string baseUrl = GetPublicBaseUrl();
+                    string resetUrl = $"{baseUrl}/account/reset-password?token={rawToken}";
+                    string safeName = System.Net.WebUtility.HtmlEncode(user.FullName);
+
+                    await _emailService.SendTemplatedEmailAsync(
+                        user.UserID,
+                        tokenId,
+                        user.Email,
+                        "PasswordReset",
+                        $"password-reset-{user.UserID}-{tokenId}",
+                        "Reset your Nayesta password",
+                        "Reset your password",
+                        $"<p>Hello {safeName},</p><p>We received a request to reset your Nayesta password. Use the link below to set a new password. This single-use link expires in 48 hours.</p>",
+                        "Reset password",
+                        resetUrl,
+                        $"Hello {user.FullName}, use this single-use link (expires in 48 hours) to reset your Nayesta password: {resetUrl}",
+                        "Single-use password reset link dispatched (expires in 48 hours).");
+                }
+            }
+
+            TempData["Success"] = "If an account exists for that email address, a password reset link valid for 48 hours has been sent.";
+            return RedirectToAction(nameof(ForgotPassword));
+        }
+
+        [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+        [HttpGet("account/reset-password")]
+        public async Task<IActionResult> ResetPassword(string? token)
+        {
+            string tokenHash = string.IsNullOrWhiteSpace(token) ? string.Empty : PartnerLeadService.HashToken(token.Trim());
+            var (valid, _, _, email, errorMessage) = await _userRepo.ValidatePasswordResetTokenAsync(tokenHash);
+            if (!valid)
+            {
+                ViewBag.TokenError = errorMessage ?? "This password reset link is invalid, expired, or has already been used.";
+                ViewBag.PrefillEmail = email;
+                return View("ResetPassword", new ActivateOwnerViewModel
+                {
+                    Token = token ?? string.Empty,
+                    Email = email ?? string.Empty
+                });
+            }
+
+            return View("ResetPassword", new ActivateOwnerViewModel
+            {
+                Token = token!,
+                Email = email!
+            });
+        }
+
+        [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+        [HttpPost("account/reset-password")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResetPassword(ActivateOwnerViewModel model)
+        {
+            string tokenHash = string.IsNullOrWhiteSpace(model.Token) ? string.Empty : PartnerLeadService.HashToken(model.Token.Trim());
+            var (valid, tokenId, _, tokenEmail, errorMessage) = await _userRepo.ValidatePasswordResetTokenAsync(tokenHash);
+            if (!valid || string.IsNullOrWhiteSpace(tokenEmail))
+            {
+                ViewBag.TokenError = errorMessage ?? "This password reset link is invalid, expired, or has already been used.";
+                ViewBag.PrefillEmail = tokenEmail;
+                return View("ResetPassword", model);
+            }
+
+            model.Email = tokenEmail;
+            ModelState.Remove(nameof(model.Email));
+
+            if (!ModelState.IsValid)
+            {
+                return View("ResetPassword", model);
+            }
+
+            bool updated = await _userRepo.ResetPasswordAsync(tokenEmail, HashPassword(model.Password));
+            if (!updated)
+            {
+                ModelState.AddModelError("", "Unable to update your password right now. Please try again.");
+                return View("ResetPassword", model);
+            }
+
+            await _userRepo.MarkPasswordResetTokenUsedAsync(tokenId);
+            TempData["Success"] = "Your password has been reset. Please sign in with your new password.";
+            return RedirectToAction(nameof(Login));
+        }
+
+        private string GetPublicBaseUrl()
+        {
+            string? configured = _configuration?["PublicBaseUrl"];
+            if (string.IsNullOrWhiteSpace(configured))
+                configured = _configuration?["AppUrl"];
+            if (string.IsNullOrWhiteSpace(configured) && Request != null && Request.Host.HasValue)
+                configured = $"{Request.Scheme}://{Request.Host}";
+            if (string.IsNullOrWhiteSpace(configured))
+                configured = "https://bookmyfun.in";
+
+            return configured.Trim().TrimEnd('/');
         }
 
         [Microsoft.AspNetCore.Authorization.AllowAnonymous]
