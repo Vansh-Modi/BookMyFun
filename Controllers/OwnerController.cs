@@ -28,6 +28,8 @@ namespace BookMyFun.Controllers
         private readonly BookMyFun.Services.Notifications.INotificationDispatcherService? _notificationDispatcher;
         private readonly IUserNotificationRepository? _userNotificationRepo;
         private readonly IPartnerKycService? _partnerKycService;
+        private readonly IPhotoShootRepository? _photoShootRepo;
+        private readonly IConfiguration? _configuration;
 
         public OwnerController(
             IPropertyRepository propRepo,
@@ -44,7 +46,9 @@ namespace BookMyFun.Controllers
             INotificationFanoutService? notificationFanout = null,
             BookMyFun.Services.Notifications.INotificationDispatcherService? notificationDispatcher = null,
             IUserNotificationRepository? userNotificationRepo = null,
-            IPartnerKycService? partnerKycService = null)
+            IPartnerKycService? partnerKycService = null,
+            IPhotoShootRepository? photoShootRepo = null,
+            IConfiguration? configuration = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -61,6 +65,8 @@ namespace BookMyFun.Controllers
             _notificationDispatcher = notificationDispatcher;
             _userNotificationRepo = userNotificationRepo;
             _partnerKycService = partnerKycService;
+            _photoShootRepo = photoShootRepo;
+            _configuration = configuration;
         }
 
         private int GetCurrentUserId() => User.GetUserId();
@@ -1109,6 +1115,52 @@ namespace BookMyFun.Controllers
             }
 
             await _subRepo.UpdateSubscriptionPaymentStatusAsync(subscriptionId, "Paid", $"RAZORPAY_{razorpay_payment_id}");
+
+            if (_emailService != null)
+            {
+                try
+                {
+                    var owner = await _userRepo.GetByIdAsync(ownerId);
+                    if (owner != null && !string.IsNullOrWhiteSpace(owner.Email))
+                    {
+                        string planName = sub.PlanName ?? "Subscription";
+                        int durationDays = (sub.DurationDaysSnapshot ?? 0) > 0 ? sub.DurationDaysSnapshot!.Value : Math.Max(1, (int)Math.Ceiling((sub.EndDate - sub.StartDate).TotalDays));
+                        int listingLimit = (sub.MaxListingsSnapshot ?? 0) > 0 ? sub.MaxListingsSnapshot!.Value : (sub.MaxListings > 0 ? sub.MaxListings : 1);
+                        string baseUrl = (_configuration?["PublicBaseUrl"] ?? _configuration?["AppUrl"] ?? (Request?.Host.HasValue == true ? $"{Request.Scheme}://{Request.Host}" : "https://bookmyfun.in")).Trim().TrimEnd('/');
+                        string ownerUrl = $"{baseUrl}/Owner/Index";
+                        string safeName = System.Net.WebUtility.HtmlEncode(owner.FullName);
+                        string safePlan = System.Net.WebUtility.HtmlEncode(planName);
+
+                        string bodyContent = $@"
+                            <p>Hello {safeName},</p>
+                            <p>Your subscription payment has been verified and your plan is confirmed.</p>
+                            <table style='width:100%; border-collapse:collapse; margin:16px 0; background:#F8FAFC; border:1px solid #E2E8F0;'>
+                                <tr><td style='padding:8px 12px; color:#64748B;'>Plan name</td><td style='padding:8px 12px; font-weight:600;'>{safePlan}</td></tr>
+                                <tr><td style='padding:8px 12px; color:#64748B;'>Duration</td><td style='padding:8px 12px;'>{durationDays} days ({sub.StartDate:dd MMM yyyy} to {sub.EndDate:dd MMM yyyy})</td></tr>
+                                <tr><td style='padding:8px 12px; color:#64748B;'>Listing limit</td><td style='padding:8px 12px; font-weight:600;'>{listingLimit} listing(s)</td></tr>
+                            </table>";
+
+                        string plainText = $"Hello {owner.FullName}, your subscription for {planName} is confirmed. Duration: {durationDays} days ({sub.StartDate:dd MMM yyyy} to {sub.EndDate:dd MMM yyyy}). Listing limit: {listingLimit} listing(s).";
+
+                        await _emailService.SendTemplatedEmailAsync(
+                            ownerId,
+                            subscriptionId,
+                            owner.Email,
+                            "SubscriptionPurchased",
+                            $"subscription-purchased-{subscriptionId}",
+                            $"Subscription confirmed for {planName}",
+                            "Subscription confirmed",
+                            bodyContent,
+                            "Manage properties",
+                            ownerUrl,
+                            plainText);
+                    }
+                }
+                catch (Exception emailEx)
+                {
+                    _logger.LogWarning(emailEx, "Failed to send SubscriptionPurchased email for Subscription #{SubscriptionId}", subscriptionId);
+                }
+            }
             
             // Check if active immediately or scheduled for future
             if (sub.StartDate <= DateTime.UtcNow)
@@ -1445,6 +1497,76 @@ namespace BookMyFun.Controllers
             }
 
             return RedirectToAction(nameof(NotificationSettings));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RequestPhotoShoot(int propertyId, string shootType, string? notes)
+        {
+            var ownerId = GetCurrentUserId();
+            var prop = await _propRepo.GetByIdAsync(propertyId);
+            if (prop == null)
+            {
+                return NotFound();
+            }
+
+            if (prop.OwnerID != ownerId)
+            {
+                return Forbid();
+            }
+
+            string? normalizedType = shootType?.Trim().ToLowerInvariant() switch
+            {
+                "photo" => "Photo",
+                "video" => "Video",
+                "both" => "Both",
+                _ => null
+            };
+
+            if (normalizedType == null)
+            {
+                TempData["Error"] = "Please select a valid shoot type (Photo, Video, or Both).";
+                return RedirectToAction(nameof(Index));
+            }
+
+            if (_photoShootRepo == null)
+            {
+                TempData["Error"] = "Shoot requests are currently unavailable.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            if (await _photoShootRepo.HasOpenRequestAsync(propertyId, normalizedType))
+            {
+                TempData["Error"] = $"An open {normalizedType} shoot request already exists for {prop.Title}.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            var req = new PhotoShootRequest
+            {
+                PropertyID = propertyId,
+                OwnerID = ownerId,
+                ShootType = normalizedType,
+                Status = "Requested",
+                Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim()
+            };
+
+            int requestId = await _photoShootRepo.CreateRequestAsync(req);
+            if (requestId <= 0)
+            {
+                TempData["Error"] = "Unable to submit shoot request right now. Please try again.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            await _configRepo.LogAuditAsync(ownerId, "RequestPhotoShoot", "PhotoShootRequest", requestId,
+                $"Owner #{ownerId} requested a {normalizedType} shoot for Property #{propertyId} ('{prop.Title}').");
+
+            if (_notificationDispatcher != null)
+            {
+                await _notificationDispatcher.DispatchPhotoShootRequestedAsync(requestId, propertyId, prop.Title, ownerId, normalizedType);
+            }
+
+            TempData["Success"] = $"{normalizedType} shoot request submitted for {prop.Title}. Our team will coordinate with you shortly.";
+            return RedirectToAction(nameof(Index));
         }
 
 }

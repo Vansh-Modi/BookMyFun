@@ -3171,6 +3171,46 @@ namespace BookMyFun.Controllers
                     _ = _notificationDispatcher.DispatchSubscriptionActivatedAsync(model.OwnerID, plan.PlanName, endDate);
                 }
 
+                if (_emailService != null && !string.IsNullOrWhiteSpace(owner.Email))
+                {
+                    try
+                    {
+                        string baseUrl = (_configuration?["PublicBaseUrl"] ?? _configuration?["AppUrl"] ?? (Request?.Host.HasValue == true ? $"{Request.Scheme}://{Request.Host}" : "https://bookmyfun.in")).Trim().TrimEnd('/');
+                        string ownerUrl = $"{baseUrl}/Owner/Index";
+                        string safeName = System.Net.WebUtility.HtmlEncode(owner.FullName);
+                        string safePlan = System.Net.WebUtility.HtmlEncode(plan.PlanName);
+
+                        string bodyContent = $@"
+                            <p>Hello {safeName},</p>
+                            <p>A subscription plan has been granted to your account. <strong>Granted by Nayesta, no payment required.</strong></p>
+                            <table style='width:100%; border-collapse:collapse; margin:16px 0; background:#F8FAFC; border:1px solid #E2E8F0;'>
+                                <tr><td style='padding:8px 12px; color:#64748B;'>Plan name</td><td style='padding:8px 12px; font-weight:600;'>{safePlan}</td></tr>
+                                <tr><td style='padding:8px 12px; color:#64748B;'>Duration</td><td style='padding:8px 12px;'>{duration} days ({startDate:dd MMM yyyy} to {endDate:dd MMM yyyy})</td></tr>
+                                <tr><td style='padding:8px 12px; color:#64748B;'>Listing limit</td><td style='padding:8px 12px; font-weight:600;'>{limit} listing(s)</td></tr>
+                            </table>";
+
+                        string plainText = $"Hello {owner.FullName}, your {plan.PlanName} subscription has been granted by Nayesta, no payment required. Duration: {duration} days ({startDate:dd MMM yyyy} to {endDate:dd MMM yyyy}). Listing limit: {limit} listing(s).";
+
+                        await _emailService.SendTemplatedEmailAsync(
+                            model.OwnerID,
+                            subId,
+                            owner.Email,
+                            "SubscriptionGranted",
+                            $"subscription-granted-{subId}",
+                            $"Subscription granted for {plan.PlanName}",
+                            "Subscription granted",
+                            bodyContent,
+                            "Manage properties",
+                            ownerUrl,
+                            plainText);
+                    }
+                    catch (Exception emailEx)
+                    {
+                        TempData["Warning"] = "Subscription granted, though email notification could not be queued.";
+                        _ = emailEx;
+                    }
+                }
+
                 TempData["Success"] = $"Admin-granted subscription successfully assigned to {owner.FullName}. Limit: {limit} listings, Valid until: {endDate:dd MMM yyyy}.";
             }
             else
