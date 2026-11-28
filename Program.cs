@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.ResponseCompression;
 
 var builder = WebApplication.CreateBuilder(args);
+Console.WriteLine($"ClientId: '{builder.Configuration["Authentication:Google:ClientId"]}'");
 builder.Configuration.AddJsonFile("appsettings.Booking.json", optional: true, reloadOnChange: true);
 
 // Bootstrap Logger for Startup Phase Diagnostics
