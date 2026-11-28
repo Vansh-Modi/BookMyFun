@@ -18,6 +18,11 @@ namespace BookMyFun.Services
         Task<bool> SendEmailAsync(string toEmail, string subject, string bodyHtml, string? plainTextBody) => SendEmailAsync(toEmail, subject, bodyHtml);
         Task<bool> SendOutboxEmailAsync(int userId, int entityId, string toEmail, string eventType, string dedupeKey, string subject, string bodyHtml, string? plainTextBody = null, string? safeOutboxSummary = null, string? linkUrl = null)
             => SendEmailAsync(toEmail, subject, bodyHtml, plainTextBody);
+        Task<bool> SendTemplatedEmailAsync(int userId, int entityId, string toEmail, string eventType, string dedupeKey, string subject, string headline, string contentHtml, string? ctaText = null, string? ctaUrl = null, string? plainTextContent = null, string? safeOutboxSummary = null)
+        {
+            var rendered = EmailTemplateRenderer.Render(subject, headline, contentHtml, ctaText, ctaUrl, plainTextContent);
+            return SendOutboxEmailAsync(userId, entityId, toEmail, eventType, dedupeKey, rendered.Subject, rendered.HtmlBody, rendered.PlainTextBody, safeOutboxSummary ?? rendered.Subject, ctaUrl);
+        }
         Task<bool> SendOtpEmailAsync(string toEmail, string otpCode, string purpose, string? recipientName = null);
         Task EnqueueEmailAsync(string toEmail, string subject, string bodyHtml, string messageType = "Notification");
         Task<bool> SendBookingReceiptEmailAsync(string toEmail, string clientName, BookingReceiptViewModel receipt, string receiptUrl) => Task.FromResult(true);
@@ -96,6 +101,34 @@ namespace BookMyFun.Services
 
             string root = _hostEnv?.ContentRootPath ?? Directory.GetCurrentDirectory();
             return Path.Combine(root, "logs", "emails");
+        }
+
+        public Task<bool> SendTemplatedEmailAsync(
+            int userId,
+            int entityId,
+            string toEmail,
+            string eventType,
+            string dedupeKey,
+            string subject,
+            string headline,
+            string contentHtml,
+            string? ctaText = null,
+            string? ctaUrl = null,
+            string? plainTextContent = null,
+            string? safeOutboxSummary = null)
+        {
+            var rendered = EmailTemplateRenderer.Render(subject, headline, contentHtml, ctaText, ctaUrl, plainTextContent);
+            return SendOutboxEmailAsync(
+                userId,
+                entityId,
+                toEmail,
+                eventType,
+                dedupeKey,
+                rendered.Subject,
+                rendered.HtmlBody,
+                rendered.PlainTextBody,
+                safeOutboxSummary ?? rendered.Subject,
+                ctaUrl);
         }
 
         public async Task<bool> SendOutboxEmailAsync(
@@ -356,77 +389,30 @@ PLAIN-TEXT FALLBACK:
                     break;
             }
 
-            string greeting = !string.IsNullOrWhiteSpace(recipientName) ? $"Hello {recipientName.Trim()}," : "Hello,";
+            string greeting = !string.IsNullOrWhiteSpace(recipientName) ? $"Hello {System.Net.WebUtility.HtmlEncode(recipientName.Trim())}," : "Hello,";
 
-            string bodyHtml = $@"
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset='utf-8'>
-    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-    <title>{subject}</title>
-</head>
-<body style='margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif; background-color: #F8FAFC; color: #0F172A;'>
-    <table role='presentation' width='100%' cellspacing='0' cellpadding='0' border='0' style='background-color: #F8FAFC; padding: 30px 15px;'>
-        <tr>
-            <td align='center'>
-                <table role='presentation' width='100%' style='max-width: 540px; background-color: #FFFFFF; border-radius: 16px; border: 1px solid #E2E8F0; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);' cellspacing='0' cellpadding='0' border='0'>
-                    <!-- Header -->
-                    <tr>
-                        <td style='background: linear-gradient(135deg, #0B4F6C 0%, #01BAEF 100%); padding: 32px 30px; text-align: center;'>
-                            <h1 style='color: #FFFFFF; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.02em;'>Nayesta</h1>
-                            <p style='color: #E0F2FE; font-size: 13px; font-weight: 500; margin: 6px 0 0; text-transform: uppercase; letter-spacing: 0.05em;'>Luxury Farmhouse & Resort Booking</p>
-                        </td>
-                    </tr>
-                    <!-- Content -->
-                    <tr>
-                        <td style='padding: 35px 30px;'>
-                            <h2 style='color: #0F172A; font-size: 20px; font-weight: 700; margin: 0 0 12px;'>{purposeHeadline}</h2>
-                            <p style='font-size: 15px; line-height: 1.6; color: #334155; margin: 0 0 16px;'>{greeting}</p>
-                            <p style='font-size: 15px; line-height: 1.6; color: #334155; margin: 0 0 24px;'>{purposeDescription}</p>
+            string contentHtml = $@"
+                <p style='margin: 0 0 14px;'>{greeting}</p>
+                <p style='margin: 0 0 18px;'>{System.Net.WebUtility.HtmlEncode(purposeDescription)}</p>
+                <div style='background: #FFFBEB; border: 2px dashed #F59E0B; border-radius: 12px; padding: 18px; text-align: center; margin: 20px 0;'>
+                    <div style='font-size: 12px; font-weight: 700; text-transform: uppercase; color: #B45309; letter-spacing: 0.1em; margin-bottom: 6px;'>Verification code</div>
+                    <div style='font-family: monospace, ""Courier New"", Courier; color: #D97706; font-size: 36px; font-weight: 800; letter-spacing: 8px;'>{System.Net.WebUtility.HtmlEncode(otpCode)}</div>
+                    <div style='font-size: 12px; color: #78350F; margin-top: 6px;'>Valid for 150 seconds (2.5 minutes)</div>
+                </div>
+                <p style='font-size: 13px; color: #64748B; margin: 16px 0 0;'><strong>Security notice:</strong> {System.Net.WebUtility.HtmlEncode(securityNote)}</p>";
 
-                            <!-- OTP Box -->
-                            <div style='background: #FFFBEB; border: 2px dashed #F59E0B; border-radius: 12px; padding: 20px; text-align: center; margin: 25px 0;'>
-                                <span style='display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #B45309; letter-spacing: 0.1em; margin-bottom: 6px;'>Verification Code</span>
-                                <span style='font-family: monospace, ""Courier New"", Courier; color: #D97706; font-size: 38px; font-weight: 800; letter-spacing: 10px; display: inline-block;'>{otpCode}</span>
-                                <span style='display: block; font-size: 12px; color: #78350F; margin-top: 6px;'>Valid for 150 seconds (2.5 minutes)</span>
-                            </div>
+            string plainGreeting = !string.IsNullOrWhiteSpace(recipientName) ? $"Hello {recipientName.Trim()}," : "Hello,";
+            string plainTextBody = $@"{plainGreeting}
 
-                            <p style='font-size: 13px; line-height: 1.6; color: #64748B; margin: 20px 0 0;'>
-                                <strong>Security Notice:</strong> {securityNote}
-                            </p>
-                        </td>
-                    </tr>
-                    <!-- Footer -->
-                    <tr>
-                        <td style='background-color: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 20px 30px; text-align: center;'>
-                            <p style='font-size: 12px; color: #94A3B8; margin: 0; line-height: 1.5;'>
-                                &copy; {DateTime.UtcNow.Year} Nayesta. All rights reserved.<br>
-                                Need assistance? Visit our <a href='https://bookmyfun.in/Home/Contact' style='color: #0B4F6C; text-decoration: underline;'>Help Center</a>.
-                            </p>
-                        </td>
-                    </tr>
-                </table>
-            </td>
-        </tr>
-    </table>
-</body>
-</html>";
-
-            string plainTextBody = $@"{greeting}
-
-{purposeHeadline}
 {purposeDescription}
 
-Verification Code: {otpCode}
-(This code is valid for 150 seconds / 2.5 minutes)
+Verification code: {otpCode}
+Valid for 150 seconds (2.5 minutes)
 
-Security Notice: {securityNote}
+Security notice: {securityNote}";
 
-Need assistance? Visit https://bookmyfun.in/Home/Contact
-© {DateTime.UtcNow.Year} Nayesta. All rights reserved.";
-
-            return await SendEmailAsync(toEmail, subject, bodyHtml, plainTextBody);
+            var rendered = EmailTemplateRenderer.Render(subject, purposeHeadline, contentHtml, plainTextContent: plainTextBody);
+            return await SendEmailAsync(toEmail, rendered.Subject, rendered.HtmlBody, rendered.PlainTextBody);
         }
 
         public async Task EnqueueEmailAsync(string toEmail, string subject, string bodyHtml, string messageType = "Notification")

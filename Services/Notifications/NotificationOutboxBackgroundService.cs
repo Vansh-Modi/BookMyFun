@@ -132,21 +132,14 @@ namespace BookMyFun.Services.Notifications
                                 : (item.LinkUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? item.LinkUrl : $"{baseUrl}{(item.LinkUrl.StartsWith("/") ? item.LinkUrl : "/" + item.LinkUrl)}");
 
                             string safeBodyHtml = $"<p style='margin:0 0 16px;'>{System.Net.WebUtility.HtmlEncode(item.Body)}</p>";
-                            string html = $@"
-                                <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;'>
-                                    <div style='background: #0B4F6C; color: #FFFFFF; padding: 15px; border-radius: 6px; font-weight: bold; font-size: 1.15rem;'>
-                                        Nayesta
-                                    </div>
-                                    <div style='padding: 20px 0;'>
-                                        <h3 style='color: #1e293b; margin-top: 0;'>{System.Net.WebUtility.HtmlEncode(item.Title)}</h3>
-                                        {safeBodyHtml}
-                                        {(!string.IsNullOrEmpty(fullLink) ? $"<p style='margin-top: 20px;'><a href='{fullLink}' style='display: inline-block; background: #059669; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;'>View details</a></p>" : "")}
-                                    </div>
-                                    <div style='border-top: 1px solid #e2e8f0; padding-top: 12px; font-size: 12px; color: #94a3b8;'>
-                                        You received this message from Nayesta based on your account activity.
-                                    </div>
-                                </div>";
-                            success = await emailService.SendEmailAsync(user.Email, item.Title, html, item.Body);
+                            var rendered = EmailTemplateRenderer.Render(
+                                item.Title,
+                                item.Title,
+                                safeBodyHtml,
+                                !string.IsNullOrEmpty(fullLink) ? "View details" : null,
+                                fullLink,
+                                item.Body);
+                            success = await emailService.SendEmailAsync(user.Email, rendered.Subject, rendered.HtmlBody, rendered.PlainTextBody);
                         }
                     }
                     else if (string.Equals(item.Channel, "WhatsApp", StringComparison.OrdinalIgnoreCase))
