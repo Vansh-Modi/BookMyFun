@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using BookMyFun.Models.ViewModels;
+using BookMyFun.Repositories;
 using BookMyFun.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,11 +13,22 @@ namespace BookMyFun.Controllers
     {
         private readonly IPartnerKycService _kycService;
         private readonly ILogger<PartnerKycController> _logger;
+        private readonly IEmailService? _emailService;
+        private readonly IUserRepository? _userRepo;
+        private readonly IConfiguration? _configuration;
 
-        public PartnerKycController(IPartnerKycService kycService, ILogger<PartnerKycController> logger)
+        public PartnerKycController(
+            IPartnerKycService kycService,
+            ILogger<PartnerKycController> logger,
+            IEmailService? emailService = null,
+            IUserRepository? userRepo = null,
+            IConfiguration? configuration = null)
         {
             _kycService = kycService;
             _logger = logger;
+            _emailService = emailService;
+            _userRepo = userRepo;
+            _configuration = configuration;
         }
 
         [HttpGet("")]
@@ -100,6 +112,41 @@ namespace BookMyFun.Controllers
                 }
 
                 TempData["Success"] = "Details submitted. Our team will verify them shortly.";
+
+                if (_emailService != null)
+                {
+                    try
+                    {
+                        var user = _userRepo != null ? await _userRepo.GetByIdAsync(userId) : null;
+                        string? email = user?.Email ?? User?.FindFirstValue(ClaimTypes.Email);
+                        string fullName = user?.FullName ?? User?.FindFirstValue(ClaimTypes.Name) ?? "Partner";
+                        if (!string.IsNullOrWhiteSpace(email))
+                        {
+                            DateTime submittedStamp = status.SubmittedAt ?? DateTime.UtcNow;
+                            string baseUrl = (_configuration?["PublicBaseUrl"] ?? _configuration?["AppUrl"] ?? (Request?.Host.HasValue == true ? $"{Request.Scheme}://{Request.Host}" : "https://bookmyfun.in")).Trim().TrimEnd('/');
+                            string kycUrl = $"{baseUrl}/Partner/Kyc";
+                            string safeName = System.Net.WebUtility.HtmlEncode(fullName);
+
+                            await _emailService.SendTemplatedEmailAsync(
+                                userId,
+                                userId,
+                                email,
+                                "PartnerKycSubmitted",
+                                $"kyc-submitted-{userId}-{submittedStamp:yyyyMMddHHmm}",
+                                "KYC details received",
+                                "KYC details received",
+                                $"<p>Hello {safeName},</p><p>We have received your details. Our team will verify them shortly.</p>",
+                                "View KYC status",
+                                kycUrl,
+                                $"Hello {fullName}, we have received your details. Our team will verify them shortly. View status at {kycUrl}.");
+                        }
+                    }
+                    catch (Exception emailEx)
+                    {
+                        _logger.LogWarning(emailEx, "Failed to send PartnerKycSubmitted email for UserId={UserId}", userId);
+                    }
+                }
+
                 return RedirectToAction(nameof(Index));
             }
             catch (Exception ex)

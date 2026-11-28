@@ -14,15 +14,24 @@ namespace BookMyFun.Controllers
         private readonly IPartnerKycRepository _kycRepo;
         private readonly IMediaStorageService _mediaStorage;
         private readonly ILogger<AdminPartnerKycController> _logger;
+        private readonly IEmailService? _emailService;
+        private readonly IUserRepository? _userRepo;
+        private readonly IConfiguration? _configuration;
 
         public AdminPartnerKycController(
             IPartnerKycRepository kycRepo,
             IMediaStorageService mediaStorage,
-            ILogger<AdminPartnerKycController> logger)
+            ILogger<AdminPartnerKycController> logger,
+            IEmailService? emailService = null,
+            IUserRepository? userRepo = null,
+            IConfiguration? configuration = null)
         {
             _kycRepo = kycRepo;
             _mediaStorage = mediaStorage;
             _logger = logger;
+            _emailService = emailService;
+            _userRepo = userRepo;
+            _configuration = configuration;
         }
 
         [HttpGet("")]
@@ -116,12 +125,47 @@ namespace BookMyFun.Controllers
         {
             int adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             string? clientIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+            var existingKyc = await _kycRepo.GetByUserIdAsync(userId);
 
             bool ok = await _kycRepo.ReviewAsync(userId, "Verified", adminId, null, clientIp);
             if (!ok)
             {
                 TempData["Error"] = "Partner KYC record not found.";
                 return RedirectToAction(nameof(Index));
+            }
+
+            if (_emailService != null && _userRepo != null)
+            {
+                try
+                {
+                    var partner = await _userRepo.GetByIdAsync(userId);
+                    if (partner != null && !string.IsNullOrWhiteSpace(partner.Email))
+                    {
+                        DateTime submittedStamp = existingKyc?.SubmittedAt ?? DateTime.UtcNow;
+                        string baseUrl = (_configuration?["PublicBaseUrl"] ?? _configuration?["AppUrl"] ?? (Request?.Host.HasValue == true ? $"{Request.Scheme}://{Request.Host}" : "https://bookmyfun.in")).Trim().TrimEnd('/');
+                        string dashUrl = string.Equals(partner.Role, "EventManager", StringComparison.OrdinalIgnoreCase)
+                            ? $"{baseUrl}/EventManager/Index"
+                            : $"{baseUrl}/Owner/Index";
+                        string safeName = System.Net.WebUtility.HtmlEncode(partner.FullName);
+
+                        await _emailService.SendTemplatedEmailAsync(
+                            userId,
+                            userId,
+                            partner.Email,
+                            "PartnerKycVerified",
+                            $"kyc-verified-{userId}-{submittedStamp:yyyyMMddHHmm}",
+                            "KYC verification approved",
+                            "KYC verification approved",
+                            $"<p>Hello {safeName},</p><p>You can now publish your listings.</p>",
+                            "Open partner dashboard",
+                            dashUrl,
+                            $"Hello {partner.FullName}, your KYC is verified. You can now publish your listings at {dashUrl}.");
+                    }
+                }
+                catch (Exception emailEx)
+                {
+                    _logger.LogWarning(emailEx, "Failed to send PartnerKycVerified email for UserId={UserId}", userId);
+                }
             }
 
             TempData["Success"] = $"Partner #{userId} KYC has been approved (Verified). Publishing is now enabled.";
@@ -140,12 +184,47 @@ namespace BookMyFun.Controllers
 
             int adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             string? clientIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+            string cleanReason = reason.Trim();
+            var existingKyc = await _kycRepo.GetByUserIdAsync(userId);
 
-            bool ok = await _kycRepo.ReviewAsync(userId, "Rejected", adminId, reason.Trim(), clientIp);
+            bool ok = await _kycRepo.ReviewAsync(userId, "Rejected", adminId, cleanReason, clientIp);
             if (!ok)
             {
                 TempData["Error"] = "Partner KYC record not found.";
                 return RedirectToAction(nameof(Index));
+            }
+
+            if (_emailService != null && _userRepo != null)
+            {
+                try
+                {
+                    var partner = await _userRepo.GetByIdAsync(userId);
+                    if (partner != null && !string.IsNullOrWhiteSpace(partner.Email))
+                    {
+                        DateTime submittedStamp = existingKyc?.SubmittedAt ?? DateTime.UtcNow;
+                        string baseUrl = (_configuration?["PublicBaseUrl"] ?? _configuration?["AppUrl"] ?? (Request?.Host.HasValue == true ? $"{Request.Scheme}://{Request.Host}" : "https://bookmyfun.in")).Trim().TrimEnd('/');
+                        string kycUrl = $"{baseUrl}/Partner/Kyc";
+                        string safeName = System.Net.WebUtility.HtmlEncode(partner.FullName);
+                        string safeReason = System.Net.WebUtility.HtmlEncode(cleanReason);
+
+                        await _emailService.SendTemplatedEmailAsync(
+                            userId,
+                            userId,
+                            partner.Email,
+                            "PartnerKycRejected",
+                            $"kyc-rejected-{userId}-{submittedStamp:yyyyMMddHHmm}",
+                            "KYC verification requires updates",
+                            "KYC verification requires updates",
+                            $"<p>Hello {safeName},</p><p>Your partner KYC submission could not be approved.</p><p><strong>Reason:</strong> {safeReason}</p><p>Please re-upload corrected details to enable publishing.</p>",
+                            "Re-upload KYC details",
+                            kycUrl,
+                            $"Hello {partner.FullName}, your partner KYC was rejected. Reason: {cleanReason}. Re-upload your details at {kycUrl}.");
+                    }
+                }
+                catch (Exception emailEx)
+                {
+                    _logger.LogWarning(emailEx, "Failed to send PartnerKycRejected email for UserId={UserId}", userId);
+                }
             }
 
             TempData["Success"] = $"Partner #{userId} KYC has been rejected with reason recorded.";

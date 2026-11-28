@@ -35,6 +35,8 @@ namespace BookMyFun.Controllers
         private readonly INotificationDispatcherService? _notificationDispatcher;
         private readonly ISubscriptionRepository? _subRepo;
         private readonly IPhotoShootRepository? _photoShootRepo;
+        private readonly IEmailService? _emailService;
+        private readonly IConfiguration? _configuration;
 
         public EmployeeController(
             IPropertyRepository propRepo,
@@ -55,7 +57,9 @@ namespace BookMyFun.Controllers
             IEventManagerReviewService? eventReviewService = null,
             IStaffQueueService? staffQueueService = null,
             ISchemaVersionService? schemaVersionService = null,
-            IPhotoShootRepository? photoShootRepo = null)
+            IPhotoShootRepository? photoShootRepo = null,
+            IEmailService? emailService = null,
+            IConfiguration? configuration = null)
         {
             _propRepo = propRepo;
             _userRepo = userRepo;
@@ -73,6 +77,8 @@ namespace BookMyFun.Controllers
             _notificationDispatcher = notificationDispatcher;
             _subRepo = subRepo;
             _photoShootRepo = photoShootRepo;
+            _emailService = emailService;
+            _configuration = configuration;
             _eventReviewService = eventReviewService ?? new EventManagerReviewService(userRepo, eventPackageRepo, configRepo, idVerificationService, mediaStorage);
             _staffQueueService = staffQueueService ?? new StaffQueueService(userRepo, eventPackageRepo, propRepo, idVerificationService, partnerLeadService, refundEngine, damageClaimService, null, photoShootRepo);
             _schemaVersionService = schemaVersionService;
@@ -442,6 +448,8 @@ namespace BookMyFun.Controllers
                 return NotFound();
             }
 
+            var oldApprovalStatus = prop.ListingStatus;
+            var oldApproved = prop.IsApproved;
             var currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
             if (approve)
@@ -490,6 +498,35 @@ namespace BookMyFun.Controllers
                     if (!isRevoke)
                     {
                         _ = _notificationDispatcher?.DispatchPropertyRejectedAsync(id, prop.Title, prop.OwnerID, cleanReason);
+                    }
+                    else
+                    {
+                        bool statusChanged = oldApproved || !string.Equals(oldApprovalStatus, targetStatus, StringComparison.OrdinalIgnoreCase);
+                        if (statusChanged && _emailService != null)
+                        {
+                            var owner = await _userRepo.GetByIdAsync(prop.OwnerID);
+                            if (owner != null && !string.IsNullOrWhiteSpace(owner.Email))
+                            {
+                                string baseUrl = (_configuration?["PublicBaseUrl"] ?? _configuration?["AppUrl"] ?? (Request?.Host.HasValue == true ? $"{Request.Scheme}://{Request.Host}" : "https://bookmyfun.in")).Trim().TrimEnd('/');
+                                string ownerUrl = $"{baseUrl}/Owner/Index";
+                                string safeName = System.Net.WebUtility.HtmlEncode(owner.FullName);
+                                string safeTitle = System.Net.WebUtility.HtmlEncode(prop.Title);
+                                string safeReason = System.Net.WebUtility.HtmlEncode(cleanReason);
+
+                                await _emailService.SendTemplatedEmailAsync(
+                                    prop.OwnerID,
+                                    id,
+                                    owner.Email,
+                                    "PropertyRevoked",
+                                    $"property-revoked-{id}-{DateTime.UtcNow:yyyyMMddHHmm}",
+                                    $"Property approval revoked for {prop.Title}",
+                                    "Property approval revoked",
+                                    $"<p>Hello {safeName},</p><p>Approval for your property <strong>{safeTitle}</strong> has been revoked and the listing was moved to Draft.</p><p><strong>Reason:</strong> {safeReason}</p>",
+                                    "View your properties",
+                                    ownerUrl,
+                                    $"Hello {owner.FullName}, approval for your property '{prop.Title}' was revoked and moved to Draft. Reason: {cleanReason}");
+                            }
+                        }
                     }
                 }
                 else
