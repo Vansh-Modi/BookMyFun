@@ -3220,5 +3220,94 @@ namespace BookMyFun.Controllers
 
             return RedirectToAction(nameof(SubscriptionPlans));
         }
+
+        [HttpGet]
+        public async Task<IActionResult> EmailOutbox(string? status = "All")
+        {
+            string selected = string.IsNullOrWhiteSpace(status) ? "All" : status.Trim();
+            var rows = _outboxRepo != null
+                ? await _outboxRepo.GetRecentEmailOutboxAsync(150)
+                : new List<NotificationOutbox>();
+
+            var filtered = string.Equals(selected, "All", StringComparison.OrdinalIgnoreCase)
+                ? rows
+                : rows.Where(r => string.Equals(r.Status, selected, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            var vm = new AdminEmailOutboxViewModel
+            {
+                SelectedStatus = selected,
+                TotalCount = rows.Count,
+                SentCount = rows.Count(r => string.Equals(r.Status, "Sent", StringComparison.OrdinalIgnoreCase)),
+                PendingCount = rows.Count(r => string.Equals(r.Status, "Pending", StringComparison.OrdinalIgnoreCase)),
+                RetryCount = rows.Count(r => string.Equals(r.Status, "Retry", StringComparison.OrdinalIgnoreCase)),
+                FailedCount = rows.Count(r => string.Equals(r.Status, "Failed", StringComparison.OrdinalIgnoreCase)),
+                Items = filtered.Select(r => new EmailOutboxRowViewModel
+                {
+                    OutboxID = r.OutboxID,
+                    Status = r.Status,
+                    EventType = r.EventType,
+                    MaskedRecipient = BookMyFun.Services.Common.EmailSafetyHelper.MaskEmail(r.RecipientEmail),
+                    Subject = r.Title,
+                    Attempts = r.RetryCount,
+                    LastError = BookMyFun.Services.Common.EmailSafetyHelper.Truncate(r.LastError, 200),
+                    CreatedAt = r.CreatedAt,
+                    SentAt = r.SentAt
+                }).ToList()
+            };
+
+            return View(vm);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RetryEmailOutbox(long outboxId)
+        {
+            if (_outboxRepo == null)
+            {
+                TempData["Error"] = "Email outbox repository is unavailable.";
+                return RedirectToAction(nameof(EmailOutbox));
+            }
+
+            var item = await _outboxRepo.GetByIdAsync(outboxId);
+            if (item == null || !string.Equals(item.Channel, "Email", StringComparison.OrdinalIgnoreCase))
+            {
+                TempData["Error"] = $"Email outbox item #{outboxId} was not found.";
+                return RedirectToAction(nameof(EmailOutbox));
+            }
+
+            bool resetOk = await _outboxRepo.ResetFailedForRetryAsync(outboxId);
+            if (!resetOk)
+            {
+                TempData["Error"] = $"Email outbox item #{outboxId} is not in Failed state.";
+                return RedirectToAction(nameof(EmailOutbox));
+            }
+
+            int adminId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await _configRepo.LogAuditAsync(adminId, "RetryEmailOutbox", "NotificationOutbox", (int)Math.Min(int.MaxValue, outboxId),
+                $"Admin #{adminId} queued failed email outbox #{outboxId} ({item.EventType}) for retry.");
+
+            if (_emailService != null)
+            {
+                var user = await _userRepo.GetByIdAsync(item.UserID);
+                if (user != null && !string.IsNullOrWhiteSpace(user.Email))
+                {
+                    string safeBodyHtml = $"<p style='margin:0 0 16px;'>{System.Net.WebUtility.HtmlEncode(item.Body)}</p>";
+                    string? fullLink = string.IsNullOrWhiteSpace(item.LinkUrl) ? null : item.LinkUrl;
+                    var rendered = EmailTemplateRenderer.Render(item.Title, item.Title, safeBodyHtml, !string.IsNullOrEmpty(fullLink) ? "View details" : null, fullLink, item.Body);
+                    bool sent = await _emailService.SendEmailAsync(user.Email, rendered.Subject, rendered.HtmlBody, rendered.PlainTextBody);
+                    if (sent)
+                    {
+                        await _outboxRepo.MarkSentWithAttemptsAsync(outboxId, item.RetryCount + 1);
+                        TempData["Success"] = $"Email outbox #{outboxId} resent successfully.";
+                        return RedirectToAction(nameof(EmailOutbox));
+                    }
+                    string shortErr = BookMyFun.Services.Common.EmailSafetyHelper.SanitizeShortError(null, _emailService.LastSendError ?? "Retry failed.", _configuration?["Smtp:Password"]);
+                    await _outboxRepo.RecordFailureAsync(outboxId, shortErr, 1, DateTime.UtcNow.AddSeconds(10), isPermanent: false);
+                }
+            }
+
+            TempData["Success"] = $"Email outbox #{outboxId} queued for retry.";
+            return RedirectToAction(nameof(EmailOutbox));
+        }
     }
 }

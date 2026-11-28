@@ -199,6 +199,12 @@
             <span class="nav-text">Audit Log</span>
         </a>
     </li>
+    <li class="dashboard-nav-item">
+        <a class="dashboard-nav-link @(currentCtrl == "Admin" && currentAct == "EmailOutbox" ? "active" : "")" asp-controller="Admin" asp-action="EmailOutbox">
+            <i class="bi bi-envelope-paper text-primary"></i>
+            <span class="nav-text">Email Outbox</span>
+        </a>
+    </li>
 }
 else if (role == "Employee")
 {

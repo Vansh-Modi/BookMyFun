@@ -1,0 +1,103 @@
+@model BookMyFun.Models.ViewModels.AdminEmailOutboxViewModel
+@{
+    Layout = "_DashboardLayout";
+    ViewData["Title"] = "Email Outbox";
+    string selected = Model.SelectedStatus ?? "All";
+}
+
+<div class="dash-page-header mb-4">
+    <div>
+        <p class="dash-eyebrow">Admin · Messaging</p>
+        <h1 class="dash-title">Email Outbox</h1>
+        <p class="dash-subtitle">Monitor transactional email delivery, masked recipients, attempts, and retry failed dispatches.</p>
+    </div>
+</div>
+
+<div class="d-flex flex-wrap gap-2 mb-4">
+    <a href="/Admin/EmailOutbox?status=All" class="btn rounded-pill px-3 @(selected.Equals("All", StringComparison.OrdinalIgnoreCase) ? "btn-primary text-white fw-bold" : "btn-light border")">
+        All (@Model.TotalCount)
+    </a>
+    <a href="/Admin/EmailOutbox?status=Sent" class="btn rounded-pill px-3 @(selected.Equals("Sent", StringComparison.OrdinalIgnoreCase) ? "btn-success text-white fw-bold" : "btn-light border")">
+        Sent (@Model.SentCount)
+    </a>
+    <a href="/Admin/EmailOutbox?status=Pending" class="btn rounded-pill px-3 @(selected.Equals("Pending", StringComparison.OrdinalIgnoreCase) ? "btn-info text-white fw-bold" : "btn-light border")">
+        Pending (@Model.PendingCount)
+    </a>
+    <a href="/Admin/EmailOutbox?status=Retry" class="btn rounded-pill px-3 @(selected.Equals("Retry", StringComparison.OrdinalIgnoreCase) ? "btn-warning text-dark fw-bold" : "btn-light border")">
+        Retry (@Model.RetryCount)
+    </a>
+    <a href="/Admin/EmailOutbox?status=Failed" class="btn rounded-pill px-3 @(selected.Equals("Failed", StringComparison.OrdinalIgnoreCase) ? "btn-danger text-white fw-bold" : "btn-light border")">
+        Failed (@Model.FailedCount)
+    </a>
+</div>
+
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>Status</th>
+                    <th>Event Type</th>
+                    <th>Recipient</th>
+                    <th>Subject</th>
+                    <th>Attempts</th>
+                    <th>Last Error</th>
+                    <th>Timestamp</th>
+                    <th class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Items.Any())
+                {
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-5">
+                            No email outbox rows found for status <strong>@selected</strong>.
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var item in Model.Items)
+                    {
+                        string badgeClass = item.Status switch
+                        {
+                            "Sent" => "bg-success",
+                            "Retry" => "bg-warning text-dark",
+                            "Failed" => "bg-danger",
+                            _ => "bg-secondary"
+                        };
+                        <tr>
+                            <td class="small text-muted">#@item.OutboxID</td>
+                            <td><span class="badge @badgeClass rounded-pill">@item.Status</span></td>
+                            <td class="fw-semibold small">@item.EventType</td>
+                            <td class="small font-monospace">@item.MaskedRecipient</td>
+                            <td class="small">@item.Subject</td>
+                            <td class="small">@item.Attempts</td>
+                            <td class="small text-danger">@(string.IsNullOrWhiteSpace(item.LastError) ? "—" : item.LastError)</td>
+                            <td class="small text-muted">
+                                @((item.SentAt ?? item.CreatedAt).ToString("dd MMM yyyy, HH:mm")) UTC
+                            </td>
+                            <td class="text-end">
+                                @if (string.Equals(item.Status, "Failed", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <form asp-action="RetryEmailOutbox" method="post" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="outboxId" value="@item.OutboxID" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3">
+                                            Retry
+                                        </button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">—</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
