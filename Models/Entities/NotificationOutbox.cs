@@ -19,5 +19,7 @@ namespace BookMyFun.Models.Entities
         public string? LastError { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? SentAt { get; set; }
+        public string? DedupeKey { get; set; }
+        public string? RecipientEmail { get; set; }
     }
 }

@@ -3,15 +3,21 @@ using System.Net;
 using System.Net.Mail;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using BookMyFun.Models.Entities;
 using BookMyFun.Models.ViewModels;
 using BookMyFun.Repositories;
+using BookMyFun.Services.Common;
+using Microsoft.Extensions.Hosting;
 
 namespace BookMyFun.Services
 {
     public interface IEmailService
     {
+        string? LastSendError => null;
         Task<bool> SendEmailAsync(string toEmail, string subject, string bodyHtml);
         Task<bool> SendEmailAsync(string toEmail, string subject, string bodyHtml, string? plainTextBody) => SendEmailAsync(toEmail, subject, bodyHtml);
+        Task<bool> SendOutboxEmailAsync(int userId, int entityId, string toEmail, string eventType, string dedupeKey, string subject, string bodyHtml, string? plainTextBody = null, string? safeOutboxSummary = null, string? linkUrl = null)
+            => SendEmailAsync(toEmail, subject, bodyHtml, plainTextBody);
         Task<bool> SendOtpEmailAsync(string toEmail, string otpCode, string purpose, string? recipientName = null);
         Task EnqueueEmailAsync(string toEmail, string subject, string bodyHtml, string messageType = "Notification");
         Task<bool> SendBookingReceiptEmailAsync(string toEmail, string clientName, BookingReceiptViewModel receipt, string receiptUrl) => Task.FromResult(true);
@@ -41,9 +47,13 @@ namespace BookMyFun.Services
         private readonly IEmailQueueService _emailQueue;
         private readonly ILogger<CommunicationService> _logger;
         private readonly IHttpClientFactory? _httpClientFactory;
+        private readonly INotificationOutboxRepository? _outboxRepo;
+        private readonly IHostEnvironment? _hostEnv;
+
+        public string? LastSendError { get; private set; }
 
         public CommunicationService(IConfigRepository configRepo, IConfiguration configuration, ILogger<CommunicationService> logger)
-            : this(configRepo, configuration, new EmailQueueService(Microsoft.Extensions.Logging.Abstractions.NullLogger<EmailQueueService>.Instance), logger, null)
+            : this(configRepo, configuration, new EmailQueueService(Microsoft.Extensions.Logging.Abstractions.NullLogger<EmailQueueService>.Instance), logger, null, null, null)
         {
         }
 
@@ -52,13 +62,98 @@ namespace BookMyFun.Services
             IConfiguration configuration,
             IEmailQueueService emailQueue,
             ILogger<CommunicationService> logger,
-            IHttpClientFactory? httpClientFactory = null)
+            IHttpClientFactory? httpClientFactory = null,
+            INotificationOutboxRepository? outboxRepo = null,
+            IHostEnvironment? hostEnv = null)
         {
             _configRepo = configRepo;
             _configuration = configuration;
             _emailQueue = emailQueue;
             _logger = logger;
             _httpClientFactory = httpClientFactory;
+            _outboxRepo = outboxRepo;
+            _hostEnv = hostEnv;
+        }
+
+        private bool IsTestModeEnabled()
+        {
+            string? setting = _configuration["Email:TestMode"];
+            if (!string.IsNullOrWhiteSpace(setting) && bool.TryParse(setting, out bool explicitFlag))
+            {
+                return explicitFlag;
+            }
+
+            return _hostEnv?.IsDevelopment() == true;
+        }
+
+        private string GetTestModeEmailDirectory()
+        {
+            string? configuredDir = _configuration["Email:TestOutputDirectory"];
+            if (!string.IsNullOrWhiteSpace(configuredDir))
+            {
+                return configuredDir;
+            }
+
+            string root = _hostEnv?.ContentRootPath ?? Directory.GetCurrentDirectory();
+            return Path.Combine(root, "logs", "emails");
+        }
+
+        public async Task<bool> SendOutboxEmailAsync(
+            int userId,
+            int entityId,
+            string toEmail,
+            string eventType,
+            string dedupeKey,
+            string subject,
+            string bodyHtml,
+            string? plainTextBody = null,
+            string? safeOutboxSummary = null,
+            string? linkUrl = null)
+        {
+            if (string.IsNullOrWhiteSpace(toEmail))
+            {
+                _logger.LogWarning("Outbox email aborted for EventType={EventType}: empty recipient.", eventType);
+                return false;
+            }
+
+            if (_outboxRepo == null)
+            {
+                return await SendEmailAsync(toEmail, subject, bodyHtml, plainTextBody);
+            }
+
+            var outboxItem = new NotificationOutbox
+            {
+                EventType = eventType,
+                EntityID = entityId,
+                UserID = userId,
+                Channel = "Email",
+                Title = EmailSafetyHelper.Truncate(subject, 200),
+                Body = string.IsNullOrWhiteSpace(safeOutboxSummary) ? EmailSafetyHelper.Truncate(subject, 250) : safeOutboxSummary,
+                LinkUrl = linkUrl,
+                Status = "Pending",
+                RetryCount = 0,
+                MaxRetries = 3,
+                NextAttemptAt = DateTime.UtcNow,
+                DedupeKey = dedupeKey
+            };
+
+            long outboxId = await _outboxRepo.EnqueueWithIdAsync(outboxItem);
+            if (outboxId <= 0)
+            {
+                _logger.LogInformation("Duplicate email suppressed for DedupeKey={DedupeKey}, EventType={EventType}", dedupeKey, eventType);
+                return false;
+            }
+
+            bool sent = await SendEmailAsync(toEmail, subject, bodyHtml, plainTextBody);
+            if (sent)
+            {
+                await _outboxRepo.MarkSentWithAttemptsAsync(outboxId, 1);
+                return true;
+            }
+
+            string shortErr = EmailSafetyHelper.SanitizeShortError(null, LastSendError ?? "Email dispatch failed.", _configuration["Smtp:Password"]);
+            await _outboxRepo.RecordFailureAsync(outboxId, shortErr, 1, DateTime.UtcNow.AddSeconds(10), isPermanent: false);
+            return false;
         }
 
         public Task<bool> SendEmailAsync(string toEmail, string subject, string bodyHtml)
@@ -66,8 +161,11 @@ namespace BookMyFun.Services
 
         public async Task<bool> SendEmailAsync(string toEmail, string subject, string bodyHtml, string? plainTextBody)
         {
+            LastSendError = null;
+
             if (string.IsNullOrWhiteSpace(toEmail))
             {
+                LastSendError = "Destination address is empty.";
                 _logger.LogWarning("Email dispatch aborted: destination address is empty.");
                 return false;
             }
@@ -76,10 +174,55 @@ namespace BookMyFun.Services
             string cleanToEmail = toEmail.Trim();
             if (!MailAddress.TryCreate(cleanToEmail, out var parsedToAddress))
             {
-                _logger.LogError("Email dispatch aborted: '{ToEmail}' is not a valid email address.", cleanToEmail);
+                LastSendError = "Invalid recipient email address.";
+                _logger.LogError("Email dispatch aborted: '{MaskedEmail}' is not a valid email address.", EmailSafetyHelper.MaskEmail(cleanToEmail));
                 return false;
             }
 
+            string plainText = !string.IsNullOrWhiteSpace(plainTextBody)
+                ? plainTextBody
+                : Regex.Replace(bodyHtml, "<[^>]+>", " ").Replace("&nbsp;", " ").Trim();
+
+            if (IsTestModeEnabled())
+            {
+                try
+                {
+                    string dir = GetTestModeEmailDirectory();
+                    Directory.CreateDirectory(dir);
+                    string maskedTo = EmailSafetyHelper.MaskEmail(cleanToEmail);
+                    string safeSubjectSlug = Regex.Replace(subject ?? "email", @"[^a-zA-Z0-9]+", "-").Trim('-').ToLowerInvariant();
+                    if (safeSubjectSlug.Length > 40) safeSubjectSlug = safeSubjectSlug[..40];
+                    if (string.IsNullOrEmpty(safeSubjectSlug)) safeSubjectSlug = "email";
+
+                    string fileName = $"{DateTime.UtcNow:yyyyMMdd_HHmmssfff}_{safeSubjectSlug}_{Guid.NewGuid().ToString("N")[..8]}.html";
+                    string filePath = Path.Combine(dir, fileName);
+
+                    string fileContent = $@"<!--
+Test Mode Email Capture
+To: {maskedTo}
+Subject: {subject}
+CapturedAtUtc: {DateTime.UtcNow:O}
+-->
+{bodyHtml}
+
+<!--
+PLAIN-TEXT FALLBACK:
+{plainText}
+-->";
+
+                    await File.WriteAllTextAsync(filePath, fileContent);
+                    _logger.LogInformation("[EMAIL TEST MODE] Written to {FileName} | To={MaskedTo} | Subject={Subject}", fileName, maskedTo, subject);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    LastSendError = EmailSafetyHelper.SanitizeShortError(ex, "Failed to write test-mode email file.");
+                    _logger.LogError(ex, "Failed to write test-mode email file for {MaskedTo}", EmailSafetyHelper.MaskEmail(cleanToEmail));
+                    return false;
+                }
+            }
+
+            string? password = null;
             try
             {
                 var smtpSection = _configuration.GetSection("Smtp");
@@ -87,7 +230,7 @@ namespace BookMyFun.Services
                 int port = int.TryParse(smtpSection["Port"], out int parsedPort) ? parsedPort : 587;
                 bool enableSsl = !bool.TryParse(smtpSection["EnableSsl"], out bool parsedSsl) || parsedSsl;
                 string username = (smtpSection["Username"] ?? string.Empty).Trim();
-                string password = smtpSection["Password"] ?? string.Empty;
+                password = smtpSection["Password"] ?? string.Empty;
                 string fromAddress = username;
                 bool isPasswordSet = !string.IsNullOrEmpty(password);
 
@@ -106,18 +249,20 @@ namespace BookMyFun.Services
                 // If no credentials found, simulate delivery safely in development/test
                 if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
                 {
-                    _logger.LogWarning("[Simulated Email - No SMTP Credentials] To: {ToEmail} | Subject: {Subject}", cleanToEmail, subject);
+                    _logger.LogWarning("[Simulated Email - No SMTP Credentials] To: {MaskedTo} | Subject: {Subject}", EmailSafetyHelper.MaskEmail(cleanToEmail), subject);
                     return true;
                 }
 
                 if (string.IsNullOrWhiteSpace(host))
                 {
+                    LastSendError = "SMTP host is not configured.";
                     _logger.LogError("SMTP dispatch aborted: 'Smtp:Host' is not configured.");
                     return false;
                 }
 
                 if (!MailAddress.TryCreate(fromAddress, out var parsedFrom))
                 {
+                    LastSendError = "SMTP username is not a valid email address.";
                     _logger.LogError("SMTP dispatch aborted: 'Smtp:Username' ('{Username}') is not a valid email address for From.", username);
                     return false;
                 }
@@ -145,35 +290,33 @@ namespace BookMyFun.Services
                 mail.Headers.Add("Auto-Submitted", "auto-generated");
 
                 // Provide multi-part alternative views (plain text + HTML) for maximum deliverability
-                string plainText = !string.IsNullOrWhiteSpace(plainTextBody)
-                    ? plainTextBody
-                    : Regex.Replace(bodyHtml, "<[^>]+>", " ").Replace("&nbsp;", " ").Trim();
-
                 var plainView = AlternateView.CreateAlternateViewFromString(plainText, System.Text.Encoding.UTF8, "text/plain");
                 var htmlView = AlternateView.CreateAlternateViewFromString(bodyHtml, System.Text.Encoding.UTF8, "text/html");
                 mail.AlternateViews.Add(plainView);
                 mail.AlternateViews.Add(htmlView);
 
                 await client.SendMailAsync(mail);
-                _logger.LogInformation("Real email successfully delivered to {ToEmail} via {Host}:{Port}", cleanToEmail, host, port);
+                _logger.LogInformation("Real email successfully delivered to {MaskedTo} via {Host}:{Port}", EmailSafetyHelper.MaskEmail(cleanToEmail), host, port);
                 return true;
             }
             catch (SmtpException smtpEx)
             {
+                LastSendError = EmailSafetyHelper.SanitizeShortError(smtpEx, "SMTP error.", password);
                 string details = smtpEx.InnerException != null
                     ? $"{smtpEx}{Environment.NewLine}InnerException: {smtpEx.InnerException}"
                     : smtpEx.ToString();
-                _logger.LogError(smtpEx, "SMTP error sending email to {ToEmail} (StatusCode: {StatusCode}). {ExceptionDetails}", cleanToEmail, smtpEx.StatusCode, details);
+                _logger.LogError(smtpEx, "SMTP error sending email to {MaskedTo} (StatusCode: {StatusCode}). {ExceptionDetails}", EmailSafetyHelper.MaskEmail(cleanToEmail), smtpEx.StatusCode, details);
                 Console.Error.WriteLine($"[SMTP ERROR] {details}");
                 Debug.WriteLine($"[SMTP ERROR] {details}");
                 return false;
             }
             catch (Exception ex)
             {
+                LastSendError = EmailSafetyHelper.SanitizeShortError(ex, "Email send failed.", password);
                 string details = ex.InnerException != null
                     ? $"{ex}{Environment.NewLine}InnerException: {ex.InnerException}"
                     : ex.ToString();
-                _logger.LogError(ex, "Failed to send email to {ToEmail}. {ExceptionDetails}", cleanToEmail, details);
+                _logger.LogError(ex, "Failed to send email to {MaskedTo}. {ExceptionDetails}", EmailSafetyHelper.MaskEmail(cleanToEmail), details);
                 Console.Error.WriteLine($"[EMAIL ERROR] {details}");
                 Debug.WriteLine($"[EMAIL ERROR] {details}");
                 return false;
